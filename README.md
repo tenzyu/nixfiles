@@ -14,3 +14,11 @@ To enable ccache when using [makepkg](https://wiki.archlinux.org/title/Makepkg) 
 ```
 BUILDENV=(!distcc color ccache check !sign)
 ```
+
+## Trouble Shooting
+
+### bat が tokyonight_night を見つけられない
+.cache を削除したときとかになる
+```
+bat cache --build
+```
