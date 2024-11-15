@@ -1,0 +1,5 @@
+for f in $XDG_CONFIG_HOME/zshrc/*; do
+    if [ ! -d $f ] ;then
+        source $f
+    fi
+done
