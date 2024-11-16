@@ -10,6 +10,7 @@ alias n='$EDITOR'
 alias vim='$EDITOR'
 alias zed='zeditor'
 alias wifi='nmtui'
+alias wget='wget --hsts-file="$XDG_DATA_HOME/wget-hsts"'
 
 # Root
 alias update-grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
