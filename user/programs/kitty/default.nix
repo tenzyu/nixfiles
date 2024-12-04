@@ -5,7 +5,8 @@
 }: {
   programs.kitty = {
     enable = true;
-    package = config.lib.nixGL.wrap pkgs.kitty;
+    # TODO: isNixos flag
+    # package = config.lib.nixGL.wrap pkgs.kitty;
 
     settings = {
       font_family = "FiraCode Nerd Font";

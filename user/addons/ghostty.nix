@@ -1,10 +1,9 @@
 {
   inputs,
-  config,
-  system,
+  pkgs,
   ...
 }: {
   home.packages = [
-    (config.lib.nixGL.wrap inputs.ghostty.packages.${system}.default)
+    inputs.ghostty.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 }

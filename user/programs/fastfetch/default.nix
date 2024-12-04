@@ -26,7 +26,7 @@
         }
         {
           type = "packages";
-          format = "{} (pacman)";
+          format = "{} packages";
           key = " ├ 󰏖 ";
           keyColor = "31";
         }
