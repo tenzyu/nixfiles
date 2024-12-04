@@ -1,7 +1,9 @@
 {
-  description = "tenzyu's nix home-manager configurations";
+  # NOTE: UNDER CONSTRUCTION
+  description = "tenzyu configuration";
 
   inputs = {
+    ### nix ecosystem {{{
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     home-manager = {
       url = "github:nix-community/home-manager/release-24.11";
@@ -11,44 +13,47 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    ### }}}
 
+    ### {{{
+    # NOTE: https://github.com/ghostty-org/ghostty?tab=readme-ov-file#nix-package
+    ghostty.url = "git+ssh://git@github.com/ghostty-org/ghostty";
     catppuccin.url = "github:catppuccin/nix";
     hyprland.url = "github:hyprwm/Hyprland";
-    ghostty.url = "git+ssh://git@github.com/ghostty-org/ghostty";
+    ### }}}
   };
 
   outputs = inputs: let
-    username = "tenzyu";
     system = "x86_64-linux";
     pkgs = import inputs.nixpkgs {
       inherit system;
       overlays = [
         inputs.nixgl.overlay
       ];
-      config = {
-        permittedInsecurePackages = [
-          ### NOTE: for pkgs.opentabletdriver {{{
-          "dotnet-sdk-6.0.428"
-          "dotnet-sdk-wrapped-6.0.428"
-          "dotnet-runtime-6.0.36"
-          ### }}}
-        ];
-      };
-    };
-    extraSpecialArgs = {
-      inherit inputs;
-      inherit username;
-      inherit system;
     };
   in {
     formatter.${system} = pkgs.alejandra;
 
-    homeConfigurations.${username} = inputs.home-manager.lib.homeManagerConfiguration {
-      inherit pkgs;
-      inherit extraSpecialArgs;
+    nixosConfigurations."neko5" = inputs.nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit inputs;
+        };
+        modules = [
+          ./profiles/neko5/home-configuration.nix
+          ./profiles/neko5/configuration.nix
+          ./profiles/neko5/hardware-configuration.nix
+        ];
+      };
 
+    homeConfigurations.tenzyu = inputs.home-manager.lib.homeManagerConfiguration {
+      inherit pkgs;
+      extraSpecialArgs = {
+        inherit inputs system;
+        username = "tenzyu";
+      };
       modules = [
-        ./user/home/tenzyu.nix
+        ./profiles/tenzyu.nix
       ];
     };
   };

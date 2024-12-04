@@ -3,47 +3,65 @@
   config,
   ...
 }: {
+  home.username = "tenzyu";
+  home.homeDirectory = "/home/tenzyu";
+  home.stateVersion = "24.11";
+  programs.home-manager.enable = true;
+
+  i18n.glibcLocales = pkgs.glibcLocales.override {
+    allLocales = false;
+    locales = [ "en_US.UTF-8/UTF-8" ];
+  }
+  i18n.inputMethod = {
+    enable = true;
+    type = "fcitx5";
+    fcitx5.addons = [
+      pkgs.fcitx5-mozc-ut
+    ];
+  };
+
   imports = [
     ### chore {{{
-    ./common.nix
-    ../addons/nixgl.nix
-    ../addons/catppuccin.nix
+    ./_core-home-manager.nix
+    ./_nix.nix
+    ../user/addons/nixgl.nix
+    ../user/addons/catppuccin.nix
     ### }}}
 
     ### shell {{{
-    ../programs/zsh
+    ../user/programs/zsh
     ### }}}
 
     ### cli {{{
-    ../programs/bat # A cat(1) clone with syntax highlighting and Git integration
-    ../programs/btop # A monitor of resources
-    ../programs/eza # A modern, maintained replacement for ls
-    ../programs/fastfetch
-    ../programs/fd # A simple, fast and user-friendly alternative to find
-    ../programs/fzf # Command-line fuzzy finder written in Go
-    ../programs/git # Distributed version control system
-    ../programs/neovim
-    ../programs/ripgrep
-    ../programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
-    ../programs/tealdeer
-    ../programs/thefuck
-    ../programs/yazi
-    ../programs/zoxide
+    ../user/programs/bat # A cat(1) clone with syntax highlighting and Git integration
+    ../user/programs/btop # A monitor of resources
+    ../user/programs/eza # A modern, maintained replacement for ls
+    ../user/programs/fastfetch
+    ../user/programs/fd # A simple, fast and user-friendly alternative to find
+    ../user/programs/fzf # Command-line fuzzy finder written in Go
+    ../user/programs/git # Distributed version control system
+    ../user/programs/neovim
+    ../user/programs/ripgrep
+    ../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
+    ../user/programs/tealdeer
+    ../user/programs/thefuck
+    ../user/programs/yazi
+    ../user/programs/zoxide
     ### }}}
 
     ### DE {{{
-    ../wayland/hyprland/configure-only.nix
-    ../services/hyprpaper
-    ../programs/wlogout
+    ../user/programs/hyprland/configure-only.nix
+    ../user/programs/hyprpaper
+    ../user/programs/wlogout
     ### }}}
 
     ### gui {{{
-    ../addons/ghostty.nix
-    ../programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
-    ../programs/waybar
-    ../programs/rofi-wayland
-    ../programs/zed-editor
-    ../programs/obs-studio
+    ../user/addons/ghostty.nix
+    ../user/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
+    ../user/programs/waybar
+    ../user/programs/rofi-wayland
+    ../user/programs/zed-editor
+    ../user/programs/obs-studio
     ### }}}
   ];
 
@@ -67,10 +85,6 @@
     pkgs.wl-clipboard
     pkgs.dunst
     pkgs.cliphist
-    ### }}}
-
-    ### gui {{{
-    pkgs.opentabletdriver
     ### }}}
 
     ### font {{{
@@ -115,7 +129,6 @@
     DOTNET_CLI_HOME = "${config.xdg.dataHome}/dotnet";
     ### }}}
 
-    LOCALE_ARCHIVE = "${pkgs.glibcLocales}/lib/locale/locale-archive"; # https://nixos.wiki/wiki/Locales
     __HM_SESS_VARS_SOURCED = ""; # TODO: remove this workaround
   };
 

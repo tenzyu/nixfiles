@@ -3,7 +3,7 @@
   config,
   ...
 }: {
-  home.file.".config/zsh/zshrc.d".source = config.lib.file.mkOutOfStoreSymlink ./zshrc;
+  home.file.".config/zsh/zshrc.d".source = ./zshrc;
 
   programs.zsh = {
     enable = true;
