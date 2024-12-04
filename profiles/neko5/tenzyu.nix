@@ -132,5 +132,4 @@
   home.sessionPath = [
     "${config.home.sessionVariables.CARGO_HOME}/bin"
   ];
-
 }

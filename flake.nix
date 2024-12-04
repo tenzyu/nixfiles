@@ -35,16 +35,16 @@
     formatter.${system} = pkgs.alejandra;
 
     nixosConfigurations."neko5" = inputs.nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = {
-          inherit inputs;
-        };
-        modules = [
-          ./profiles/neko5/home-configuration.nix
-          ./profiles/neko5/configuration.nix
-          ./profiles/neko5/hardware-configuration.nix
-        ];
+      inherit system;
+      specialArgs = {
+        inherit inputs;
       };
+      modules = [
+        ./profiles/neko5/home-configuration.nix
+        ./profiles/neko5/configuration.nix
+        ./profiles/neko5/hardware-configuration.nix
+      ];
+    };
 
     homeConfigurations.tenzyu = inputs.home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
