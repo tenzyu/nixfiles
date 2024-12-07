@@ -5,6 +5,7 @@
   inputs = {
     ### nix ecosystem {{{
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     home-manager = {
       url = "github:nix-community/home-manager/release-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -23,37 +24,45 @@
     ### }}}
   };
 
-  outputs = inputs: let
+  outputs = inputs @ {home-manager, ...}: let
+    username = "tenzyu";
+    hostname = "neko5";
     system = "x86_64-linux";
+
+    overlay-unstable = final: _: {
+      unstable = import inputs.nixpkgs-unstable {
+        inherit (final.stdenv.hostPlatform) system;
+        inherit (final) config;
+      };
+    };
     pkgs = import inputs.nixpkgs {
       inherit system;
       overlays = [
+        overlay-unstable
         inputs.nixgl.overlay
       ];
     };
+
+    specialArgs = {inherit inputs hostname username system;};
   in {
     formatter.${system} = pkgs.alejandra;
 
-    nixosConfigurations."neko5" = inputs.nixpkgs.lib.nixosSystem {
-      inherit system;
-      specialArgs = {
-        inherit inputs;
-      };
+    nixosConfigurations.${hostname} = inputs.nixpkgs.lib.nixosSystem {
+      inherit system specialArgs;
+
       modules = [
-        ./profiles/neko5/home-configuration.nix
-        ./profiles/neko5/configuration.nix
         ./profiles/neko5/hardware-configuration.nix
+        ./profiles/neko5/configuration.nix
+        ./profiles/neko5/home-configuration.nix
       ];
     };
 
-    homeConfigurations.tenzyu = inputs.home-manager.lib.homeManagerConfiguration {
+    homeConfigurations.${username} = inputs.home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
-      extraSpecialArgs = {
-        inherit inputs system;
-        username = "tenzyu";
-      };
+      extraSpecialArgs = specialArgs;
+
       modules = [
-        ./profiles/tenzyu.nix
+        ./user/home/tenzyu.nix
       ];
     };
   };

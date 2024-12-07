@@ -10,7 +10,7 @@
 
   i18n.glibcLocales = pkgs.glibcLocales.override {
     allLocales = false;
-    locales = [ "en_US.UTF-8/UTF-8" ];
+    locales = ["en_US.UTF-8/UTF-8"];
   };
   i18n.inputMethod = {
     enable = true;

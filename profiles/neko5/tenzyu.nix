@@ -1,19 +1,14 @@
 {
   pkgs,
+  pkgsUnstable, # TODO: home-manager でも pkgs.unstable.hogehoge でアクセスできるようにしたい.
   config,
+  inputs,
   ...
 }: {
   home.username = "tenzyu";
   home.homeDirectory = "/home/tenzyu";
   home.stateVersion = "24.11";
   programs.home-manager.enable = true;
-
-  i18n.inputMethod = {
-    enabled = "fcitx5";
-    fcitx5.addons = [
-      pkgs.fcitx5-mozc-ut
-    ];
-  };
 
   imports = [
     ### chore {{{
@@ -38,6 +33,7 @@
     ../../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
     ../../user/programs/tealdeer
     ../../user/programs/thefuck
+    ../../user/programs/tmux
     ../../user/programs/yazi
     ../../user/programs/zoxide
     ### }}}
@@ -83,6 +79,12 @@
     pkgs.cliphist
     ### }}}
 
+    ### GUI {{{
+    pkgs.obsidian
+    pkgs.opentabletdriver
+    pkgsUnstable.osu-lazer-bin
+    ### }}}
+
     ### font {{{
     pkgs.fira-code
     pkgs.fira-code-symbols
@@ -126,8 +128,6 @@
     GOPATH = "${config.xdg.dataHome}/go";
     DOTNET_CLI_HOME = "${config.xdg.dataHome}/dotnet";
     ### }}}
-
-    # __HM_SESS_VARS_SOURCED = ""; # TODO: remove this workaround
   };
   home.sessionPath = [
     "${config.home.sessionVariables.CARGO_HOME}/bin"

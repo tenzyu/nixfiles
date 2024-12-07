@@ -5,6 +5,21 @@
   lib,
   ...
 }: {
+  nixpkgs.config.allowUnfreePredicate = pkg:
+    builtins.elem (lib.getName pkg) [
+      "obsidian"
+      "cloudflare-warp"
+      "osu-lazer-bin"
+    ];
+
+  nixpkgs.config.permittedInsecurePackages = [
+    ### NOTE: for pkgs.opentabletdriver {{{
+    "dotnet-sdk-6.0.428"
+    "dotnet-sdk-wrapped-6.0.428"
+    "dotnet-runtime-6.0.36"
+    ### }}}
+  ];
+
   imports = [
     ### chore {{{
     inputs.catppuccin.nixosModules.catppuccin
@@ -84,6 +99,14 @@
   };
 
   i18n.defaultLocale = "en_US.UTF-8";
+  i18n.inputMethod = {
+    enable = true;
+    type = "fcitx5";
+    fcitx5.waylandFrontend = true;
+    fcitx5.addons = [
+      pkgs.fcitx5-mozc-ut
+    ];
+  };
 
   console = {
     font = "Lat2-Terminus16";
