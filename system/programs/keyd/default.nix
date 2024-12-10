@@ -68,7 +68,7 @@ in {
           l = "lettermod(shift, j, 120, 180)";
           ";" = "lettermod(altgr, k, 120, 180)";
           "'" = "lettermod(meta, l, 120, 180)";
-          enter = "noop";
+          enter = ";"; # NOTE: ColemakDHm をエミュレートするときに使うから noop にはしない.
 
           leftshift = "z";
           z = "x";

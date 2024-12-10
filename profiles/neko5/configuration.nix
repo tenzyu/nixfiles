@@ -2,28 +2,27 @@
   inputs,
   pkgs,
   config,
+  overlays,
   lib,
   ...
 }: {
   nixpkgs.config.allowUnfreePredicate = pkg:
     builtins.elem (lib.getName pkg) [
-      "obsidian"
       "cloudflare-warp"
+      "discord-ptb"
+      "obsidian"
       "osu-lazer-bin"
     ];
 
-  nixpkgs.config.permittedInsecurePackages = [
-    ### NOTE: for pkgs.opentabletdriver {{{
-    "dotnet-sdk-6.0.428"
-    "dotnet-sdk-wrapped-6.0.428"
-    "dotnet-runtime-6.0.36"
-    ### }}}
+  nixpkgs.overlays = [
+    (import ../../lib/overlays/unstable.nix {inherit inputs;})
+    (import ../../lib/overlays/wayland.nix)
   ];
 
   imports = [
     ### chore {{{
     inputs.catppuccin.nixosModules.catppuccin
-    ../_nix.nix
+    ../../lib/nix.nix
     ### }}}
 
     ../../system/programs/cloudflare-warp
@@ -97,6 +96,14 @@
       };
     };
   };
+  hardware.opentabletdriver.enable = true;
+  nixpkgs.config.permittedInsecurePackages = [
+    ### opentabletdriver {{{
+    "dotnet-sdk-6.0.428"
+    "dotnet-sdk-wrapped-6.0.428"
+    "dotnet-runtime-6.0.36"
+    ### }}}
+  ];
 
   i18n.defaultLocale = "en_US.UTF-8";
   i18n.inputMethod = {

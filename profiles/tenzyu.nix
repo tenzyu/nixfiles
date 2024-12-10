@@ -8,6 +8,19 @@
   home.stateVersion = "24.11";
   programs.home-manager.enable = true;
 
+  nixpkgs.overlays = [
+    (import ../lib/overlays/wayland.nix)
+    (import ../lib/overlays/unstable.nix)
+  ];
+
+  nixpkgs.config.permittedInsecurePackages = [
+    ### NOTE: for pkgs.opentabletdriver {{{
+    "dotnet-sdk-6.0.428"
+    "dotnet-sdk-wrapped-6.0.428"
+    "dotnet-runtime-6.0.36"
+    ### }}}
+  ];
+
   i18n.glibcLocales = pkgs.glibcLocales.override {
     allLocales = false;
     locales = ["en_US.UTF-8/UTF-8"];

@@ -1,15 +1,10 @@
 {
   pkgs,
-  pkgsUnstable, # TODO: home-manager でも pkgs.unstable.hogehoge でアクセスできるようにしたい.
   config,
   inputs,
   ...
 }: {
-  home.username = "tenzyu";
-  home.homeDirectory = "/home/tenzyu";
-  home.stateVersion = "24.11";
-  programs.home-manager.enable = true;
-
+  ### user programs {{{
   imports = [
     ### chore {{{
     ../../user/addons/catppuccin.nix
@@ -47,17 +42,16 @@
     ### gui {{{
     ../../user/addons/ghostty.nix
     ../../user/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
+    ../../user/programs/firefox
     ../../user/programs/waybar
     ../../user/programs/rofi-wayland
     ../../user/programs/zed-editor
     ../../user/programs/obs-studio
-    # ../../user/programs/opentabletdriver
+    ../../user/programs/obsidian/wayland.nix
     ### }}}
   ];
 
-  programs.firefox.enable = true;
-
-  # home-manager が option を持っていないパッケージはココで入れる.
+  # NOTE: home-manager が option を持っていないパッケージはココで入れる.
   home.packages = [
     ### cli {{{
     pkgs.bitwarden-cli
@@ -80,9 +74,8 @@
     ### }}}
 
     ### GUI {{{
-    pkgs.obsidian
-    pkgs.opentabletdriver
-    pkgsUnstable.osu-lazer-bin
+    pkgs.unstable.discord-ptb
+    pkgs.unstable.osu-lazer-bin
     ### }}}
 
     ### font {{{
@@ -95,21 +88,13 @@
     pkgs.noto-fonts-color-emoji
     ### }}}
   ];
+  ### }}}
 
   ### user variables {{{
   programs.git = {
     userEmail = "tenzyu.on@gmail.com";
     userName = "tenzyu";
   };
-  ### }}}
-
-  fonts.fontconfig = {
-    enable = true;
-  };
-
-  # Prefer XDG Base Directories
-  xdg.enable = true;
-  home.preferXdgDirectories = true;
 
   home.sessionVariables = {
     EDITOR = "nvim";
@@ -129,7 +114,22 @@
     DOTNET_CLI_HOME = "${config.xdg.dataHome}/dotnet";
     ### }}}
   };
+
   home.sessionPath = [
     "${config.home.sessionVariables.CARGO_HOME}/bin"
   ];
+  ### }}}
+
+  ### chore {{{
+  fonts.fontconfig.enable = true;
+
+  programs.home-manager.enable = true;
+
+  xdg.enable = true;
+  home.preferXdgDirectories = true;
+
+  home.username = "tenzyu";
+  home.homeDirectory = "/home/tenzyu";
+  home.stateVersion = "24.11";
+  ### }}}
 }
