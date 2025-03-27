@@ -16,6 +16,33 @@
       "aarch64-darwin"
       "x86_64-darwin"
     ];
+
+    configurationDefaults = args: {
+      home-manager.useGlobalPkgs = true;
+      home-manager.useUserPackages = true;
+      home-manager.backupFileExtension = "hm-backup";
+      home-manager.extraSpecialArgs = args;
+    };
+
+    mkNixosConfiguration = {
+      system ? "x86_64-linux",
+      hostname,
+      username,
+      args ? {},
+      modules,
+    }: let
+      specialArgs = {inherit inputs hostname username;} // args;
+    in
+      inputs.nixpkgs.lib.nixosSystem {
+        inherit system specialArgs;
+        # pkgs = nixpkgsWithOverlays system;
+        modules =
+          [
+            (configurationDefaults specialArgs)
+            inputs.home-manager.nixosModules.home-manager
+          ]
+          ++ modules;
+      };
   in {
     formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
 
@@ -29,7 +56,21 @@
       ];
     };
 
-    homeConfigurations.${username} = inputs.home-manager.lib.homeManagerConfiguration {
+    # wsl on neko3
+    nixosConfigurations.neko6 = mkNixosConfiguration {
+      hostname = "neko6";
+      username = "tenzyu";
+      modules = [
+        ./wsl.nix
+        inputs.nixos-wsl.nixosModules.wsl
+        inputs.vscode-server.nixosModules.default
+        ({ config, pkgs, ... }: {
+          services.vscode-server.enable = true;
+        })
+      ];
+    };
+
+    homeConfigurations.tenzyu = inputs.home-manager.lib.homeManagerConfiguration {
       pkgs = inputs.nixpkgs.legacyPackages.${system};
       extraSpecialArgs = specialArgs;
 
@@ -43,6 +84,10 @@
     ### nix ecosystem {{{
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixos-wsl = {
+      url = "github:nix-community/NixOS-WSL";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     home-manager = {
       url = "github:nix-community/home-manager/release-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -51,6 +96,7 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    vscode-server.url = "github:nix-community/nixos-vscode-server";
     ### }}}
 
     ### {{{
