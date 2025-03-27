@@ -65,6 +65,7 @@
         inputs.nixos-wsl.nixosModules.wsl
         inputs.vscode-server.nixosModules.default
         ({ config, pkgs, ... }: {
+          environment.systemPackages = with pkgs; [ wget ];
           services.vscode-server.enable = true;
         })
       ];

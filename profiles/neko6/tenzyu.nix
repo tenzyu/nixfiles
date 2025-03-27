@@ -35,6 +35,7 @@
     pkgs.bitwarden-cli
     pkgs.brightnessctl
     pkgs.dust # du + rust = dust. Like du but more intuitive
+    pkgs.devbox
     pkgs.pavucontrol # PulseAudio Volume Control
     pkgs.xdg-ninja # A shell script which checks your $HOME for unwanted files and directories
     pkgs.playerctl
@@ -45,7 +46,7 @@
     ### }}}
   ];
   ### }}}
-
+  
   ### user variables {{{
   programs.git = {
     userEmail = "tenzyu.on@gmail.com";
