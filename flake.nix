@@ -56,12 +56,17 @@
       ];
     };
 
-    nixosConfigurations.nixos = mkNixosConfiguration {
-      hostname = "nixos";
+    # wsl on neko3
+    nixosConfigurations.neko6 = mkNixosConfiguration {
+      hostname = "neko6";
       username = "tenzyu";
       modules = [
-        inputs.nixos-wsl.nixosModules.wsl
         ./wsl.nix
+        inputs.nixos-wsl.nixosModules.wsl
+        inputs.vscode-server.nixosModules.default
+        ({ config, pkgs, ... }: {
+          services.vscode-server.enable = true;
+        })
       ];
     };
 
@@ -91,6 +96,7 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    vscode-server.url = "github:nix-community/nixos-vscode-server";
     ### }}}
 
     ### {{{

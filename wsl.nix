@@ -1,5 +1,4 @@
 {
-  # FIXME: uncomment the next line if you want to reference your GitHub/GitLab access tokens and other secrets
   # secrets,
   username,
   hostname,
@@ -19,7 +18,6 @@
 
   security.sudo.wheelNeedsPassword = false;
 
-  # FIXME: uncomment the next line to enable SSH
   services.openssh.enable = true;
 
   users.users.${username} = {
@@ -84,11 +82,9 @@
   nix = {
     settings = {
       trusted-users = [username];
-      # FIXME: use your access tokens from secrets.json here to be able to clone private repos on GitHub and GitLab
-      # access-tokens = [
-      #   "github.com=${secrets.github_token}"
-      #   "gitlab.com=OAuth2:${secrets.gitlab_token}"
-      # ];
+      access-tokens = [
+        # "github.com=${secrets.github_token}"
+      ];
 
       accept-flake-config = true;
       auto-optimise-store = true;
