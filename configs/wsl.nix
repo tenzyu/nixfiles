@@ -31,6 +31,7 @@
     #   "ssh-rsa ..."
     # ];
   };
+  programs.nix-ld.enable = true;
 
   system.stateVersion = "24.11";
 
@@ -54,7 +55,7 @@
 
   home-manager.users.${username} = {
     imports = [
-      ./profiles/${hostname}/${username}.nix
+      ../profiles/${hostname}/${username}.nix
     ];
   };
 
