@@ -5,6 +5,7 @@
   ...
 }: {
   imports = [
+    ../../user/programs/zsh
     ../../user/programs/bat # A cat(1) clone with syntax highlighting and Git integration
     ../../user/programs/btop # A monitor of resources
     ../../user/programs/eza # A modern, maintained replacement for ls
