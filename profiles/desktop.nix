@@ -5,7 +5,7 @@
   username,
   ...
 }: let
-  configsPath = ../profiles/${hostname}/configurations.nix;
+  configPath = ../profiles/${hostname}/configurations.nix;
 in
   with lib; {
     # System
