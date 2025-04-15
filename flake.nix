@@ -61,11 +61,15 @@
       hostname = "neko6";
       username = "tenzyu";
       modules = [
-        ./wsl.nix
+        ./configs/wsl.nix
         inputs.nixos-wsl.nixosModules.wsl
         inputs.vscode-server.nixosModules.default
-        ({ config, pkgs, ... }: {
-          environment.systemPackages = with pkgs; [ wget ];
+        ({
+          config,
+          pkgs,
+          ...
+        }: {
+          environment.systemPackages = with pkgs; [wget];
           services.vscode-server.enable = true;
         })
       ];

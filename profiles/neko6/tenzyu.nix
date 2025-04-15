@@ -56,7 +56,7 @@
     ### }}}
   ];
   ### }}}
-  
+
   ### user variables {{{
   programs.git = {
     userEmail = "tenzyu.on@gmail.com";
