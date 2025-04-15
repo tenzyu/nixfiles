@@ -1,12 +1,15 @@
 {
-  # secrets,
   username,
   hostname,
   pkgs,
   inputs,
+  lib,
   ...
-}: {
-  time.timeZone = "Asia/Tokyo";
+}:
+with lib; {
+  imports = [inputs.nixos-wsl.nixosModules.wsl];
+
+  time.timeZone = mkDefault "Asia/Tokyo";
   networking.hostName = "${hostname}";
 
   programs.zsh.enable = true;
@@ -55,39 +58,24 @@
 
   home-manager.users.${username} = {
     imports = [
-      ../profiles/${hostname}/${username}.nix
+      ../hosts/${hostname}/${username}.nix
+
+      {
+        programs.home-manager.enable = mkDefault true;
+        xdg.enable = mkDefault true;
+        home.preferXdgDirectories = mkDefault true;
+        home.username = mkDefault "${username}";
+        home.homeDirectory = mkDefault "/home/${username}";
+        home.stateVersion = "24.11";
+      }
     ];
   };
 
   nix = {
     settings = {
-      trusted-users = [username];
       access-tokens = [
         # "github.com=${secrets.github_token}"
       ];
-
-      accept-flake-config = true;
-      auto-optimise-store = true;
-    };
-
-    registry = {
-      nixpkgs = {
-        flake = inputs.nixpkgs;
-      };
-    };
-
-    nixPath = [
-      "nixpkgs=${inputs.nixpkgs.outPath}"
-      "nixos-config=/etc/nixos/configuration.nix"
-      "/nix/var/nix/profiles/per-user/root/channels"
-    ];
-
-    package = pkgs.nixVersions.stable;
-    extraOptions = ''experimental-features = nix-command flakes'';
-
-    gc = {
-      automatic = true;
-      options = "--delete-older-than 7d";
     };
   };
 }

@@ -8,7 +8,6 @@
   imports = [
     ### chore {{{
     ../../user/addons/catppuccin.nix
-    ../../user/addons/ghostty.nix
     ### }}}
 
     ### shell {{{
@@ -40,7 +39,6 @@
     ### }}}
 
     ### gui {{{
-    ../../user/addons/ghostty.nix
     ../../user/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
     ../../user/programs/firefox
     ../../user/programs/waybar
@@ -52,45 +50,34 @@
   ];
 
   # NOTE: home-manager が option を持っていないパッケージはココで入れる.
-  home.packages = [
+  home.packages = with pkgs; [
     ### cli {{{
-    pkgs.bitwarden-cli
-    pkgs.brightnessctl
-    pkgs.dust # du + rust = dust. Like du but more intuitive
-    pkgs.pavucontrol # PulseAudio Volume Control
-    pkgs.xdg-ninja # A shell script which checks your $HOME for unwanted files and directories
-    pkgs.playerctl
-    pkgs.jq
-    pkgs.jqp
-    pkgs.glow
-    pkgs.xclip
+    bitwarden-cli
+    brightnessctl
+    dust # du + rust = dust. Like du but more intuitive
+    pavucontrol # PulseAudio Volume Control
+    xdg-ninja # A shell script which checks your $HOME for unwanted files and directories
+    playerctl
+    jq
+    jqp
+    glow
+    xclip
     ### }}}
 
     ### DE {{{
-    pkgs.grimblast
-    pkgs.wl-clipboard
-    pkgs.dunst
-    pkgs.cliphist
+    grimblast
+    wl-clipboard
+    dunst
+    cliphist
     ### }}}
 
     ### GUI {{{
-    pkgs.unstable.discord-ptb
-    pkgs.unstable.osu-lazer-bin
-    ### }}}
-
-    ### font {{{
-    pkgs.fira-code
-    pkgs.fira-code-symbols
-    pkgs.fira-code-nerdfont
-    pkgs.font-awesome
-    pkgs.noto-fonts
-    pkgs.noto-fonts-cjk-sans
-    pkgs.noto-fonts-color-emoji
+    unstable.discord-ptb
+    unstable.osu-lazer-bin
     ### }}}
   ];
   ### }}}
 
-  ### user variables {{{
   programs.git = {
     userEmail = "tenzyu.on@gmail.com";
     userName = "tenzyu";
@@ -99,7 +86,6 @@
   home.sessionVariables = {
     EDITOR = "nvim";
     MANPAGER = "nvim +Man!";
-    NIXOS_OZONE_WL = "1";
 
     ### follow xdg base directories {{{
     RUSTUP_HOME = "${config.xdg.dataHome}/rustup";
@@ -118,18 +104,4 @@
   home.sessionPath = [
     "${config.home.sessionVariables.CARGO_HOME}/bin"
   ];
-  ### }}}
-
-  ### chore {{{
-  fonts.fontconfig.enable = true;
-
-  programs.home-manager.enable = true;
-
-  xdg.enable = true;
-  home.preferXdgDirectories = true;
-
-  home.username = "tenzyu";
-  home.homeDirectory = "/home/tenzyu";
-  home.stateVersion = "24.11";
-  ### }}}
 }

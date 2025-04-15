@@ -1,0 +1,1 @@
+https://search.nixos.org/options

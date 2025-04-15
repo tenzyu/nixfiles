@@ -1,14 +1,7 @@
 {
-  description = "tenzyu's configuration";
+  description = "tenzyu's nixfiles";
 
   outputs = inputs: let
-    # deprecated {{{
-    username = "tenzyu";
-    hostname = "neko5";
-    system = "x86_64-linux";
-    specialArgs = {inherit inputs hostname username system;};
-    # }}}
-
     forAllSystems = inputs.nixpkgs.lib.genAttrs [
       "aarch64-linux"
       "i686-linux"
@@ -39,56 +32,46 @@
           [
             (configurationDefaults specialArgs)
             inputs.home-manager.nixosModules.home-manager
+            ./lib/nix.nix
           ]
           ++ modules;
       };
   in {
-    formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
-
-    # laptop
+    # Laptop
     nixosConfigurations.neko5 = mkNixosConfiguration {
       hostname = "neko5";
       username = "tenzyu";
-      modules = [
-        ./profiles/neko5/hardware-configuration.nix
-        ./profiles/neko5/configuration.nix
-        ./profiles/neko5/home-configuration.nix
-      ];
+      modules = [./profiles/desktop.nix];
     };
 
-    # wsl on neko3
+    # WSL on neko3
     nixosConfigurations.neko6 = mkNixosConfiguration {
       hostname = "neko6";
       username = "tenzyu";
-      modules = [
-        ./configs/wsl.nix
-        inputs.nixos-wsl.nixosModules.wsl
-      ];
+      modules = [./profiles/wsl.nix];
     };
+
+    formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
   };
 
   inputs = {
-    ### nix ecosystem {{{
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    nixos-wsl = {
-      url = "github:nix-community/NixOS-WSL";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     home-manager = {
       url = "github:nix-community/home-manager/release-24.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    nixos-wsl = {
+      url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nixgl = {
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    ### }}}
 
-    ### {{{
-    # NOTE: make sure to enable cachix first
     hyprland.url = "github:hyprwm/Hyprland";
     catppuccin.url = "github:catppuccin/nix";
-    ### }}}
   };
 }

@@ -4,13 +4,7 @@
   inputs,
   ...
 }: {
-  ### user programs {{{
   imports = [
-    ### shell {{{
-    ../../user/programs/zsh
-    ### }}}
-
-    ### cli {{{
     ../../user/programs/bat # A cat(1) clone with syntax highlighting and Git integration
     ../../user/programs/btop # A monitor of resources
     ../../user/programs/eza # A modern, maintained replacement for ls
@@ -26,38 +20,17 @@
     ../../user/programs/tmux
     ../../user/programs/yazi
     ../../user/programs/zoxide
-    ### }}}
   ];
 
-  # NOTE: home-manager が option を持っていないパッケージはココで入れる.
   home.packages = [
-    ### cli {{{
     pkgs.bitwarden-cli
-    pkgs.brightnessctl
     pkgs.dust # du + rust = dust. Like du but more intuitive
     pkgs.devbox
-    pkgs.pavucontrol # PulseAudio Volume Control
     pkgs.xdg-ninja # A shell script which checks your $HOME for unwanted files and directories
-    pkgs.playerctl
-    pkgs.jq
-    pkgs.jqp
     pkgs.glow
     pkgs.xclip
-    ### }}}
-
-    ### font {{{
-    pkgs.fira-code
-    pkgs.fira-code-symbols
-    pkgs.fira-code-nerdfont
-    pkgs.font-awesome
-    pkgs.noto-fonts
-    pkgs.noto-fonts-cjk-sans
-    pkgs.noto-fonts-color-emoji
-    ### }}}
   ];
-  ### }}}
 
-  ### user variables {{{
   programs.git = {
     userEmail = "tenzyu.on@gmail.com";
     userName = "tenzyu";
@@ -85,18 +58,4 @@
   home.sessionPath = [
     "${config.home.sessionVariables.CARGO_HOME}/bin"
   ];
-  ### }}}
-
-  ### chore {{{
-  fonts.fontconfig.enable = true;
-
-  programs.home-manager.enable = true;
-
-  xdg.enable = true;
-  home.preferXdgDirectories = true;
-
-  home.username = "tenzyu";
-  home.homeDirectory = "/home/tenzyu";
-  home.stateVersion = "24.11";
-  ### }}}
 }

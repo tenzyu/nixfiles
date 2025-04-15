@@ -1,9 +1,16 @@
-{pkgs, ...}: {
+{
+  pkgs,
+  username,
+  ...
+}: {
   nix = {
     package = pkgs.nixVersions.stable;
     settings = {
       use-xdg-base-directories = true;
-      experimental-features = ["nix-command" "flakes"];
+      extra-experimental-features = ["nix-command" "flakes"];
+      extra-trusted-users = [username];
+      accept-flake-config = true;
+      auto-optimise-store = true;
 
       extra-substituters = [
         "https://nix-community.cachix.org"
@@ -15,6 +22,10 @@
         "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
         "ghostty.cachix.org-1:QB389yTa6gTyneehvqG58y0WnHjQOqgnA+wBnpWWxns="
       ];
+    };
+    gc = {
+      automatic = true;
+      options = "--delete-older-than 7d";
     };
   };
 }
