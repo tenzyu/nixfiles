@@ -35,7 +35,6 @@
     in
       inputs.nixpkgs.lib.nixosSystem {
         inherit system specialArgs;
-        # pkgs = nixpkgsWithOverlays system;
         modules =
           [
             (configurationDefaults specialArgs)
@@ -46,9 +45,10 @@
   in {
     formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
 
-    nixosConfigurations.${hostname} = inputs.nixpkgs.lib.nixosSystem {
-      inherit system specialArgs;
-
+    # laptop
+    nixosConfigurations.neko5 = mkNixosConfiguration {
+      hostname = "neko5";
+      username = "tenzyu";
       modules = [
         ./profiles/neko5/hardware-configuration.nix
         ./profiles/neko5/configuration.nix
@@ -63,24 +63,6 @@
       modules = [
         ./configs/wsl.nix
         inputs.nixos-wsl.nixosModules.wsl
-        inputs.vscode-server.nixosModules.default
-        ({
-          config,
-          pkgs,
-          ...
-        }: {
-          environment.systemPackages = with pkgs; [wget];
-          services.vscode-server.enable = true;
-        })
-      ];
-    };
-
-    homeConfigurations.tenzyu = inputs.home-manager.lib.homeManagerConfiguration {
-      pkgs = inputs.nixpkgs.legacyPackages.${system};
-      extraSpecialArgs = specialArgs;
-
-      modules = [
-        ./user/home/tenzyu.nix
       ];
     };
   };
@@ -101,13 +83,11 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    vscode-server.url = "github:nix-community/nixos-vscode-server";
     ### }}}
 
     ### {{{
     # NOTE: make sure to enable cachix first
     hyprland.url = "github:hyprwm/Hyprland";
-
     catppuccin.url = "github:catppuccin/nix";
     ### }}}
   };
