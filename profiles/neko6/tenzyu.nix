@@ -44,6 +44,16 @@
     pkgs.glow
     pkgs.xclip
     ### }}}
+
+    ### font {{{
+    pkgs.fira-code
+    pkgs.fira-code-symbols
+    pkgs.fira-code-nerdfont
+    pkgs.font-awesome
+    pkgs.noto-fonts
+    pkgs.noto-fonts-cjk-sans
+    pkgs.noto-fonts-color-emoji
+    ### }}}
   ];
   ### }}}
   
