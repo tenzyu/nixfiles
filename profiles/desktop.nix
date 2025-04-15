@@ -5,20 +5,20 @@
   username,
   ...
 }: let
-  configPath = ../profiles/${hostname}/configurations.nix;
+  configPath = ../hosts/${hostname}/configuration.nix;
 in
   with lib; {
     # System
     imports =
       [
-        ../profiles/${hostname}/hardware-configuration.nix
+        ../hosts/${hostname}/hardware-configuration.nix
       ]
       ++ lib.optional (lib.pathExists configPath) configPath;
 
     # Users
     users.users.${username} = {
       isNormalUser = mkDefault true;
-      shell = mkDefault pkgs.zsh;
+      shell = pkgs.zsh;
       extraGroups = mkDefault ["wheel"];
     };
     home-manager.users.${username} = {
