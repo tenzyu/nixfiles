@@ -20,10 +20,6 @@
       telemetry = {
         metrics = false;
       };
-      theme = {
-        mode = "system";
-        dark = "Ayu Dark";
-      };
     };
   };
 }
