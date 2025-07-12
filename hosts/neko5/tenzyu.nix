@@ -69,6 +69,7 @@
     wl-clipboard
     dunst
     cliphist
+    prismlauncher
     ### }}}
 
     ### GUI {{{
