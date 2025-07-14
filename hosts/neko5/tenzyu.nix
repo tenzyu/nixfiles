@@ -73,6 +73,7 @@
     ### }}}
 
     ### GUI {{{
+    unstable.discord
     unstable.discord-ptb
     unstable.osu-lazer-bin
     ### }}}

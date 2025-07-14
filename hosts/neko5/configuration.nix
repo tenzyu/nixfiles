@@ -9,6 +9,7 @@
   nixpkgs.config.allowUnfreePredicate = pkg:
     builtins.elem (lib.getName pkg) [
       "cloudflare-warp"
+      "discord"
       "discord-ptb"
       "obsidian"
       "osu-lazer-bin"
