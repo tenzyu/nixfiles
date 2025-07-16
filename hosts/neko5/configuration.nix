@@ -13,6 +13,9 @@
       "discord-ptb"
       "obsidian"
       "osu-lazer-bin"
+      "prismlauncher"
+      "cursor"
+      "parsec-bin"
     ];
 
   hardware.opentabletdriver.enable = true;
@@ -37,6 +40,14 @@
     ../../system/programs/cloudflare-warp
     ../../system/programs/udiskie
   ];
+
+
+  environment.stub-ld.enable = true;
+
+  environment.systemPackages = with pkgs: [
+    tailscale
+  ];
+  services.tailscale.enable = true;
 
   services.libinput.enable = true; # use touchpad
   services.logind.lidSwitch = "ignore";
