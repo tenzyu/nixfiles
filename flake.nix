@@ -48,15 +48,7 @@
     nixosConfigurations.neko6 = mkNixosConfiguration {
       hostname = "neko6";
       username = "tenzyu";
-      modules = [
-        ./profiles/wsl.nix
-        {
-          wsl.extraBin = [{
-            name = "bash";
-            src = "${pkgs.bash}/bin/bash";
-          }];
-        }
-      ];
+      modules = [ ./profiles/wsl.nix ];
     };
 
     formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
