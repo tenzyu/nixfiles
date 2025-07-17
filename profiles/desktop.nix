@@ -45,7 +45,14 @@ in
     time.timeZone = mkDefault "Asia/Tokyo";
     networking.hostName = mkDefault "${hostname}";
     networking.networkmanager.enable = mkDefault true; # Easiest to use and most distros use this by default.
-    services.openssh.enable = mkDefault true;
+    services.openssh = {
+      enable = mkDefault true;
+      settings = {
+        PasswordAuthentication = mkDefault false;
+        KbdInteractiveAuthentication = mkDefault false;
+        GatewayPorts = mkDefault "yes";
+      };
+    };
 
     # Use the systemd-boot EFI boot loader.
     boot.loader.systemd-boot.enable = mkDefault true;
