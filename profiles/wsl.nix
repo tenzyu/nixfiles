@@ -20,7 +20,12 @@ with lib; {
   security.sudo.wheelNeedsPassword = false;
   services.openssh = {
     enable = true;
-    settings.LogLevel = "Debug";
+    settings = {
+      LogLevel = "DEBUG";
+      PasswordAuthentication = mkDefault false;
+      KbdInteractiveAuthentication = mkDefault false;
+      GatewayPorts = mkDefault "yes";
+    };
   };
 
   users.users.${username} = {
