@@ -48,7 +48,14 @@
     nixosConfigurations.neko6 = mkNixosConfiguration {
       hostname = "neko6";
       username = "tenzyu";
-      modules = [ ./profiles/wsl.nix ];
+      modules = [./profiles/wsl.nix];
+    };
+
+    # supported by Yuki
+    nixosConfigurations.neko7 = mkNixosConfiguration {
+      hostname = "neko7";
+      username = "tenzyu";
+      modules = [./profiles/server.nix];
     };
 
     formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
