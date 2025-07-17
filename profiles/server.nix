@@ -46,7 +46,7 @@ in
         ../hosts/${hostname}/${username}.nix
         {
           programs.home-manager.enable = mkDefault true;
-	  xdg.enable = mkDefault true;
+          xdg.enable = mkDefault true;
           home.username = mkDefault "${username}";
           home.homeDirectory = mkDefault "/home/${username}";
           home.stateVersion = "24.11";

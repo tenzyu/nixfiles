@@ -41,7 +41,6 @@
     ../../system/programs/udiskie
   ];
 
-
   environment.stub-ld.enable = true;
 
   environment.systemPackages = with pkgs; [
