@@ -45,7 +45,7 @@
   environment.stub-ld.enable = true;
 
   environment.systemPackages = with pkgs; [
-    tailscale
+    unstable.tailscale
   ];
   services.tailscale.enable = true;
 
