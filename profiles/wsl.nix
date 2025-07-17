@@ -18,7 +18,10 @@ with lib; {
   environment.enableAllTerminfo = true;
 
   security.sudo.wheelNeedsPassword = false;
-  services.openssh.enable = true;
+  services.openssh = {
+    enable = true;
+    settings.LogLevel = "Debug";
+  };
 
   users.users.${username} = {
     isNormalUser = true;
