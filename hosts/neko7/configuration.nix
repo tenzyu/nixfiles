@@ -15,11 +15,6 @@
     (import ../../lib/overlays/unstable.nix {inherit inputs;})
   ];
 
-  # imports = [
-  #   ../../system/programs/cloudflare-warp
-  #   ../../system/programs/udiskie
-  # ];
-
   environment.stub-ld.enable = true;
   services.tailscale.enable = true;
 
