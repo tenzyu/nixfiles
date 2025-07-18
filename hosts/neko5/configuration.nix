@@ -46,7 +46,10 @@
   environment.systemPackages = with pkgs; [
     unstable.tailscale
   ];
-  services.tailscale.enable = true;
+  services.tailscale = {
+    enable = true;
+    package = pkgs.unstable.tailscale;
+  };
 
   services.libinput.enable = true; # use touchpad
   services.logind.lidSwitch = "ignore";
