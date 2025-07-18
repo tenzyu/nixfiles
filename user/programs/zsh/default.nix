@@ -45,7 +45,7 @@
     };
 
     # TODO: fzf-git をいい感じにする.
-    initExtra = ''
+    initContent = ''
       for f in ${config.xdg.configHome}/zsh/zshrc.d/*; do
           if [ ! -d $f ] ;then
               source $f
