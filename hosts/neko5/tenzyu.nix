@@ -74,7 +74,6 @@
     ### GUI {{{
     parsec-bin
     unstable.discord
-    unstable.discord-ptb
     unstable.osu-lazer-bin
     unstable.prismlauncher
     unstable.code-cursor

@@ -8,7 +8,6 @@
 }: {
   nixpkgs.config.allowUnfreePredicate = pkg:
     builtins.elem (lib.getName pkg) [
-      "cloudflare-warp"
       "discord"
       "discord-ptb"
       "obsidian"
@@ -36,31 +35,13 @@
     ### chore {{{
     inputs.catppuccin.nixosModules.catppuccin
     ### }}}
-
-    ../../system/programs/cloudflare-warp
     ../../system/programs/udiskie
   ];
 
   environment.stub-ld.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    unstable.tailscale
-  ];
-  services.tailscale = {
-    enable = true;
-    package = pkgs.unstable.tailscale;
-  };
-
+  services.tailscale.enable = true;
   services.libinput.enable = true; # use touchpad
-  services.logind.lidSwitch = "ignore";
 
-  services.create_ap = {
-    enable = true;
-    settings = {
-      INTERNET_IFACE = "eno2";
-      WIFI_IFACE = "wlo1";
-      SSID = "neko5";
-      PASSPHRASE = "sw123456i"; # TODO: hash
-    };
-  };
+  services.logind.lidSwitch = "ignore";
 }
