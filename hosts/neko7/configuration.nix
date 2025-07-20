@@ -16,9 +16,20 @@
   ];
 
   environment.stub-ld.enable = true;
-  services.tailscale.enable = true;
 
+  services.tailscale.enable = true;
   networking.resolvconf.extraConfig = ''
     name_server_blacklist=172.16.0.1
   '';
+
+  users.users.tenzyu = {
+    extraGroups = [ "docker" ];
+  };
+  virtualisation.docker = {
+    enable = true;
+    rootless = {
+      enable = true;
+      setSocketVariable = true;
+    };
+  };
 }

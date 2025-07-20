@@ -39,7 +39,7 @@ in
     users.users.${username} = {
       isNormalUser = mkDefault true;
       shell = pkgs.zsh;
-      extraGroups = mkDefault ["networkmanager" "wheel"];
+      extraGroups = ["networkmanager" "wheel"];
     };
     home-manager.users.${username} = {
       imports = [
