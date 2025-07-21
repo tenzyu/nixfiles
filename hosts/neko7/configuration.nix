@@ -32,4 +32,7 @@
       setSocketVariable = true;
     };
   };
+
+  # Enable QEMU Guest for Proxmox
+  services.qemuGuest.enable = true;
 }
