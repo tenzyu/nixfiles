@@ -23,7 +23,7 @@
   '';
 
   users.users.tenzyu = {
-    extraGroups = [ "docker" ];
+    extraGroups = ["docker"];
   };
   virtualisation.docker = {
     enable = true;
