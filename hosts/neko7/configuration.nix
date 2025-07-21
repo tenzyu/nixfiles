@@ -4,8 +4,13 @@
   config,
   overlays,
   lib,
+  modulesPath,
   ...
 }: {
+  imports = [
+    (modulesPath + "/profiles/qemu-guest.nix")
+  ];
+
   nixpkgs.config.allowUnfreePredicate = pkg:
     builtins.elem (lib.getName pkg) [
       #
