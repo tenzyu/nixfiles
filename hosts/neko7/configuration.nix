@@ -21,6 +21,8 @@
   networking.resolvconf.extraConfig = ''
     name_server_blacklist=172.16.0.1
   '';
+  boot.kernel.sysctl."net.ipv6.conf.all.disable_ipv6" = 1;
+  boot.kernel.sysctl."net.ipv6.conf.default.disable_ipv6" = 1;
 
   users.users.tenzyu = {
     extraGroups = ["docker"];
