@@ -21,6 +21,7 @@
   ];
 
   environment.stub-ld.enable = true;
+  programs.nix-ld.enable = true;
 
   services.tailscale.enable = true;
   networking.resolvconf.extraConfig = ''
