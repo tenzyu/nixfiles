@@ -44,7 +44,7 @@ with lib; {
   };
   programs.nix-ld.enable = true;
 
-  system.stateVersion = "24.11";
+  system.stateVersion = "25.05";
 
   wsl = {
     enable = true;
@@ -74,7 +74,7 @@ with lib; {
         home.preferXdgDirectories = mkDefault true;
         home.username = mkDefault "${username}";
         home.homeDirectory = mkDefault "/home/${username}";
-        home.stateVersion = "24.11";
+        home.stateVersion = "25.05";
       }
     ];
   };

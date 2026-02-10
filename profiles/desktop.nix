@@ -30,7 +30,7 @@ in
           home.preferXdgDirectories = mkDefault true;
           home.username = mkDefault "${username}";
           home.homeDirectory = mkDefault "/home/${username}";
-          home.stateVersion = "24.11";
+          home.stateVersion = "25.05";
         }
       ];
     };
@@ -137,5 +137,5 @@ in
     # and migrated your data accordingly.
     #
     # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
-    system.stateVersion = "24.11"; # Did you read the comment?
+    system.stateVersion = "25.05"; # Did you read the comment?
   }
