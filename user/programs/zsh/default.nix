@@ -3,12 +3,12 @@
   config,
   ...
 }: {
-  home.file.".config/zsh/zshrc.d".source = ./zshrc;
+  home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ./zshrc;
 
   programs.zsh = {
     enable = true;
 
-    dotDir = ".config/zsh";
+    dotDir = "${config.xdg.configHome}/zsh";
 
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;

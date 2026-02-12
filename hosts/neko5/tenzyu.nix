@@ -26,7 +26,6 @@
     ../../user/programs/ripgrep
     ../../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
     ../../user/programs/tealdeer
-    ../../user/programs/thefuck
     ../../user/programs/tmux
     ../../user/programs/yazi
     ../../user/programs/zoxide
@@ -42,7 +41,7 @@
     ../../user/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
     ../../user/programs/firefox
     ../../user/programs/waybar
-    ../../user/programs/rofi-wayland
+    ../../user/programs/rofi
     ../../user/programs/zed-editor
     ../../user/programs/obs-studio
     ../../user/programs/obsidian/wayland.nix
@@ -62,6 +61,7 @@
     jqp
     glow
     xclip
+    pay-respects
     ### }}}
 
     ### DE {{{
@@ -81,9 +81,11 @@
   ];
   ### }}}
 
-  programs.git = {
-    userEmail = "tenzyu.on@gmail.com";
-    userName = "tenzyu";
+  programs.git.settings = {
+    user = {
+      name = "tenzyu";
+      email = "tenzyu.on@gmail.com";
+    };
   };
 
   home.sessionVariables = {

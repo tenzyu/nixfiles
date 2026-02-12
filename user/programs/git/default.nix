@@ -1,7 +1,7 @@
 {
   programs.git = {
     enable = true;
-    extraConfig = {
+    settings = {
       init = {
         defaultBranch = "main";
       };
@@ -9,14 +9,16 @@
         autoSetupRemote = true;
       };
     };
+  };
 
-    delta = {
-      enable = true;
-      options = {
-        navigate = true;
-        side-by-side = true;
-        line-numbers = true;
-      };
+  # delta が独立した
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
+    options = {
+      navigate = true;
+      side-by-side = true;
+      line-numbers = true;
     };
   };
 }

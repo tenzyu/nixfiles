@@ -43,5 +43,9 @@
   services.tailscale.enable = true;
   services.libinput.enable = true; # use touchpad
 
-  services.logind.lidSwitch = "ignore";
+  services.logind.settings = {
+    Login = {
+      HandleLidSwitch = "suspend";
+    };
+  };
 }

@@ -17,7 +17,6 @@
     ../../user/programs/ripgrep
     ../../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
     ../../user/programs/tealdeer
-    ../../user/programs/thefuck
     ../../user/programs/tmux
     ../../user/programs/yazi
     ../../user/programs/zoxide
@@ -30,11 +29,12 @@
     pkgs.xdg-ninja # A shell script which checks your $HOME for unwanted files and directories
     pkgs.glow
     pkgs.xclip
+    pkgs.pay-respects
   ];
 
-  programs.git = {
-    userEmail = "tenzyu.on@gmail.com";
-    userName = "tenzyu";
+  programs.git.settings.user = {
+    name = "tenzyu";
+    email = "tenzyu.on@gmail.com";
   };
 
   home.sessionVariables = {
