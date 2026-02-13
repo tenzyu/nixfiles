@@ -199,26 +199,27 @@
         ", XF86AudioMicMute, exec, pactl set-source-mute @DEFAULT_SOURCE@ toggle"
         ", XF86Lock, exec, hyprlock"
         ", code:238, exec, brightnessctl -d smc::kbd_backlight s +10"
-        ", code:237, exec, brightnessctl -d smc::kbd_backlight s 10-" ];
+        ", code:237, exec, brightnessctl -d smc::kbd_backlight s 10-"
+      ];
 
-        bindm = [
-          "$mod, mouse:272, movewindow"
-          "$mod, mouse:273, resizewindow"
-        ];
+      bindm = [
+        "$mod, mouse:272, movewindow"
+        "$mod, mouse:273, resizewindow"
+      ];
 
-        windowrule = [
-          "match:class ^(Microsoft-edge)$, tile on"
-          "match:class ^(Brave-browser)$, tile on"
-          "match:class ^(Chromium)$, tile on"
-          "match:class ^(pavucontrol)$, float on"
-          "match:class ^(blueman-manager)$, float on"
-          "match:class ^(nm-connection-editor)$, float on"
-          "match:class ^(qalculate-gtk)$, float on"
-          "match:title ^(Picture-in-Picture)$, float on"
-          "match:title ^(Picture-in-Picture)$, pin on"
-          "match:title ^(Picture-in-Picture)$, move 69.5% 4%"
-        ];
-      };
+      windowrule = [
+        "match:class ^(Microsoft-edge)$, tile on"
+        "match:class ^(Brave-browser)$, tile on"
+        "match:class ^(Chromium)$, tile on"
+        "match:class ^(pavucontrol)$, float on"
+        "match:class ^(blueman-manager)$, float on"
+        "match:class ^(nm-connection-editor)$, float on"
+        "match:class ^(qalculate-gtk)$, float on"
+        "match:title ^(Picture-in-Picture)$, float on"
+        "match:title ^(Picture-in-Picture)$, pin on"
+        "match:title ^(Picture-in-Picture)$, move 69.5% 4%"
+      ];
+    };
 
     # windowrulev2 and other raw lines. For Nvidia: add settings.env (LIBVA_DRIVER_NAME,nvidia etc.) and cursor.no_hardware_cursors in extraConfig per host. For KVM/software render: add WLR_RENDERER_ALLOW_SOFTWARE,1 and LIBGL_ALWAYS_SOFTWARE,1 to settings.env.
     extraConfig = ''
