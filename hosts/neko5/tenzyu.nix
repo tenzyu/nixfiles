@@ -32,7 +32,7 @@
     ### }}}
 
     ### DE {{{
-    ../../user/programs/hyprland/configure-only.nix
+    ../../user/programs/hyprland
     ../../user/programs/hyprpaper
     ../../user/programs/wlogout
     ### }}}

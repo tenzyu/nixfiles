@@ -36,6 +36,7 @@
     inputs.catppuccin.nixosModules.catppuccin
     ### }}}
     ../../system/programs/udiskie
+    ../../system/programs/hyprland
   ];
 
   environment.stub-ld.enable = true;

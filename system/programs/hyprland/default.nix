@@ -1,11 +1,13 @@
 {
   inputs,
-  system,
+  pkgs,
   ...
 }: {
   programs.hyprland = {
     enable = true;
-    xwayland.enable = false;
+    withUWSM = true;
+    package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
+    portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
   };
   programs.hyprlock = {
     enable = true;

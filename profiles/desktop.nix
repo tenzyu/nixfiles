@@ -58,13 +58,6 @@ in
     boot.loader.systemd-boot.enable = mkDefault true;
     boot.loader.efi.canTouchEfiVariables = mkDefault true;
 
-    # Wayland
-    programs.hyprland = {
-      enable = mkDefault true;
-      xwayland.enable = mkDefault true;
-    };
-    programs.hyprlock.enable = mkDefault true;
-
     # Audio configuration
     services.pipewire = {
       enable = mkDefault true;
