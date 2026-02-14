@@ -27,16 +27,16 @@
   ];
 
   nixpkgs.overlays = [
-    (import ../../lib/overlays/unstable.nix {inherit inputs;})
-    (import ../../lib/overlays/wayland.nix)
+    (import ../../modules/nixos/overlays/unstable.nix {inherit inputs;})
+    (import ../../modules/nixos/overlays/wayland.nix)
   ];
 
   imports = [
     ### chore {{{
     inputs.catppuccin.nixosModules.catppuccin
     ### }}}
-    ../../system/programs/udiskie
-    ../../system/programs/hyprland
+    ../../modules/nixos/programs/udiskie
+    ../../modules/nixos/programs/hyprland
   ];
 
   environment.stub-ld.enable = true;

@@ -2,63 +2,33 @@
   description = "tenzyu's nixfiles";
 
   outputs = inputs: let
-    forAllSystems = inputs.nixpkgs.lib.genAttrs [
-      "aarch64-linux"
-      "i686-linux"
-      "x86_64-linux"
-      "aarch64-darwin"
-      "x86_64-darwin"
-    ];
-
-    configurationDefaults = args: {
-      home-manager.useGlobalPkgs = true;
-      home-manager.useUserPackages = true;
-      home-manager.backupFileExtension = "hm-backup";
-      home-manager.extraSpecialArgs = args;
-    };
-
-    mkNixosConfiguration = {
-      system ? "x86_64-linux",
-      hostname,
-      username,
-      args ? {},
-      modules,
-    }: let
-      specialArgs = {inherit inputs hostname username;} // args;
-    in
-      inputs.nixpkgs.lib.nixosSystem {
-        inherit system specialArgs;
-        modules =
-          [
-            (configurationDefaults specialArgs)
-            inputs.home-manager.nixosModules.home-manager
-            ./lib/nix.nix
-          ]
-          ++ modules;
-      };
+    lib = import ./lib/default.nix;
   in {
     # Laptop
-    nixosConfigurations.neko5 = mkNixosConfiguration {
+    nixosConfigurations.neko5 = lib.mkNixosConfiguration {
       hostname = "neko5";
       username = "tenzyu";
-      modules = [./profiles/desktop.nix];
+      modules = [./modules/profiles/desktop.nix];
+      inherit inputs;
     };
 
     # WSL on neko3
-    nixosConfigurations.neko6 = mkNixosConfiguration {
+    nixosConfigurations.neko6 = lib.mkNixosConfiguration {
       hostname = "neko6";
       username = "tenzyu";
-      modules = [./profiles/wsl.nix];
+      modules = [./modules/profiles/wsl.nix];
+      inherit inputs;
     };
 
     # supported by Yuki
-    nixosConfigurations.neko7 = mkNixosConfiguration {
+    nixosConfigurations.neko7 = lib.mkNixosConfiguration {
       hostname = "neko7";
       username = "tenzyu";
-      modules = [./profiles/server.nix];
+      modules = [./modules/profiles/server.nix];
+      inherit inputs;
     };
 
-    formatter = forAllSystems (system: inputs.nixpkgs.legacyPackages.${system}.alejandra);
+    formatter = import ./formatter.nix {inherit inputs;};
   };
 
   inputs = {

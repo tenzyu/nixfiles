@@ -17,7 +17,7 @@
     ];
 
   nixpkgs.overlays = [
-    (import ../../lib/overlays/unstable.nix {inherit inputs;})
+    (import ../../modules/nixos/overlays/unstable.nix {inherit inputs;})
   ];
 
   environment.stub-ld.enable = true;

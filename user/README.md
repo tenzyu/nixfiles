@@ -1,1 +1,0 @@
-https://home-manager-options.extranix.com/

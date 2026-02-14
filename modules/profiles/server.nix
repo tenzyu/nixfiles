@@ -5,29 +5,48 @@
   username,
   ...
 }: let
-  configPath = ../hosts/${hostname}/configuration.nix;
+  configPath = ../../hosts/${hostname}/configuration.nix;
 in
   with lib; {
-    # System
     imports =
       [
-        ../hosts/${hostname}/hardware-configuration.nix
+        ../../hosts/${hostname}/hardware-configuration.nix
       ]
       ++ lib.optional (lib.pathExists configPath) configPath;
+
+    # Bootloader.
+    boot.loader.grub.enable = true;
+    boot.loader.grub.device = "/dev/sda";
+    boot.loader.grub.useOSProber = true;
+    # Use latest kernel.
+    boot.kernelPackages = pkgs.linuxPackages_latest;
+
+    # Set your time zone.
+    time.timeZone = mkDefault "Asia/Tokyo";
+    # Network.
+    networking.hostName = mkDefault "${hostname}";
+    networking.networkmanager.enable = true;
+    services.openssh = {
+      enable = mkDefault true;
+      settings = {
+        PasswordAuthentication = mkDefault false;
+        KbdInteractiveAuthentication = mkDefault false;
+        GatewayPorts = mkDefault "yes";
+      };
+    };
 
     # Users
     users.users.${username} = {
       isNormalUser = mkDefault true;
       shell = pkgs.zsh;
-      extraGroups = mkDefault ["wheel"];
+      extraGroups = ["networkmanager" "wheel"];
     };
     home-manager.users.${username} = {
       imports = [
-        ../hosts/${hostname}/${username}.nix
+        ../../hosts/${hostname}/${username}.nix
         {
           programs.home-manager.enable = mkDefault true;
           xdg.enable = mkDefault true;
-          home.preferXdgDirectories = mkDefault true;
           home.username = mkDefault "${username}";
           home.homeDirectory = mkDefault "/home/${username}";
           home.stateVersion = "25.11";
@@ -41,37 +60,27 @@ in
     environment.shells = mkDefault [pkgs.zsh];
     environment.enableAllTerminfo = mkDefault true;
 
-    # Networks
-    time.timeZone = mkDefault "Asia/Tokyo";
-    networking.hostName = mkDefault "${hostname}";
-    networking.networkmanager.enable = mkDefault true; # Easiest to use and most distros use this by default.
-    services.openssh = {
-      enable = mkDefault true;
-      settings = {
-        PasswordAuthentication = mkDefault false;
-        KbdInteractiveAuthentication = mkDefault false;
-        GatewayPorts = mkDefault "yes";
-      };
+    # Select internationalisation properties.
+    i18n.defaultLocale = mkDefault "en_US.UTF-8";
+    i18n.extraLocaleSettings = mkDefault {
+      LC_ADDRESS = "ja_JP.UTF-8";
+      LC_IDENTIFICATION = "ja_JP.UTF-8";
+      LC_MEASUREMENT = "ja_JP.UTF-8";
+      LC_MONETARY = "ja_JP.UTF-8";
+      LC_NAME = "ja_JP.UTF-8";
+      LC_NUMERIC = "ja_JP.UTF-8";
+      LC_PAPER = "ja_JP.UTF-8";
+      LC_TELEPHONE = "ja_JP.UTF-8";
+      LC_TIME = "ja_JP.UTF-8";
     };
 
-    # Use the systemd-boot EFI boot loader.
-    boot.loader.systemd-boot.enable = mkDefault true;
-    boot.loader.efi.canTouchEfiVariables = mkDefault true;
-
-    # Audio configuration
-    services.pipewire = {
-      enable = mkDefault true;
-      pulse.enable = mkDefault true;
+    # Configure keymap in X11.
+    services.xserver.xkb = mkDefault {
+      layout = "us";
+      variant = "";
     };
 
-    # Bluetooth
-    services.blueman.enable = mkDefault true;
-    hardware.bluetooth = {
-      enable = mkDefault true;
-      powerOnBoot = mkDefault true;
-    };
-
-    # Fonts
+    # Fonts.
     fonts = {
       enableDefaultPackages = mkDefault true;
       packages = with pkgs; [
@@ -84,33 +93,8 @@ in
         noto-fonts-color-emoji
       ];
     };
-
-    # Environment variables for Wayland
-    environment.sessionVariables = {
-      NIXOS_OZONE_WL = "1";
-      MOZ_ENABLE_WAYLAND = "1";
-      QT_QPA_PLATFORM = "wayland";
-      QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
-      GDK_BACKEND = "wayland";
-      WLR_NO_HARDWARE_CURSORS = "1";
-      XDG_SESSION_TYPE = "wayland";
-      XDG_CURRENT_DESKTOP = "Hyprland";
-    };
-
-    i18n.defaultLocale = mkDefault "en_US.UTF-8";
-    i18n.inputMethod = {
-      enable = mkDefault true;
-      type = mkDefault "fcitx5";
-      fcitx5.waylandFrontend = mkDefault true;
-      fcitx5.addons = [
-        pkgs.fcitx5-mozc-ut
-      ];
-    };
-
     console = {
       font = mkDefault "Lat2-Terminus16";
-      # keyMap = "us";
-      # useXkbConfig = true; # use xkb.options in tty.
     };
 
     # This option defines the first version of NixOS you have installed on this particular machine,

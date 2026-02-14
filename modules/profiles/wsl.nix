@@ -66,7 +66,7 @@ with lib; {
 
   home-manager.users.${username} = {
     imports = [
-      ../hosts/${hostname}/${username}.nix
+      ../../hosts/${hostname}/${username}.nix
 
       {
         programs.home-manager.enable = mkDefault true;

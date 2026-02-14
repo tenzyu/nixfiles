@@ -7,44 +7,44 @@
   ### user programs {{{
   imports = [
     ### chore {{{
-    ../../user/addons/catppuccin.nix
+    ../../modules/home/addons/catppuccin.nix
     ### }}}
 
     ### shell {{{
-    ../../user/programs/zsh
+    ../../modules/home/programs/zsh
     ### }}}
 
     ### cli {{{
-    ../../user/programs/bat # A cat(1) clone with syntax highlighting and Git integration
-    ../../user/programs/btop # A monitor of resources
-    ../../user/programs/eza # A modern, maintained replacement for ls
-    ../../user/programs/fastfetch
-    ../../user/programs/fd # A simple, fast and user-friendly alternative to find
-    ../../user/programs/fzf # Command-line fuzzy finder written in Go
-    ../../user/programs/git # Distributed version control system
-    ../../user/programs/neovim
-    ../../user/programs/ripgrep
-    ../../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
-    ../../user/programs/tealdeer
-    ../../user/programs/tmux
-    ../../user/programs/yazi
-    ../../user/programs/zoxide
+    ../../modules/home/programs/bat # A cat(1) clone with syntax highlighting and Git integration
+    ../../modules/home/programs/btop # A monitor of resources
+    ../../modules/home/programs/eza # A modern, maintained replacement for ls
+    ../../modules/home/programs/fastfetch
+    ../../modules/home/programs/fd # A simple, fast and user-friendly alternative to find
+    ../../modules/home/programs/fzf # Command-line fuzzy finder written in Go
+    ../../modules/home/programs/git # Distributed version control system
+    ../../modules/home/programs/neovim
+    ../../modules/home/programs/ripgrep
+    ../../modules/home/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
+    ../../modules/home/programs/tealdeer
+    ../../modules/home/programs/tmux
+    ../../modules/home/programs/yazi
+    ../../modules/home/programs/zoxide
     ### }}}
 
     ### DE {{{
-    ../../user/programs/hyprland
-    ../../user/programs/hyprpaper
-    ../../user/programs/wlogout
+    ../../modules/home/programs/hyprland
+    ../../modules/home/programs/hyprpaper
+    ../../modules/home/programs/wlogout
     ### }}}
 
     ### gui {{{
-    ../../user/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
-    ../../user/programs/firefox
-    ../../user/programs/waybar
-    ../../user/programs/rofi
-    ../../user/programs/zed-editor
-    ../../user/programs/obs-studio
-    ../../user/programs/obsidian/wayland.nix
+    ../../modules/home/programs/kitty # A modern, hackable, featureful, OpenGL based terminal emulator
+    ../../modules/home/programs/firefox
+    ../../modules/home/programs/waybar
+    ../../modules/home/programs/rofi
+    ../../modules/home/programs/zed-editor
+    ../../modules/home/programs/obs-studio
+    ../../modules/home/programs/obsidian/wayland.nix
     ### }}}
   ];
 

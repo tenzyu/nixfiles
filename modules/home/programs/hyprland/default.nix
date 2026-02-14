@@ -1,4 +1,4 @@
-# Hyprland user config only. System (profiles/desktop.nix + system/programs/hyprland/default.nix)
+# Hyprland user config only. System (modules/profiles/desktop.nix + modules/nixos/programs/hyprland/default.nix)
 # provides the binary, session entry, and xdg-desktop-portal. This module does not set
 # wayland.windowManager.hyprland.package so the system Hyprland is used; it only generates
 # ~/.config/hypr/hyprland.conf from the settings below.

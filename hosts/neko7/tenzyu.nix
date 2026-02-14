@@ -7,24 +7,24 @@
   ### user programs {{{
   imports = [
     ### shell {{{
-    ../../user/programs/zsh
+    ../../modules/home/programs/zsh
     ### }}}
 
     ### cli {{{
-    ../../user/programs/bat # A cat(1) clone with syntax highlighting and Git integration
-    ../../user/programs/btop # A monitor of resources
-    ../../user/programs/eza # A modern, maintained replacement for ls
-    ../../user/programs/fastfetch
-    ../../user/programs/fd # A simple, fast and user-friendly alternative to find
-    ../../user/programs/fzf # Command-line fuzzy finder written in Go
-    ../../user/programs/git # Distributed version control system
-    ../../user/programs/neovim
-    ../../user/programs/ripgrep
-    ../../user/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
-    ../../user/programs/tealdeer
-    ../../user/programs/tmux
-    ../../user/programs/yazi
-    ../../user/programs/zoxide
+    ../../modules/home/programs/bat # A cat(1) clone with syntax highlighting and Git integration
+    ../../modules/home/programs/btop # A monitor of resources
+    ../../modules/home/programs/eza # A modern, maintained replacement for ls
+    ../../modules/home/programs/fastfetch
+    ../../modules/home/programs/fd # A simple, fast and user-friendly alternative to find
+    ../../modules/home/programs/fzf # Command-line fuzzy finder written in Go
+    ../../modules/home/programs/git # Distributed version control system
+    ../../modules/home/programs/neovim
+    ../../modules/home/programs/ripgrep
+    ../../modules/home/programs/starship # A minimal, blazing fast, and extremely customizable prompt for any shell
+    ../../modules/home/programs/tealdeer
+    ../../modules/home/programs/tmux
+    ../../modules/home/programs/yazi
+    ../../modules/home/programs/zoxide
     ### }}}
   ];
 
