@@ -1,52 +1,59 @@
-{
-  inputs,
-  pkgs,
-  config,
-  overlays,
-  lib,
-  ...
-}: {
-  nixpkgs.config.allowUnfreePredicate = pkg:
-    builtins.elem (lib.getName pkg) [
-      "discord"
-      "discord-ptb"
-      "obsidian"
-      "osu-lazer-bin"
-      "prismlauncher"
-      "cursor"
-      "parsec-bin"
+let
+  inherit (import ../../lib/default.nix) nixosModules;
+in
+  {
+    inputs,
+    pkgs,
+    config,
+    overlays,
+    lib,
+    ...
+  }: {
+    nixpkgs.config.allowUnfreePredicate = pkg:
+      builtins.elem (lib.getName pkg) [
+        "discord"
+        "discord-ptb"
+        "obsidian"
+        "osu-lazer-bin"
+        "prismlauncher"
+        "cursor"
+        "parsec-bin"
+        "antigravity"
+        "claude-code"
+        "windsurf"
+      ];
+
+    hardware.opentabletdriver.enable = true;
+    nixpkgs.config.permittedInsecurePackages = [
+      ### opentabletdriver {{{
+      "dotnet-sdk-6.0.428"
+      "dotnet-sdk-wrapped-6.0.428"
+      "dotnet-runtime-6.0.36"
+      ### }}}
     ];
 
-  hardware.opentabletdriver.enable = true;
-  nixpkgs.config.permittedInsecurePackages = [
-    ### opentabletdriver {{{
-    "dotnet-sdk-6.0.428"
-    "dotnet-sdk-wrapped-6.0.428"
-    "dotnet-runtime-6.0.36"
-    ### }}}
-  ];
+    nixpkgs.overlays = [
+      (import nixosModules.overlays.unstable {inherit inputs;})
+      (import nixosModules.overlays.wayland)
+    ];
 
-  nixpkgs.overlays = [
-    (import ../../modules/nixos/overlays/unstable.nix {inherit inputs;})
-    (import ../../modules/nixos/overlays/wayland.nix)
-  ];
+    imports = [
+      ### chore {{{
+      inputs.catppuccin.nixosModules.catppuccin
+      ### }}}
 
-  imports = [
-    ### chore {{{
-    inputs.catppuccin.nixosModules.catppuccin
-    ### }}}
-    ../../modules/nixos/programs/udiskie
-    ../../modules/nixos/programs/hyprland
-  ];
+      nixosModules.programs.udiskie
+      nixosModules.programs.hyprland
+    ];
 
-  environment.stub-ld.enable = true;
+    environment.stub-ld.enable = true;
 
-  services.tailscale.enable = true;
-  services.libinput.enable = true; # use touchpad
+    services.tailscale.enable = true;
+    services.libinput.enable = true; # use touchpad
 
-  services.logind.settings = {
-    Login = {
-      HandleLidSwitch = "suspend";
+    services.logind.settings = {
+      Login = {
+        HandleLidSwitch = "suspend";
+      };
     };
-  };
-}
+  }

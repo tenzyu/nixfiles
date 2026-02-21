@@ -1,3 +1,4 @@
+# WSL profile — inherits shared base, adds WSL-specific config.
 {
   username,
   hostname,
@@ -7,44 +8,18 @@
   ...
 }:
 with lib; {
-  imports = [inputs.nixos-wsl.nixosModules.wsl];
-
-  time.timeZone = mkDefault "Asia/Tokyo";
-  networking.hostName = "${hostname}";
-
-  programs.zsh.enable = true;
-  environment.pathsToLink = ["/share/zsh"];
-  environment.shells = [pkgs.zsh];
-  environment.enableAllTerminfo = true;
+  imports = [
+    ./shared.nix
+    inputs.nixos-wsl.nixosModules.wsl
+  ];
 
   security.sudo.wheelNeedsPassword = false;
-  services.openssh = {
-    enable = true;
-    settings = {
-      LogLevel = "DEBUG";
-      PasswordAuthentication = mkDefault false;
-      KbdInteractiveAuthentication = mkDefault false;
-      GatewayPorts = mkDefault "yes";
-    };
-  };
 
-  users.users.${username} = {
-    isNormalUser = true;
-    shell = pkgs.zsh;
-    extraGroups = [
-      "wheel"
-      "docker"
-    ];
-    # FIXME: add your own hashed password
-    # hashedPassword = "";
-    # FIXME: add your own ssh public key
-    # openssh.authorizedKeys.keys = [
-    #   "ssh-rsa ..."
-    # ];
-  };
+  services.openssh.settings.LogLevel = "DEBUG";
+
+  users.users.${username}.extraGroups = ["wheel" "docker"];
+
   programs.nix-ld.enable = true;
-
-  system.stateVersion = "25.11";
 
   wsl = {
     enable = true;
@@ -53,8 +28,6 @@ with lib; {
     wslConf.network.generateHosts = false;
     defaultUser = username;
     startMenuLaunchers = true;
-
-    # Enable integration with Docker Desktop (needs to be installed)
     docker-desktop.enable = false;
   };
 
@@ -64,26 +37,7 @@ with lib; {
     autoPrune.enable = true;
   };
 
-  home-manager.users.${username} = {
-    imports = [
-      ../../hosts/${hostname}/${username}.nix
-
-      {
-        programs.home-manager.enable = mkDefault true;
-        xdg.enable = mkDefault true;
-        home.preferXdgDirectories = mkDefault true;
-        home.username = mkDefault "${username}";
-        home.homeDirectory = mkDefault "/home/${username}";
-        home.stateVersion = "25.11";
-      }
-    ];
-  };
-
-  nix = {
-    settings = {
-      access-tokens = [
-        # "github.com=${secrets.github_token}"
-      ];
-    };
-  };
+  nix.settings.access-tokens = [
+    # "github.com=${secrets.github_token}"
+  ];
 }

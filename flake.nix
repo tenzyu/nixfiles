@@ -8,7 +8,7 @@
     nixosConfigurations.neko5 = lib.mkNixosConfiguration {
       hostname = "neko5";
       username = "tenzyu";
-      modules = [./modules/profiles/desktop.nix];
+      modules = [lib.profiles.desktop];
       inherit inputs;
     };
 
@@ -16,7 +16,7 @@
     nixosConfigurations.neko6 = lib.mkNixosConfiguration {
       hostname = "neko6";
       username = "tenzyu";
-      modules = [./modules/profiles/wsl.nix];
+      modules = [lib.profiles.wsl];
       inherit inputs;
     };
 
@@ -24,7 +24,7 @@
     nixosConfigurations.neko7 = lib.mkNixosConfiguration {
       hostname = "neko7";
       username = "tenzyu";
-      modules = [./modules/profiles/server.nix];
+      modules = [lib.profiles.server];
       inherit inputs;
     };
 
