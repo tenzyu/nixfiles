@@ -50,6 +50,7 @@ in
     # NOTE: home-manager が option を持っていないパッケージはココで入れる.
     home.packages = with pkgs; [
       ### cli {{{
+      nh
       bitwarden-cli
       brightnessctl
       dust # du + rust = dust. Like du but more intuitive
@@ -61,6 +62,11 @@ in
       glow
       xclip
       pay-respects
+      zip
+
+      unstable.gh
+      unstable.gemini-cli
+      inputs.codex-cli-nix.packages.x86_64-linux.default
       ### }}}
 
       ### DE {{{
@@ -77,10 +83,10 @@ in
       unstable.osu-lazer-bin
       unstable.prismlauncher
       unstable.code-cursor
-      unstable.antigravity
       unstable.claude-code
       unstable.windsurf
-      unstable.codex
+      unstable.anki-bin
+      inputs.antigravity-nix.packages.x86_64-linux.default
       ### }}}
     ];
   }
