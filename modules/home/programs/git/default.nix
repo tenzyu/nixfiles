@@ -2,6 +2,12 @@
   programs.git = {
     enable = true;
     settings = {
+      alias = {
+        st = "status --short --branch";
+        lg = "log --oneline --graph --decorate --all";
+        last = "log -1 --stat";
+      };
+      color.ui = true;
       init = {
         defaultBranch = "main";
       };
