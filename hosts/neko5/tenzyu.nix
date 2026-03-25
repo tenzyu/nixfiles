@@ -63,6 +63,7 @@ in
       xclip
       pay-respects
       zip
+      lazygit
 
       unstable.gh
       unstable.gemini-cli
