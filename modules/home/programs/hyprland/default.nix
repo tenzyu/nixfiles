@@ -3,16 +3,11 @@
 # wayland.windowManager.hyprland.package so the system Hyprland is used; it only generates
 # ~/.config/hypr/hyprland.conf from the settings below.
 {
-  inputs,
   config,
   pkgs,
   lib,
   ...
 }: {
-  imports = [
-    inputs.hyprland.homeManagerModules.default
-  ];
-
   wayland.windowManager.hyprland = let
     mod = "SUPER";
   in {
