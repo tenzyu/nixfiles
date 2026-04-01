@@ -70,7 +70,7 @@ in
       ### }}}
 
       ### DE {{{
-      grimblast
+      unstable.grimblast
       wl-clipboard
       dunst
       cliphist

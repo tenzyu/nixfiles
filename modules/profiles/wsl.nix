@@ -19,6 +19,11 @@ with lib; {
 
   users.users.${username}.extraGroups = ["wheel" "docker"];
 
+  # NOTE: これちょっと境界の線引きが曖昧なのでは
+  nixpkgs.overlays = [
+    (import ../nixos/overlays/unstable.nix {inherit inputs;})
+  ];
+
   programs.nix-ld.enable = true;
 
   wsl = {

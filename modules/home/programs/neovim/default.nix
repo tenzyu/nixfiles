@@ -32,7 +32,7 @@
       };
     };
     extraPackages = with pkgs; [
-      nixd # Nix LSP
+      unstable.nixd # Nix LSP
       alejandra # Nix formatter
     ];
   };
