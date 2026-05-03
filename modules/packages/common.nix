@@ -12,7 +12,6 @@
       tealdeer
       xclip
       xdg-ninja
-      zoxide
     ];
   };
 }

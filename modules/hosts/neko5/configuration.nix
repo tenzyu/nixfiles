@@ -22,6 +22,7 @@ in {
             homeManager.zsh
             homeManager.btop
             homeManager.fastfetch
+            homeManager.firefox
             homeManager.fzf
             homeManager.git
             homeManager.hyprland
@@ -35,6 +36,7 @@ in {
             homeManager.wlogout
             homeManager.yazi
             homeManager.zedEditor
+            homeManager.zoxide
             inputs.catppuccin.homeModules.catppuccin
           ];
           catppuccin.enable = true;
@@ -47,14 +49,11 @@ in {
             obsidian
             parsec-bin
             unstable.anki-bin
-            unstable.claude-code
-            unstable.code-cursor
             unstable.discord
             unstable.gemini-cli
             unstable.gh
             unstable.osu-lazer-bin
             unstable.prismlauncher
-            unstable.windsurf
             inputs.antigravity-nix.packages.x86_64-linux.default
             inputs.codex-cli-nix.packages.x86_64-linux.default
           ];

@@ -41,7 +41,7 @@
       zed = "zeditor";
       wget = "wget --hsts-file='${config.xdg.dataHome}/wget-hsts'";
       grep = "rg";
-      cd = "zoxide";
+      cd = "z";
       moe = "moree";
       fk = "thefuck";
       tk = "thefuck";

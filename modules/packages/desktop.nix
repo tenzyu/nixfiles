@@ -4,7 +4,6 @@
       brightnessctl
       cliphist
       dunst
-      firefox
       obs-studio
       pavucontrol
       playerctl
