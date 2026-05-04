@@ -6,8 +6,24 @@
 }: {
   configurations.nixos.neko6.module = {pkgs, ...}: {
     imports = [
-      nixos.common
-      nixos.wsl
+      nixos.nix
+      nixos.primaryUser
+      nixos.homeManagerUser
+      nixos.zsh
+      nixos.time
+      nixos.ssh
+      nixos.locale
+      nixos.systemState
+      nixos.unstablePackages
+      nixos.wslIntegration
+      nixos.passwordlessSudo
+      nixos.sshDebug
+      nixos.dockerUser
+      nixos.nixLd
+      nixos.docker
+      nixos.dockerOnBoot
+      nixos.dockerAutoPrune
+      nixos.emptyNixAccessTokens
       {
         home-manager.users.${config.me.username} = {
           imports = [
