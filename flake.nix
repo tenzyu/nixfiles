@@ -1,16 +1,8 @@
 {
   description = "tenzyu's nixfiles";
 
-  outputs = inputs: let
-    lib = inputs.nixpkgs.lib;
-    cross = import ./modules/core/_cross.nix {
-      inherit lib;
-    };
-  in
-    inputs.flake-parts.lib.mkFlake {
-      inherit inputs;
-      specialArgs = {inherit cross;};
-    }
+  outputs = inputs:
+    inputs.flake-parts.lib.mkFlake {inherit inputs;}
     (inputs.import-tree ./modules);
 
   inputs = {

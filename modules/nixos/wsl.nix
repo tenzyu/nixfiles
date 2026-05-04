@@ -4,12 +4,6 @@
   ...
 }: let
   inherit (config.me) username;
-  unstableOverlay = final: prev: {
-    unstable = import inputs.nixpkgs-unstable {
-      inherit (final.stdenv.hostPlatform) system;
-      inherit (final) config;
-    };
-  };
 in {
   flake.modules.nixos.wsl = {
     imports = [
@@ -19,11 +13,9 @@ in {
     security.sudo.wheelNeedsPassword = false;
     services.openssh.settings.LogLevel = "DEBUG";
 
-    users.users.${username}.extraGroups = ["wheel" "docker"];
+    local.pkgs.useUnstable = true;
 
-    nixpkgs.overlays = [
-      unstableOverlay
-    ];
+    users.users.${username}.extraGroups = ["wheel" "docker"];
 
     programs.nix-ld.enable = true;
 

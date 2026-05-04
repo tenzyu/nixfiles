@@ -55,7 +55,6 @@
       settings = {
         PasswordAuthentication = lib.mkDefault false;
         KbdInteractiveAuthentication = lib.mkDefault false;
-        GatewayPorts = lib.mkDefault "yes";
       };
     };
 

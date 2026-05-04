@@ -1,13 +1,15 @@
-{config, ...}: let
-  inherit (config.me) username;
-  inherit (config.flake.modules) homeManager nixos;
-in {
+{
+  config,
+  homeManager,
+  nixos,
+  ...
+}: {
   configurations.nixos.neko6.module = {pkgs, ...}: {
     imports = [
       nixos.common
       nixos.wsl
       {
-        home-manager.users.${username} = {
+        home-manager.users.${config.me.username} = {
           imports = [
             homeManager.common
             homeManager.packagesCommon

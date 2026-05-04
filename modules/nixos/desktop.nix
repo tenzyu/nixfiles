@@ -4,12 +4,6 @@
   lib,
   ...
 }: let
-  unstableOverlay = final: prev: {
-    unstable = import inputs.nixpkgs-unstable {
-      inherit (final.stdenv.hostPlatform) system;
-      inherit (final) config;
-    };
-  };
   waylandOverlay = self: super: {
     obsidian = super.obsidian.override {
       commandLineArgs = "--enable-wayland-ime";
@@ -17,8 +11,9 @@
   };
 in {
   flake.modules.nixos.desktop = {pkgs, ...}: {
+    local.pkgs.useUnstable = true;
+
     nixpkgs.overlays = [
-      unstableOverlay
       waylandOverlay
       inputs.llm-agents.overlays.default
     ];

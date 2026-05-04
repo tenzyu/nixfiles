@@ -1,21 +1,12 @@
 {
   config,
-  inputs,
   lib,
   ...
 }: let
   inherit (config.me) username;
-  unstableOverlay = final: prev: {
-    unstable = import inputs.nixpkgs-unstable {
-      inherit (final.stdenv.hostPlatform) system;
-      inherit (final) config;
-    };
-  };
 in {
   flake.modules.nixos.server = {pkgs, ...}: {
-    nixpkgs.overlays = [
-      unstableOverlay
-    ];
+    local.pkgs.useUnstable = true;
 
     environment.stub-ld.enable = true;
     programs.nix-ld.enable = true;

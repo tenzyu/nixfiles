@@ -3,15 +3,7 @@
   lib,
   ...
 }: let
-  pkgsRuntime = {config, ...}: let
-    localPkgs = config.local.pkgs;
-    policyPkgs = config.policy.pkgs;
-
-    hasUnfreePolicy =
-      policyPkgs.allowUnfreeNames
-      != []
-      || policyPkgs.allowUnfreePredicates != [];
-  in {
+  pkgsOptions = {
     options.local.pkgs.useUnstable = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -35,6 +27,20 @@
       default = [];
       description = "Insecure package versions explicitly permitted for this configuration.";
     };
+  };
+
+  pkgsRuntime = {config, ...}: let
+    localPkgs = config.local.pkgs;
+    policyPkgs = config.policy.pkgs;
+
+    hasUnfreePolicy =
+      policyPkgs.allowUnfreeNames
+      != []
+      || policyPkgs.allowUnfreePredicates != [];
+  in {
+    imports = [
+      pkgsOptions
+    ];
 
     config = lib.mkMerge [
       (lib.mkIf localPkgs.useUnstable {
@@ -63,6 +69,9 @@
 in {
   config.flake.modules.nixos.pkgsRuntime =
     pkgsRuntime;
+
+  config.flake.modules.homeManager.pkgsOptions =
+    pkgsOptions;
 
   config.flake.modules.homeManager.pkgsRuntime =
     pkgsRuntime;

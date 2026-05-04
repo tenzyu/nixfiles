@@ -1,12 +1,13 @@
-{cross, ...}:
-cross.module {
-  name = "obsidian";
+{
+  local.cross.definitions.obsidian = {
+    ambient = [
+      {
+        policy.pkgs.allowUnfreeNames = ["obsidian"];
+      }
+    ];
 
-  ambient = [
-    (cross.pkgs.unfree "obsidian")
-  ];
-
-  home.packages = pkgs: [
-    pkgs.obsidian
-  ];
+    home.packages = pkgs: [
+      pkgs.obsidian
+    ];
+  };
 }

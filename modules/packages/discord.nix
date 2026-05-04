@@ -1,13 +1,16 @@
-{cross, ...}:
-cross.module {
-  name = "discord";
+{
+  local.cross.definitions.discord = {
+    ambient = [
+      {
+        local.pkgs.useUnstable = true;
+      }
+      {
+        policy.pkgs.allowUnfreeNames = ["discord"];
+      }
+    ];
 
-  ambient = [
-    cross.pkgs.unstable
-    (cross.pkgs.unfree "discord")
-  ];
-
-  home.packages = pkgs: [
-    pkgs.unstable.discord
-  ];
+    home.packages = pkgs: [
+      pkgs.unstable.discord
+    ];
+  };
 }

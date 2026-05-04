@@ -1,25 +1,19 @@
-{
-  cross,
-  inputs,
-  lib,
-  ...
-}:
-cross.module {
-  name = "catppuccin";
+{inputs, ...}: {
+  local.cross.definitions.catppuccin = {
+    nixos.module = {
+      imports = [
+        inputs.catppuccin.nixosModules.catppuccin
+      ];
 
-  nixos.module = {
-    imports = [
-      inputs.catppuccin.nixosModules.catppuccin
-    ];
+      catppuccin.enable = true;
+    };
 
-    catppuccin.enable = true;
-  };
+    home.module = {
+      imports = [
+        inputs.catppuccin.homeModules.catppuccin
+      ];
 
-  home.module = {
-    imports = [
-      inputs.catppuccin.homeModules.catppuccin
-    ];
-
-    catppuccin.enable = true;
+      catppuccin.enable = true;
+    };
   };
 }

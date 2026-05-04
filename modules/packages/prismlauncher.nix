@@ -1,13 +1,16 @@
-{cross, ...}:
-cross.module {
-  name = "prismlauncher";
+{
+  local.cross.definitions.prismlauncher = {
+    ambient = [
+      {
+        local.pkgs.useUnstable = true;
+      }
+      {
+        policy.pkgs.allowUnfreeNames = ["prismlauncher"];
+      }
+    ];
 
-  ambient = [
-    cross.pkgs.unstable
-    (cross.pkgs.unfree "prismlauncher")
-  ];
-
-  home.packages = pkgs: [
-    pkgs.unstable.prismlauncher
-  ];
+    home.packages = pkgs: [
+      pkgs.unstable.prismlauncher
+    ];
+  };
 }
