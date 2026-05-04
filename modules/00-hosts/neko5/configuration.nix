@@ -17,7 +17,6 @@
       nixos.kernelLatest
       nixos.neko5Hardware
       nixos.unstablePackages
-      nixos.obsidianWayland
       nixos.llmAgents
       nixos.udiskie
       nixos.hyprlock
@@ -34,13 +33,13 @@
       nixos.fcitx5
       (cross.user "tenzyu" (
         (with cross.modules; [
-          obsidian
           parsec
           discord
           prismlauncher
           codex
           gemini-cli
           antigravity
+          obsidian
           osu-lazer
           catppuccin
           hyprland
@@ -75,6 +74,8 @@
           jqp
           lazygit
           zip
+          ncdu
+          helvum
           unstable.anki-bin
           unstable.gh
         ];
