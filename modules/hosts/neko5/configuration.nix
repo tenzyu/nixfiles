@@ -1,27 +1,22 @@
-{
-  config,
-  inputs,
-  ...
-}: let
+{config, ...}: let
   inherit (config.flake.modules) homeManager nixos;
   inherit (config.flake.lib.cross) user;
   cross = config.flake.lib.cross.modules;
 in {
-  configurations.nixos.neko5.module = {pkgs, ...}: {
-    boot.kernelPackages = pkgs.linuxPackages_latest;
-    policy.pkgs.allowUnfreeNames = [
-      "obsidian"
-      "parsec-bin"
-      "discord"
-      "prismlauncher"
-    ];
-
+  configurations.nixos.neko5.module = {
     imports = [
-      nixos.pkgsRuntime
+      nixos.kernelLatest
       nixos.common
       nixos.desktop
       nixos.neko5Hardware
       (user "tenzyu" [
+        cross.obsidian
+        cross.parsec
+        cross.discord
+        cross.prismlauncher
+        cross.codex
+        cross.gemini-cli
+        cross.antigravity
         cross.osu-lazer
         cross.catppuccin
         cross.hyprland
@@ -46,28 +41,17 @@ in {
         homeManager.zedEditor
         homeManager.zoxide
       ])
-      {
-        networking.hostName = "neko5";
-
-        home-manager.users."tenzyu" = {
-          home.packages = with pkgs; [
-            nh
-            jq
-            jqp
-            lazygit
-            zip
-            obsidian
-            parsec-bin
-            unstable.anki-bin
-            unstable.discord
-            unstable.gh
-            unstable.prismlauncher
-            inputs.llm-agents.packages.x86_64-linux.codex
-            inputs.llm-agents.packages.x86_64-linux.gemini-cli
-            inputs.antigravity-nix.packages.x86_64-linux.default
-          ];
-        };
-      }
+      ({pkgs, ...}: {
+        home-manager.users."tenzyu".home.packages = with pkgs; [
+          nh
+          jq
+          jqp
+          lazygit
+          zip
+          unstable.anki-bin
+          unstable.gh
+        ];
+      })
     ];
   };
 }

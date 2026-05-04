@@ -20,15 +20,18 @@
     default = {};
   };
 
-  config.flake.nixosConfigurations = lib.mapAttrs (_: {
+  config.flake.nixosConfigurations = lib.mapAttrs (name: {
     system,
     module,
   }:
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
       modules = [
+        config.flake.modules.nixos.pkgsRuntime
         inputs.home-manager.nixosModules.home-manager
         {
+          networking.hostName = lib.mkDefault name;
+
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
           home-manager.backupFileExtension = "hm-backup";

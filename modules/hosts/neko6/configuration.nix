@@ -7,8 +7,6 @@ in {
       nixos.common
       nixos.wsl
       {
-        networking.hostName = "neko6";
-
         home-manager.users.${username} = {
           imports = [
             homeManager.common

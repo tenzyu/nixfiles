@@ -8,8 +8,6 @@ in {
       nixos.server
       nixos.neko7Hardware
       {
-        networking.hostName = "neko7";
-
         home-manager.users.${username} = {
           imports = [
             homeManager.common
