@@ -41,69 +41,141 @@ function gdiffstaged() {
   git diff --cached --minimal
 }
 
-function gmsg() {
-  local agent="${1:-codex}"
+function gcai() {
+  emulate -L zsh
+
+  local agent="codex"
+  local message
+  local err
+  local status
+
+  while (( $# > 0 )); do
+    case "$1" in
+      codex|--codex)
+        agent="codex"
+        shift
+        ;;
+
+      gemini|--gemini|-g)
+        agent="gemini"
+        shift
+        ;;
+
+      --agent)
+        shift
+        if (( $# == 0 )); then
+          print -u2 "Missing value for --agent"
+          return 1
+        fi
+
+        case "$1" in
+          codex|gemini)
+            agent="$1"
+            shift
+            ;;
+          *)
+            print -u2 "Unknown agent: $1"
+            return 1
+            ;;
+        esac
+        ;;
+
+      -h|--help)
+        print "Usage: gcai [codex|gemini|--codex|--gemini|-g|--agent codex|--agent gemini]"
+        return 0
+        ;;
+
+      *)
+        print -u2 "Unknown argument: $1"
+        return 1
+        ;;
+    esac
+  done
 
   if git diff --cached --quiet; then
-    echo "No staged changes. Stage files before generating a commit message." >&2
+    print -u2 "No staged changes. Stage files before generating a commit message."
     return 1
   fi
+
+  err="$(mktemp "${TMPDIR:-/tmp}/gcai-stderr.XXXXXX")" || return
 
   case "$agent" in
     codex)
-      {
-        cat <<'EOF'
+      message="$(
+        {
+          cat <<'EOF'
 Write a single git commit subject line for the staged changes.
 Use conventional commits style when it fits naturally.
 Return only the subject line.
 Keep it under 72 characters.
 EOF
-        echo
-        echo "Staged diff summary:"
-        git diff --cached --stat --minimal
-        echo
-        echo "Staged diff:"
-        git diff --cached --minimal
-      } | codex exec --skip-git-repo-check -
+          echo
+          echo "Staged diff summary:"
+          git diff --cached --stat --minimal
+          echo
+          echo "Staged diff:"
+          git diff --cached --minimal
+        } | codex exec --skip-git-repo-check - 2>"$err"
+      )"
+      status=$?
       ;;
 
     gemini)
-      {
-        cat <<'EOF'
+      message="$(
+        {
+          cat <<'EOF'
 Write a single git commit subject line for the staged changes.
 Use conventional commits style when it fits naturally.
 Return only the subject line.
 Keep it under 72 characters.
+Do not inspect files.
+Do not use tools.
 EOF
-        echo
-        echo "Staged diff summary:"
-        git diff --cached --stat --minimal
-        echo
-        echo "Staged diff:"
-        git diff --cached --minimal
-      } | gemini --skip-trust -p "Generate the commit subject from the input above."
-      ;;
-
-    *)
-      echo "Unknown agent: $agent" >&2
-      echo "Usage: gmsg [codex|gemini]" >&2
-      return 1
+          echo
+          echo "Staged diff summary:"
+          git diff --cached --stat --minimal
+          echo
+          echo "Staged diff:"
+          git diff --cached --minimal
+        } | gemini \
+          --skip-trust \
+          --extensions none \
+          -p "Generate the commit subject from the input above." \
+          2>"$err"
+      )"
+      status=$?
       ;;
   esac
-}
 
-function gcai() {
-  local agent="${1:-codex}"
-  local message
+  if (( status != 0 )); then
+    if (( status == 130 || status == 143 )); then
+      rm -f "$err"
+      return "$status"
+    fi
 
-  message="$(gmsg "$agent")" || return
-  message="$(printf '%s\n' "$message" | sed -n '1p' | sed 's/^["'\''`]*//; s/["'\''`]*$//')"
+    if [[ -s "$err" ]]; then
+      cat "$err" >&2
+    else
+      print -u2 "AI command failed with status $status."
+    fi
 
-  if [ -z "$message" ]; then
-    echo "AI returned an empty commit message." >&2
+    rm -f "$err"
+    return "$status"
+  fi
+
+  rm -f "$err"
+
+  message="$(
+    print -r -- "$message" \
+      | sed -n '1p' \
+      | sed 's/^["'\''`]*//; s/["'\''`]*$//'
+  )"
+
+  if [[ -z "$message" ]]; then
+    print -u2 "AI returned an empty commit message."
     return 1
   fi
 
-  echo "$message"
-  git commit -m "$message"
+  print -r -- "$message"
+  git commit -e -F <(print -r -- "$message")
 }
