@@ -42,31 +42,68 @@ function gdiffstaged() {
 }
 
 function gmsg() {
+  local agent="${1:-codex}"
+
   if git diff --cached --quiet; then
     echo "No staged changes. Stage files before generating a commit message." >&2
     return 1
   fi
 
-  {
-    cat <<'EOF'
+  case "$agent" in
+    codex)
+      {
+        cat <<'EOF'
 Write a single git commit subject line for the staged changes.
 Use conventional commits style when it fits naturally.
 Return only the subject line.
 Keep it under 72 characters.
 EOF
-    echo
-    echo "Staged diff summary:"
-    git diff --cached --stat --minimal
-    echo
-    echo "Staged diff:"
-    git diff --cached --minimal
-  } | codex exec --skip-git-repo-check -
+        echo
+        echo "Staged diff summary:"
+        git diff --cached --stat --minimal
+        echo
+        echo "Staged diff:"
+        git diff --cached --minimal
+      } | codex exec --skip-git-repo-check -
+      ;;
+
+    gemini)
+      {
+        cat <<'EOF'
+Write a single git commit subject line for the staged changes.
+Use conventional commits style when it fits naturally.
+Return only the subject line.
+Keep it under 72 characters.
+EOF
+        echo
+        echo "Staged diff summary:"
+        git diff --cached --stat --minimal
+        echo
+        echo "Staged diff:"
+        git diff --cached --minimal
+      } | gemini --skip-trust -p "Generate the commit subject from the input above."
+      ;;
+
+    *)
+      echo "Unknown agent: $agent" >&2
+      echo "Usage: gmsg [codex|gemini]" >&2
+      return 1
+      ;;
+  esac
 }
 
 function gcai() {
+  local agent="${1:-codex}"
   local message
 
-  message="$(gmsg)" || return
+  message="$(gmsg "$agent")" || return
+  message="$(printf '%s\n' "$message" | sed -n '1p' | sed 's/^["'\''`]*//; s/["'\''`]*$//')"
+
+  if [ -z "$message" ]; then
+    echo "AI returned an empty commit message." >&2
+    return 1
+  fi
+
   echo "$message"
   git commit -m "$message"
 }

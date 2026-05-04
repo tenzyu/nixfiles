@@ -1,5 +1,7 @@
-{inputs, ...}: {
-  local.cross.definitions.gemini-cli.home.packages = pkgs: [
-    inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.gemini-cli
-  ];
+{moduleWithSystem, ...}: {
+  local.cross.definitions.gemini-cli.home.module = moduleWithSystem ({inputs', ...}: {
+    home.packages = [
+      inputs'.llm-agents.packages.gemini-cli
+    ];
+  });
 }

@@ -1,5 +1,7 @@
-{inputs, ...}: {
-  local.cross.definitions.antigravity.home.packages = pkgs: [
-    inputs.antigravity-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
-  ];
+{moduleWithSystem, ...}: {
+  local.cross.definitions.antigravity.home.module = moduleWithSystem ({inputs', ...}: {
+    home.packages = [
+      inputs'.antigravity-nix.packages.default
+    ];
+  });
 }
