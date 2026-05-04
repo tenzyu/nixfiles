@@ -1,5 +1,9 @@
 {
-  flake.modules.nixos.neko7Hardware = {modulesPath, lib, ...}: {
+  flake.modules.nixos.neko7Hardware = {
+    modulesPath,
+    lib,
+    ...
+  }: {
     imports = [
       (modulesPath + "/profiles/qemu-guest.nix")
     ];

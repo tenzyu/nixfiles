@@ -1,23 +1,35 @@
-# Hyprland user config only. System (modules/profiles/desktop.nix + modules/nixos/programs/hyprland/default.nix)
-# provides the binary, session entry, and xdg-desktop-portal. This module does not set
-# wayland.windowManager.hyprland.package so the system Hyprland is used; it only generates
-# ~/.config/hypr/hyprland.conf from the settings below.
-{
-  config,
-  lib,
-  ...
-}: {
-  flake.modules.homeManager.hyprland = {
+{cross, ...}:
+cross.module {
+  name = "hyprland";
+
+  ambient = [
+    cross.pkgs.unstable
+  ];
+
+  nixos.module = {pkgs, ...}: {
+    programs.hyprland = {
+      enable = true;
+      withUWSM = true;
+      package = pkgs.unstable.hyprland;
+      portalPackage = pkgs.unstable.xdg-desktop-portal-hyprland;
+    };
+  };
+
+  home.module = {cross, ...}: {
     wayland.windowManager.hyprland = let
       mod = "SUPER";
     in {
-      # REF: https://wiki.hypr.land/Nix/Hyprland-on-Home-Manager/#using-the-home-manager-module-with-nixos
       enable = true;
-      package = null;
-      portalPackage = null;
 
-      systemd.enable = false; # use uwsm
+      package = cross.only.nixos null;
+      portalPackage = cross.only.nixos null;
 
+      systemd.enable = cross.select {
+        nixos = false;
+        standalone = true;
+      };
+
+      #mod = "SUPER";
       settings = {
         # Monitor (default + optional override; use extraConfig for per-host monitor)
         monitor = [

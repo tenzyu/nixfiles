@@ -1,7 +1,4 @@
-{
-  config,
-  ...
-}: let
+{config, ...}: let
   inherit (config.me) username;
   inherit (config.flake.modules) homeManager nixos;
 in {

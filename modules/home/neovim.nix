@@ -1,7 +1,4 @@
-{
-  inputs,
-  ...
-}: {
+{inputs, ...}: {
   flake.modules.homeManager.neovim = {pkgs, ...}: {
     programs.neovim = {
       enable = true;

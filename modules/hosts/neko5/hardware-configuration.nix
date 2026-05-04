@@ -1,5 +1,10 @@
 {
-  flake.modules.nixos.neko5Hardware = {config, lib, modulesPath, ...}: {
+  flake.modules.nixos.neko5Hardware = {
+    config,
+    lib,
+    modulesPath,
+    ...
+  }: {
     imports = [
       (modulesPath + "/installer/scan/not-detected.nix")
     ];

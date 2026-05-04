@@ -1,5 +1,5 @@
 {
-  flake.modules.homeManager.firefox = { pkgs, ... }: {
+  flake.modules.homeManager.firefox = {pkgs, ...}: {
     programs.firefox = {
       enable = true;
       package = pkgs.unstable.firefox;

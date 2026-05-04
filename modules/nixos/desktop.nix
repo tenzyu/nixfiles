@@ -17,42 +17,16 @@
   };
 in {
   flake.modules.nixos.desktop = {pkgs, ...}: {
-    nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) [
-        "discord"
-        "discord-ptb"
-        "obsidian"
-        "osu-lazer-bin"
-        "prismlauncher"
-        "cursor"
-        "parsec-bin"
-        "antigravity"
-        "claude-code"
-        "windsurf"
-      ];
-
-    nixpkgs.config.permittedInsecurePackages = [
-      "dotnet-sdk-6.0.428"
-      "dotnet-sdk-wrapped-6.0.428"
-      "dotnet-runtime-6.0.36"
-    ];
-
     nixpkgs.overlays = [
       unstableOverlay
       waylandOverlay
+      inputs.llm-agents.overlays.default
     ];
 
     imports = [
-      inputs.catppuccin.nixosModules.catppuccin
       config.flake.modules.nixos.udiskie
     ];
 
-    programs.hyprland = {
-      enable = true;
-      withUWSM = true;
-      package = pkgs.unstable.hyprland;
-      portalPackage = pkgs.unstable.xdg-desktop-portal-hyprland;
-    };
     programs.hyprlock.enable = true;
 
     hardware.opentabletdriver.enable = true;
