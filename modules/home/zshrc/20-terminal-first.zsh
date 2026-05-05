@@ -47,7 +47,8 @@ function gcai() {
   local agent="codex"
   local message
   local err
-  local status
+  local out
+  local exit_status
 
   while (( $# > 0 )); do
     case "$1" in
@@ -98,26 +99,38 @@ function gcai() {
   fi
 
   err="$(mktemp "${TMPDIR:-/tmp}/gcai-stderr.XXXXXX")" || return
+  out="$(mktemp "${TMPDIR:-/tmp}/gcai-output.XXXXXX")" || {
+    rm -f "$err"
+    return 1
+  }
 
   case "$agent" in
     codex)
-      message="$(
-        {
-          cat <<'EOF'
+      {
+        cat <<'EOF'
 Write a single git commit subject line for the staged changes.
 Use conventional commits style when it fits naturally.
 Return only the subject line.
 Keep it under 72 characters.
+Do not inspect files.
+Do not use tools.
+Do not wrap the subject in quotes or Markdown.
 EOF
-          echo
-          echo "Staged diff summary:"
-          git diff --cached --stat --minimal
-          echo
-          echo "Staged diff:"
-          git diff --cached --minimal
-        } | codex exec --skip-git-repo-check - 2>"$err"
-      )"
-      status=$?
+        echo
+        echo "Staged diff summary:"
+        git diff --cached --stat --minimal
+        echo
+        echo "Staged diff:"
+        git diff --cached --minimal
+      } | codex exec \
+        --skip-git-repo-check \
+        --sandbox read-only \
+        --output-last-message "$out" \
+        - \
+        > /dev/null \
+        2>"$err"
+      exit_status=$?
+      message="$(<"$out")"
       ;;
 
     gemini)
@@ -143,32 +156,33 @@ EOF
           -p "Generate the commit subject from the input above." \
           2>"$err"
       )"
-      status=$?
+      exit_status=$?
       ;;
   esac
 
-  if (( status != 0 )); then
-    if (( status == 130 || status == 143 )); then
-      rm -f "$err"
-      return "$status"
+  if (( exit_status != 0 )); then
+    if (( exit_status == 130 || exit_status == 143 )); then
+      rm -f "$err" "$out"
+      return "$exit_status"
     fi
 
     if [[ -s "$err" ]]; then
       cat "$err" >&2
     else
-      print -u2 "AI command failed with status $status."
+      print -u2 "AI command failed with status $exit_status."
     fi
 
-    rm -f "$err"
-    return "$status"
+    rm -f "$err" "$out"
+    return "$exit_status"
   fi
 
-  rm -f "$err"
+  rm -f "$err" "$out"
 
   message="$(
     print -r -- "$message" \
+      | sed -n -e '/^[[:space:]]*```/d' -e '/^[[:space:]]*$/d' -e 'p' \
       | sed -n '1p' \
-      | sed 's/^["'\''`]*//; s/["'\''`]*$//'
+      | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^["'\''`]*//; s/["'\''`]*$//'
   )"
 
   if [[ -z "$message" ]]; then
