@@ -10,7 +10,9 @@
     ];
 
     home.packages = pkgs: [
-      pkgs.unstable.prismlauncher
+      (pkgs.unstable.prismlauncher.override {
+        jdks = [pkgs.unstable.jdk21];
+      })
     ];
   };
 }

@@ -1,7 +1,5 @@
 {inputs, ...}: {
   flake.modules.homeManager.neovim = {pkgs, ...}: {
-    local.pkgs.useUnstable = true;
-
     programs.neovim = {
       enable = true;
 
@@ -31,7 +29,7 @@
         };
       };
       extraPackages = with pkgs; [
-        unstable.nixd
+        nixd
         alejandra
       ];
     };
