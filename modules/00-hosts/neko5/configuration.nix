@@ -33,12 +33,10 @@
       nixos.fcitx5
       (cross.user "tenzyu" (
         (with cross.modules; [
-          parsec
           discord
           prismlauncher
           codex
           gemini-cli
-          antigravity
           obsidian
           osu-lazer
           catppuccin
@@ -76,8 +74,8 @@
           zip
           ncdu
           helvum
-          unstable.anki-bin
-          unstable.gh
+          gh
+          qdirstat
         ];
       })
     ];
