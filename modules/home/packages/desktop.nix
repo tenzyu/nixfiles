@@ -6,16 +6,9 @@
       brightnessctl
       cliphist
       dunst
-      kdePackages.dolphin
-      kdePackages.ffmpegthumbs
-      kdePackages.kdegraphics-thumbnailers
-      kdePackages.kimageformats
-      kdePackages.kio-extras
-      libheif
       obs-studio
       pavucontrol
       playerctl
-      qt6.qtimageformats
       wl-clipboard
       unstable.grimblast
     ];

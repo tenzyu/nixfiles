@@ -44,6 +44,7 @@
         ])
         ++ (with homeManager; [
           common
+          dolphin
           packagesCommon
           packagesDesktop
           zsh
