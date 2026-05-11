@@ -31,6 +31,7 @@
       nixos.fonts
       nixos.waylandSession
       nixos.fcitx5
+      nixos.dolphin
       (cross.user "tenzyu" (
         (with cross.modules; [
           discord
@@ -41,6 +42,7 @@
           osu-lazer
           catppuccin
           hyprland
+          vscode
         ])
         ++ (with homeManager; [
           common

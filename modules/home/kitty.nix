@@ -2,6 +2,7 @@
   flake.modules.homeManager.kitty = {
     programs.kitty = {
       enable = true;
+
       settings = {
         font_family = "FiraCode Nerd Font";
         font_size = 11;
@@ -13,7 +14,9 @@
         initial_window_height = 500;
         cursor_blink_interval = "0.5";
         cursor_stop_blinking_after = 1;
-        scrollback_lines = 2000;
+        scrollback_lines = 10000;
+        scrollbar = "always";
+        scrollbar_interactive = "yes";
         wheel_scroll_min_lines = 1;
         enable_audio_bell = "no";
         window_padding_width = 10;
@@ -23,6 +26,11 @@
         confirm_os_window_close = 0;
         selection_foreground = "none";
         selection_background = "none";
+      };
+
+      keybindings = {
+        "ctrl+shift+f12" = "clear_terminal reset active";
+        "ctrl+shift+h" = "show_scrollback";
       };
     };
   };

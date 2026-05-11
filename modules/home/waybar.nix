@@ -19,6 +19,7 @@
             "backlight"
             "battery"
             "clock"
+            "wlr/taskbar"
             "tray"
             "custom/lock"
             "custom/power"
@@ -81,6 +82,13 @@
             icon-size = 21;
             spacing = 10;
           };
+          "wlr/taskbar" = {
+            format = "{icon}";
+            icon-size = 21;
+            tooltip-format = "{title}";
+            on-click = "minimize-raise";
+            on-click-middle = "close";
+          };
           "custom/lock" = {
             tooltip = false;
             on-click = "hyprlock &";
@@ -131,6 +139,7 @@
         }
 
         #custom-music,
+        #taskbar,
         #tray,
         #backlight,
         #clock,
@@ -145,8 +154,7 @@
 
         #clock {
             color: @blue;
-            border-radius: 0px 1rem 1rem 0px;
-            margin-right: 1rem;
+            border-radius: 0;
         }
 
         #battery {
@@ -190,8 +198,22 @@
         }
 
         #tray {
+            border-radius: 0px 1rem 1rem 0px;
             margin-right: 1rem;
-            border-radius: 1rem;
+        }
+
+        #taskbar {
+            color: @peach;
+            border-radius: 0;
+        }
+
+        #taskbar button {
+            padding: 0 0.35rem;
+            border-radius: 0.7rem;
+        }
+
+        #taskbar button.minimized {
+            color: @overlay0;
         }
       '';
     };

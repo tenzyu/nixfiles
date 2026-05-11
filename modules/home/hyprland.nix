@@ -149,6 +149,8 @@
           "$mod shift, k, resizeactive, 0 -100"
           "$mod shift, l, resizeactive, 100 0"
           "$mod, q, killactive"
+          "$mod, m, movetoworkspacesilent, special:minimized"
+          "$mod shift, m, togglespecialworkspace, minimized"
           "$mod, f, fullscreen"
           "$mod, t, togglefloating"
           "$mod shift, j, layoutmsg, togglesplit"
