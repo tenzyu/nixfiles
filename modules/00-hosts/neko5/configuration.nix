@@ -34,6 +34,7 @@
       nixos.dolphin
       (cross.user "tenzyu" (
         (with cross.modules; [
+          steam
           discord
           prismlauncher
           codex
