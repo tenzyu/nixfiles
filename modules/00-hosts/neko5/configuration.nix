@@ -35,6 +35,7 @@
       (cross.user "tenzyu" (
         (with cross.modules; [
           steam
+          android-mic
           discord
           prismlauncher
           codex
