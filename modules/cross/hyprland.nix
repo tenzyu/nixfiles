@@ -65,7 +65,7 @@
             mouse_refocus = false;
             sensitivity = 0;
             touchpad = {
-              natural_scroll = true;
+              natural_scroll = false;
               scroll_factor = 1.0;
             };
           };
