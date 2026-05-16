@@ -65,7 +65,7 @@
             mouse_refocus = false;
             sensitivity = 0;
             touchpad = {
-              natural_scroll = false;
+              natural_scroll = true;
               scroll_factor = 1.0;
             };
           };
@@ -73,15 +73,15 @@
           # General / Window
           general = {
             gaps_in = 2;
-            gaps_out = 4;
-            border_size = 3;
+            gaps_out = 3;
+            border_size = 2;
             layout = "dwindle";
             resize_on_border = true;
           };
 
           # Decoration (current Hyprland schema: shadow as subblock, blur as subblock)
           decoration = {
-            rounding = 6;
+            rounding = 4;
             active_opacity = 1.0;
             inactive_opacity = 0.8;
             fullscreen_opacity = 1.0;
@@ -100,11 +100,6 @@
             };
           };
 
-          # Layout: laptop (gestures enabled)
-          dwindle = {
-            pseudotile = true;
-            preserve_split = true;
-          };
           master = {};
           gestures = {
             gesture = "3, horizontal, workspace";

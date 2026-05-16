@@ -59,13 +59,5 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
-
-    # Auto-updating {{{
-    antigravity-nix = {
-      url = "github:jacopone/antigravity-nix";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
-      inputs.flake-utils.follows = "flake-utils";
-    };
-    # }}}
   };
 }
