@@ -36,13 +36,77 @@
       programs.steam = {
         enable = true;
         package = steamPackage pkgs;
+        protontricks.enable = true;
+
+        extraCompatPackages = with pkgs; [
+          proton-ge-bin
+        ];
+
+        # Dedicated display-manager session: Steam inside gamescope.
+        # For per-game usage from the normal Hyprland session, use:
+        #   game-scope %command%
+        gamescopeSession = {
+          enable = true;
+          args = [
+            "--rt"
+            "-W"
+            "1366"
+            "-H"
+            "768"
+            "-r"
+            "60"
+          ];
+          steamArgs = [
+            "-gamepadui"
+          ];
+        };
       };
     };
 
-    home.module = {pkgs, ...}: {
-      home.packages = [
-        (steamPackage pkgs)
-      ];
+    home.module = {
+      cross,
+      pkgs,
+      ...
+    }: {
+      home.packages =
+        [
+          (pkgs.writeShellApplication {
+            name = "steam-gaming";
+            runtimeInputs = with pkgs; [gamemode gamescope];
+            text = ''
+              set -euo pipefail
+
+              if command -v hypr-gaming-mode >/dev/null 2>&1; then
+                hypr-gaming-mode on || true
+                trap 'hypr-gaming-mode off || true' EXIT INT TERM
+              fi
+
+              exec gamemoderun gamescope \
+                --backend "''${GAMESCOPE_BACKEND:-sdl}" \
+                --steam \
+                --rt \
+                -f \
+                -W "''${GAMESCOPE_WIDTH:-1366}" \
+                -H "''${GAMESCOPE_HEIGHT:-768}" \
+                -r "''${GAMESCOPE_REFRESH:-60}" \
+                -- steam "$@"
+            '';
+          })
+        ]
+        ++ (cross.select {
+          nixos = [];
+          standalone = [
+            (steamPackage pkgs)
+          ];
+        });
+
+      xdg.desktopEntries.steam-gaming = {
+        name = "Steam Gaming";
+        genericName = "Steam in GameMode + Gamescope";
+        exec = "steam-gaming";
+        terminal = false;
+        categories = ["Game"];
+      };
     };
   };
 }

@@ -67,28 +67,7 @@ in {
         capSysNice = true;
         args = [
           "--rt"
-          "--mangoapp"
         ];
-      };
-
-      programs.steam = {
-        gamescopeSession = {
-          enable = true;
-          args = [
-            "--rt"
-            "--mangoapp"
-            "-W"
-            "1366"
-            "-H"
-            "768"
-            "-r"
-            "60"
-          ];
-        };
-        extraCompatPackages = with pkgs; [
-          proton-ge-bin
-        ];
-        protontricks.enable = true;
       };
 
       users.users.${username}.extraGroups = lib.mkAfter [
@@ -100,10 +79,8 @@ in {
       environment.systemPackages = with pkgs; [
         gamemode
         gamescope
-        goverlay
         intel-gpu-tools
         libva-utils
-        mangohud
         powertop
         vulkan-tools
       ];
@@ -112,6 +89,7 @@ in {
     home.module = {pkgs, ...}: {
       home.packages = [
         (pkgs.writeShellApplication {
+      # これいらんかもなぁ
           name = "hypr-gaming-mode";
           runtimeInputs = with pkgs; [hyprland procps systemd];
           text = ''
@@ -132,26 +110,44 @@ in {
             esac
           '';
         })
-      ];
 
-      programs.mangohud = {
-        enable = true;
-        settings = {
-          fps = true;
-          frame_timing = true;
-          frametime = true;
-          gpu_stats = true;
-          cpu_stats = true;
-          cpu_temp = true;
-          gpu_temp = true;
-          throttling_status = true;
-          fps_limit_method = "late";
-          histogram = true;
-          output_folder = "~/Documents/mangohud";
-          log_duration = 60;
-          autostart_log = false;
-        };
-      };
+        (pkgs.writeShellApplication {
+          name = "game-scope";
+          runtimeInputs = with pkgs; [gamemode gamescope];
+          text = ''
+            set -euo pipefail
+
+            if [ "$#" -eq 0 ]; then
+              cat >&2 <<'USAGE'
+            usage: game-scope <command> [args...]
+
+            Steam launch option:
+              game-scope %command%
+
+            Optional environment variables:
+              GAMESCOPE_OUTPUT_WIDTH=1366
+              GAMESCOPE_OUTPUT_HEIGHT=768
+              GAMESCOPE_GAME_WIDTH=1024
+              GAMESCOPE_GAME_HEIGHT=576
+              GAMESCOPE_SCALER=fsr
+              GAMESCOPE_REFRESH=60
+            USAGE
+              exit 64
+            fi
+
+            exec gamemoderun gamescope \
+              --backend "''${GAMESCOPE_BACKEND:-sdl}" \
+              -f \
+              -W "''${GAMESCOPE_OUTPUT_WIDTH:-1366}" \
+              -H "''${GAMESCOPE_OUTPUT_HEIGHT:-768}" \
+              -w "''${GAMESCOPE_GAME_WIDTH:-1024}" \
+              -h "''${GAMESCOPE_GAME_HEIGHT:-576}" \
+              -F "''${GAMESCOPE_SCALER:-fsr}" \
+              -r "''${GAMESCOPE_REFRESH:-60}" \
+              -- "$@"
+          '';
+        })
+      ];
     };
   };
 }
