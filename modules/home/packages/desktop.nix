@@ -5,7 +5,7 @@
     home.packages = with pkgs; [
       brightnessctl
       cliphist
-      dunst
+      libnotify
       obs-studio
       pavucontrol
       playerctl

@@ -60,13 +60,13 @@
           firefox
           fzf
           git
-          hyprpaper
           kitty
           neovim
           rofi
           starship
           tmux
           waybar
+          mako
           wlogout
           yazi
           zedEditor

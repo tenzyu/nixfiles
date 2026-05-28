@@ -15,7 +15,11 @@
       };
     };
 
-    home.module = {cross, ...}: {
+    home.module = {
+      cross,
+      pkgs,
+      ...
+    }: {
       wayland.windowManager.hyprland = let
         mod = "SUPER";
       in {
@@ -29,53 +33,45 @@
           standalone = true;
         };
 
-        #mod = "SUPER";
+        xwayland.enable = true;
+
         settings = {
-          # Monitor (default + optional override; use extraConfig for per-host monitor)
           monitor = [
             ",preferred,auto,1"
-            "DP-1, 1920x1080@60, auto, 1"
-          ];
-          # Cursor
-          "exec-once" = [
-            "hyprctl setcursor Adwaita 24"
-            # Autostart
-            "fcitx5"
-            "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-            "systemctl --user start hyprpaper.service"
-            "systemctl --user start hypridle.service"
-            "dunst"
-            "waybar"
-            "wl-paste --watch cliphist store"
-            "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
           ];
 
-          # Keyboard / Input
+          "exec-once" = [
+            "hyprctl setcursor Adwaita 24"
+            "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
+            "systemctl --user start hypridle.service"
+            "systemctl --user start mako.service"
+            "waybar"
+            "wl-paste --watch cliphist store"
+            "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XCURSOR_THEME XCURSOR_SIZE"
+          ];
+
           input = {
             kb_layout = "us";
-            kb_variant = "";
-            kb_model = "";
-            kb_options = "";
             numlock_by_default = true;
             follow_mouse = 1;
             mouse_refocus = false;
             sensitivity = 0;
             touchpad = {
               natural_scroll = false;
+              disable_while_typing = true;
               scroll_factor = 1.0;
             };
           };
 
-          # General / Window
           general = {
             gaps_in = 0;
             gaps_out = 0;
             border_size = 1;
             layout = "dwindle";
             resize_on_border = true;
+            allow_tearing = true;
           };
 
-          # Decoration (current Hyprland schema: shadow as subblock, blur as subblock)
           decoration = {
             rounding = 0;
             active_opacity = 1.0;
@@ -83,7 +79,7 @@
             fullscreen_opacity = 1.0;
             blur = {
               enabled = false;
-              size = 2;
+              size = 1;
               passes = 1;
               new_optimizations = true;
               ignore_opacity = false;
@@ -97,6 +93,11 @@
           };
 
           master = {};
+          dwindle = {
+            preserve_split = true;
+            smart_split = false;
+          };
+
           gestures = {
             gesture = "3, horizontal, workspace";
             workspace_swipe_distance = 500;
@@ -135,28 +136,19 @@
             new_render_scheduling = true;
           };
 
-          debug = {
-            disable_logs = true;
-          };
+          debug.disable_logs = true;
 
-          # Animations (current schema: bezier and animation as repeated keys → use lists)
           animations = {
             enabled = false;
             bezier = [
-              "wind, 0.05, 0.9, 0.1, 1.05"
-              "winIn, 0.1, 1.1, 0.1, 1.1"
-              "winOut, 0.3, -0.3, 0, 1"
-              "liner, 1, 1, 1, 1"
+              "linear, 1, 1, 1, 1"
             ];
             animation = [
-              "windows, 1, 6, wind, slide"
-              "windowsIn, 1, 6, winIn, slide"
-              "windowsOut, 1, 5, winOut, slide"
-              "windowsMove, 1, 5, wind, slide"
-              "border, 1, 1, liner"
-              "borderangle, 1, 30, liner, once"
-              "fade, 1, 10, default"
-              "workspaces, 1, 5, wind"
+              "border, 0"
+              "borderangle, 0"
+              "fade, 0"
+              "windows, 0"
+              "workspaces, 0"
             ];
           };
 
@@ -209,6 +201,8 @@
             "$mod ctrl, q, exec, wlogout"
             "$mod, space, exec, pkill rofi || rofi -show drun -replace -i"
             "$mod, v, exec, cliphist list | rofi -dmenu -replace | cliphist decode | wl-copy"
+            "$mod shift, g, exec, hypr-gaming-mode on"
+            "$mod ctrl shift, g, exec, hypr-gaming-mode off"
             ", XF86MonBrightnessUp, exec, brightnessctl -q s +10%"
             ", XF86MonBrightnessDown, exec, brightnessctl -q s 10%-"
             ", XF86AudioRaiseVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ +5%"
@@ -240,13 +234,16 @@
             "match:title ^(Picture-in-Picture)$, float on"
             "match:title ^(Picture-in-Picture)$, pin on"
             "match:title ^(Picture-in-Picture)$, move 69.5% 4%"
+            "match:class ^(steam_app_.*)$, immediate on"
+            "match:class ^(steam_app_.*)$, fullscreen on"
+            "match:class ^(osu!)$, immediate on"
+            "match:class ^(osu!)$, fullscreen on"
+            "match:class ^(osu-lazer)$, immediate on"
+            "match:class ^(osu-lazer)$, fullscreen on"
           ];
         };
 
-        # windowrulev2 and other raw lines. For Nvidia: add settings.env (LIBVA_DRIVER_NAME,nvidia etc.) and cursor.no_hardware_cursors in extraConfig per host. For KVM/software render: add WLR_RENDERER_ALLOW_SOFTWARE,1 and LIBGL_ALWAYS_SOFTWARE,1 to settings.env.
         extraConfig = ''
-          # Browser Picture in Picture
-
           env = SDL_VIDEODRIVER,wayland
         '';
       };

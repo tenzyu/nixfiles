@@ -8,8 +8,8 @@
         };
 
         extraPreBwrapCmds = ''
-          # Valve's startup script prints noisy find(1) errors when steam.pid
-          # points at a recycled process whose /proc fd directory is private.
+          # Valve's startup script can choke on a stale steam.pid that points at
+          # a recycled process with private /proc/fd permissions.
           steam_pid_file="$HOME/.steam/steam.pid"
           if [ -r "$steam_pid_file" ]; then
             steam_pid="$(cat "$steam_pid_file" 2>/dev/null || true)"
@@ -28,7 +28,7 @@
         local.pkgs.useUnstable = true;
       }
       {
-        policy.pkgs.allowUnfreeNames = ["steam" "steam-unwrapped"];
+        policy.pkgs.allowUnfreeNames = ["steam" "steam-original" "steam-unwrapped" "steam-run"];
       }
     ];
 
@@ -38,8 +38,11 @@
         package = steamPackage pkgs;
       };
     };
-    home.packages = pkgs: [
-      (steamPackage pkgs)
-    ];
+
+    home.module = {pkgs, ...}: {
+      home.packages = [
+        (steamPackage pkgs)
+      ];
+    };
   };
 }
