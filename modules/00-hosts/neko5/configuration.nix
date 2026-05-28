@@ -29,12 +29,15 @@
       nixos.pipewire
       nixos.bluetooth
       nixos.fonts
+      nixos.intelGraphics
+      nixos.desktopPerformance
       nixos.waylandSession
       nixos.fcitx5
       nixos.dolphin
       (cross.user "tenzyu" (
         (with cross.modules; [
           steam
+          gaming
           android-mic
           discord
           prismlauncher

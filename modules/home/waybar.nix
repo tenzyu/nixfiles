@@ -11,9 +11,7 @@
           modules-left = [
             "hyprland/workspaces"
           ];
-          modules-center = [
-            "custom/music"
-          ];
+          modules-center = [];
           modules-right = [
             "pulseaudio"
             "backlight"
@@ -40,15 +38,6 @@
             persistent-workspaces = {
               "*" = 5;
             };
-          };
-          "custom/music" = {
-            format = "  {}";
-            escape = true;
-            interval = 5;
-            tooltip = false;
-            exec = "playerctl metadata --format='{{ title }}'";
-            on-click = "playerctl play-pause";
-            max-length = 50;
           };
           pulseaudio = {
             format = "{icon} {volume}%";
@@ -138,7 +127,6 @@
             border-radius: 1rem;
         }
 
-        #custom-music,
         #taskbar,
         #tray,
         #backlight,
@@ -179,11 +167,6 @@
             color: @maroon;
             border-radius: 1rem 0px 0px 1rem;
             margin-left: 1rem;
-        }
-
-        #custom-music {
-            color: @mauve;
-            border-radius: 1rem;
         }
 
         #custom-lock {

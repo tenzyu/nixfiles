@@ -34,22 +34,18 @@
           # Monitor (default + optional override; use extraConfig for per-host monitor)
           monitor = [
             ",preferred,auto,1"
-            "DP-1, 1920x1080@120, auto, 1"
+            "DP-1, 1920x1080@60, auto, 1"
           ];
-          env = [
-            "bitdepth,10"
-          ];
-
           # Cursor
           "exec-once" = [
             "hyprctl setcursor Adwaita 24"
             # Autostart
             "fcitx5"
             "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-            "systemctl --user start hyprpaper"
+            "systemctl --user start hyprpaper.service"
+            "systemctl --user start hypridle.service"
             "dunst"
             "waybar"
-            "hypridle"
             "wl-paste --watch cliphist store"
             "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
           ];
@@ -72,30 +68,30 @@
 
           # General / Window
           general = {
-            gaps_in = 2;
-            gaps_out = 3;
-            border_size = 2;
+            gaps_in = 0;
+            gaps_out = 0;
+            border_size = 1;
             layout = "dwindle";
             resize_on_border = true;
           };
 
           # Decoration (current Hyprland schema: shadow as subblock, blur as subblock)
           decoration = {
-            rounding = 4;
+            rounding = 0;
             active_opacity = 1.0;
-            inactive_opacity = 0.8;
+            inactive_opacity = 1.0;
             fullscreen_opacity = 1.0;
             blur = {
-              enabled = true;
-              size = 6;
-              passes = 2;
+              enabled = false;
+              size = 2;
+              passes = 1;
               new_optimizations = true;
-              ignore_opacity = true;
-              xray = true;
+              ignore_opacity = false;
+              xray = false;
             };
             shadow = {
-              enabled = true;
-              range = 30;
+              enabled = false;
+              range = 4;
               color = "0x66000000";
             };
           };
@@ -117,13 +113,35 @@
             pass_mouse_when_bound = false;
           };
 
+          cursor = {
+            inactive_timeout = 3;
+            no_hardware_cursors = false;
+          };
+
           misc = {
-            force_default_wallpaper = 2;
+            animate_manual_resizes = false;
+            animate_mouse_windowdragging = false;
+            disable_hyprland_logo = true;
+            disable_splash_rendering = true;
+            force_default_wallpaper = 0;
+            mouse_move_enables_dpms = true;
+            key_press_enables_dpms = true;
+            render_unfocused_fps = 15;
+            vrr = 1;
+          };
+
+          render = {
+            direct_scanout = true;
+            new_render_scheduling = true;
+          };
+
+          debug = {
+            disable_logs = true;
           };
 
           # Animations (current schema: bezier and animation as repeated keys → use lists)
           animations = {
-            enabled = true;
+            enabled = false;
             bezier = [
               "wind, 0.05, 0.9, 0.1, 1.05"
               "winIn, 0.1, 1.1, 0.1, 1.1"
@@ -231,6 +249,30 @@
 
           env = SDL_VIDEODRIVER,wayland
         '';
+      };
+
+      services.hypridle = {
+        enable = true;
+        settings = {
+          general = {
+            after_sleep_cmd = "hyprctl dispatch dpms on";
+            before_sleep_cmd = "loginctl lock-session";
+            ignore_dbus_inhibit = false;
+            lock_cmd = "pidof hyprlock || hyprlock";
+          };
+
+          listener = [
+            {
+              timeout = 180;
+              on-timeout = "loginctl lock-session";
+            }
+            {
+              timeout = 210;
+              on-timeout = "hyprctl dispatch dpms off";
+              on-resume = "hyprctl dispatch dpms on";
+            }
+          ];
+        };
       };
     };
   };
