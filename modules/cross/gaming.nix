@@ -89,7 +89,7 @@ in {
     home.module = {pkgs, ...}: {
       home.packages = [
         (pkgs.writeShellApplication {
-      # これいらんかもなぁ
+          # これいらんかもなぁ
           name = "hypr-gaming-mode";
           runtimeInputs = with pkgs; [hyprland procps systemd];
           text = ''

@@ -7,6 +7,7 @@
   configurations.nixos.neko5.module = {
     imports = [
       nixos.nix
+      nixos.nixStoreClean
       nixos.primaryUser
       nixos.homeManagerUser
       nixos.zsh
