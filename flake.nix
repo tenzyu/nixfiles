@@ -35,10 +35,15 @@
       flake = false;
     };
 
+    catppuccin = {
+      # NOTE: Omitting follows costs you a second nixpkgs eval, but lets you pull cache instead of rebuild.
+      url = "github:catppuccin/nix/release-26.05";
+    };
     llm-agents = {
       # NOTE: Omitting follows costs you a second nixpkgs evaluation but guarantees you get the combination we ship in CI — and lets you pull pre-built binaries from our binary cache instead of rebuilding everything against your nixpkgs.
       url = "github:numtide/llm-agents.nix";
     };
+
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -48,11 +53,6 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
-    };
-
-    catppuccin = {
-      url = "github:catppuccin/nix/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
     lazyvim = {
       url = "github:pfassina/lazyvim-nix";

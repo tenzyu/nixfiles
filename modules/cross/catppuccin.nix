@@ -5,7 +5,10 @@
         inputs.catppuccin.nixosModules.catppuccin
       ];
 
-      catppuccin.enable = true;
+      catppuccin = {
+        enable = true;
+        cache.enable = true;
+      };
     };
 
     home.module = {
@@ -13,7 +16,10 @@
         inputs.catppuccin.homeModules.catppuccin
       ];
 
-      catppuccin.enable = true;
+      catppuccin = {
+        enable = true;
+        cache.enable = true;
+      };
     };
   };
 }
