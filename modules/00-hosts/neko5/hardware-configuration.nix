@@ -9,7 +9,7 @@
       (modulesPath + "/installer/scan/not-detected.nix")
     ];
 
-    boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "usb_storage" "sd_mod" "sr_mod" "rtsx_pci_sdmmc"];
+    boot.initrd.availableKernelModules = ["xhci_pci" "ahci" "nvme" "sr_mod" "rtsx_pci_sdmmc"];
     boot.initrd.kernelModules = [];
     boot.kernelModules = ["kvm-intel"];
     boot.extraModulePackages = [];
@@ -29,7 +29,6 @@
       {device = "/dev/disk/by-uuid/3781b9e2-45a4-4697-865f-e79bf30644f1";}
     ];
 
-    networking.useDHCP = lib.mkDefault true;
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
     hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   };

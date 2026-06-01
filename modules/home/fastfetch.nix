@@ -27,7 +27,7 @@
           }
           {
             type = "packages";
-            format = "{} packages";
+            format = "system={nix-system}, user={nix-user}, total={nix-all}";
             key = " ├ 󰏖 ";
             keyColor = "31";
           }
