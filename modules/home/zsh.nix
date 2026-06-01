@@ -43,6 +43,7 @@
         moe = "moree";
         fk = "thefuck";
         tk = "thefuck";
+        yy = "yazi";
       };
 
       # TODO: fzf-git をいい感じにする.

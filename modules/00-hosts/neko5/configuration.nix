@@ -81,7 +81,7 @@
           lazygit
           zip
           ncdu
-          helvum
+          crosspipe
           gh
           qdirstat
         ];

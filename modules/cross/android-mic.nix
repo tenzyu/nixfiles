@@ -32,8 +32,6 @@
 in {
   local.cross.definitions.android-mic = {
     nixos.module = {lib, ...}: {
-      programs.adb.enable = lib.mkDefault true;
-
       security.rtkit.enable = lib.mkDefault true;
       services.pipewire = {
         enable = lib.mkDefault true;
@@ -66,6 +64,7 @@ in {
     home.packages = pkgs:
       lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
         (androidMic pkgs)
+        pkgs.android-tools
       ];
   };
 }
