@@ -6,25 +6,20 @@
     (inputs.import-tree ./modules);
 
   inputs = {
+    # -- nixpkgs
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+
+    # -- Theme
+    # NOTE: omit follows, for cache hit.
+    # catppuccin using "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz" btw
+    catppuccin.url = "github:catppuccin/nix/release-26.05";
+
+    # -- Nix ecosystems
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    # Dendritic Pattern {{{
-    import-tree.url = "github:vic/import-tree";
-    flake-parts = {
-      url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-    wrapper-modules = {
-      url = "github:BirdeeHub/nix-wrapper-modules";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # }}}
-
     systems.url = "github:nix-systems/default";
     flake-utils = {
       url = "github:numtide/flake-utils";
@@ -35,15 +30,31 @@
       flake = false;
     };
 
-    catppuccin = {
-      # NOTE: Omitting follows costs you a second nixpkgs eval, but lets you pull cache instead of rebuild.
-      url = "github:catppuccin/nix/release-26.05";
+    # -- Dendritic Pattern
+    import-tree.url = "github:vic/import-tree";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
     };
-    llm-agents = {
-      # NOTE: Omitting follows costs you a second nixpkgs evaluation but guarantees you get the combination we ship in CI — and lets you pull pre-built binaries from our binary cache instead of rebuilding everything against your nixpkgs.
-      url = "github:numtide/llm-agents.nix";
+    wrapper-modules = {
+      url = "github:BirdeeHub/nix-wrapper-modules";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # -- Development
+    llm-agents = {
+      url = "github:numtide/llm-agents.nix";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      inputs.systems.follows = "systems";
+      inputs.flake-parts.follows = "flake-parts";
+    };
+    lazyvim = {
+      url = "github:pfassina/lazyvim-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+
+    # -- Other Ecosystems
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -51,11 +62,6 @@
     };
     nixgl = {
       url = "github:nix-community/nixGL";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
-    };
-    lazyvim = {
-      url = "github:pfassina/lazyvim-nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
