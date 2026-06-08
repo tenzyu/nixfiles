@@ -291,8 +291,11 @@
             (modBind "SHIFT + 0" (moveWorkspace 10))
             (modBind "SHIFT + s" (luaExec "grimblast copy area"))
             (modBind "CTRL + q" (luaExec "wlogout"))
+
             (modBind "Space" (luaExec "pkill rofi || rofi -show drun -replace -i"))
             (modBind "v" (luaExec "cliphist list | rofi -dmenu -replace | cliphist decode | wl-copy"))
+            (modBind "p" (luaExec "pkill castalia || castalia launch"))
+
             (modBind "SHIFT + g" (luaExec "hypr-gaming-mode on"))
             (modBind "CTRL + SHIFT + g" (luaExec "hypr-gaming-mode off"))
             (bind "XF86MonBrightnessUp" (luaExec "brightnessctl -q s +10%"))
