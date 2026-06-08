@@ -2,6 +2,7 @@
   cross,
   homeManager,
   nixos,
+  inputs,
   ...
 }: {
   configurations.nixos.neko5.module = {
@@ -35,6 +36,7 @@
       nixos.waylandSession
       nixos.fcitx5
       nixos.dolphin
+      nixos.docker
       (cross.user "tenzyu" (
         (with cross.modules; [
           steam
@@ -44,8 +46,10 @@
           prismlauncher
           codex
           gemini-cli
+          opencode
           obsidian
           osu-lazer
+          rtk
           catppuccin
           hyprland
           vscode
@@ -85,6 +89,8 @@
           crosspipe
           gh
           qdirstat
+          inputs.castalia.packages.${pkgs.system}.castalia
+          inputs.onair.packages.${pkgs.system}.default
         ];
       })
     ];
