@@ -1,5 +1,5 @@
 {
-  config,
+  cross,
   homeManager,
   nixos,
   ...
@@ -21,9 +21,7 @@
       nixos.tailscale
       nixos.resolvconfBlacklistGateway
       nixos.disableIpv6
-      nixos.dockerUser
       nixos.docker
-      nixos.dockerRootless
       nixos.qemuGuest
       nixos.grubSda
       nixos.kernelLatest
@@ -31,28 +29,41 @@
       nixos.jaExtraLocales
       nixos.usXserverKeyboard
       nixos.fonts
-      {
-        home-manager.users.${config.me.username} = {
-          imports = [
-            homeManager.common
-            homeManager.packagesCommon
-            homeManager.zsh
-            homeManager.btop
-            homeManager.fastfetch
-            homeManager.fzf
-            homeManager.git
-            homeManager.neovim
-            homeManager.tmux
-            homeManager.yazi
-          ];
-
-          home.packages = with pkgs; [
-            jq
-            jqp
-            playerctl
-          ];
-        };
-      }
+      (cross.user "tenzyu" (
+        (with cross.modules; [
+          catppuccin
+        ])
+        ++ (with homeManager; [
+          common
+          packagesCommon
+          zsh
+          btop
+          fastfetch
+          fzf
+          git
+          kitty
+          neovim
+          rofi
+          starship
+          tmux
+          waybar
+          mako
+          wlogout
+          yazi
+          zoxide
+        ])
+      ))
+      ({pkgs, ...}: {
+        home-manager.users."tenzyu".home.packages = with pkgs; [
+          nh
+          jq
+          jqp
+          lazygit
+          zip
+          ncdu
+          crosspipe
+        ];
+      })
     ];
   };
 }
