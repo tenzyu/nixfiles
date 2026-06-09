@@ -23,7 +23,8 @@
       nixos.disableIpv6
       nixos.docker
       nixos.qemuGuest
-      nixos.grubSda
+      nixos.systemdBoot
+      nixos.nvidia
       nixos.kernelLatest
       nixos.networkManager
       nixos.jaExtraLocales

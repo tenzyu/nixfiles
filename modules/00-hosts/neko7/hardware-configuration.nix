@@ -18,6 +18,12 @@
       fsType = "ext4";
     };
 
+    fileSystems."/boot" = {
+      device = "/dev/disk/by-label/NIXBOOT";
+      fsType = "vfat";
+      options = ["umask=0077"];
+    };
+
     swapDevices = [];
 
     networking.useDHCP = lib.mkDefault true;
