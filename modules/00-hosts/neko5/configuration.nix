@@ -45,14 +45,12 @@
           discord
           prismlauncher
           codex
-          gemini-cli
           opencode
           obsidian
           osu-lazer
           rtk
           catppuccin
           hyprland
-          vscode
         ])
         ++ (with homeManager; [
           common
