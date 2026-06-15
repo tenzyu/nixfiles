@@ -1,82 +1,63 @@
-{ feature, inputs, ... }: {
+{inputs, ...}: {
   configurations.nixos.neko5.module = {
-    imports = [
-      (feature.system {
-        stateVersion = "26.05";
-        features = {
-          neko5-hardware = true;
-          nix = true;
-          nix-store-clean = true;
-          zsh = true;
-          time = true;
-          locale = true;
-          ssh = true;
-          tailscale = true;
-          systemd-boot = true;
-          pipewire = true;
-          bluetooth = true;
-          intel-graphics = true;
-          docker-rootless = true;
-          fcitx5 = true;
-          kernel-latest = true;
-          udiskie = true;
-          hyprlock = true;
-          open-tablet-driver = true;
-          stub-ld = true;
-          laptop-input = true;
-          fonts = true;
-          desktop-performance = true;
-          wayland-session = true;
-        };
-      })
+    local.features = {
+      neko5-hardware.enable = true;
+      nix.enable = true;
+      nix-store-clean.enable = true;
+      zsh.enable = true;
+      time.enable = true;
+      locale.enable = true;
+      ssh.enable = true;
+      tailscale.enable = true;
+      systemd-boot.enable = true;
+      pipewire.enable = true;
+      bluetooth.enable = true;
+      intel-graphics.enable = true;
+      docker-rootless.enable = true;
+      fcitx5.enable = true;
+      kernel-latest.enable = true;
+      udiskie.enable = true;
+      hyprlock.enable = true;
+      open-tablet-driver.enable = true;
+      stub-ld.enable = true;
+      laptop-input.enable = true;
+      fonts.enable = true;
+      desktop-performance.enable = true;
+      wayland-session.enable = true;
+    };
 
-      (feature.users {
-        tenzyu = {
-          isAdmin = true;
-          homeStateVersion = "26.05";
-          fullName = "tenzyu";
-          email = "tenzyu.on@gmail.com";
+    local.users.tenzyu = {
+      enable = true;
+      isAdmin = true;
+      homeStateVersion = "26.05";
+      email = "tenzyu.on@gmail.com";
+      homeDirectory = "/home/tenzyu";
 
-          features = {
-            tenzyu-desktop = true;
-            hyprland-tenzyu = true;
-            hyprland-gaming-mode = true;
-            steam = true;
-            android-mic = true;
-            discord = true;
-            prismlauncher = true;
-            codex = true;
-            opencode = true;
-            obsidian = true;
-            osu-lazer = true;
-            parsec = true;
-            networkmanager-access = true;
-            nix-access = true;
-            rtk = true;
-            catppuccin = true;
-            dolphin = true;
-            zsh = true;
-          };
-
-          imports = [
-            ({ pkgs, ... }: {
-              home.packages = with pkgs; [
-                nh
-                jq
-                jqp
-                lazygit
-                zip
-                ncdu
-                crosspipe
-                gh
-                qdirstat
-                inputs.castalia.packages.${pkgs.system}.castalia
-                inputs.onair.packages.${pkgs.system}.default
-              ];
-            })
-          ];
-        };
-      })
-    ];
+      features = {
+        tenzyu-desktop.enable = true;
+        hyprland-tenzyu.enable = true;
+        hyprland-gaming-mode.enable = true;
+        steam.enable = true;
+        android-mic.enable = true;
+        discord.enable = true;
+        prismlauncher.enable = true;
+        codex.enable = true;
+        opencode.enable = true;
+        obsidian.enable = true;
+        osu-lazer.enable = true;
+        parsec.enable = true;
+        networkmanager-access.enable = true;
+        nix-access.enable = true;
+        rtk.enable = true;
+        catppuccin.enable = true;
+        dolphin.enable = true;
+        zsh.enable = true;
+        nix-tools.enable = true;
+        git-tools.enable = true;
+        disk-tools.enable = true;
+        castalia.enable = true;
+        onair.enable = true;
+      };
+    };
   };
 }

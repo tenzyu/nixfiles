@@ -1,12 +1,14 @@
 {
-  flake.modules.homeManager.yazi = {
-    programs.yazi = {
-      enable = true;
-      enableZshIntegration = true;
+  flake.modules.homeManager.yazi = {config, lib, ...}: {
+    config = lib.mkIf config.local.features.yazi.enable {
+      programs.yazi = {
+        enable = true;
+        enableZshIntegration = true;
 
-      settings = {
-        mgr = {
-          show_hidden = true;
+        settings = {
+          mgr = {
+            show_hidden = true;
+          };
         };
       };
     };

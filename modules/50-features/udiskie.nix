@@ -1,9 +1,16 @@
 {...}: {
-  flake.modules.nixos.udiskie = {pkgs, ...}: {
-    environment.systemPackages = [
-      pkgs.udiskie
-    ];
+  flake.modules.nixos.udiskie = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.udiskie.enable {
+      environment.systemPackages = [
+        pkgs.udiskie
+      ];
 
-    services.udisks2.enable = true;
+      services.udisks2.enable = true;
+    };
   };
 }

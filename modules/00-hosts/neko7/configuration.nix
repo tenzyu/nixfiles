@@ -1,61 +1,43 @@
-{ feature, ... }: {
+{...}: {
   configurations.nixos.neko7.module = {
-    imports = [
-      (feature.system {
-        stateVersion = "26.05";
-        features = {
-          neko7-hardware = true;
-          nix = true;
-          zsh = true;
-          time = true;
-          locale = true;
-          ssh = true;
-          tailscale = true;
-          resolvconf-blacklist-gateway = true;
-          disable-ipv6 = true;
-          systemd-boot = true;
-          proxmox-guest = true;
-          nvidia-graphics = true;
-          kernel-latest = true;
-          networkmanager = true;
-          ja-extra-locales = true;
-          us-xserver-keyboard = true;
-          fonts = true;
-          stub-ld = true;
-          nix-ld = true;
-          docker-rootless = true;
-          llama-cpp-cuda = true;
-        };
-      })
+    local.features = {
+      neko7-hardware.enable = true;
+      nix.enable = true;
+      zsh.enable = true;
+      time.enable = true;
+      locale.enable = true;
+      ssh.enable = true;
+      tailscale.enable = true;
+      resolvconf-blacklist-gateway.enable = true;
+      disable-ipv6.enable = true;
+      systemd-boot.enable = true;
+      proxmox-guest.enable = true;
+      nvidia-graphics.enable = true;
+      kernel-latest.enable = true;
+      networkmanager.enable = true;
+      ja-extra-locales.enable = true;
+      us-xserver-keyboard.enable = true;
+      fonts.enable = true;
+      stub-ld.enable = true;
+      nix-ld.enable = true;
+      docker-rootless.enable = true;
+      llama-cpp-cuda.enable = true;
+    };
 
-      (feature.users {
-        tenzyu = {
-          isAdmin = true;
-          homeStateVersion = "26.05";
-          fullName = "tenzyu";
-          email = "tenzyu.on@gmail.com";
+    local.users.tenzyu = {
+      enable = true;
+      isAdmin = true;
+      homeStateVersion = "26.05";
+      email = "tenzyu.on@gmail.com";
+      homeDirectory = "/home/tenzyu";
 
-          features = {
-            tenzyu-cli = true;
-            catppuccin = true;
-            nix-access = true;
-          };
-
-          imports = [
-            ({ pkgs, ... }: {
-              home.packages = with pkgs; [
-                nh
-                jq
-                jqp
-                lazygit
-                zip
-                ncdu
-                crosspipe
-              ];
-            })
-          ];
-        };
-      })
-    ];
+      features = {
+        tenzyu-cli.enable = true;
+        catppuccin.enable = true;
+        nix-access.enable = true;
+        nix-tools.enable = true;
+        git-tools.enable = true;
+      };
+    };
   };
 }

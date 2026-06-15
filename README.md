@@ -1,698 +1,340 @@
 # tenzyu's nixfiles
 
-個人用のNixOS / home-manager構成です。
+個人用の NixOS / Home Manager 構成です。
 
-このリポジトリは、flake本体を薄く保ち、実体を`modules/`配下の小さな機能モジュールとして登録し、各ホストで必要なものを明示的に選んで合成する方針で作られています。
+`flake.nix` は薄く保ち、実装は `modules/` 配下の小さなモジュールとして登録します。ホストは必要な機能名だけを `local.features` / `local.users.<name>.features` に列挙して合成します。
 
-設計の中心にあるのは **Dendritic Pattern** に近いaspect指向のモジュール配置です。NixOS / home-manager / クロスユーザーprojectionを1ファイル単位の `feature` として登録し、ホストは `feature.system` / `feature.users` へ feature 名を並べるだけで両側を束縛します。
+## 設計方針
 
-## 設計思想
-
-このnixfilesの基本方針は次の通りです。
-
-- **flakeは入口に徹する**  
-  `flake.nix`はinputsと`mkFlake`、`import-tree ./modules`に近い形だけを保ちます。構成ロジックは`modules/`へ寄せます。
+- **flake は入口に徹する**  
+  `flake.nix` は inputs と flake-parts の起動だけを保ちます。構成ロジックは `modules/` へ寄せます。
 
 - **機能を小さく登録し、ホストで選ぶ**  
-  SSH、zsh、Docker、Hyprland、Neovimなどは `flake.modules.<class>.<feature>` として登録します。ホスト定義では `feature.system` / `feature.users` へ feature 名を並べるだけにします。
+  SSH、zsh、Docker、Hyprland、Neovim などは `flake.modules.nixos.<feature>` / `flake.modules.homeManager.<feature>` として登録します。ホスト定義は機能名を列挙するだけです。
 
-- **ホストは完成品ではなく部品表として読む**  
-  `modules/00-hosts/<host>/configuration.nix`を見ると、そのホストに何が入っているかがリストとして分かるようにします。
+- **ホストは部品表として読む**  
+  `modules/00-hosts/<host>/configuration.nix` を見れば、そのホストに何が入っているかがリストとして分かります。
 
-- **NixOSとhome-managerの境界を薄い合成層で吸収する**  
-  同じ `feature.key` に対して `flake.modules.nixos.<feature>` と `flake.modules.homeManager.<feature>` を登録し、ホストは projector へ feature 名を列挙するだけで両側を束縛します。
+- **NixOS と Home Manager の境界を薄い合成層で吸収する**  
+  同じ feature キーに対して NixOS 側と Home Manager 側の両方を登録できます。feature は user agnostic に書き、user 固有の情報は host が決めます。
 
-- **例外は局所化する**  
-  `unstable`、unfree、insecure packageの許可はグローバルに広げず、必要な feature の `flake.effects.<name>.system.collect` / `flake.effects.<name>.user.collect` で局所的に宣言します。
+- **package policy は feature の近くで宣言する**  
+  unfree / insecure な package の許可は `flake.local.featurePolicies.<feature>` に局所的に書きます。framework が一括で `nixpkgs.config` へ投影します。
 
 - **抽象化しすぎない**  
-  roleやprofileを深く積むのではなく、ホストごとの `features.<name> = true;` 列挙を明示します。同一 projector 内の dedupe は materializer が保証します。
+  role や profile を深く積まず、ホストごとの `features.<name>.enable = true;` 列挙を明示します。
 
 ## アーキテクチャ
 
 ```text
 flake.nix
-  inputs + flake-parts + import-tree
+  inputs + flake-parts
 
 modules/
-  flake/
-    flake-parts.nix          flake.modules / flake.effects を有効化し、
-                             nixos / homeManager / feature 引数を配る
-    factory-nixos.nix        configurations.nixos -> flake.nixosConfigurations
-                             + collector module (`flake.modules.nixos.collector`)
-                             を host module へ自動注入
-    factory-home-manager.nix configurations.homeManager -> flake.homeConfigurations
-                             (low priority; standalone Home Manager 用のfactory)
-    factory-user.nix         per-user な NixOS user module と Home Manager user module
-                             を生成する `flake.lib.userFactory` (User Factory Aspect)
-                             を提供。`feature.users` が内部で呼び出す。
-    feature.nix              flake.lib.feature.{system, users} を提供する
-                             materializer
-    collector.nix            `local.effects` の schema
-                             + `flake.modules.nixos.collector` module
-                             (cross-cutting policy を nixpkgs.config へ投影)
-    formatter.nix            perSystem formatter
-    systems.nix              supported systems
-
-  pkgs/
-    runtime.nix              pkgs.unstable / pkgs.llm-agents.* などの
-                             常駐 overlay (flake.modules.nixos.pkgs-runtime)
-
-  nixos/
-    *.nix                    NixOS機能モジュール
-
-  home/
-    *.nix                    home-manager機能モジュール
-
-  features/
-    *.nix                    NixOS + home-managerの境界をまたぐ機能
-                             および effect-only の bundle
+  10-framework/
+    flake-modules.nix     flake.lib / flake.local.featurePolicies / flake.modules オプション定義
+    configurations.nix    configurations.nixos / configurations.homeManager 評価 + 内部 materializer
+                          (nixosPolicyMaterializerModule, homePolicyMaterializerModule,
+                           nixosUserAccountsModule, hmFactoryModule, nixpkgsPolicyModule)
+    helpers.nix           flake.lib.helpers (usersWithFeature / mapUsersWithFeature / ...)
+    formatter.nix         perSystem formatter
+    systems.nix           supported systems
+    checks.nix            static checks (deprecated-patterns, feature-name-shape)
 
   00-hosts/
-    neko5/                   Hyprland desktop / laptop
-    neko6/                   NixOS-WSL
-    neko7/                   server / proxmox-guest
+    neko5/                Hyprland desktop / laptop
+    neko6/                NixOS-WSL
+    neko7/                server / proxmox-guest
+
+  50-features/
+    *.nix                 flake.modules.nixos.* / flake.modules.homeManager.* / flake.local.featurePolicies.*
 ```
-
-## flake本体
-
-`flake.nix`は依存関係のマニフェストです。
-
-outputsは次の形に集約されています。
-
-```nix
-outputs = inputs:
-  inputs.flake-parts.lib.mkFlake {inherit inputs;}
-  (inputs.import-tree ./modules);
-```
-
-`import-tree`により、`modules/`配下のNixファイルは自動でflake-parts moduleとして読み込まれます。そのため、新しい機能を追加するときに`flake.nix`のimport listを編集する必要はありません。
 
 ## 命名規約
 
-**すべての feature 名と host-facing ファイル名は kebab-case** に統一します。
+すべての feature 名と host 向けファイル名は kebab-case に統一します。
 
-- 例: `tenzyu-cli` / `tenzyu-desktop` / `docker-rootless` / `networkmanager-access` / `systemd-boot` / `hyprland-core` / `hyprland-tenzyu` / `nvidia-graphics` / `proxmox-guest`
+- 例: `tenzyu-cli` / `tenzyu-desktop` / `docker-rootless` / `networkmanager-access` / `hyprland-tenzyu` / `nvidia-graphics` / `proxmox-guest`
 - 内部 let binding や private な helper 関数名はこの限りではありません。
-- `flake.modules.nixos.pkgs-runtime` のような factory plumbing も kebab-case に統一しています。
-- ホスト hardware は `flake.modules.nixos.neko5-hardware` / `neko7-hardware` として kebab-case 化しています。
 
-## module登録
+## 概念
 
-各機能は `flake.modules.<class>.<feature>` へ登録します。
+### モジュール registry
 
-NixOS機能は次のような形です。
+`flake.modules.<class>.<feature>` に登録されたモジュールがそのまま host の NixOS / Home Manager に積まれます。
 
-```nix
-# modules/nixos/example-service.nix
-{
-  flake.modules.nixos.example-service = {
-    services.example.enable = true;
-  };
-}
-```
+- `flake.modules.nixos.<feature>` — NixOS module として host imports に積まれる
+- `flake.modules.homeManager.<feature>` — Home Manager module としてユーザーごとに積まれる
 
-home-manager機能は次のような形です。
+同じ feature キーで両方を定義すると、embedded Home Manager (`useGlobalPkgs = true`) で同じ `<feature>` を有効化したときに両側が束縛されます。
 
-```nix
-# modules/home/example-tool.nix
-{
-  flake.modules.homeManager.example-tool = {
-    programs.example.enable = true;
-  };
-}
-```
+### 機能の有効化
 
-両方の境界をまたぐ機能は `modules/features/` に置き、`flake.modules.nixos.<feature>` と `flake.modules.homeManager.<feature>` の両方を定義します。
+- `local.features.<feature>.enable = true;` — system スコープで feature を有効化
+- `local.users.<name>.features.<feature>.enable = true;` — user スコープで feature を有効化
 
-```nix
-# modules/features/example-app.nix
-{
-  flake.modules.nixos.example-app = {};
+user スコープの feature は NixOS 評価時に `local.users.<name>.features` 経由で embedded Home Manager の `local.features` へ流し込まれます (`enabledFeatures` ヘルパーが `enable = true` のものだけを抽出して `local.features` にマージ)。Home Manager 評価時に参照される payload / policy はこの path を経由して決まります。
 
-  flake.modules.homeManager.example-app = {pkgs, ...}: {
-    home.packages = [pkgs.example-app];
-  };
-}
-```
+### Home Manager 内の identity
 
-`flake.modules.nixos.<feature>` と `flake.modules.homeManager.<feature>` は **payload** であり、低レベル API です。ホストは原則として `feature.system` / `feature.users` 経由で feature 名を列挙し、materializer に解決を任せます。`flake.modules` を直接 `imports` に書くことは **通常行いません**。
+Home Manager 評価スコープでは `local.user.{name,email,homeDirectory,stateVersion}` が利用可能です。user 名は `local.users.<name>` のキーと一致します。
 
-## factory層
+### Helpers
 
-`modules/flake/factory-nixos.nix` は、リポジトリ内DSLである `configurations.nixos` を `flake.nixosConfigurations` へ変換します。`modules/flake/factory-home-manager.nix` は `configurations.homeManager` を `flake.homeConfigurations` へ変換します。
+`flake.lib.helpers` にホスト向けヘルパーを集約しています。`configurations.nix` の `let` 内で `helpers` として `specialArgs` 経由で全 module に配布されます。
 
-`factory-nixos.nix` のもうひとつの責務は **collector module** の注入です。collector は `modules/flake/collector.nix` で `flake.modules.nixos.collector` として登録されており、factory が `flake.nixosConfigurations.<host>.modules` へ自動的に組み込みます。collector は `local.effects` option を定義し、その値を `nixpkgs.config.allowUnfreePredicate` や `nixpkgs.config.permittedInsecurePackages` などの cross-cutting な policy 設定へ投影します。
+- `usersWithFeature feature cfg` — `cfg.local.users` のうち `<feature>` を有効化しているユーザー
+- `userNamesWithFeature feature cfg` — 上記のユーザー名リスト
+- `mapUsersWithFeature feature cfg f` — 上記ユーザーへ `f` を適用して `users.users` 形の attrset を返す
 
-`factory-home-manager.nix` は **low priority** の standalone Home Manager 用の factory です。`flake.modules.nixos.pkgs-runtime` は NixOS 専用の module なので、standalone Home Manager 側では `withSystem` 経由で取り出した `inputs'.nixpkgs.legacyPackages` に直接 overlay を `appendOverlays` で適用します。同一 feature キーで standalone と NixOS統合のどちらでも評価できる設計ではありません。
+### Bundle / bridge
 
-## feature層
-
-`flake.lib.feature` は、NixOS統合home-manager 上で **同じ feature key** から `flake.modules.nixos.<feature>` と `flake.modules.homeManager.<feature>` の双方を引き、`flake.effects.<feature>` の projection contract を実行する薄い materializer です。feature モジュールはユーザ束縛を知りません。ホストだけが「どのマシンが、どのユーザに、どの feature を」を決めます。
-
-### 2つの projector
-
-| 名前 | 役割 |
-| --- | --- |
-| `feature.system` | NixOS system materializer。`features` の closure を解決し、`flake.modules.nixos.<feature>` を host の imports に、`flake.effects.<feature>.system` の `config` を host NixOS module へ、`collect` を `local.effects` へ投影する。`flake.modules.homeManager.<feature>` は触らない。 |
-| `feature.users` | 複数ユーザー対応 materializer。`flake.effects.<feature>.user` の `config` を user ごとに NixOS module へ投影し、`users.users.<username>` / `home-manager.users.<username>` を組み立てる。`system` 側 (`flake.modules.nixos.<feature>` + `effects.<feature>.system`) は host 全体で 1 回だけ `feature.users` 内部で import / project される。複数ユーザーが同じ feature を要求しても NixOS 側は重複しない。 |
-
-### materializer が共通でやること
-
-- `features` の enabled 名前を `lib.unique` + `lib.naturalSort` で正規化する
-- `flake.effects.<name>.requires` の transitive closure を解決する
-- closure の各 feature 名について `flake.modules.nixos.<name>` / `flake.modules.homeManager.<name>` を解決する
-- closure の各 feature 名について `flake.effects.<name>.system` / `flake.effects.<name>.user` を評価する
-- 投影結果の `config` は **NixOS module system の `imports` に積まれる**ため、module system の merge semantics に従う
-- 投影結果の `collect` は `local.effects.*` へ (NixOS module system の submodule merge で) 結合される
-- 同一 projector 呼び出し内で重複する feature 名・重複する import は **dedupe される**
-- 未知の feature 名は `feature.<projector>.<context>: unknown feature '<name>'` で評価時に throw する
-- enabled features が空 (`features = {};` を含むすべて-false を含む) なら `feature.<projector>.<context>: no enabled features` で throw する
-- `feature.users {}` のような空 users マップも `feature.users: users is empty` で throw する
-- 結果として、`flake.modules` の class surface は payload 専用、policy は `local.effects` 専用、依存関係は `flake.effects` 専用、と3層に綺麗に分かれる
-
-### どの projector を選ぶか
-
-- 「マシンが備えるか」で有効化する feature は `feature.system` (`neko5-hardware` / `nvidia-graphics` / `docker-rootless` / `systemd-boot` など)
-- 「誰が使うか」で有効化する feature は `feature.users` (`tenzyu-desktop` / `hyprland-tenzyu` / `catppuccin` / `steam` / `prismlauncher` / `codex` など)
-- 複数ユーザーで共有する user capability は同じ `feature.users` を1回の呼び出しで複数ユーザー分束ねる
-
-### Dedupe に関する正直な仕様
-
-- **同一 projector 内の dedupe は保証される**  
-  `feature.system` 呼び出しの中で重複する feature 名は1度しか評価されない。`feature.users` 呼び出しの中で複数ユーザーが同じ feature を要求しても、`flake.modules.nixos.<feature>` は host imports に1回だけ積まれ、`system effect` の `collect` も1回だけ `local.effects` に merge される。
-
-- **異なる projector 呼び出し間の dedupe は保証されない**  
-  `feature.system` と `feature.users` は独立した projector 呼び出しである。host 側で `feature.system` に書いた feature 名と `feature.users` の closure が overlap する場合、両 projector がそれぞれ projection を行う。これは **host 側の規約** で回避する (例: `networkmanager-access.requires = ["networkmanager"]` なら `feature.system` 側に `networkmanager` を併記しない)。
-
-- **真の全体 dedupe を導入する `feature.host` は導入しない**  
-  これは公開モデルを厚くするので採用しない。host 規約で overlap を避ければ十分である。
-
-### Merge semantics
-
-effect の `config` は **NixOS module の `imports` に1つずつ積まれる**ため、module system の merge 規則に従います:
-
-- `listOf` 系の attribute (`users.users.<name>.extraGroups` など) は plain list で書くと **concat** される。`mkOverride` 系 (`mkDefault` / `mkForce` / `mkAfter` / `mkBefore`) を使うと priority で決着する。effect 側は plain list を推奨。
-- `submodule` 系の attribute は attrset 単位で deep merge される。
-- 同じ attribute に同じ priority で複数設定が衝突する場合 (`extraGroups = ["wheel"];` を materializer と WSL module の両方が書くケースなど) は module system が concat するため **重複した値がそのまま残る**。これは既知の cosmetic issue であり、`lib.unique` での dedupe は module system 側では行われない。必要なら呼び出し側で `lib.mkForce` 等を使う。
-
-## ホスト例
-
-`modules/00-hosts/neko5/configuration.nix` の最終形:
-
-```nix
-{ feature, inputs, ... }: {
-  configurations.nixos.neko5.module = {
-    imports = [
-      (feature.system {
-        stateVersion = "26.05";
-        features = {
-          neko5-hardware = true;
-          nix = true;
-          nix-store-clean = true;
-          zsh = true;
-          time = true;
-          locale = true;
-          ssh = true;
-          tailscale = true;
-          systemd-boot = true;
-          pipewire = true;
-          bluetooth = true;
-          intel-graphics = true;
-          docker-rootless = true;
-          fcitx5 = true;
-          kernel-latest = true;
-          udiskie = true;
-          hyprlock = true;
-          open-tablet-driver = true;
-          stub-ld = true;
-          laptop-input = true;
-          fonts = true;
-          desktop-performance = true;
-          wayland-session = true;
-        };
-      })
-
-      (feature.users {
-        tenzyu = {
-          isAdmin = true;
-          homeStateVersion = "26.05";
-          fullName = "tenzyu";
-          email = "tenzyu.on@gmail.com";
-
-          features = {
-            tenzyu-desktop = true;
-            hyprland-tenzyu = true;
-            hyprland-gaming-mode = true;
-            steam = true;
-            android-mic = true;
-            discord = true;
-            prismlauncher = true;
-            codex = true;
-            opencode = true;
-            obsidian = true;
-            osu-lazer = true;
-            parsec = true;
-            networkmanager-access = true;
-            nix-access = true;
-            rtk = true;
-            catppuccin = true;
-            dolphin = true;
-          };
-
-          imports = [
-            ({ pkgs, ... }: {
-              home.packages = with pkgs; [
-                nh jq jqp lazygit zip ncdu crosspipe gh qdirstat
-                inputs.castalia.packages.${pkgs.system}.castalia
-                inputs.onair.packages.${pkgs.system}.default
-              ];
-            })
-          ];
-        };
-      })
-    ];
-  };
-}
-```
-
-`feature.system` の `features` に `<feature> = true;` を書くと、materializer が `flake.effects.<feature>.requires` を辿り transitive closure を取り込み、それから projection を行う。`networkmanager-access` のように user feature が system 側 feature を `requires` する場合、`feature.system` 側にその system 側 feature を併記する必要はない。
-
-`feature.users` にはユーザー spec を **そのまま inline で渡す**。`feature.users` の引数が source of truth であり、materializer は内部の `userFactory` (User Factory Aspect) を呼び出してユーザーごとの NixOS user module と Home Manager user module を生成する。
+- **bundle feature**: `tenzyu-cli` / `tenzyu-desktop` のように、自分自身は payload を持たず `local.features.<other>.enable = true;` を連鎖して有効化する feature。`flake.modules.nixos.<bundle>` は空でもよく、実体は bundle が立てる `local.features` だけ。
+- **bridge module**: `parsec-hyprland` / `steam-hyprland` のように、Hyprland デスクトップ環境で別 feature が必要とする前提 (例: XWayland 経由の起動) を整えるための feature。通常の feature module として書く。
 
 ## package policy
 
-`modules/pkgs/runtime.nix` は、共通の overlay (`pkgs.unstable` / `pkgs.llm-agents.*`) を提供します。policy 決定は持たず、host 側の imports に自動的に組み込まれます。
-
-### 例外は feature の近くで宣言する
-
-`unfree` / `insecure` な package の許可はグローバルに広げず、必要な feature の `flake.effects.<name>.collect` で局所的に宣言します。
-
-- `flake.effects.<name>.system.collect.pkgs.unfreePackages`
-- `flake.effects.<name>.user.collect.pkgs.unfreePackages`
-- `flake.effects.<name>.system.collect.pkgs.permittedInsecurePackages`
-- `flake.effects.<name>.user.collect.pkgs.permittedInsecurePackages`
-
-materializer は各 effect の `collect` を `local.effects.*` へ module として投影し、collector module (`flake.modules.nixos.collector`) が最終的に `lib.unique` で重複を除いた値を `nixpkgs.config.allowUnfreePredicate` / `nixpkgs.config.permittedInsecurePackages` へ投影します。
-
-たとえば `prismlauncher` は unfree 許可だけを宣言します。
+`flake.local.featurePolicies.<feature>.{unfree, permittedInsecure}` に package 名を列挙します。
 
 ```nix
 {
-  flake.effects.prismlauncher = {
-    system = {
-      collect.pkgs.unfreePackages = ["prismlauncher"];
-    };
+  flake.local.featurePolicies.parsec.unfree = ["parsec-bin"];
+
+  flake.modules.nixos.parsec = {config, lib, ...}: {
+    config = lib.mkIf config.local.features.parsec.enable {};
   };
 
-  flake.modules.nixos.prismlauncher = {};
-
-  flake.modules.homeManager.prismlauncher = {pkgs, ...}: {
-    home.packages = [
-      (pkgs.unstable.prismlauncher.override {jdks = [pkgs.unstable.jdk21];})
-    ];
+  flake.modules.homeManager.parsec = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.parsec.enable {
+      home.packages = [pkgs.unstable.parsec-bin];
+    };
   };
 }
 ```
 
-cross-feature な依存関係は `flake.effects.<name>.requires = [...]` で宣言します。
+framework の `nixosPolicyMaterializerModule` が system スコープと user スコープの両方から enabled feature の policy を集約し、`local.nixpkgsPolicy.{unfree, permittedInsecure}` へ `lib.mkAfter` で投影します。さらに `nixpkgsPolicyModule` がそれを `nixpkgs.config.allowUnfreePredicate` / `nixpkgs.config.permittedInsecurePackages` へ流します。
+
+embedded Home Manager は `useGlobalPkgs = true` なので、NixOS 側 `pkgs` の policy がそのまま効きます。standalone Home Manager 構成では `homePolicyMaterializerModule` が `local.nixpkgsPolicy` を別途 materialize します。
+
+## ホスト例
+
+`modules/00-hosts/neko5/configuration.nix`:
 
 ```nix
-# modules/features/steam.nix
-{
-  flake.effects.steam = {
-    requires = ["gaming-core"];
+{inputs, ...}: {
+  configurations.nixos.neko5.module = {
+    local.features = {
+      neko5-hardware.enable = true;
+      nix.enable = true;
+      zsh.enable = true;
+      # ...
+    };
 
-    system = {
-      collect.pkgs.unfreePackages = [
-        "steam"
-        "steam-original"
-        "steam-unwrapped"
-        "steam-run"
-      ];
+    local.users.tenzyu = {
+      enable = true;
+      isAdmin = true;
+      homeStateVersion = "26.05";
+      email = "tenzyu.on@gmail.com";
+      homeDirectory = "/home/tenzyu";
+
+      features = {
+        steam.enable = true;
+        parsec.enable = true;
+        catppuccin.enable = true;
+        # ...
+      };
     };
   };
-
-  flake.modules.nixos.steam = {pkgs, ...}: {programs.steam.enable = true;};
-  flake.modules.homeManager.steam = {pkgs, ...}: {home.packages = [];};
 }
 ```
 
-materializer は `steam` の `requires` を辿り `gaming-core` も closure に取り込んでから projection するため、host 側で `features.gaming-core = true;` を併記する必要はありません。
+system feature は host の capabilities (driver, daemon など) を表し、user feature は各ユーザーが自宅環境として欲しいものを表します。
 
-### schema は `local.effects.*` だけで拡張する
-
-将来の policy 軸 (substituters / trusted-public-keys / fonts / xdg-portals / security exceptions / ...) は **すべて** `local.effects` の schema 拡張として扱います。`flake.modules.<class>.*` の class surface は payload 専用、`flake.effects.<name>.user` / `.system` の `config` は NixOS module 属性専用、と層を固定することで、policy の種類が増えても projector / factory を書き換えずに済みます。
-
-## ホスト
-
-現在のNixOSホストは次の通りです。
+## ホスト一覧
 
 | Host | 概要 |
 | --- | --- |
-| `neko5` | Hyprland desktop / laptop寄りのメイン環境。GUI、音声、Bluetooth、fcitx5、LLM agent、各種desktop appを含む。 |
-| `neko6` | NixOS-WSL。開発用CLI中心のhome-manager構成とWSL向けsystem設定。`wsl-default-user` user effect によりデフォルトユーザを設定。 |
-| `neko7` | qemu guest / Docker / server寄り設定。`proxmox-guest` (= `qemu-guest-profile` + `qemu-guest-agent`)、NVIDIA ドライバ、最小限の home-manager 構成。 |
-
-ホストを読むときは、まず`modules/00-hosts/<host>/configuration.nix`を見ます。そこに並んでいる`imports`と、`feature.system` / `feature.users` に列挙された feature 名が、そのホストの構成要素です。
+| `neko5` | Hyprland desktop / laptop。GUI、音声、Bluetooth、fcitx5、各種 desktop app。 |
+| `neko6` | NixOS-WSL。CLI 中心の Home Manager 構成 + WSL 向け system 設定。 |
+| `neko7` | qemu guest / Docker / server 寄り。NVIDIA ドライバ、最小限の Home Manager。 |
 
 ## よく使う操作
 
-format:
-
 ```sh
 nix fmt
-```
-
-flake全体の検査:
-
-```sh
 nix flake check
-```
-
-NixOS構成のbuild:
-
-```sh
 nix build .#nixosConfigurations.neko5.config.system.build.toplevel
-```
-
-NixOSへ適用:
-
-```sh
 sudo nixos-rebuild switch --flake .#neko5
-```
-
-input更新:
-
-```sh
 nix flake update
 ```
 
 ## 機能追加の流れ
 
-feature には次の典型形があります。1つの feature は **同じ kebab-case 名** で `flake.modules.<class>.<name>` / `flake.effects.<name>` に登録され、ホストは projector の `features.<name> = true;` に名前を並べるだけで両側を束縛します。
+### 1. Pure NixOS 機能
 
-### 1. Pure NixOS 機能を追加する
-
-1. `modules/nixos/<feature>.nix` を作り、`flake.modules.nixos.<feature>` を定義する
-2. host の `feature.system` 呼び出しの `features` に `<feature> = true;` を加える
-
-```nix
-# modules/nixos/example-service.nix
-{
-  flake.modules.nixos.example-service = {
-    services.example.enable = true;
-  };
-}
-```
-
-```nix
-# host
-imports = [
-  (feature.system {
-    features.example-service = true;
-  })
-];
-```
-
-### 2. Pure home-manager 機能を追加する
-
-1. `modules/home/<feature>.nix` を作り、`flake.modules.homeManager.<feature>` を定義する
-2. host の `feature.users <users>` の `users.<name>.features` に `<feature> = true;` を加える
-
-```nix
-# modules/home/example-tool.nix
-{
-  flake.modules.homeManager.example-tool = {
-    programs.example.enable = true;
-  };
-}
-```
-
-```nix
-# host
-imports = [
-  (feature.users {
-    tenzyu = {
-      features.example-tool = true;
-    };
-  })
-];
-```
-
-### 3. 両方の境界をまたぐ機能を追加する
-
-NixOS統合home-manager で使いたい機能は `modules/features/<feature>.nix` にまとめ、`flake.modules.nixos.<feature>` と `flake.modules.homeManager.<feature>` の両方を定義します。feature は user agnostic に書き、user 固有の情報は `flake.effects.<feature>.user` 内の `user` レコード (`name` / `fullName` / `email` / `isAdmin` / `shell` / `homeStateVersion` / `homeDirectory`) で識別します。
-
-```nix
-# modules/features/example-app.nix
-{
-  flake.modules.nixos.example-app = {};
-
-  flake.modules.homeManager.example-app = {pkgs, ...}: {
-    home.packages = [pkgs.example-app];
-  };
-}
-```
-
-### 4. cross-cutting policy (unfree / insecure) を必要とする場合
-
-`flake.effects.<feature>.system` または `.user` の `collect` を使います。`collect` は materializer によって `local.effects.*` へ (module system merge で) 投影され、collector module が `nixpkgs.config.*` へ投影します。
+`modules/50-features/<feature>.nix`:
 
 ```nix
 {
-  flake.modules.nixos.example-service = {
-    services.example.enable = true;
-  };
-
-  flake.effects.example-service = {
-    system = {
-      collect.pkgs.unfreePackages = ["example-service"];
+  flake.modules.nixos.<feature> = {
+    config,
+    lib,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.<feature>.enable {
+      services.<feature>.enable = true;
     };
   };
 }
 ```
 
-### 5. per-user projection (extra groups, trusted users, ...) を必要とする場合
+`modules/00-hosts/<host>/configuration.nix`:
 
-`flake.effects.<feature>.user` の `config` を使います。`{user, ...}` を受け取り、`config` 内に host NixOS attribute (`users.users.${user.name}.extraGroups` や `nix.settings.extra-trusted-users` や `wsl.defaultUser` など) を書けます。
+```nix
+local.features.<feature>.enable = true;
+```
 
-**重要**: `effects.<name>.user.config` は **user-contextual な NixOS module fragment** であり、Home Manager module には merge されません。Home Manager 用の payload は `flake.modules.homeManager.<name>` 側に書きます。
+### 2. Pure Home Manager 機能
+
+`modules/50-features/<feature>.nix`:
 
 ```nix
 {
-  flake.effects.docker-user-access = {
-    user = {user, ...}: {
-      config = {
-        users.users.${user.name}.extraGroups = ["docker"];
-      };
+  flake.modules.homeManager.<feature> = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.<feature>.enable {
+      home.packages = [pkgs.<feature>];
     };
   };
 }
 ```
 
+ユーザー側で有効化する場合:
+
+```nix
+local.users.tenzyu.features.<feature>.enable = true;
+```
+
+### 3. 両方の境界をまたぐ機能
+
+NixOS 側と Home Manager 側の両方を 1 ファイルに書きます。feature は user agnostic に書きます。
+
 ```nix
 {
-  flake.effects.wsl-default-user = {
-    requires = ["wsl-integration"];
+  flake.modules.nixos.<feature> = {
+    config,
+    lib,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.<feature>.enable {
+      environment.systemPackages = [pkgs.<feature>];
+    };
+  };
 
-    user = {user, ...}: {
-      config = {
-        wsl.defaultUser = user.name;
-      };
+  flake.modules.homeManager.<feature> = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.<feature>.enable {
+      home.packages = [pkgs.<feature>];
     };
   };
 }
 ```
 
-### 6. 他の feature に依存する場合
+### 4. user 限定 feature (per-user にグループ追加など)
 
-`flake.effects.<feature>.requires = [...]` に依存 feature 名を並べます。materializer が transitive closure を解決してから projection するため、host 側で `requires` 先の feature を `features` に併記する必要はありません。
+`helpers.mapUsersWithFeature` を使って `users.users` 形の attrset を返し、NixOS の `users.users` に merge します。`mapUsersWithFeature` は enabled ユーザーだけを抽出し、各ユーザーに対して `f name user` の返り値を `users.users.<name>` 配下に置きます。
 
 ```nix
 {
-  flake.effects.steam = {
-    requires = ["gaming-core"];
+  flake.modules.nixos.<feature> = {
+    config,
+    helpers,
+    lib,
+    ...
+  }: {
+    config.users.users =
+      helpers.mapUsersWithFeature "<feature>" config
+      (name: _user: {
+        extraGroups = lib.mkAfter ["<group>"];
+      });
+  };
+}
+```
 
-    system = {
-      collect.pkgs.unfreePackages = ["steam"];
+`lib.mkAfter` を使って他の module からの追記を許可します。framework の `nixosUserAccountsModule` が `isNormalUser` / `group` / `home` / `extraGroups` の base 値を materialize するので、feature 側は追加分だけ書けば足ります。
+
+### 5. unfree / insecure package を使う feature
+
+`flake.local.featurePolicies.<feature>.{unfree, permittedInsecure}` に package 名を列挙します。framework の materializer が `nixpkgs.config` まで投影します。
+
+```nix
+{
+  flake.local.featurePolicies.<feature>.unfree = ["<package>"];
+
+  flake.modules.nixos.<feature> = {...}: {
+    config = lib.mkIf config.local.features.<feature>.enable {};
+  };
+
+  flake.modules.homeManager.<feature> = {...}: {
+    config = lib.mkIf config.local.features.<feature>.enable {
+      home.packages = [pkgs.<package>];
+    };
+  };
+}
+```
+
+`flake.local.featurePolicies` は flake-level の純粋宣言で、`nixpkgs.config` には影響しません。`nixosPolicyMaterializerModule` が enabled feature を見て `local.nixpkgsPolicy` にコピーし、そこから `nixpkgs.config` へ反映されます。
+
+### 6. bundle feature
+
+`flake.modules.nixos.<bundle>` / `flake.modules.homeManager.<bundle>` は空で、`config.local.features.<other>.enable = true;` だけを書きます。Home Manager 側にも対になるマーカーモジュールを置く必要があります (現在 `local.users.<name>.features` の attrset は home feature 名から生成されているため、bundle 名も対を成す必要あり)。
+
+```nix
+{
+  flake.modules.nixos.<bundle> = {
+    config,
+    lib,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.<bundle>.enable {
+      local.features.<other-a>.enable = true;
+      local.features.<other-b>.enable = true;
     };
   };
 
-  flake.modules.nixos.steam = {pkgs, ...}: {programs.steam.enable = true;};
-  flake.modules.homeManager.steam = {pkgs, ...}: {home.packages = [];};
+  flake.modules.homeManager.<bundle> = {config, lib, ...}: {
+    config = lib.mkIf config.local.features.<bundle>.enable {};
+  };
 }
 ```
-
-### 7. 同じ意味の feature を束ねたい (bundle)
-
-profile 抽象は導入しません。代わりに `flake.effects.<name>.requires` を長くした bundle effect を使います。`tenzyu-cli` / `tenzyu-desktop` / `proxmox-guest` / `hyprland-tenzyu` などがこのパターンです。
-
-```nix
-# modules/features/tenzyu-cli.nix
-{
-  flake.effects.tenzyu-cli.requires = [
-    "common"
-    "packages-common"
-    "zsh"
-    "btop"
-    "fastfetch"
-    "fzf"
-    "git"
-    "neovim"
-    "starship"
-    "tmux"
-    "yazi"
-    "zoxide"
-  ];
-}
-```
-
-### 8. module を複数ファイルに分解したい場合
-
-`flake.modules.nixos.<feature>` の中で `imports = [ ... ];` を使って構いません。これは **同一 feature 内の実装分解** のための仕組みであり、cross-feature な依存関係は `flake.effects.<feature>.requires` で表現します。`imports` での cross-feature 参照は禁止です。
-
-## アーキテクチャ詳細
-
-この repo の依存解決と projection は次の6要素で完結します。
-
-- **Feature (capability id)**  
-  kebab-case の名前。`features.<name> = true;` に並べる単位であり、payload とは独立した識別子。`flake.modules.nixos.<name>` / `flake.modules.homeManager.<name>` / `flake.effects.<name>` の3か所に同名キーで登録される。
-
-- **Module (payload)**  
-  `flake.modules.nixos.<name>` と `flake.modules.homeManager.<name>` の中身。`services.*` / `programs.*` / `home.packages` など、NixOS module / home-manager module の **宣言的記述そのもの**。`imports = [ ... ];` を使って同一 feature 内の複数ファイルへ分解して良い。cross-feature な `imports` は禁止。
-
-- **Effect (projection contract)**  
-  `flake.effects.<name> = { requires, system, user; }`。
-  - `requires` = 依存 feature 名のリスト (graph edge)
-  - `system` = system 側 projection rule。`null` (何もしない) / `{}` (collect のみ直接記述) / 関数のいずれか。関数のシグネチャは `{}:`, `{lib}:`, `{lib, ...}:`, `{user, lib}:`, `{user, ...}:`, `args:` すべて受理される。materializer は `builtins.functionArgs` で projection が宣言した引数名を取り出し、`builtins.intersectAttrs` で context (`{ lib; }`) から **宣言された key だけ** を抽出して渡す。positional な `args:` / `_args:` 形式は `{}` を受け取る。context が必要な場合は必ず attrset パターン (`{lib}:` 等) を使う。
-  - `user` = user 側 projection rule。`null` / `{}` / 関数のいずれか。関数のシグネチャは `{}:`, `{user}:`, `{user, lib}:`, `{user, ...}:`, `args:` すべて受理される。context からの抽出は system と同じ規約 (`{ user = userRecord; lib = ...; }`)。
-
-  評価結果は `{ config, collect }` 2つ。
-  - `config` は **NixOS module attribute set として `imports` に積まれる**ため、module system の merge semantics に従う
-  - `collect` は `local.effects.*` へ (submodule merge で) 結合され、最終的に collector module が `nixpkgs.config.*` へ投影する
-
-- **Materializer (projector)**  
-  `feature.system` / `feature.users` の2つ。closure を解決し、payload と effect を host module へ materialize する。空の `features`、未知の feature 名は評価時に throw。`feature.users` は内部で **User Factory Aspect** を呼び出して per-user な NixOS user module と Home Manager user module を生成する。
-
-- **User Factory Aspect (per-user module generation)**  
-  `flake.lib.userFactory` (`factory-user.nix`)。ユーザー record を受け取り、`users.users.<name>` (`isNormalUser` / `shell` / `extraGroups`) と `home-manager.users.<name>` (`home.username` / `home.homeDirectory` / `home.stateVersion` / `programs.home-manager` / `xdg` / `home.preferXdgDirectories`) を組み立てる1つの NixOS module を返す。`feature.users` が各ユーザーについて1回ずつ呼び出す。host から直接呼ぶ必要はない (Factory Aspect は materializer の内部実装)。
-
-- **Collector (cross-cutting policy final projection)**  
-  `flake.modules.nixos.collector` (`collector.nix`)。`local.effects` option を定義し、materializer が merge した値を `nixpkgs.config.*` などの policy 設定へ投影する。`local.effects` schema は `collector.nix` で集中管理。`factory-nixos.nix` が `flake.modules.nixos.collector` を host module へ自動的に組み込む。
-
-この6要素が綺麗に分かれているので、host は `<name>` を選ぶだけで済み、feature 作者は payload だけ・effect だけ・両方を用途に応じて書き分けることができ、policy 軸を増やすときは `collector.nix` の schema と projection rule を1か所ずつ触るだけで済みます。
-
-## Materializer semantics
-
-`feature.system` / `feature.users` は次の規約を守ります。
-
-- **空 `features` / すべて-false は throw**  
-  `feature.system: no enabled features` のような評価時エラー。`features = { ssh = false; }` のように有効化された feature が1つもない場合も throw する。意図しない空 projection を防ぐ。
-
-- **未知 feature 名は throw**  
-  `flake.modules.<class>.<name>` / `flake.effects.<name>` のいずれにも登録されていない名前は `feature.system: unknown feature '<name>'` / `feature.users.<user>: unknown feature '<name>'` で throw。typo を早期発見する。
-
-- **`requires` の transitive closure を解決**  
-  例えば `steam.requires = ["gaming-core"];` で host が `steam = true;` だけを書いた場合、`gaming-core` も closure に取り込まれて projection される。`requires` 側に循環がある場合は、materializer の `resolveClosure` が既に訪れた名前を `acc` で弾くので無限ループにはならないが、**循環そのものは設計ミス** として扱ってください。
-
-- **feature 名は unique + sorted**  
-  closure 解決後、`lib.unique` + `lib.naturalSort` で正規化される。`{ steam = true; gaming-core = true; }` の順に書いても materializer は `gaming-core, steam` の順に処理する。
-
-- **NixOS モジュールは host 全体で1回 import**  
-  `feature.users` で複数ユーザーが同じ feature を要求しても、`flake.modules.nixos.<feature>` は host imports に1回だけ積まれる (`feature.users` 内部で `systemClosure` を union してから `buildSystemProjection` するため)。一方、`flake.modules.homeManager.<feature>` はユーザーごとに `home-manager.users.<username>.imports` へ積まれる。
-
-- **system effect は host 全体で1回 project**  
-  `feature.users` の `systemClosure` (=全ユーザーの closure の union) に対して system effect を1回だけ評価し、`systemProjection` として host の `imports` に積む。
-
-- **Home Manager モジュールは `home-manager.users.<username>.imports` へ**  
-  `feature.users` の `users.<name>.imports` 引数もここに追加で積まれる。`imports` は「feature の closure に含めたくない1回限りの手書きモジュール」を配置する。
-
-- **`local.effects.*` は materializer が set し、collector が read**  
-  materializer は projection の `collect` を `config.local.effects = <collect>;` を返す module として `imports` に積む (NixOS module system の submodule merge が担当)。collector module はその値を読み、`lib.unique` したうえで `nixpkgs.config.allowUnfreePredicate` / `nixpkgs.config.permittedInsecurePackages` へ投影する。書き手 (materializer) と読み手 (collector) は別モジュールとして直交している。
-
-- **`feature.users` の引数が source of truth**
-  host は `feature.users { tenzyu = {...}; };` のようにユーザー spec を **inline で** 渡す。materializer は内部の `userFactory` (User Factory Aspect) を呼び出してユーザーごとの NixOS user module と Home Manager user module を生成する。
-
-- **effect `config` の merge は module system 任せ**  
-  effect の `config` は各 effect ごとに `imports` の1モジュールとして積まれるため、`listOf` (concat) / `submodule` (deep merge) / `mkOverride` (priority) など NixOS module system の merge semantics をそのまま享受する。materializer は独自の shallow merge を行わない。
-
-- **cross-feature 依存は `effects.<name>.requires` のみ**  
-  `flake.modules.nixos.<name>` 内の `imports = [ ./other-feature.nix ];` のような cross-feature 参照は禁止。feature を跨ぐ依存は必ず `requires` で表現する。これは **「payload の import graph が cross-feature を持たない = feature が合成順序に対して疎になる」** ことを保証する。
-
-- **module の `imports` は単一 feature 内の実装分解専用**  
-  大きな feature 定義を `modules/features/<name>/default.nix` などのサブファイルへ分解するのは自由。ただし、サブファイルも `flake.modules.nixos.<name>` 配下の attribute set を返す形にし、cross-feature な import 経路を持たないこと。
-
-## Projection 呼び出し規約
-
-materializer は effect の `system` / `user` を評価する際、`callProjection` ヘルパーを通じて projection function が **宣言した引数だけ** を context から抽出して渡す。
-
-```nix
-callProjection = args: projection:
-  if projection == null
-  then { config = {}; collect = {}; }
-  else if builtins.isFunction projection
-  then projection (builtins.intersectAttrs (builtins.functionArgs projection) args)
-  else projection;
-```
-
-- `args` は materializer 側の context。
-  - `system` の context は `{ inherit lib; }` のみ。
-  - `user` の context は `{ user = userRecord; inherit lib; }`。
-- `builtins.functionArgs projection` は projection の **仮引数名** (key) を返す (値は `true`/`false` のマーカーで意味は無い)。
-- `builtins.intersectAttrs` は **第1引数の keys と第2引数の keys の共通部分** を抽出し、**値は第2引数のもの** を採用する。
-- 結果として、projection が宣言した key だけが context から取り出されて関数に渡される。projection が受け取れない key は無視される。
-
-受理される signature と、引数の実体:
-
-| signature | `system` 評価時の `args` 実体 | `user` 評価時の `args` 実体 |
-| --- | --- | --- |
-| `null` (未設定) | — (空 `{config={}; collect={};}`) | — (空 `{config={}; collect={};}`) |
-| `{}` (set form) | — (result として直接使用) | — (result として直接使用) |
-| `_args: result` (positional) | `{}` (`functionArgs` が空 attrset を返すため) | `{}` |
-| `args: result` (positional) | `{}` | `{}` |
-| `{}: result` (no-arg pattern) | `{}` | `{}` |
-| `{ lib }: result` | `{ lib = <lib>; }` | `{ lib = <lib>; }` |
-| `{ lib, ... }: result` | `{ lib = <lib>; }` (rest は無視される) | `{ lib = <lib>; }` |
-| `{ user }: result` (user only) | n/a (system context には `user` が無い) | `{ user = <userRecord>; }` |
-| `{ user, ... }: result` | n/a | `{ user = <userRecord>; }` |
-| `{ user, lib }: result` | n/a | `{ user = <userRecord>; lib = <lib>; }` |
-
-**`args:` / `_args:` / `x:` 形式の positional 関数は現在の実装では `{}` を受け取る** (`builtins.functionArgs` が positional 関数に対して空 attrset を返すため、intersectAttrs が空を返す)。context が必要な場合は必ず `{lib}:` / `{user}:` のような **attrset パターン** を使うこと。
 
 ## 非目標
 
-このnixfilesは、汎用フレームワークや他人向けテンプレートを目指していません。
+この nixfiles は、汎用フレームワークや他人向けテンプレートを目指していません。
 
 優先しているのは次の性質です。
 
 - 自分のホスト構成を素早く読めること
 - 新しい機能を小さなファイルとして足せること
-- 例外的なpackage policyを追跡できること
-- NixOSとhome-managerの重複を減らしすぎず、必要な場所で明示できること
-- feature 間の依存関係を `flake.effects.<name>.requires` で一箇所に集めて追跡できること
-
-抽象化は、実際の重複や環境差分を減らす場合にだけ導入します。
-
-## まとめ
-
-このrepoは、次の一文で表せます。
-
-> ホストは薄く、機能は小さく、payload は `flake.modules`、policy は `flake.effects`、依存は `requires`、projection は materializer + collector。
-
-そのため、読む順番は次がおすすめです。
-
-1. `flake.nix`
-2. `modules/flake/flake-parts.nix`
-3. `modules/flake/factory-nixos.nix` (collector module の注入)
-4. `modules/flake/collector.nix` (`local.effects` schema)
-5. `modules/flake/feature.nix` (materializer)
-6. `modules/00-hosts/<host>/configuration.nix`
-7. そこから参照されている`modules/nixos/`、`modules/home/`、`modules/features/`の各機能
+- 例外的な package policy を feature 単位で追跡できること
+- 抽象化は、実際の重複や環境差分を減らす場合にだけ導入すること
 
 ## Gaming runtime
 
-This repo keeps gaming optimizations explicit instead of hiding them behind global state。
+This repo keeps gaming optimizations explicit instead of hiding them behind global state.
 
 `gaming-core` を有効化すると、以下のコマンドが user の `home.packages` から使えるようになります。
 
@@ -708,7 +350,7 @@ This repo keeps gaming optimizations explicit instead of hiding them behind glob
 
 `osu-lazer` を有効化すると `osu-lazer` / `osu-lazer-raw` の2つのラッパーが `home.packages` から使えるようになります。
 
-- `osu-lazer` は `gamemoderun` 経由で `osu-lazer-bin` を起動する。`hypr-gaming-mode` が有効なら on/off を連動させる。
+- `osu-lazer` は `gamemoderun` 経由で `osu-lazer-bin` を起動する。`hyprland-gaming-mode` が有効なら on/off を連動させる。
 - `osu-lazer-raw` は `gamemoderun` も `gamescope` も挟まない素の起動。
 
 Steam per-game launch options の典型:

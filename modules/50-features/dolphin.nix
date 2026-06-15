@@ -1,6 +1,6 @@
-{...}: {
-  flake.modules = {
-    nixos.dolphin = {
+{
+  flake.modules.nixos.dolphin = {config, lib, ...}: {
+    config = lib.mkIf config.local.features.dolphin.enable {
       xdg.menus.enable = true;
       xdg.mime.enable = true;
 
@@ -22,12 +22,15 @@
         </Menu>
       '';
     };
+  };
 
-    homeManager.dolphin = {
-      lib,
-      pkgs,
-      ...
-    }: {
+  flake.modules.homeManager.dolphin = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.dolphin.enable {
       home.packages = with pkgs; [
         kdePackages.ark
         kdePackages.dolphin

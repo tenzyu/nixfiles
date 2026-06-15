@@ -1,4 +1,7 @@
 {
-  # See features/codex.nix for why there is no NixOS aspect.
-  flake.modules.homeManager.rtk = {pkgs, ...}: {home.packages = [pkgs.llm-agents.rtk];};
+  flake.modules.homeManager.rtk = {config, lib, pkgs, ...}: {
+    config = lib.mkIf config.local.features.rtk.enable {
+      home.packages = [pkgs.llm-agents.rtk];
+    };
+  };
 }

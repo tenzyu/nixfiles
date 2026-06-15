@@ -1,5 +1,13 @@
-{...}: {
-  flake.modules.nixos.nix-store-clean = {pkgs, ...}: let
+{
+  lib,
+  config,
+  ...
+}: {
+  flake.modules.nixos.nix-store-clean = {
+    config,
+    pkgs,
+    ...
+  }: let
     nixStoreCleanCurrentSystem = pkgs.writeShellApplication {
       name = "nix-store-clean-current-system";
       runtimeInputs = with pkgs; [
@@ -115,7 +123,7 @@
 
         if [ -e /run/booted-system ]; then
           booted_target="$(readlink -f /run/booted-system)"
-          if [ "$booted_target" != "$root_target" ] && [ "$keep_booted" -ne 1 ] && [ "$allow_booted_diff" -ne 1 ]; then
+          if [ "$booted_target" != "$root_target" ] && [[ "$keep_booted" -ne 1 ]] && [ "$allow_booted_diff" -ne 1 ]; then
             cat >&2 <<EOF
         error: /run/booted-system differs from $root
           root:   $root_target
@@ -183,8 +191,10 @@
       '';
     };
   in {
-    environment.systemPackages = [
-      nixStoreCleanCurrentSystem
-    ];
+    config = lib.mkIf config.local.features.nix-store-clean.enable {
+      environment.systemPackages = [
+        nixStoreCleanCurrentSystem
+      ];
+    };
   };
 }

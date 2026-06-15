@@ -1,22 +1,29 @@
-{...}: {
-  flake.modules.homeManager.fzf = {pkgs, ...}: let
+{
+  flake.modules.homeManager.fzf = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
     myDefaultCommand = "${pkgs.fd}/bin/fd --hidden --strip-cwd-prefix --exclude .git";
   in {
-    programs.fzf = {
-      enable = true;
-      enableZshIntegration = true;
+    config = lib.mkIf config.local.features.fzf.enable {
+      programs.fzf = {
+        enable = true;
+        enableZshIntegration = true;
 
-      defaultCommand = myDefaultCommand;
+        defaultCommand = myDefaultCommand;
 
-      fileWidgetCommand = myDefaultCommand;
-      fileWidgetOptions = [
-        "--preview '${pkgs.bat}/bin/bat -n --color=always --line-range :500 {}'"
-      ];
+        fileWidgetCommand = myDefaultCommand;
+        fileWidgetOptions = [
+          "--preview '${pkgs.bat}/bin/bat -n --color=always --line-range :500 {}'"
+        ];
 
-      changeDirWidgetCommand = "${pkgs.fd}/bin/fd --type=d --hidden --strip-cwd-prefix --exclude .git";
-      changeDirWidgetOptions = [
-        "--preview '${pkgs.eza}/bin/eza --tree --color=always {} | head -200'"
-      ];
+        changeDirWidgetCommand = "${pkgs.fd}/bin/fd --type=d --hidden --strip-cwd-prefix --exclude .git";
+        changeDirWidgetOptions = [
+          "--preview '${pkgs.eza}/bin/eza --tree --color=always {} | head -200'"
+        ];
+      };
     };
   };
 }

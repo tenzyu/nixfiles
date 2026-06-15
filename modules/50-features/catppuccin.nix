@@ -1,23 +1,27 @@
 {inputs, ...}: {
-  flake.modules.nixos.catppuccin = {
+  flake.modules.nixos.catppuccin = {config, lib, ...}: {
     imports = [
       inputs.catppuccin.nixosModules.catppuccin
     ];
 
-    catppuccin = {
-      enable = true;
-      cache.enable = true;
+    config = lib.mkIf config.local.features.catppuccin.enable {
+      catppuccin = {
+        enable = true;
+        cache.enable = true;
+      };
     };
   };
 
-  flake.modules.homeManager.catppuccin = {
+  flake.modules.homeManager.catppuccin = {config, lib, ...}: {
     imports = [
       inputs.catppuccin.homeModules.catppuccin
     ];
 
-    catppuccin = {
-      enable = true;
-      cache.enable = true;
+    config = lib.mkIf config.local.features.catppuccin.enable {
+      catppuccin = {
+        enable = true;
+        cache.enable = true;
+      };
     };
   };
 }
