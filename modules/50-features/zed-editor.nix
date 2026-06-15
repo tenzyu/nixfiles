@@ -6,24 +6,49 @@
     ...
   }: let
     flakePath = config.local.context.flakePath;
+
     nixosConfigurationName =
       if config.local.context.nixosConfigurationName != null
       then config.local.context.nixosConfigurationName
       else config.local.context.hostName;
+
     userName = config.local.user.name;
 
     flakeExpr = "builtins.getFlake \"${flakePath}\"";
+
     nixosOptionsExpr = "(${flakeExpr}).nixosConfigurations.\"${nixosConfigurationName}\".options";
+
     nixosLocalFeaturesOptionsExpr = "(${nixosOptionsExpr}).local.features";
+
     nixosLocalUserOptionsExpr = "(${nixosOptionsExpr}).local.users.type.getSubOptions [ \"${userName}\" ]";
+
     nixosLocalUserFeaturesOptionsExpr = "(${nixosLocalUserOptionsExpr}).features";
+
     embeddedHomeUserOptionsExpr = "(${nixosOptionsExpr}).\"home-manager\".users.type.getSubOptions [ \"${userName}\" ]";
+
     embeddedHomeUserLocalFeaturesOptionsExpr = "(${embeddedHomeUserOptionsExpr}).local.features";
+
+    nixosWrappedCurrentModuleOptionsExpr = ''
+      let
+        options = ${nixosOptionsExpr};
+        localFeaturesOptions = ${nixosLocalFeaturesOptionsExpr};
+        userOptions = ${nixosLocalUserOptionsExpr};
+        userFeatureOptions = ${nixosLocalUserFeaturesOptionsExpr};
+      in {
+        configurations.nixos."${nixosConfigurationName}".module = options;
+        configurations.nixos."${nixosConfigurationName}".module.local.features = localFeaturesOptions;
+        configurations.nixos."${nixosConfigurationName}".module.local.users."${userName}" = userOptions;
+        configurations.nixos."${nixosConfigurationName}".module.local.users."${userName}".features = userFeatureOptions;
+      }
+    '';
   in {
     config = lib.mkIf config.local.features.zed-editor.enable {
       programs.zed-editor = {
         enable = true;
         package = pkgs.zed-editor;
+
+        mutableUserSettings = false;
+        installRemoteServer = true;
 
         extraPackages = with pkgs; [
           # JS / TS / React / Tailwind
@@ -55,16 +80,15 @@
           librsvg
         ];
 
-        installRemoteServer = true;
-
         extensions = [
           "nix"
           "toml"
           "dockerfile"
         ];
-        mutableUserSettings = false;
+
         userSettings = {
           auto_update = false;
+          vim_mode = true;
 
           telemetry = {
             metrics = false;
@@ -240,6 +264,10 @@
 
                     nixos-current-local-user-features = {
                       expr = nixosLocalUserFeaturesOptionsExpr;
+                    };
+
+                    nixos-current-wrapper-module = {
+                      expr = nixosWrappedCurrentModuleOptionsExpr;
                     };
 
                     embedded-home-current-user = {
