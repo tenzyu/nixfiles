@@ -1,4 +1,11 @@
 { ... }: {
+  flake.modules.nixos.zsh = { pkgs, lib, ... }: {
+    programs.zsh.enable = lib.mkDefault true;
+    environment.pathsToLink = lib.mkDefault [ "/share/zsh" ];
+    environment.shells = lib.mkDefault [ pkgs.zsh ];
+    environment.enableAllTerminfo = lib.mkDefault true;
+  };
+
   flake.modules.homeManager.zsh = { config, ... }: {
     home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ../../assets/zshrc;
 

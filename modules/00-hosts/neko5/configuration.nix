@@ -1,8 +1,4 @@
-{
-  feature,
-  inputs,
-  ...
-}: {
+{ feature, inputs, ... }: {
   configurations.nixos.neko5.module = {
     imports = [
       (feature.system {
@@ -59,10 +55,11 @@
             rtk = true;
             catppuccin = true;
             dolphin = true;
+            zsh = true;
           };
 
           imports = [
-            ({pkgs, ...}: {
+            ({ pkgs, ... }: {
               home.packages = with pkgs; [
                 nh
                 jq
