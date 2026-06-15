@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.mako = {config, lib, ...}: {
+  flake.modules.homeManager.mako = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.mako.enable {
       services.mako = {
         enable = true;

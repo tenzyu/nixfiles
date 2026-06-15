@@ -1,5 +1,10 @@
 {
-  flake.modules.nixos.hyprland-core = {config, lib, pkgs, ...}: {
+  flake.modules.nixos.hyprland-core = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
     config = lib.mkIf config.local.features.hyprland-core.enable {
       programs.hyprland = {
         enable = true;
@@ -10,7 +15,11 @@
     };
   };
 
-  flake.modules.homeManager.hyprland-core = {config, lib, ...}: {
+  flake.modules.homeManager.hyprland-core = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.hyprland-core.enable {
       wayland.windowManager.hyprland = {
         enable = true;

@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.waybar = {config, lib, ...}: {
+  flake.modules.homeManager.waybar = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.waybar.enable {
       programs.waybar = {
         enable = true;
@@ -40,14 +44,14 @@
             pulseaudio = {
               format = "{icon} {volume}%";
               format-muted = "";
-              format-icons.default = [""  ""  ""];
+              format-icons.default = ["" "" ""];
               on-click = "pavucontrol";
             };
 
             backlight = {
               device = "intel_backlight";
               format = "{icon}";
-              format-icons = [""  ""  ""  ""  ""  ""  ""  ""  ""];
+              format-icons = ["" "" "" "" "" "" "" "" ""];
             };
 
             battery = {
@@ -59,7 +63,7 @@
               format-charging = " {capacity}%";
               format-plugged = " {capacity}%";
               format-alt = "{icon} {capacity}%";
-              format-icons = [""  ""  ""  ""  ""  ""  ""  ""  ""  ""  ""  ""];
+              format-icons = ["" "" "" "" "" "" "" "" "" "" "" ""];
             };
 
             clock = {

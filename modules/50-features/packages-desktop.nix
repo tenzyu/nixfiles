@@ -1,5 +1,10 @@
 {
-  flake.modules.homeManager.packages-desktop = {config, lib, pkgs, ...}: {
+  flake.modules.homeManager.packages-desktop = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
     config = lib.mkIf config.local.features.packages-desktop.enable {
       home.packages = with pkgs; [
         brightnessctl

@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.git = {config, lib, ...}: {
+  flake.modules.homeManager.git = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.git.enable {
       programs.git = {
         enable = true;

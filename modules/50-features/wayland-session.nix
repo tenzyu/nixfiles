@@ -1,8 +1,9 @@
-{
-  config,
-  ...
-}: {
-  flake.modules.nixos.wayland-session = {config, lib, ...}: {
+{config, ...}: {
+  flake.modules.nixos.wayland-session = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.wayland-session.enable {
       services.speechd.enable = false;
 

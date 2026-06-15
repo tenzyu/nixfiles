@@ -5,9 +5,7 @@
     pkgs,
     ...
   }: {
-    imports = [
-      inputs.lazyvim.homeManagerModules.default
-    ];
+    imports = [inputs.lazyvim.homeManagerModules.default];
 
     config = lib.mkIf config.local.features.neovim.enable {
       programs.neovim = {

@@ -30,7 +30,11 @@
       };
     };
 in {
-  flake.modules.nixos.android-mic = {config, lib, ...}: {
+  flake.modules.nixos.android-mic = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.android-mic.enable {
       security.rtkit.enable = lib.mkDefault true;
       services.pipewire = {
@@ -62,7 +66,12 @@ in {
     };
   };
 
-  flake.modules.homeManager.android-mic = {config, lib, pkgs, ...}: {
+  flake.modules.homeManager.android-mic = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
     config = lib.mkIf config.local.features.android-mic.enable {
       home.packages = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
         (mkAppimage pkgs)

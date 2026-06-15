@@ -1,8 +1,9 @@
-{
-  lib,
-  ...
-}: {
-  flake.modules.nixos.qemu-guest-profile = {config, lib, ...}: {
+{lib, ...}: {
+  flake.modules.nixos.qemu-guest-profile = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.qemu-guest-profile.enable {
       services.qemuGuest.enable = lib.mkDefault true;
 

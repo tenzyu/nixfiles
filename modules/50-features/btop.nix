@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.btop = {config, lib, ...}: {
+  flake.modules.homeManager.btop = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.btop.enable {
       programs.btop = {
         enable = true;

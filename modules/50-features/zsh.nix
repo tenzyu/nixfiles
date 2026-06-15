@@ -13,7 +13,11 @@
     };
   };
 
-  flake.modules.homeManager.zsh = {config, lib, ...}: {
+  flake.modules.homeManager.zsh = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.zsh.enable {
       home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ../../assets/zshrc;
 

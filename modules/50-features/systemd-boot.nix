@@ -1,5 +1,9 @@
 {lib, ...}: {
-  flake.modules.nixos.systemd-boot = {config, lib, ...}: {
+  flake.modules.nixos.systemd-boot = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.systemd-boot.enable {
       boot.loader.grub.enable = lib.mkForce false;
       boot.loader.systemd-boot.enable = lib.mkDefault true;

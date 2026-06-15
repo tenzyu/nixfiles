@@ -1,5 +1,9 @@
 {lib, ...}: {
-  flake.modules.nixos.pipewire = {config, lib, ...}: {
+  flake.modules.nixos.pipewire = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.pipewire.enable {
       security.rtkit.enable = lib.mkDefault true;
 

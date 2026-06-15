@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.tenzyu-cli = {config, lib, ...}: {
+  flake.modules.homeManager.tenzyu-cli = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.tenzyu-cli.enable {
       local.features = {
         common.enable = true;

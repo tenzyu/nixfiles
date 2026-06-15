@@ -38,6 +38,8 @@ in {
     ...
   }: {
     config = lib.mkIf config.local.features.steam.enable {
+      local.features.gaming-core.enable = lib.mkDefault true;
+
       programs.steam = {
         enable = true;
         package = steamPackage pkgs;
@@ -69,6 +71,8 @@ in {
     ...
   }: {
     config = lib.mkIf config.local.features.steam.enable {
+      local.features.gaming-core.enable = lib.mkDefault true;
+
       home.packages =
         [
           (pkgs.writeShellApplication {

@@ -1,7 +1,4 @@
-{
-  lib,
-  ...
-}: {
+{lib, ...}: {
   flake.modules.nixos.intel-graphics = {
     config,
     lib,

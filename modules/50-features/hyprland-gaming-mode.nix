@@ -36,6 +36,8 @@
     '';
   in {
     config = lib.mkIf config.local.features.hyprland-gaming-mode.enable {
+      local.features.gaming-core.enable = lib.mkDefault true;
+
       programs.gamemode.settings.custom = lib.mkForce {
         start = "${hyprGamingStart}";
         end = "${hyprGamingEnd}";
@@ -43,8 +45,15 @@
     };
   };
 
-  flake.modules.homeManager.hyprland-gaming-mode = {config, lib, pkgs, ...}: {
+  flake.modules.homeManager.hyprland-gaming-mode = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
     config = lib.mkIf config.local.features.hyprland-gaming-mode.enable {
+      local.features.gaming-core.enable = lib.mkDefault true;
+
       home.packages = [
         (pkgs.writeShellApplication {
           name = "hypr-gaming-mode";

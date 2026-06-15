@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.hyprland-empty-xwayland = {config, lib, ...}: {
+  flake.modules.homeManager.hyprland-empty-xwayland = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.hyprland-tenzyu.enable {
       wayland.windowManager.hyprland.settings.window_rule = [
         {

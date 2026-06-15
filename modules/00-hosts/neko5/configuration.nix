@@ -1,5 +1,9 @@
-{inputs, ...}: {
+{
   configurations.nixos.neko5.module = {
+    local.context = {
+      flakePath = "/home/tenzyu/.nixfiles"; # これもっといい方法ありそう
+    };
+
     local.features = {
       neko5-hardware.enable = true;
       nix.enable = true;
@@ -24,6 +28,7 @@
       fonts.enable = true;
       desktop-performance.enable = true;
       wayland-session.enable = true;
+      networkmanager.enable = true;
     };
 
     local.users.tenzyu = {

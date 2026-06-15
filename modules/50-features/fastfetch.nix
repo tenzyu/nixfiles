@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.fastfetch = {config, lib, ...}: {
+  flake.modules.homeManager.fastfetch = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.fastfetch.enable {
       programs.fastfetch = {
         enable = true;

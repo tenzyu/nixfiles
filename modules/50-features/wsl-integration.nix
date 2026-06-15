@@ -1,5 +1,9 @@
 {inputs, ...}: {
-  flake.modules.nixos.wsl-integration = {config, lib, ...}: {
+  flake.modules.nixos.wsl-integration = {
+    config,
+    lib,
+    ...
+  }: {
     imports = [
       inputs.nixos-wsl.nixosModules.wsl
     ];

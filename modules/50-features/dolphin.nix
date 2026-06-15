@@ -1,5 +1,9 @@
 {
-  flake.modules.nixos.dolphin = {config, lib, ...}: {
+  flake.modules.nixos.dolphin = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.dolphin.enable {
       xdg.menus.enable = true;
       xdg.mime.enable = true;

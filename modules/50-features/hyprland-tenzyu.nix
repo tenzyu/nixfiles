@@ -1,4 +1,14 @@
 {
+  flake.modules.nixos.hyprland-tenzyu = {
+    config,
+    lib,
+    ...
+  }: {
+    config = lib.mkIf config.local.features.hyprland-tenzyu.enable {
+      local.features.hyprland-core.enable = lib.mkDefault true;
+    };
+  };
+
   flake.modules.homeManager.hyprland-tenzyu = {
     config,
     lib,
@@ -36,6 +46,8 @@
       bindWithFlags (lua ''mod .. " + ${key}"'') dispatcher flags;
   in {
     config = lib.mkIf config.local.features.hyprland-tenzyu.enable {
+      local.features.hyprland-core.enable = lib.mkDefault true;
+
       wayland.windowManager.hyprland = {
         configType = "lua";
 

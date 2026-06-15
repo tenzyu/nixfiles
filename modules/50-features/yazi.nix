@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.yazi = {config, lib, ...}: {
+  flake.modules.homeManager.yazi = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.yazi.enable {
       programs.yazi = {
         enable = true;

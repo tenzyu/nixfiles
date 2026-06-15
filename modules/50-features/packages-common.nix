@@ -1,5 +1,10 @@
 {
-  flake.modules.homeManager.packages-common = {config, lib, pkgs, ...}: {
+  flake.modules.homeManager.packages-common = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: {
     config = lib.mkIf config.local.features.packages-common.enable {
       home.packages = with pkgs; [
         bat

@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.kitty = {config, lib, ...}: {
+  flake.modules.homeManager.kitty = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.kitty.enable {
       programs.kitty = {
         enable = true;

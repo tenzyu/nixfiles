@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.tmux = {config, lib, ...}: {
+  flake.modules.homeManager.tmux = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.tmux.enable {
       programs.tmux = {
         enable = true;

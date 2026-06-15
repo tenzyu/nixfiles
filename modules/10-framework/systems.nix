@@ -1,7 +1,3 @@
-{
-  inputs,
-  lib,
-  ...
-}: {
+{inputs, ...}: {
   systems = import inputs.systems;
 }

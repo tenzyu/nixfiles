@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.tenzyu-desktop = {config, lib, ...}: {
+  flake.modules.homeManager.tenzyu-desktop = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.tenzyu-desktop.enable {
       local.features = {
         tenzyu-cli.enable = true;

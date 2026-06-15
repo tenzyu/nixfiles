@@ -1,5 +1,9 @@
 {lib, ...}: {
-  flake.modules.homeManager.common = {config, lib, ...}: {
+  flake.modules.homeManager.common = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.common.enable {
       home.sessionVariables = {
         EDITOR = "nvim";

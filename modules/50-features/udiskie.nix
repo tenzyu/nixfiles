@@ -6,9 +6,7 @@
     ...
   }: {
     config = lib.mkIf config.local.features.udiskie.enable {
-      environment.systemPackages = [
-        pkgs.udiskie
-      ];
+      environment.systemPackages = [pkgs.udiskie];
 
       services.udisks2.enable = true;
     };

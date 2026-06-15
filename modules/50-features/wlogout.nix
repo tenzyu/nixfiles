@@ -1,5 +1,9 @@
 {
-  flake.modules.homeManager.wlogout = {config, lib, ...}: {
+  flake.modules.homeManager.wlogout = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.wlogout.enable {
       programs.wlogout = {
         enable = true;

@@ -1,5 +1,9 @@
 {lib, ...}: {
-  flake.modules.nixos.ja-extra-locales = {config, lib, ...}: {
+  flake.modules.nixos.ja-extra-locales = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.ja-extra-locales.enable {
       i18n.extraLocaleSettings = lib.mkDefault {
         LC_ADDRESS = "ja_JP.UTF-8";
