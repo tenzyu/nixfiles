@@ -1,33 +1,31 @@
-{
+{inputs, ...}: {
   flake.modules.homeManager.zed-editor = {
     config,
     lib,
     pkgs,
     ...
   }: let
+    # TODO: これほんまにアホらしいわ。自動で現在ファイルが属する module universe を推論するみたいなのはできないらしい。
+    # NOTE: nixd が pure eval で読める locked ref を要求してくる。
     flakePath = config.local.context.flakePath;
+    flakeRef =
+      if inputs.self ? rev
+      then "git+file://${flakePath}?rev=${inputs.self.rev}"
+      else "git+file://${flakePath}";
+    flakeExpr = "builtins.getFlake \"${flakeRef}\"";
 
     nixosConfigurationName =
       if config.local.context.nixosConfigurationName != null
       then config.local.context.nixosConfigurationName
       else config.local.context.hostName;
-
     userName = config.local.user.name;
 
-    flakeExpr = "builtins.getFlake \"${flakePath}\"";
-
     nixosOptionsExpr = "(${flakeExpr}).nixosConfigurations.\"${nixosConfigurationName}\".options";
-
     nixosLocalFeaturesOptionsExpr = "(${nixosOptionsExpr}).local.features";
-
     nixosLocalUserOptionsExpr = "(${nixosOptionsExpr}).local.users.type.getSubOptions [ \"${userName}\" ]";
-
     nixosLocalUserFeaturesOptionsExpr = "(${nixosLocalUserOptionsExpr}).features";
-
     embeddedHomeUserOptionsExpr = "(${nixosOptionsExpr}).\"home-manager\".users.type.getSubOptions [ \"${userName}\" ]";
-
     embeddedHomeUserLocalFeaturesOptionsExpr = "(${embeddedHomeUserOptionsExpr}).local.features";
-
     nixosWrappedCurrentModuleOptionsExpr = ''
       let
         options = ${nixosOptionsExpr};
@@ -250,6 +248,10 @@
                   };
 
                   options = {
+                    flake-parts = {
+                      expr = "(${flakeExpr}).debug.options";
+                    };
+
                     nixos-current = {
                       expr = nixosOptionsExpr;
                     };

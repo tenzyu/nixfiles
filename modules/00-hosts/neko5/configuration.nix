@@ -1,9 +1,5 @@
 {
   configurations.nixos.neko5.module = {
-    local.context = {
-      flakePath = "/home/tenzyu/.nixfiles"; # これもっといい方法ありそう
-    };
-
     local.features = {
       neko5-hardware.enable = true;
       nix.enable = true;
