@@ -1,5 +1,5 @@
 {
-  flake.modules.nixos.neko5Hardware = {
+  flake.modules.nixos.neko5-hardware = {
     config,
     lib,
     modulesPath,

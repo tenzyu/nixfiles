@@ -1,47 +1,39 @@
-{
-  config,
-  homeManager,
-  nixos,
-  ...
-}: {
-  configurations.nixos.neko6.module = {pkgs, ...}: {
+{feature, ...}: {
+  configurations.nixos.neko6.module = {
     imports = [
-      nixos.nix
-      nixos.primaryUser
-      nixos.homeManagerUser
-      nixos.zsh
-      nixos.time
-      nixos.ssh
-      nixos.locale
-      nixos.systemState
-      nixos.unstablePackages
-      nixos.wslIntegration
-      nixos.passwordlessSudo
-      nixos.sshDebug
-      nixos.dockerUser
-      nixos.nixLd
-      nixos.docker
-      nixos.dockerOnBoot
-      nixos.dockerAutoPrune
-      nixos.emptyNixAccessTokens
-      {
-        home-manager.users.${config.me.username} = {
-          imports = [
-            homeManager.common
-            homeManager.packagesCommon
-            homeManager.zsh
-            homeManager.btop
-            homeManager.fastfetch
-            homeManager.fzf
-            homeManager.git
-            homeManager.neovim
-            homeManager.tmux
-            homeManager.yazi
-          ];
-          home.packages = with pkgs; [devbox];
-          home.sessionVariables.NIXOS_OZONE_WL = "1";
+      (feature.system {
+        stateVersion = "26.05";
+        features = {
+          wsl-integration = true;
+          nix = true;
+          time = true;
+          locale = true;
+          passwordless-sudo = true;
+          ssh = true;
+          ssh-debug = true;
+          empty-nix-access-tokens = true;
+          nix-ld = true;
+          docker-rootful = true;
+          docker-on-boot = true;
+          docker-auto-prune = true;
         };
-      }
+      })
+
+      (feature.users {
+        tenzyu = {
+          isAdmin = true;
+          homeStateVersion = "26.05";
+          fullName = "tenzyu";
+          email = "tenzyu.on@gmail.com";
+
+          features = {
+            tenzyu-cli = true;
+            wsl-default-user = true;
+            docker-user-access = true;
+          };
+          imports = [{home.sessionVariables.NIXOS_OZONE_WL = "1";}];
+        };
+      })
     ];
   };
 }

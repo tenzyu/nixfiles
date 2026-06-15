@@ -1,95 +1,84 @@
 {
-  cross,
-  homeManager,
-  nixos,
+  feature,
   inputs,
   ...
 }: {
   configurations.nixos.neko5.module = {
     imports = [
-      nixos.nix
-      nixos.nixStoreClean
-      nixos.primaryUser
-      nixos.homeManagerUser
-      nixos.zsh
-      nixos.time
-      nixos.ssh
-      nixos.locale
-      nixos.systemState
-      nixos.kernelLatest
-      nixos.neko5Hardware
-      nixos.unstablePackages
-      nixos.llmAgents
-      nixos.udiskie
-      nixos.hyprlock
-      nixos.openTabletDriver
-      nixos.stubLd
-      nixos.tailscale
-      nixos.laptopInput
-      nixos.systemdBoot
-      nixos.networkManager
-      nixos.pipewire
-      nixos.bluetooth
-      nixos.fonts
-      nixos.intelGraphics
-      nixos.desktopPerformance
-      nixos.waylandSession
-      nixos.fcitx5
-      nixos.dolphin
-      nixos.docker
-      (cross.user "tenzyu" (
-        (with cross.modules; [
-          steam
-          gaming
-          android-mic
-          discord
-          prismlauncher
-          codex
-          opencode
-          obsidian
-          osu-lazer
-          rtk
-          catppuccin
-          hyprland
-        ])
-        ++ (with homeManager; [
-          common
-          dolphin
-          packagesCommon
-          packagesDesktop
-          zsh
-          btop
-          fastfetch
-          firefox
-          fzf
-          git
-          kitty
-          neovim
-          rofi
-          starship
-          tmux
-          waybar
-          mako
-          wlogout
-          yazi
-          zedEditor
-          zoxide
-        ])
-      ))
-      ({pkgs, ...}: {
-        home-manager.users."tenzyu".home.packages = with pkgs; [
-          nh
-          jq
-          jqp
-          lazygit
-          zip
-          ncdu
-          crosspipe
-          gh
-          qdirstat
-          inputs.castalia.packages.${pkgs.system}.castalia
-          inputs.onair.packages.${pkgs.system}.default
-        ];
+      (feature.system {
+        stateVersion = "26.05";
+        features = {
+          neko5-hardware = true;
+          nix = true;
+          nix-store-clean = true;
+          zsh = true;
+          time = true;
+          locale = true;
+          ssh = true;
+          tailscale = true;
+          systemd-boot = true;
+          pipewire = true;
+          bluetooth = true;
+          intel-graphics = true;
+          docker-rootless = true;
+          fcitx5 = true;
+          kernel-latest = true;
+          udiskie = true;
+          hyprlock = true;
+          open-tablet-driver = true;
+          stub-ld = true;
+          laptop-input = true;
+          fonts = true;
+          desktop-performance = true;
+          wayland-session = true;
+        };
+      })
+
+      (feature.users {
+        tenzyu = {
+          isAdmin = true;
+          homeStateVersion = "26.05";
+          fullName = "tenzyu";
+          email = "tenzyu.on@gmail.com";
+
+          features = {
+            tenzyu-desktop = true;
+            hyprland-tenzyu = true;
+            hyprland-gaming-mode = true;
+            steam = true;
+            android-mic = true;
+            discord = true;
+            prismlauncher = true;
+            codex = true;
+            opencode = true;
+            obsidian = true;
+            osu-lazer = true;
+            parsec = true;
+            networkmanager-access = true;
+            nix-access = true;
+            rtk = true;
+            catppuccin = true;
+            dolphin = true;
+          };
+
+          imports = [
+            ({pkgs, ...}: {
+              home.packages = with pkgs; [
+                nh
+                jq
+                jqp
+                lazygit
+                zip
+                ncdu
+                crosspipe
+                gh
+                qdirstat
+                inputs.castalia.packages.${pkgs.system}.castalia
+                inputs.onair.packages.${pkgs.system}.default
+              ];
+            })
+          ];
+        };
       })
     ];
   };
