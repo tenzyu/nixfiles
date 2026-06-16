@@ -3,7 +3,15 @@
 
   outputs = inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;}
-    (inputs.import-tree ./modules);
+    (
+      # The lib/, materializers/, and tools/ subdirectories of the framework
+      # contain plain Nix function values that are imported explicitly by
+      # configurations.nix, not flake-parts modules. Exclude them from the
+      # dendritic import walk.
+      inputs.import-tree
+        .filterNot (path: builtins.match ".*/10-framework/(lib|materializers|tools)/.*\\.nix" path != null)
+      ./modules
+    );
 
   inputs = {
     # -- nixpkgs
