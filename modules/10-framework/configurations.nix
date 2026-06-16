@@ -590,7 +590,7 @@
   };
 in {
   options.configurations.nixos = lib.mkOption {
-    type = lib.types.lazyAttrsOf (
+    type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
           system = lib.mkOption {
@@ -609,7 +609,7 @@ in {
   };
 
   options.configurations.homeManager = lib.mkOption {
-    type = lib.types.lazyAttrsOf (
+    type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
           system = lib.mkOption {
