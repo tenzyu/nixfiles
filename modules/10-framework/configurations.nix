@@ -22,6 +22,8 @@
       enable = lib.mkEnableOption featureName;
     });
 
+  # Seed options are for the flake-parts-side host declaration surface.
+  # Use null instead of false so "not specified" does not propagate as an explicit disabled feature.
   seedFeatureOptions = featureNames:
     lib.genAttrs featureNames (featureName: {
       enable = lib.mkOption {
@@ -30,8 +32,8 @@
         description = ''
           Seed activation for ${featureName}.
 
-                null means "not specified in this seed module".
-                true/false are emitted into the real module passed to the target module system.
+          null means "not specified in this seed module".
+          true/false are emitted into the real module passed to the target module system.
         '';
       };
     });
@@ -50,6 +52,8 @@
     (_name: user: user.enable or true)
     users;
 
+  # Remove null seed values before handing the module to NixOS/Home Manager.
+  # This preserves "unspecified" semantics and avoids seed defaults overriding real module defaults.
   compactFeatureSet = features:
     lib.mapAttrs
     (_name: feature: {
@@ -76,6 +80,8 @@
     })
     users;
 
+  # Convert the typed flake-parts host seed back into a plain NixOS module.
+  # This keeps editor-visible seed options while preventing null/default seed state from leaking downstream.
   compactNixosSeedModule = module: let
     local = module.local or {};
     rest = removeAttrs module ["_module" "local"];
@@ -92,6 +98,8 @@
         };
     };
 
+  # Convert the typed flake-parts Home Manager seed back into a plain HM module.
+  # Keep only explicitly specified seed values before passing it to homeManagerConfiguration.
   compactHomeSeedModule = module: let
     local = module.local or {};
     rest = removeAttrs module ["_module" "local"];
@@ -469,6 +477,8 @@
     };
   };
 
+  # Do not use types.deferredModule here. It is valid for delayed module evaluation,
+  # but opaque to flake-parts debug.options, so nixd cannot see module.local.* seed options.
   nixosConfigurationModuleType = lib.types.submodule {
     freeformType = lib.types.attrsOf lib.types.anything;
 
@@ -532,6 +542,8 @@
     };
   };
 
+  # Same reason as the NixOS seed module type above: keep the declaration editor-visible,
+  # then compact it into a plain Home Manager module before evaluation.
   homeConfigurationModuleType = lib.types.submodule {
     freeformType = lib.types.attrsOf lib.types.anything;
 
@@ -590,6 +602,8 @@
   };
 in {
   options.configurations.nixos = lib.mkOption {
+    # nixd/Zed does not reliably descend through lazyAttrsOf when resolving flake-parts debug.options.
+    # Keep this as attrsOf so concrete paths like configurations.nixos.neko5.module expose nested seed options.
     type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
@@ -609,6 +623,8 @@ in {
   };
 
   options.configurations.homeManager = lib.mkOption {
+    # Same editor constraint as configurations.nixos: lazyAttrsOf hides nested seed declarations from nixd.
+    # attrsOf keeps host/user paths concrete enough for flake-parts debug.options completion.
     type = lib.types.attrsOf (
       lib.types.submodule {
         options = {
@@ -661,6 +677,8 @@ in {
           ]
           ++ nixosModuleList
           ++ [
+            # cfg.module is a typed flake-parts seed, not the final NixOS module surface.
+            # Compact it first so only explicitly specified seed values enter the real module system.
             (compactNixosSeedModule cfg.module)
           ];
       })
@@ -692,6 +710,8 @@ in {
           ]
           ++ homeModuleList
           ++ [
+            # cfg.module is a typed flake-parts seed, not the final Home Manager module surface.
+            # Compact it first so only explicitly specified seed values enter the real module system.
             (compactHomeSeedModule cfg.module)
           ];
       })

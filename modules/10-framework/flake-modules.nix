@@ -38,6 +38,8 @@
   };
 
   config = {
+    # NOTE: Expose flake-parts option declarations for nixd via .#debug.options.
+    #       Required for completion inside configurations.nixos.<host>.module, which belongs to the flake-parts option universe.
     debug = true;
 
     flake.modules = {
