@@ -4,12 +4,16 @@
     pkgs,
     lib,
     ...
-  }: {
+  }: let
+    users = lib.filterAttrs (_name: user: user.enable or true) config.local.users;
+    zshUsers = lib.filterAttrs (_name: user: user.features.zsh.enable or false) users;
+  in {
     config = lib.mkIf config.local.features.zsh.enable {
       programs.zsh.enable = lib.mkDefault true;
       environment.pathsToLink = lib.mkDefault ["/share/zsh"];
       environment.shells = lib.mkDefault [pkgs.zsh];
       environment.enableAllTerminfo = lib.mkDefault true;
+      users.users = lib.mapAttrs (_name: _user: {shell = pkgs.zsh;}) zshUsers;
     };
   };
 

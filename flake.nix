@@ -29,6 +29,15 @@
       url = "github:NixOS/flake-compat";
       flake = false;
     };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+    nix-unit = {
+      url = "github:nix-community/nix-unit";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
 
     # -- Dendritic Pattern
     import-tree.url = "github:vic/import-tree";
@@ -43,6 +52,7 @@
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       inputs.systems.follows = "systems";
       inputs.flake-parts.follows = "flake-parts";
+      inputs.treefmt-nix.follows = "treefmt-nix";
     };
     lazyvim = {
       url = "github:pfassina/lazyvim-nix";
