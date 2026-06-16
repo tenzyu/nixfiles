@@ -235,42 +235,16 @@
                 path = lib.getExe pkgs.nixd;
                 arguments = [];
               };
-
               settings = {
-                nixd = {
-                  formatting = {
-                    command = ["alejandra"];
-                  };
-
-                  options = {
-                    flake-parts = {
-                      expr = flakePartsOptionsExpr;
-                    };
-
-                    nixos-current = {
-                      expr = nixosOptionsExpr;
-                    };
-
-                    nixos-current-local-features = {
-                      expr = nixosLocalFeaturesOptionsExpr;
-                    };
-
-                    nixos-current-local-user = {
-                      expr = nixosLocalUserOptionsExpr;
-                    };
-
-                    nixos-current-local-user-features = {
-                      expr = nixosLocalUserFeaturesOptionsExpr;
-                    };
-
-                    embedded-home-current-user = {
-                      expr = embeddedHomeUserOptionsExpr;
-                    };
-
-                    embedded-home-current-user-local-features = {
-                      expr = embeddedHomeUserLocalFeaturesOptionsExpr;
-                    };
-                  };
+                formatting = {command = ["alejandra"];};
+                options = {
+                  flake-parts = {expr = flakePartsOptionsExpr;};
+                  nixos-current = {expr = nixosOptionsExpr;};
+                  nixos-current-local-features = {expr = nixosLocalFeaturesOptionsExpr;};
+                  nixos-current-local-user = {expr = nixosLocalUserOptionsExpr;};
+                  nixos-current-local-user-features = {expr = nixosLocalUserFeaturesOptionsExpr;};
+                  embedded-home-current-user = {expr = embeddedHomeUserOptionsExpr;};
+                  embedded-home-current-user-local-features = {expr = embeddedHomeUserLocalFeaturesOptionsExpr;};
                 };
               };
             };
