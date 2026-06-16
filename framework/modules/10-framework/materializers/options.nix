@@ -48,8 +48,8 @@
 
       context = {
         flakePath = lib.mkOption {
-          type = lib.types.str;
-          default = "/home/tenzyu/.nixfiles"; # TODO: configuration.nix に promote
+          type = lib.types.nullOr lib.types.str;
+          default = null;
         };
 
         hostName = lib.mkOption {
@@ -89,7 +89,8 @@
 
       context = {
         flakePath = lib.mkOption {
-          type = lib.types.str;
+          type = lib.types.nullOr lib.types.str;
+          default = null;
         };
 
         hostName = lib.mkOption {
@@ -164,8 +165,8 @@
 
       context = {
         flakePath = lib.mkOption {
-          type = lib.types.str;
-          default = "/home/tenzyu/.nixfiles"; # TODO: configuration.nix に promote
+          type = lib.types.nullOr lib.types.str;
+          default = null;
         };
 
         hostName = lib.mkOption {

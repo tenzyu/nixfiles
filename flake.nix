@@ -2,17 +2,12 @@
   description = "tenzyu's nixfiles";
 
   outputs = inputs:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;}
-    (
-      # The lib/, materializers/, tools/, and tests/ subdirectories of the
-      # framework contain plain Nix function values (and pure nix-unit test
-      # suites) that are imported explicitly by configurations.nix and
-      # nix-unit.nix, not flake-parts modules. Exclude them from the
-      # dendritic import walk.
-      inputs.import-tree
-        .filterNot (path: builtins.match ".*/10-framework/(lib|materializers|tools|tests)/.*\\.nix" path != null)
-      ./modules
-    );
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
+      imports = [
+        inputs.framework.flakeModules.default
+        (inputs.import-tree.filterNot (path: builtins.match ".*/10-framework/.*\\.nix" path != null) ./modules)
+      ];
+    };
 
   inputs = {
     # -- nixpkgs
@@ -46,6 +41,17 @@
       url = "github:nix-community/nix-unit";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+
+    # -- Feature framework
+    framework = {
+      url = "path:./framework";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
+      inputs.flake-parts.follows = "flake-parts";
+      inputs.home-manager.follows = "home-manager";
+      inputs.nix-unit.follows = "nix-unit";
+      inputs.systems.follows = "systems";
     };
 
     # -- Dendritic Pattern

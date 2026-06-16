@@ -1,0 +1,12 @@
+{
+  "name": "nix-feature-framework-cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && bun test",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

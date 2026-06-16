@@ -156,6 +156,37 @@
         "type": "github"
       }
     },
+    "framework": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "home-manager": [
+          "home-manager"
+        ],
+        "nix-unit": [
+          "nix-unit"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "nixpkgs-unstable": [
+          "nixpkgs-unstable"
+        ],
+        "systems": [
+          "systems"
+        ]
+      },
+      "locked": {
+        "path": "./framework",
+        "type": "path"
+      },
+      "original": {
+        "path": "./framework",
+        "type": "path"
+      },
+      "parent": []
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -409,6 +440,7 @@
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
+        "framework": "framework",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "lazyvim": "lazyvim",
