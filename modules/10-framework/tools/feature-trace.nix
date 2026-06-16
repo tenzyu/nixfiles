@@ -634,7 +634,7 @@ in {
     effective = serializeValue effective;
     definitions =
       map (normalizeDef {
-        inherit repo host;
+        inherit repo;
         featureName = featureName;
       })
       defs;
