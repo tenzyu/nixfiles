@@ -6,7 +6,7 @@
   }: let
     wrapper = pkgs.writeShellApplication {
       name = "feature-trace";
-      runtimeInputs = [pkgs.jq];
+      runtimeInputs = [pkgs.jq pkgs.gawk];
       text = builtins.readFile ./tools/feature-trace.sh;
     };
   in {

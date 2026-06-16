@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# jq programs intentionally use single-quoted strings with jq interpolation syntax.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 host=""
