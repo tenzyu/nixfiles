@@ -38,6 +38,8 @@
   };
 
   config = {
+    debug = true;
+
     flake.modules = {
       homeManager = {};
       nixos = {};

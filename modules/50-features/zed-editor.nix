@@ -5,13 +5,20 @@
     pkgs,
     ...
   }: let
-    # TODO: これほんまにアホらしいわ。自動で現在ファイルが属する module universe を推論するみたいなのはできないらしい。
-    # NOTE: nixd が pure eval で読める locked ref を要求してくる。
+    # NOTE: nixd option completion needs a locked flake reference.
+    # Prefer a content-addressed path reference to the exact evaluated self source.
+    # Fall back to a git revision reference only when narHash is unavailable.
     flakePath = config.local.context.flakePath;
     flakeRef =
-      if inputs.self ? rev
+      if inputs.self ? narHash
+      then "path:${inputs.self.outPath}?narHash=${inputs.self.narHash}"
+      else if inputs.self ? rev
       then "git+file://${flakePath}?rev=${inputs.self.rev}"
-      else "git+file://${flakePath}";
+      else
+        throw ''
+          zed-editor/nixd option completion requires a locked flake reference.
+          Commit the nixfiles tree or use a Nix version that exposes inputs.self.narHash.
+        '';
     flakeExpr = "builtins.getFlake \"${flakeRef}\"";
 
     nixosConfigurationName =
@@ -26,19 +33,7 @@
     nixosLocalUserFeaturesOptionsExpr = "(${nixosLocalUserOptionsExpr}).features";
     embeddedHomeUserOptionsExpr = "(${nixosOptionsExpr}).\"home-manager\".users.type.getSubOptions [ \"${userName}\" ]";
     embeddedHomeUserLocalFeaturesOptionsExpr = "(${embeddedHomeUserOptionsExpr}).local.features";
-    nixosWrappedCurrentModuleOptionsExpr = ''
-      let
-        options = ${nixosOptionsExpr};
-        localFeaturesOptions = ${nixosLocalFeaturesOptionsExpr};
-        userOptions = ${nixosLocalUserOptionsExpr};
-        userFeatureOptions = ${nixosLocalUserFeaturesOptionsExpr};
-      in {
-        configurations.nixos."${nixosConfigurationName}".module = options;
-        configurations.nixos."${nixosConfigurationName}".module.local.features = localFeaturesOptions;
-        configurations.nixos."${nixosConfigurationName}".module.local.users."${userName}" = userOptions;
-        configurations.nixos."${nixosConfigurationName}".module.local.users."${userName}".features = userFeatureOptions;
-      }
-    '';
+    flakePartsOptionsExpr = "(${flakeExpr}).debug.options";
   in {
     config = lib.mkIf config.local.features.zed-editor.enable {
       programs.zed-editor = {
@@ -249,7 +244,7 @@
 
                   options = {
                     flake-parts = {
-                      expr = "(${flakeExpr}).debug.options";
+                      expr = flakePartsOptionsExpr;
                     };
 
                     nixos-current = {
@@ -266,10 +261,6 @@
 
                     nixos-current-local-user-features = {
                       expr = nixosLocalUserFeaturesOptionsExpr;
-                    };
-
-                    nixos-current-wrapper-module = {
-                      expr = nixosWrappedCurrentModuleOptionsExpr;
                     };
 
                     embedded-home-current-user = {

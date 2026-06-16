@@ -7,7 +7,7 @@
   fpConfig = config;
 
   publicModuleAttrs = attrs:
-    lib.filterAttrs (name: value: !(lib.hasPrefix "*" name)) attrs;
+    lib.filterAttrs (name: _value: !(lib.hasPrefix "_" name)) attrs;
 
   nixosModules = publicModuleAttrs (fpConfig.flake.modules.nixos or {});
   homeModules = publicModuleAttrs (fpConfig.flake.modules.homeManager or {});
