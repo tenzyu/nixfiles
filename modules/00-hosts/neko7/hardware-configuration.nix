@@ -18,6 +18,7 @@
       fileSystems."/boot" = {
         device = "/dev/disk/by-label/NEKO7_ESP";
         fsType = "vfat";
+        options = ["umask=0077"];
       };
 
       swapDevices = [];
