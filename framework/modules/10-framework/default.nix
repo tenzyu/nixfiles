@@ -1,7 +1,4 @@
-{frameworkRoot}: {
-  inputs,
-  ...
-}: {
+{frameworkRoot}: {inputs, ...}: {
   _module.args.frameworkRoot = frameworkRoot;
 
   imports = [
