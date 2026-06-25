@@ -8,7 +8,11 @@
       locale.enable = true;
       ssh.enable = true;
       tailscale.enable = true;
-      ark-survival-evolved.enable = true;
+      # Final shape:
+      #   neko7       = admin node
+      #   neko7-ark   = ARK player node
+      #   neko7-rust  = Rust player node
+      game-server-containers.enable = true;
       resolvconf-blacklist-gateway.enable = true;
       disable-ipv6.enable = true;
       systemd-boot.enable = true;
