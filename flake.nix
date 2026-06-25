@@ -24,15 +24,9 @@
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    systems.url = "github:nix-systems/default";
-    flake-utils = {
-      url = "github:numtide/flake-utils";
-      inputs.systems.follows = "systems";
-    };
-    flake-compat = {
-      url = "github:NixOS/flake-compat";
-      flake = false;
-    };
+    # system-manager, nix-darwin, etc
+
+    # -- follows
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
@@ -41,6 +35,15 @@
       url = "github:nix-community/nix-unit";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+    systems.url = "github:nix-systems/default";
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.systems.follows = "systems";
+    };
+    flake-compat = {
+      url = "github:NixOS/flake-compat";
+      flake = false;
     };
 
     # -- Feature framework
@@ -61,7 +64,19 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
-    # -- Development
+    # -- Other Ecosystems
+    nixos-wsl = {
+      url = "github:nix-community/NixOS-WSL";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-compat.follows = "flake-compat";
+    };
+    nixgl = {
+      url = "github:nix-community/nixGL";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+
+    # -- Other flake
     llm-agents = {
       url = "github:numtide/llm-agents.nix";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
@@ -74,7 +89,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
-
     castalia = {
       url = "github:tenzyu/tenzyudotcom/develop?dir=product/apps/castalia";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -82,18 +96,6 @@
     onair = {
       url = "github:hiraginoyuki/onair";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
-    };
-
-    # -- Other Ecosystems
-    nixos-wsl = {
-      url = "github:nix-community/NixOS-WSL";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-compat.follows = "flake-compat";
-    };
-    nixgl = {
-      url = "github:nix-community/nixGL";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
   };
 }
