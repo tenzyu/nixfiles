@@ -58,6 +58,7 @@
         disk-tools.enable = true;
         castalia.enable = true;
         onair.enable = true;
+        herdr.enable = true;
       };
     };
   };

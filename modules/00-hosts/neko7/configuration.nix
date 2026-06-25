@@ -42,6 +42,7 @@
         nix-access.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
+        herdr.enable = true;
       };
     };
   };
