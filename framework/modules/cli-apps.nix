@@ -10,10 +10,10 @@
   }: let
     nixUnit = inputs.nix-unit.packages.${system}.default;
 
-    # cli-apps.nix is framework/modules/10-framework/cli-apps.nix
+    # cli-apps.nix is framework/modules/cli-apps.nix
     frameworkModuleRoot = ./.;
-    frameworkRoot = ../..;
-    cliRoot = ../../cli;
+    frameworkRoot = ../.;
+    cliRoot = ../cli;
 
     frameworkTestSuite = pkgs.writeText "framework-tests.nix" ''
       let

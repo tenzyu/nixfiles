@@ -11,7 +11,7 @@
   };
 
   outputs = inputs @ {flake-parts, ...}: let
-    frameworkModule = import ./modules/10-framework/default.nix {
+    frameworkModule = import ./modules/default.nix {
       frameworkRoot = ./.;
     };
   in
@@ -22,9 +22,9 @@
         flakeModules.default = frameworkModule;
 
         lib = {
-          features = import ./modules/10-framework/lib/features.nix {lib = inputs.nixpkgs.lib;};
-          modules = import ./modules/10-framework/lib/modules.nix {lib = inputs.nixpkgs.lib;};
-          policies = args: import ./modules/10-framework/lib/policies.nix ({lib = inputs.nixpkgs.lib;} // args);
+          features = import ./modules/lib/features.nix {lib = inputs.nixpkgs.lib;};
+          modules = import ./modules/lib/modules.nix {lib = inputs.nixpkgs.lib;};
+          policies = args: import ./modules/lib/policies.nix ({lib = inputs.nixpkgs.lib;} // args);
         };
       };
 

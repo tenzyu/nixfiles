@@ -332,7 +332,7 @@
         else if isMkDefault d.value
         then "implied"
         else "direct"
-      else if hasPrefix "modules/10-framework/" rel
+      else if hasPrefix "modules/10-fundamental" rel
       then "materialized"
       else "unknown";
     source = rel;

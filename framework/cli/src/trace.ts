@@ -210,7 +210,7 @@ async function evalTrace(args: TraceArgs, repo: string): Promise<AnyRecord> {
     let
       repo = ${JSON.stringify(repo)};
       flake = builtins.getFlake "path:${repo}";
-      core = import (${JSON.stringify(frameworkRoot)} + "/modules/10-framework/tools/feature-trace.nix") {
+      core = import (${JSON.stringify(frameworkRoot)} + "/modules/tools/feature-trace.nix") {
         lib = flake.inputs.nixpkgs.lib;
       };
       args = builtins.fromJSON ${JSON.stringify(nixArgs)};
