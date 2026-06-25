@@ -5,8 +5,6 @@
     ./flake-modules.nix
     ./configurations.nix
     ./helpers.nix
-    ./formatter.nix
-    ./systems.nix
     ./cli-apps.nix
   ];
 }
