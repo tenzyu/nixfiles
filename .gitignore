@@ -1,7 +1,7 @@
 .codex/
 .codex
 .agents/
-result/
+result
 .env
 .opencode/
 current-nixfiles.zip
