@@ -1,35 +1,6 @@
 autoload -Uz select-word-style
 select-word-style bash
 
-function backward-kill-smart-word() {
-  local left="$LBUFFER"
-  local match
-
-  if [[ -z "$left" ]]; then
-    zle backward-kill-word
-    return
-  fi
-
-  if [[ "$left" =~ [[:space:]]+$ ]]; then
-    match="$MATCH"
-  elif [[ "$left" =~ [[:alnum:]_./-]+$ ]]; then
-    match="$MATCH"
-  elif [[ "$left" =~ [ぁ-んァ-ンー一-龥々]+$ ]]; then
-    match="$MATCH"
-  elif [[ "$left" =~ [[:punct:]]+$ ]]; then
-    match="$MATCH"
-  else
-    match="${left[-1,-1]}"
-  fi
-
-  LBUFFER="${left[1,$(( ${#left} - ${#match} ))]}"
-}
-
-if [[ -o interactive ]]; then
-  zle -N backward-kill-smart-word
-  bindkey '^W' backward-kill-smart-word
-fi
-
 function tm() {
   local session="${1:-main}"
   tmux new -As "$session"
