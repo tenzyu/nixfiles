@@ -5,7 +5,7 @@
     inputs.flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
         inputs.framework.flakeModules.default
-        (inputs.import-tree.filterNot (path: builtins.match ".*/10-framework/.*\\.nix" path != null) ./modules)
+        (inputs.import-tree ./modules)
       ];
     };
 
