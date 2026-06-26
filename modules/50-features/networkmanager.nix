@@ -6,6 +6,7 @@
   }: {
     config = lib.mkIf config.local.features.networkmanager.enable {
       networking.networkmanager.enable = true;
+      networking.networkmanager.wifi.powersave = false;
 
       networking.nameservers = [
         "1.1.1.1"
