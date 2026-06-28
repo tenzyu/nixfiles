@@ -1,4 +1,6 @@
 {
+  flake.features.neko5-hardware = {};
+
   flake.modules.nixos.neko5-hardware = {
     config,
     lib,

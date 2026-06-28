@@ -14,9 +14,11 @@
 
   nixosModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.nixos or {});
   homeModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.homeManager or {});
+  nativeFeatures = featuresLib.publicFeatureAttrs (fpConfig.flake.features or {});
 
-  nixosFeatureNames = lib.attrNames nixosModules;
-  homeFeatureNames = lib.attrNames homeModules;
+  nativeFeatureNames = lib.attrNames nativeFeatures;
+  nixosFeatureNames = nativeFeatureNames;
+  homeFeatureNames = nativeFeatureNames;
 
   helpers = fpConfig.flake.lib.helpers;
 
@@ -24,7 +26,11 @@
   homeModuleList = lib.mapAttrsToList modulesLib.tagHomeModule homeModules;
 
   optionsMaterializers = import ./materializers/options.nix {
-    inherit lib nixosFeatureNames homeFeatureNames featuresLib;
+    inherit lib nixosFeatureNames homeFeatureNames featuresLib nativeFeatures;
+  };
+
+  nativeMaterializers = import ./materializers/native-projections.nix {
+    inherit lib featuresLib modulesLib usersLib nativeFeatures nixosModules;
   };
 
   policyMaterializers = import ./materializers/policy.nix {
@@ -36,7 +42,8 @@
   };
 
   hmMaterializers = import ./materializers/home-manager.nix {
-    inherit lib helpers homeModuleList;
+    inherit lib helpers;
+    homeModuleList = homeModuleList ++ nativeMaterializers.homeProjectionModules ++ nativeMaterializers.homeContributionModules;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
     inherit (policyMaterializers) nixpkgsPolicyModule;
     inherit (featuresLib) enabledFeatures;
@@ -112,7 +119,6 @@ in {
             [
               inputs.home-manager.nixosModules.home-manager
               optionsMaterializers.nixosFeatureOptionsModule
-              userMaterializers.userSeededNixosFeaturesModule
               policyMaterializers.nixosPolicyMaterializerModule
               policyMaterializers.nixpkgsPolicyModule
               userMaterializers.nixosUserAccountsModule
@@ -131,6 +137,29 @@ in {
               }
             ]
             ++ nixosModuleList
+            ++ nativeMaterializers.nixosProjectionModules
+            ++ nativeMaterializers.seededUserToNixosJoinModules {
+              hostName = name;
+              seedModule = cfg.module;
+            }
+            ++ nativeMaterializers.seededNixosContainerToHostJoinModules {
+              hostName = name;
+              seedModule = cfg.module;
+            }
+            ++ nativeMaterializers.seededNixosContainerModules {
+              hostName = name;
+              seedModule = cfg.module;
+              containerModules =
+                [
+                  optionsMaterializers.nixosFeatureOptionsModule
+                  policyMaterializers.nixosPolicyMaterializerModule
+                  policyMaterializers.nixpkgsPolicyModule
+                  {
+                    nixpkgs.overlays = nixosOverlays;
+                  }
+                ]
+                ++ nativeMaterializers.nixosProjectionModules;
+            }
             ++ [
               # cfg.module is a typed flake-parts seed, not the final NixOS module surface.
               # Compact it first so only explicitly specified seed values enter the real module system.
@@ -166,6 +195,8 @@ in {
               }
             ]
             ++ homeModuleList
+            ++ nativeMaterializers.homeProjectionModules
+            ++ nativeMaterializers.homeContributionModules
             ++ [
               # cfg.module is a typed flake-parts Home Manager seed, not the final Home Manager module surface.
               # Compact it first so only explicitly specified seed values enter the real module system.

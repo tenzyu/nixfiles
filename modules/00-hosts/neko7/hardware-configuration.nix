@@ -1,4 +1,6 @@
 {
+  flake.features.neko7-hardware = {};
+
   flake.modules.nixos.neko7-hardware = {
     config,
     lib,

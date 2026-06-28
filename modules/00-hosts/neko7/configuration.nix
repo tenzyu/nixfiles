@@ -45,5 +45,60 @@
         herdr.enable = true;
       };
     };
+
+    local.containers.neko7-rust = {
+      backend = "nixos-container";
+      autoStart = false;
+      privateNetwork = true;
+      enableTun = true;
+      hostAddress = "10.77.20.1";
+      localAddress = "10.77.20.2";
+
+      nat = {
+        enable = true;
+        externalInterface = "ens18";
+      };
+
+      bindMounts = {
+        "/home/game-rust" = {
+          hostPath = "/home/game-rust";
+          isReadOnly = false;
+        };
+
+        "/var/lib/tailscale" = {
+          hostPath = "/home/game-rust/.state/tailscale";
+          isReadOnly = false;
+        };
+      };
+
+      features = {
+        tailscale-node = {
+          enable = true;
+          hostname = "neko7-rust";
+          authKeyFile = "/home/game-rust/secrets/tailscale-authkey";
+          udpPorts = [
+            28015
+            28017
+          ];
+          tcpPorts = [
+            28016
+            28082
+          ];
+        };
+
+        rust-dedicated = {
+          enable = true;
+          user = "game-rust";
+          uid = 27008;
+          gid = 27008;
+          home = "/home/game-rust";
+          installDir = "/home/game-rust/rust/server";
+          backupDir = "/home/game-rust/rust/backups";
+          envFile = "/home/game-rust/secrets/rust.env";
+        };
+
+        game-rcon-node.enable = true;
+      };
+    };
   };
 }

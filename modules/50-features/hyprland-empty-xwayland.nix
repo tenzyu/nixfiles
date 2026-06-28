@@ -1,10 +1,11 @@
 {
-  flake.modules.homeManager.hyprland-empty-xwayland = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.hyprland-tenzyu.enable {
+  flake.features.hyprland-empty-xwayland.contributions.homeManager.hyprland-tenzyu = {
+    when.sameBoundary.features = [
+      "hyprland-empty-xwayland"
+      "hyprland-tenzyu"
+    ];
+
+    payload = {...}: {
       wayland.windowManager.hyprland.settings.window_rule = [
         {
           match = {

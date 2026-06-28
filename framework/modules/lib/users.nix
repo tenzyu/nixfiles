@@ -3,7 +3,7 @@
   featuresLib,
 }: rec {
   enabledUsers = users:
-    lib.filterAttrs (_name: user: user.enable or true) users;
+    lib.filterAttrs (_name: user: (user.enable or true) != false) users;
 
   compactNixosUsers = users:
     lib.mapAttrs (name: user: {

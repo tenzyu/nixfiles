@@ -1,20 +1,16 @@
-{lib, ...}: {
-  flake.modules.nixos.cloudflare-warp = {
-    config,
-    lib,
+{...}: {
+  flake.features.cloudflare-warp.projections.nixos.payload = {
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.cloudflare-warp.enable {
-      environment.systemPackages = [
-        pkgs.cloudflare-warp
-      ];
-      systemd.packages = [
-        pkgs.cloudflare-warp
-      ];
-      systemd.targets.multi-user.wants = [
-        "warp-svc.service"
-      ];
-    };
+    environment.systemPackages = [
+      pkgs.cloudflare-warp
+    ];
+    systemd.packages = [
+      pkgs.cloudflare-warp
+    ];
+    systemd.targets.multi-user.wants = [
+      "warp-svc.service"
+    ];
   };
 }

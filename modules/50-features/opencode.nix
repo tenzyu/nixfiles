@@ -1,12 +1,5 @@
 {
-  flake.modules.homeManager.opencode = {
-    config,
-    lib,
-    pkgs,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.opencode.enable {
-      home.packages = [pkgs.llm-agents.opencode];
-    };
+  flake.features.opencode.projections.homeManager.payload = {pkgs, ...}: {
+    home.packages = [pkgs.llm-agents.opencode];
   };
 }

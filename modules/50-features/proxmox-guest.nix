@@ -1,14 +1,12 @@
 {
-  flake.modules.nixos.proxmox-guest = {
+  flake.features.proxmox-guest.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.proxmox-guest.enable {
-      local.features = {
-        qemu-guest-profile.enable = true;
-        qemu-guest-agent.enable = true;
-      };
+    local.features = {
+      qemu-guest-profile.enable = true;
+      qemu-guest-agent.enable = true;
     };
   };
 }

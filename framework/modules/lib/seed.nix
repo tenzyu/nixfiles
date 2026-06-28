@@ -6,11 +6,18 @@
   compactContext = context:
     lib.filterAttrs (_name: value: value != null) context;
 
+  compactContainer = container:
+    removeAttrs container ["_module"]
+    // {
+      features = featuresLib.compactFeatureSet (container.features or {});
+    };
+
   # Convert the typed flake-parts host seed back into a plain NixOS module.
   # This keeps editor-visible seed options while preventing null/default seed state from leaking downstream.
   compactNixosSeedModule = module: let
     local = module.local or {};
     rest = removeAttrs module ["_module" "local"];
+    compactContainers = lib.mapAttrs (_name: compactContainer) (local.containers or {});
   in
     rest
     // {
@@ -18,6 +25,9 @@
         {
           features = featuresLib.compactFeatureSet (local.features or {});
           users = usersLib.compactNixosUsers (local.users or {});
+        }
+        // lib.optionalAttrs (compactContainers != {}) {
+          containers = compactContainers;
         }
         // lib.optionalAttrs (local ? context) {
           context = compactContext local.context;

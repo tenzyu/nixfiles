@@ -1,19 +1,13 @@
 {
-  flake.modules.nixos.nix-access = {
-    config,
-    helpers,
-    lib,
-    ...
-  }: {
-    config.nix.settings.trusted-users =
-      lib.mkAfter (helpers.userNamesWithFeature "nix-access" config);
-  };
+  flake.features.nix-access = {
+    projections.homeManager.payload = {...}: {};
 
-  flake.modules.homeManager.nix-access = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.nix-access.enable {};
+    joins.userToNixos.payload = {
+      lib,
+      user,
+      ...
+    }: {
+      nix.settings.trusted-users = lib.mkAfter [user.name];
+    };
   };
 }

@@ -3,10 +3,138 @@
   nixosFeatureNames,
   homeFeatureNames,
   featuresLib,
-}: rec {
+  nativeFeatures ? {},
+}: let
+  bindMountOptions = {lib, ...}: {
+    options = {
+      hostPath = lib.mkOption {
+        type = lib.types.str;
+      };
+
+      isReadOnly = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+    };
+  };
+
+  containerOptions = {
+    name,
+    lib,
+    ...
+  }: {
+    options = {
+      backend = lib.mkOption {
+        type = lib.types.enum ["nixos-container"];
+        default = "nixos-container";
+      };
+
+      autoStart = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      privateNetwork = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      enableTun = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      hostAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+
+      localAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+
+      nat = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+        };
+
+        externalInterface = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
+      };
+
+      bindMounts = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.submodule bindMountOptions);
+        default = {};
+      };
+
+      features = featuresLib.actualFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
+    };
+  };
+
+  seedContainerOptions = {
+    name,
+    lib,
+    ...
+  }: {
+    options = {
+      backend = lib.mkOption {
+        type = lib.types.enum ["nixos-container"];
+        default = "nixos-container";
+      };
+
+      autoStart = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      privateNetwork = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      enableTun = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+      };
+
+      hostAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+
+      localAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+      };
+
+      nat = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+        };
+
+        externalInterface = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
+      };
+
+      bindMounts = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.submodule bindMountOptions);
+        default = {};
+      };
+
+      features = featuresLib.seedFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
+    };
+  };
+in rec {
   nixosFeatureOptionsModule = {lib, ...}: {
     options.local = {
-      features = featuresLib.actualFeatureOptions nixosFeatureNames;
+      features = featuresLib.actualFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
 
       users = lib.mkOption {
         default = {};
@@ -39,11 +167,16 @@
                   default = "26.05";
                 };
 
-                features = featuresLib.actualFeatureOptions homeFeatureNames;
+                features = featuresLib.actualFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
               };
             }
           )
         );
+      };
+
+      containers = lib.mkOption {
+        default = {};
+        type = lib.types.attrsOf (lib.types.submodule containerOptions);
       };
 
       context = {
@@ -60,6 +193,11 @@
         nixosConfigurationName = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
+        };
+
+        boundaryKind = lib.mkOption {
+          type = lib.types.str;
+          default = "nixos";
         };
       };
     };
@@ -111,9 +249,14 @@
           type = lib.types.bool;
           default = false;
         };
+
+        boundaryKind = lib.mkOption {
+          type = lib.types.str;
+          default = "homeManager";
+        };
       };
 
-      features = featuresLib.actualFeatureOptions homeFeatureNames;
+      features = featuresLib.actualFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
     };
   };
 
@@ -123,7 +266,7 @@
     freeformType = lib.types.attrsOf lib.types.anything;
 
     options.local = {
-      features = featuresLib.seedFeatureOptions nixosFeatureNames;
+      features = featuresLib.seedFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
 
       users = lib.mkOption {
         default = {};
@@ -156,11 +299,16 @@
                   default = "26.05";
                 };
 
-                features = featuresLib.seedFeatureOptions homeFeatureNames;
+                features = featuresLib.seedFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
               };
             }
           )
         );
+      };
+
+      containers = lib.mkOption {
+        default = {};
+        type = lib.types.attrsOf (lib.types.submodule seedContainerOptions);
       };
 
       context = {
@@ -175,6 +323,11 @@
         };
 
         nixosConfigurationName = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
+
+        boundaryKind = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
         };
@@ -235,9 +388,14 @@
           type = lib.types.bool;
           default = false;
         };
+
+        boundaryKind = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
       };
 
-      features = featuresLib.seedFeatureOptions homeFeatureNames;
+      features = featuresLib.seedFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
     };
   };
 }

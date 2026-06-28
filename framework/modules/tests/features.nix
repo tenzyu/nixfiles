@@ -34,6 +34,40 @@ in {
     };
   };
 
+  testCompactFeatureSetPreservesSettings = {
+    expr = featuresLib.compactFeatureSet {
+      alpha = {
+        enable = true;
+        user = "alice";
+      };
+    };
+    expected = {
+      alpha = {
+        enable = true;
+        user = "alice";
+      };
+    };
+  };
+
+  testEnabledFeaturesPreservesSettings = {
+    expr = featuresLib.enabledFeatures {
+      alpha = {
+        enable = true;
+        user = "alice";
+      };
+      beta = {
+        enable = false;
+        user = "bob";
+      };
+    };
+    expected = {
+      alpha = {
+        enable = true;
+        user = "alice";
+      };
+    };
+  };
+
   testActualFeatureOptionsKeys = {
     expr = lib.attrNames (featuresLib.actualFeatureOptions ["alpha" "beta"]);
     expected = ["alpha" "beta"];
@@ -55,6 +89,48 @@ in {
       example = true;
       description = "Whether to enable alpha.";
       typeName = "bool";
+    };
+  };
+
+  testActualFeatureOptionsWithSchemas = let
+    opts = featuresLib.actualFeatureOptionsWithSchemas ["alpha"] {
+      alpha.options = {lib, ...}: {
+        user = lib.mkOption {
+          type = lib.types.str;
+          default = "alice";
+        };
+      };
+    };
+  in {
+    expr = {
+      keys = lib.attrNames opts.alpha;
+      userDefault = opts.alpha.user.default;
+      enableDefault = opts.alpha.enable.default;
+    };
+    expected = {
+      keys = ["enable" "user"];
+      userDefault = "alice";
+      enableDefault = false;
+    };
+  };
+
+  testActivationFactNormalizesSettings = {
+    expr = featuresLib.activationFact {
+      boundary = {id = "homeManager:alice@host";};
+      featureName = "alpha";
+      featureConfig = {
+        enable = true;
+        user = "alice";
+      };
+    };
+    expected = {
+      boundary = "homeManager:alice@host";
+      feature = "alpha";
+      name = "alpha";
+      enable = true;
+      settings = {
+        user = "alice";
+      };
     };
   };
 

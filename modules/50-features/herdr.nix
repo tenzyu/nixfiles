@@ -1,12 +1,5 @@
 {...}: {
-  flake.modules.homeManager.herdr = {
-    config,
-    lib,
-    pkgs,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.herdr.enable {
-      home.packages = [pkgs.llm-agents.herdr];
-    };
+  flake.features.herdr.projections.homeManager.payload = {pkgs, ...}: {
+    home.packages = [pkgs.llm-agents.herdr];
   };
 }

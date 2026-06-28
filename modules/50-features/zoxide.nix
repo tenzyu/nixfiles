@@ -1,13 +1,7 @@
 {
-  flake.modules.homeManager.zoxide = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.zoxide.enable {
-      programs.zoxide = {
-        enable = true;
-      };
+  flake.features.zoxide.projections.homeManager.payload = {...}: {
+    programs.zoxide = {
+      enable = true;
     };
   };
 }

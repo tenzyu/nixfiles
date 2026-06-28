@@ -1,14 +1,7 @@
 {
-  flake.modules.homeManager.disk-tools = {
-    config,
-    lib,
-    pkgs,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.disk-tools.enable {
-      home.packages = with pkgs; [
-        qdirstat
-      ];
-    };
+  flake.features.disk-tools.projections.homeManager.payload = {pkgs, ...}: {
+    home.packages = with pkgs; [
+      qdirstat
+    ];
   };
 }

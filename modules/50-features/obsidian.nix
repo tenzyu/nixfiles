@@ -3,22 +3,10 @@
     "obsidian"
   ];
 
-  flake.modules.nixos.obsidian = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.obsidian.enable {};
-  };
-
-  flake.modules.homeManager.obsidian = {
-    config,
-    lib,
+  flake.features.obsidian.projections.homeManager.payload = {
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.obsidian.enable {
-      home.packages = [pkgs.obsidian];
-    };
+    home.packages = [pkgs.obsidian];
   };
 }

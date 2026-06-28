@@ -1,11 +1,5 @@
-{config, ...}: {
-  flake.modules.nixos.ssh-debug = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.ssh-debug.enable {
-      services.openssh.settings.LogLevel = "DEBUG";
-    };
+{...}: {
+  flake.features.ssh-debug.projections.nixos.payload = {...}: {
+    services.openssh.settings.LogLevel = "DEBUG";
   };
 }
