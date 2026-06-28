@@ -3,10 +3,11 @@
   nixosFeatureNames,
   homeFeatureNames,
   featuresLib,
+  nativeFeatures ? {},
 }: rec {
   nixosFeatureOptionsModule = {lib, ...}: {
     options.local = {
-      features = featuresLib.actualFeatureOptions nixosFeatureNames;
+      features = featuresLib.actualFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
 
       users = lib.mkOption {
         default = {};
@@ -39,7 +40,7 @@
                   default = "26.05";
                 };
 
-                features = featuresLib.actualFeatureOptions homeFeatureNames;
+                features = featuresLib.actualFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
               };
             }
           )
@@ -113,7 +114,7 @@
         };
       };
 
-      features = featuresLib.actualFeatureOptions homeFeatureNames;
+      features = featuresLib.actualFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
     };
   };
 
@@ -123,7 +124,7 @@
     freeformType = lib.types.attrsOf lib.types.anything;
 
     options.local = {
-      features = featuresLib.seedFeatureOptions nixosFeatureNames;
+      features = featuresLib.seedFeatureOptionsWithSchemas nixosFeatureNames nativeFeatures;
 
       users = lib.mkOption {
         default = {};
@@ -156,7 +157,7 @@
                   default = "26.05";
                 };
 
-                features = featuresLib.seedFeatureOptions homeFeatureNames;
+                features = featuresLib.seedFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
               };
             }
           )
@@ -237,7 +238,7 @@
         };
       };
 
-      features = featuresLib.seedFeatureOptions homeFeatureNames;
+      features = featuresLib.seedFeatureOptionsWithSchemas homeFeatureNames nativeFeatures;
     };
   };
 }

@@ -14,9 +14,11 @@
 
   nixosModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.nixos or {});
   homeModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.homeManager or {});
+  nativeFeatures = featuresLib.publicFeatureAttrs (fpConfig.flake.features or {});
 
-  nixosFeatureNames = lib.attrNames nixosModules;
-  homeFeatureNames = lib.attrNames homeModules;
+  nativeFeatureNames = lib.attrNames nativeFeatures;
+  nixosFeatureNames = lib.unique ((lib.attrNames nixosModules) ++ nativeFeatureNames);
+  homeFeatureNames = lib.unique ((lib.attrNames homeModules) ++ nativeFeatureNames);
 
   helpers = fpConfig.flake.lib.helpers;
 
@@ -24,7 +26,11 @@
   homeModuleList = lib.mapAttrsToList modulesLib.tagHomeModule homeModules;
 
   optionsMaterializers = import ./materializers/options.nix {
-    inherit lib nixosFeatureNames homeFeatureNames featuresLib;
+    inherit lib nixosFeatureNames homeFeatureNames featuresLib nativeFeatures;
+  };
+
+  nativeMaterializers = import ./materializers/native-projections.nix {
+    inherit lib featuresLib usersLib nativeFeatures;
   };
 
   policyMaterializers = import ./materializers/policy.nix {
@@ -36,7 +42,8 @@
   };
 
   hmMaterializers = import ./materializers/home-manager.nix {
-    inherit lib helpers homeModuleList;
+    inherit lib helpers;
+    homeModuleList = homeModuleList ++ nativeMaterializers.homeProjectionModules;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
     inherit (policyMaterializers) nixpkgsPolicyModule;
     inherit (featuresLib) enabledFeatures;
@@ -131,6 +138,11 @@ in {
               }
             ]
             ++ nixosModuleList
+            ++ nativeMaterializers.nixosProjectionModules
+            ++ nativeMaterializers.seededUserToNixosJoinModules {
+              hostName = name;
+              seedModule = cfg.module;
+            }
             ++ [
               # cfg.module is a typed flake-parts seed, not the final NixOS module surface.
               # Compact it first so only explicitly specified seed values enter the real module system.
@@ -166,6 +178,7 @@ in {
               }
             ]
             ++ homeModuleList
+            ++ nativeMaterializers.homeProjectionModules
             ++ [
               # cfg.module is a typed flake-parts Home Manager seed, not the final Home Manager module surface.
               # Compact it first so only explicitly specified seed values enter the real module system.
