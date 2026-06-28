@@ -1,12 +1,5 @@
 {
-  flake.modules.homeManager.rtk = {
-    config,
-    lib,
-    pkgs,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.rtk.enable {
-      home.packages = [pkgs.llm-agents.rtk];
-    };
+  flake.features.rtk.projections.homeManager.payload = {pkgs, ...}: {
+    home.packages = [pkgs.llm-agents.rtk];
   };
 }

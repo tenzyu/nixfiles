@@ -1,11 +1,9 @@
 {config, ...}: {
-  flake.modules.nixos.qemu-guest-agent = {
+  flake.features.qemu-guest-agent.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.qemu-guest-agent.enable {
-      services.qemuGuest.enable = true;
-    };
+    services.qemuGuest.enable = true;
   };
 }

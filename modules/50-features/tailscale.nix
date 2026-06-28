@@ -1,11 +1,9 @@
 {config, ...}: {
-  flake.modules.nixos.tailscale = {
+  flake.features.tailscale.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.tailscale.enable {
-      services.tailscale.enable = true;
-    };
+    services.tailscale.enable = true;
   };
 }

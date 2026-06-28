@@ -1,14 +1,7 @@
 {inputs, ...}: {
-  flake.modules.homeManager.onair = {
-    config,
-    lib,
-    pkgs,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.onair.enable {
-      home.packages = [
-        inputs.onair.packages.${pkgs.system}.default
-      ];
-    };
+  flake.features.onair.projections.homeManager.payload = {pkgs, ...}: {
+    home.packages = [
+      inputs.onair.packages.${pkgs.system}.default
+    ];
   };
 }

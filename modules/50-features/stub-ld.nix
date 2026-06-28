@@ -1,12 +1,10 @@
 {config, ...}: {
-  flake.modules.nixos.stub-ld = {
+  flake.features.stub-ld.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.stub-ld.enable {
-      environment.stub-ld.enable = true;
-      programs.nix-ld.enable = true;
-    };
+    environment.stub-ld.enable = true;
+    programs.nix-ld.enable = true;
   };
 }

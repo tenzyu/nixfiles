@@ -13,7 +13,18 @@
   };
 
   projectionType = lib.types.submodule {
-    options.payload = payloadOption;
+    options = {
+      imports = lib.mkOption {
+        type = lib.types.listOf lib.types.raw;
+        default = [];
+        description = ''
+          Static module imports required by this projection. These are imported
+          unconditionally; feature effects still belong in payload.
+        '';
+      };
+
+      payload = payloadOption;
+    };
   };
 
   joinType = projectionType;

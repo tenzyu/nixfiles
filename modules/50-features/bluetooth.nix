@@ -1,15 +1,13 @@
 {
-  flake.modules.nixos.bluetooth = {
+  flake.features.bluetooth.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.bluetooth.enable {
-      services.blueman.enable = lib.mkDefault true;
-      hardware.bluetooth = {
-        enable = lib.mkDefault true;
-        powerOnBoot = lib.mkDefault true;
-      };
+    services.blueman.enable = lib.mkDefault true;
+    hardware.bluetooth = {
+      enable = lib.mkDefault true;
+      powerOnBoot = lib.mkDefault true;
     };
   };
 }

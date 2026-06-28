@@ -1,13 +1,7 @@
 {
-  flake.modules.homeManager.rofi = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.rofi.enable {
-      programs.rofi = {
-        enable = true;
-      };
+  flake.features.rofi.projections.homeManager.payload = {...}: {
+    programs.rofi = {
+      enable = true;
     };
   };
 }

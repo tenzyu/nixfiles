@@ -1,11 +1,9 @@
 {config, ...}: {
-  flake.modules.nixos.nix-ld = {
+  flake.features.nix-ld.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.nix-ld.enable {
-      programs.nix-ld.enable = true;
-    };
+    programs.nix-ld.enable = true;
   };
 }

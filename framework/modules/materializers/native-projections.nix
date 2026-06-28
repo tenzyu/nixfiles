@@ -1,8 +1,10 @@
 {
   lib,
   featuresLib,
+  modulesLib,
   usersLib,
   nativeFeatures,
+  nixosModules,
 }: let
   nativeFeatureList =
     lib.mapAttrsToList (name: feature: {
@@ -33,8 +35,15 @@
     activation,
     boundary,
     active ? ((activation.enable or false) == true),
+    imports ? [],
     extraContext ? {},
-  }: moduleArgs @ {lib, ...}: let
+  }: moduleArgs @ {
+    config,
+    lib,
+    options,
+    pkgs,
+    ...
+  }: let
     boundaryWithId = boundary // {id = boundaryId boundary;};
     feature = featuresLib.activationFact {
       boundary = boundaryWithId;
@@ -42,6 +51,9 @@
       featureConfig = activation;
     };
     result = payload (moduleArgs
+      // {
+        inherit config lib options pkgs;
+      }
       // extraContext
       // {
         boundary = boundaryWithId;
@@ -49,6 +61,8 @@
       });
     valid = isConfigFragment result;
   in {
+    inherit imports;
+
     config = lib.mkMerge [
       {
         assertions = lib.optionals active [
@@ -61,7 +75,7 @@
 
   hostBoundary = config: {
     class = "nixos";
-    kind = "nixos";
+    kind = config.local.context.boundaryKind or "nixos";
     name = config.local.context.nixosConfigurationName or config.networking.hostName or "host";
   };
 
@@ -76,9 +90,15 @@ in rec {
     ({
       name,
       feature,
-    }: moduleArgs @ {config, ...}:
-      (wrapPayload {
+    }: moduleArgs @ {
+      config,
+      options,
+      pkgs,
+      ...
+    }:
+        (wrapPayload {
           inherit name;
+          imports = feature.projections.nixos.imports or [];
           payload = feature.projections.nixos.payload;
           activation = config.local.features.${name};
           boundary = hostBoundary config;
@@ -94,9 +114,15 @@ in rec {
     ({
       name,
       feature,
-    }: moduleArgs @ {config, ...}:
-      (wrapPayload {
+    }: moduleArgs @ {
+      config,
+      options,
+      pkgs,
+      ...
+    }:
+        (wrapPayload {
           inherit name;
+          imports = feature.projections.homeManager.imports or [];
           payload = feature.projections.homeManager.payload;
           activation = config.local.features.${name};
           boundary = homeBoundary config;
@@ -117,7 +143,12 @@ in rec {
         feature,
       }:
         lib.mapAttrsToList (
-          collectorName: contribution: moduleArgs @ {config, ...}: let
+          collectorName: contribution: moduleArgs @ {
+            config,
+            options,
+            pkgs,
+            ...
+          }: let
             requiredFeatures = contribution.when.sameBoundary.features or [];
             requiredActive = lib.all (featureName: (config.local.features.${featureName}.enable or false) == true) requiredFeatures;
             contributorActive = (config.local.features.${name}.enable or false) == true;
@@ -172,7 +203,12 @@ in rec {
             feature = nativeFeatures.${featureName} or {};
           in
             lib.optionals (hasPayload ["joins" "userToNixos"] feature) [
-              (moduleArgs:
+              (moduleArgs @ {
+                config,
+                options,
+                pkgs,
+                ...
+              }:
                 (wrapPayload {
                     name = featureName;
                     payload = feature.joins.userToNixos.payload;
@@ -191,4 +227,124 @@ in rec {
         enabledFeatureNames
     )
     (lib.attrNames users);
+
+  seededNixosContainerModules = {
+    hostName,
+    seedModule,
+    containerModules,
+  }: let
+    containers = seedModule.local.containers or {};
+  in
+    lib.mapAttrsToList (
+      containerName: container: let
+        containerConfig =
+          {
+            autoStart = container.autoStart or false;
+            privateNetwork = container.privateNetwork or false;
+            enableTun = container.enableTun or false;
+            bindMounts = container.bindMounts or {};
+            config = {lib, ...}: {
+              imports = let
+                activeFeatureNames = lib.attrNames (lib.filterAttrs (_name: featureConfig: (featureConfig.enable or false) == true) (container.features or {}));
+                legacyModuleNames = lib.filter (featureName: builtins.hasAttr featureName nixosModules) activeFeatureNames;
+                legacyModules = map (featureName: modulesLib.tagNixosModule featureName nixosModules.${featureName}) legacyModuleNames;
+              in
+                containerModules
+                ++ legacyModules
+                ++ [
+                  {
+                    networking.hostName = lib.mkDefault containerName;
+                    system.stateVersion = lib.mkDefault "26.05";
+
+                    local = {
+                      features = featuresLib.compactFeatureSet (container.features or {});
+                      users = {};
+                      containers = {};
+                      context = {
+                        hostName = containerName;
+                        nixosConfigurationName = containerName;
+                        boundaryKind = "nixosContainer";
+                      };
+                    };
+                  }
+                ];
+            };
+          }
+          // lib.optionalAttrs ((container.hostAddress or null) != null) {
+            hostAddress = container.hostAddress;
+          }
+          // lib.optionalAttrs ((container.localAddress or null) != null) {
+            localAddress = container.localAddress;
+          };
+        module = {
+          config = {
+            containers.${containerName} = containerConfig;
+
+            networking.nat = lib.mkIf (container.nat.enable or false) ({
+                enable = true;
+                internalInterfaces = ["ve-${containerName}"];
+              }
+              // lib.optionalAttrs ((container.nat.externalInterface or null) != null) {
+                externalInterface = container.nat.externalInterface;
+              });
+          };
+        };
+      in
+        module
+    )
+    containers;
+
+  seededNixosContainerToHostJoinModules = {
+    hostName,
+    seedModule,
+  }: let
+    containers = seedModule.local.containers or {};
+    boundary = {
+      class = "nixos";
+      kind = "nixos";
+      name = hostName;
+    };
+  in
+    lib.concatMap (
+      containerName: let
+        container =
+          containers.${containerName}
+          // {
+            name = containerName;
+            parent = hostName;
+          };
+        enabledFeatureNames = lib.attrNames (lib.filterAttrs (_name: featureConfig: (featureConfig.enable or false) == true) (container.features or {}));
+        fragments = lib.flatten (map (
+            featureName: let
+              feature = nativeFeatures.${featureName} or {};
+            joinModule = moduleArgs @ {
+              config,
+              options,
+              pkgs,
+              ...
+            }: let
+                module =
+                  wrapPayload {
+                    name = featureName;
+                    payload = feature.joins.nixosContainerToHost.payload;
+                    activation = container.features.${featureName};
+                    inherit boundary;
+                    extraContext = {
+                      inherit container;
+                    };
+                  }
+                  moduleArgs;
+              in
+                module
+                // {
+                  _file = "flake.features.${featureName}.joins.nixosContainerToHost.payload:${containerName}@${hostName}";
+                };
+            in
+              lib.optionals (hasPayload ["joins" "nixosContainerToHost"] feature) [joinModule]
+          )
+          enabledFeatureNames);
+      in
+        fragments
+    )
+    (lib.attrNames containers);
 }

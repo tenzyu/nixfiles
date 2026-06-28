@@ -1,16 +1,14 @@
 {lib, ...}: {
-  flake.modules.nixos.ssh = {
+  flake.features.ssh.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.ssh.enable {
-      services.openssh = {
-        enable = lib.mkDefault true;
-        settings = {
-          PasswordAuthentication = lib.mkDefault false;
-          KbdInteractiveAuthentication = lib.mkDefault false;
-        };
+    services.openssh = {
+      enable = lib.mkDefault true;
+      settings = {
+        PasswordAuthentication = lib.mkDefault false;
+        KbdInteractiveAuthentication = lib.mkDefault false;
       };
     };
   };

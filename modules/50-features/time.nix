@@ -1,11 +1,9 @@
 {lib, ...}: {
-  flake.modules.nixos.time = {
+  flake.features.time.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.time.enable {
-      time.timeZone = lib.mkDefault "Asia/Tokyo";
-    };
+    time.timeZone = lib.mkDefault "Asia/Tokyo";
   };
 }

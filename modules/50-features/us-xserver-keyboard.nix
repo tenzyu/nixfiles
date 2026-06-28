@@ -1,14 +1,12 @@
 {lib, ...}: {
-  flake.modules.nixos.us-xserver-keyboard = {
+  flake.features.us-xserver-keyboard.projections.nixos.payload = {
     config,
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.us-xserver-keyboard.enable {
-      services.xserver.xkb = lib.mkDefault {
-        layout = "us";
-        variant = "";
-      };
+    services.xserver.xkb = lib.mkDefault {
+      layout = "us";
+      variant = "";
     };
   };
 }

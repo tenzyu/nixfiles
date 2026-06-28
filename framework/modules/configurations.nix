@@ -17,8 +17,8 @@
   nativeFeatures = featuresLib.publicFeatureAttrs (fpConfig.flake.features or {});
 
   nativeFeatureNames = lib.attrNames nativeFeatures;
-  nixosFeatureNames = lib.unique ((lib.attrNames nixosModules) ++ nativeFeatureNames);
-  homeFeatureNames = lib.unique ((lib.attrNames homeModules) ++ nativeFeatureNames);
+  nixosFeatureNames = nativeFeatureNames;
+  homeFeatureNames = nativeFeatureNames;
 
   helpers = fpConfig.flake.lib.helpers;
 
@@ -30,7 +30,7 @@
   };
 
   nativeMaterializers = import ./materializers/native-projections.nix {
-    inherit lib featuresLib usersLib nativeFeatures;
+    inherit lib featuresLib modulesLib usersLib nativeFeatures nixosModules;
   };
 
   policyMaterializers = import ./materializers/policy.nix {
@@ -119,7 +119,6 @@ in {
             [
               inputs.home-manager.nixosModules.home-manager
               optionsMaterializers.nixosFeatureOptionsModule
-              userMaterializers.userSeededNixosFeaturesModule
               policyMaterializers.nixosPolicyMaterializerModule
               policyMaterializers.nixpkgsPolicyModule
               userMaterializers.nixosUserAccountsModule
@@ -142,6 +141,24 @@ in {
             ++ nativeMaterializers.seededUserToNixosJoinModules {
               hostName = name;
               seedModule = cfg.module;
+            }
+            ++ nativeMaterializers.seededNixosContainerToHostJoinModules {
+              hostName = name;
+              seedModule = cfg.module;
+            }
+            ++ nativeMaterializers.seededNixosContainerModules {
+              hostName = name;
+              seedModule = cfg.module;
+              containerModules =
+                [
+                  optionsMaterializers.nixosFeatureOptionsModule
+                  policyMaterializers.nixosPolicyMaterializerModule
+                  policyMaterializers.nixpkgsPolicyModule
+                  {
+                    nixpkgs.overlays = nixosOverlays;
+                  }
+                ]
+                ++ nativeMaterializers.nixosProjectionModules;
             }
             ++ [
               # cfg.module is a typed flake-parts seed, not the final NixOS module surface.

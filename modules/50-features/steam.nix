@@ -31,85 +31,80 @@ let
 in {
   flake.local.featurePolicies.steam = featurePolicies;
 
-  flake.modules.nixos.steam = {
-    config,
+  flake.features.steam.projections.nixos.payload = {
     lib,
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.steam.enable {
-      local.features.gaming-core.enable = lib.mkDefault true;
+    local.features.gaming-core.enable = lib.mkDefault true;
 
-      programs.steam = {
+    programs.steam = {
+      enable = true;
+      package = steamPackage pkgs;
+      protontricks.enable = true;
+
+      extraCompatPackages = with pkgs; [proton-ge-bin];
+
+      gamescopeSession = {
         enable = true;
-        package = steamPackage pkgs;
-        protontricks.enable = true;
-
-        extraCompatPackages = with pkgs; [proton-ge-bin];
-
-        gamescopeSession = {
-          enable = true;
-          args = [
-            "--rt"
-            "-W"
-            "1366"
-            "-H"
-            "768"
-            "-r"
-            "60"
-          ];
-          steamArgs = ["-gamepadui"];
-        };
+        args = [
+          "--rt"
+          "-W"
+          "1366"
+          "-H"
+          "768"
+          "-r"
+          "60"
+        ];
+        steamArgs = ["-gamepadui"];
       };
     };
   };
 
-  flake.modules.homeManager.steam = {
+  flake.features.steam.projections.homeManager.payload = {
     config,
     lib,
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.steam.enable {
-      local.features.gaming-core.enable = lib.mkDefault true;
+    local.features.gaming-core.enable = lib.mkDefault true;
 
-      home.packages =
-        [
-          (pkgs.writeShellApplication {
-            name = "steam-gaming";
-            runtimeInputs = with pkgs; [
-              gamemode
-              gamescope
-            ];
-            text = ''
-              set -euo pipefail
+    home.packages =
+      [
+        (pkgs.writeShellApplication {
+          name = "steam-gaming";
+          runtimeInputs = with pkgs; [
+            gamemode
+            gamescope
+          ];
+          text = ''
+            set -euo pipefail
 
-              if command -v hypr-gaming-mode >/dev/null 2>&1; then
-                hypr-gaming-mode on || true
-                trap 'hypr-gaming-mode off || true' EXIT INT TERM
-              fi
+            if command -v hypr-gaming-mode >/dev/null 2>&1; then
+              hypr-gaming-mode on || true
+              trap 'hypr-gaming-mode off || true' EXIT INT TERM
+            fi
 
-              exec gamemoderun gamescope \
-                --backend "''${GAMESCOPE_BACKEND:-sdl}" \
-                --steam \
-                --rt \
-                -f \
-                -W "''${GAMESCOPE_WIDTH:-1366}" \
-                -H "''${GAMESCOPE_HEIGHT:-768}" \
-                -r "''${GAMESCOPE_REFRESH:-60}" \
-                -- steam "$@"
-            '';
-          })
-        ]
-        ++ lib.optionals (!config.local.context.embeddedInNixOS) [(steamPackage pkgs)];
+            exec gamemoderun gamescope \
+              --backend "''${GAMESCOPE_BACKEND:-sdl}" \
+              --steam \
+              --rt \
+              -f \
+              -W "''${GAMESCOPE_WIDTH:-1366}" \
+              -H "''${GAMESCOPE_HEIGHT:-768}" \
+              -r "''${GAMESCOPE_REFRESH:-60}" \
+              -- steam "$@"
+          '';
+        })
+      ]
+      ++ lib.optionals (!config.local.context.embeddedInNixOS) [(steamPackage pkgs)];
 
-      xdg.desktopEntries.steam-gaming = {
-        name = "Steam Gaming";
-        genericName = "Steam in GameMode + Gamescope";
-        exec = "steam-gaming";
-        terminal = false;
-        categories = ["Game"];
-      };
+    xdg.desktopEntries.steam-gaming = {
+      name = "Steam Gaming";
+      genericName = "Steam in GameMode + Gamescope";
+      exec = "steam-gaming";
+      terminal = false;
+      categories = ["Game"];
     };
   };
 }

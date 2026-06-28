@@ -30,53 +30,47 @@
       };
     };
 in {
-  flake.modules.nixos.android-mic = {
-    config,
+  flake.features.android-mic.projections.nixos.payload = {
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.android-mic.enable {
-      security.rtkit.enable = lib.mkDefault true;
-      services.pipewire = {
-        enable = lib.mkDefault true;
-        alsa.enable = lib.mkDefault true;
-        pulse.enable = lib.mkDefault true;
-        wireplumber.enable = lib.mkDefault true;
+    security.rtkit.enable = lib.mkDefault true;
+    services.pipewire = {
+      enable = lib.mkDefault true;
+      alsa.enable = lib.mkDefault true;
+      pulse.enable = lib.mkDefault true;
+      wireplumber.enable = lib.mkDefault true;
 
-        extraConfig.pipewire-pulse."90-android-mic-virtual-mic" = {
-          "pulse.cmd" = [
-            {
-              cmd = "load-module";
-              args = "module-null-sink sink_name=android_mic sink_properties=device.description=AndroidMic_Output";
-              flags = ["nofail"];
-            }
-            {
-              cmd = "load-module";
-              args = "module-remap-source master=android_mic.monitor source_name=android_mic_source source_properties=device.description=AndroidMic_Microphone";
-              flags = ["nofail"];
-            }
-          ];
-        };
+      extraConfig.pipewire-pulse."90-android-mic-virtual-mic" = {
+        "pulse.cmd" = [
+          {
+            cmd = "load-module";
+            args = "module-null-sink sink_name=android_mic sink_properties=device.description=AndroidMic_Output";
+            flags = ["nofail"];
+          }
+          {
+            cmd = "load-module";
+            args = "module-remap-source master=android_mic.monitor source_name=android_mic_source source_properties=device.description=AndroidMic_Microphone";
+            flags = ["nofail"];
+          }
+        ];
       };
-
-      services.udev.extraRules = ''
-        # Android Open Accessory mode used by AndroidMic USB Serial.
-        SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d0[0-5]", TAG+="uaccess"
-      '';
     };
+
+    services.udev.extraRules = ''
+      # Android Open Accessory mode used by AndroidMic USB Serial.
+      SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d0[0-5]", TAG+="uaccess"
+    '';
   };
 
-  flake.modules.homeManager.android-mic = {
-    config,
+  flake.features.android-mic.projections.homeManager.payload = {
     lib,
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.android-mic.enable {
-      home.packages = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
-        (mkAppimage pkgs)
-        pkgs.android-tools
-      ];
-    };
+    home.packages = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
+      (mkAppimage pkgs)
+      pkgs.android-tools
+    ];
   };
 }
