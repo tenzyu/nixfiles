@@ -3,6 +3,60 @@
     "parsec-bin"
   ];
 
+  flake.features.parsec.contributions.homeManager.hyprland-tenzyu = {
+    when.sameBoundary.features = [
+      "parsec"
+      "hyprland-tenzyu"
+    ];
+
+    payload = {...}: {
+      wayland.windowManager.hyprland.settings.window_rule = [
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          immediate = true;
+        }
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          fullscreen = true;
+        }
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          stay_focused = true;
+        }
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          no_initial_focus = true;
+        }
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          allows_input = true;
+        }
+        {
+          match = {
+            title = "^(Parsec)$";
+            xwayland = true;
+          };
+          focus_on_activate = true;
+        }
+      ];
+    };
+  };
+
   flake.modules.nixos.parsec = {
     config,
     lib,

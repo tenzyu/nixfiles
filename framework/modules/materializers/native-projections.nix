@@ -32,9 +32,9 @@
     payload,
     activation,
     boundary,
+    active ? ((activation.enable or false) == true),
     extraContext ? {},
   }: moduleArgs @ {lib, ...}: let
-    active = activation.enable or false;
     boundaryWithId = boundary // {id = boundaryId boundary;};
     feature = featuresLib.activationFact {
       boundary = boundaryWithId;
@@ -109,6 +109,46 @@ in rec {
         _file = "flake.features.${name}.projections.homeManager.payload";
       })
     (lib.filter ({feature, ...}: hasPayload ["projections" "homeManager"] feature) nativeFeatureList);
+
+  homeContributionModules =
+    lib.concatMap (
+      {
+        name,
+        feature,
+      }:
+        lib.mapAttrsToList (
+          collectorName: contribution: moduleArgs @ {config, ...}: let
+            requiredFeatures = contribution.when.sameBoundary.features or [];
+            requiredActive = lib.all (featureName: (config.local.features.${featureName}.enable or false) == true) requiredFeatures;
+            contributorActive = (config.local.features.${name}.enable or false) == true;
+            collectorActive = (config.local.features.${collectorName}.enable or false) == true;
+          in
+            (wrapPayload {
+                inherit name;
+                payload = contribution.payload;
+                activation = config.local.features.${name};
+                boundary = homeBoundary config;
+                active = contributorActive && collectorActive && requiredActive;
+                extraContext = {
+                  collector = {
+                    name = collectorName;
+                    activation = featuresLib.activationFact {
+                      boundary = homeBoundary config // {id = boundaryId (homeBoundary config);};
+                      featureName = collectorName;
+                      featureConfig = config.local.features.${collectorName};
+                    };
+                  };
+                  user = config.local.user // {name = config.local.user.name;};
+                };
+              }
+              moduleArgs)
+            // {
+              _file = "flake.features.${name}.contributions.homeManager.${collectorName}.payload";
+            }
+        )
+        (lib.filterAttrs (_collectorName: contribution: (contribution.payload or null) != null) (feature.contributions.homeManager or {}))
+    )
+    nativeFeatureList;
 
   seededUserToNixosJoinModules = {
     hostName,

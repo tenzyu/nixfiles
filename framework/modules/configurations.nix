@@ -43,7 +43,7 @@
 
   hmMaterializers = import ./materializers/home-manager.nix {
     inherit lib helpers;
-    homeModuleList = homeModuleList ++ nativeMaterializers.homeProjectionModules;
+    homeModuleList = homeModuleList ++ nativeMaterializers.homeProjectionModules ++ nativeMaterializers.homeContributionModules;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
     inherit (policyMaterializers) nixpkgsPolicyModule;
     inherit (featuresLib) enabledFeatures;
@@ -179,6 +179,7 @@ in {
             ]
             ++ homeModuleList
             ++ nativeMaterializers.homeProjectionModules
+            ++ nativeMaterializers.homeContributionModules
             ++ [
               # cfg.module is a typed flake-parts Home Manager seed, not the final Home Manager module surface.
               # Compact it first so only explicitly specified seed values enter the real module system.
