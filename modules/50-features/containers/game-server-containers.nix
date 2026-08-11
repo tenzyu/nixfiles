@@ -212,6 +212,7 @@
             --accept-dns=false
         '';
       };
+
       networking.firewall.enable = true;
       networking.firewall.interfaces.tailscale0.allowedUDPPorts = spec.udpPorts;
       networking.firewall.interfaces.tailscale0.allowedTCPPorts = spec.tcpPorts;
@@ -386,12 +387,186 @@
       installDir = "${home}/rust/server";
       backupDir = "${home}/rust/backups";
       envFile = "${home}/secrets/rust.env";
+      steamIdentityEnvFile = "${home}/secrets/rust-steam-identity.env";
       serverBinary = "${installDir}/RustDedicated";
     in {
       environment.systemPackages = with pkgs; [
         steamcmd
         steam-run
       ];
+
+      # Keep Tailscale in nodivert mode so the existing per-interface NixOS
+      # firewall remains authoritative. We provide only the forwarding/NAT
+      # rules needed for the shared-exit-node identity path below.
+      services.tailscale.useRoutingFeatures = "server";
+      boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
+      systemd.services.rust-steam-identity = {
+        description = "Rust Steam identity path over Tailscale";
+
+        # Keep this independent from rust-dedicated. Type=simple means systemd
+        # considers the unit started as soon as this controller is spawned, so
+        # waiting for Tailscale never blocks the container boot transaction.
+        wantedBy = ["multi-user.target"];
+        wants = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+        after = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+
+        path = with pkgs; [
+          coreutils
+          gawk
+          iproute2
+          iptables
+          jq
+          tailscale
+        ];
+
+        unitConfig = {
+          ConditionPathExists = [steamIdentityEnvFile];
+        };
+
+        serviceConfig = {
+          Type = "simple";
+          EnvironmentFile = steamIdentityEnvFile;
+          Restart = "on-failure";
+          RestartSec = "5s";
+          TimeoutStopSec = "15s";
+        };
+
+        script = ''
+          set -euo pipefail
+
+          : "''${RUST_STEAM_IDENTITY_IP:?Set RUST_STEAM_IDENTITY_IP in ${steamIdentityEnvFile}}"
+          : "''${RUST_SERVER_PORT:=28015}"
+          : "''${RUST_SERVER_QUERY_PORT:=28017}"
+
+          cleanup_legacy_rules() {
+            # Remove the superseded hand-written forwarding/SNAT path from the
+            # earlier experiment. Tailscale's native ts-forward/ts-postrouting
+            # chains own generic exit-node forwarding now.
+            while iptables -w -t nat -D POSTROUTING -j RUST_STEAM_ID_POST 2>/dev/null; do :; done
+            iptables -w -t nat -F RUST_STEAM_ID_POST 2>/dev/null || true
+            iptables -w -t nat -X RUST_STEAM_ID_POST 2>/dev/null || true
+
+            while iptables -w -D FORWARD -j RUST_STEAM_ID_FWD 2>/dev/null; do :; done
+            iptables -w -F RUST_STEAM_ID_FWD 2>/dev/null || true
+            iptables -w -X RUST_STEAM_ID_FWD 2>/dev/null || true
+          }
+
+          cleanup_owned_rules() {
+            # These three hooks are owned by this service while Tailscale runs
+            # in netfilter-mode=nodivert.
+            iptables -w -t nat -D PREROUTING -j RUST_STEAM_ID_PRE 2>/dev/null || true
+            iptables -w -D FORWARD -j ts-forward 2>/dev/null || true
+            iptables -w -t nat -D POSTROUTING -j ts-postrouting 2>/dev/null || true
+
+            iptables -w -t nat -F RUST_STEAM_ID_PRE 2>/dev/null || true
+            iptables -w -t nat -X RUST_STEAM_ID_PRE 2>/dev/null || true
+          }
+
+          shutdown() {
+            tailscale set --advertise-exit-node=false 2>/dev/null || true
+            cleanup_owned_rules
+          }
+
+          # Reconcile from a known state. This also cleans up the old runtime
+          # experiment after the first rebuild.
+          cleanup_legacy_rules
+          cleanup_owned_rules
+          trap shutdown EXIT
+          trap 'exit 0' INT TERM
+
+          tailscale_ready=0
+
+          while true; do
+            state="$(
+              (tailscale status --json 2>/dev/null || echo '{}') \
+                | jq -r '.BackendState // "Unknown"'
+            )"
+
+            if [ "$state" != "Running" ]; then
+              if [ "$tailscale_ready" -ne 0 ]; then
+                echo "Tailscale left Running state: $state"
+              fi
+              tailscale_ready=0
+              sleep 2
+              continue
+            fi
+
+            # nodivert creates Tailscale's chains but deliberately does not hook
+            # them into the built-in chains. Wait until tailscaled has created
+            # the native exit-node chains before attaching them.
+            if ! iptables -w -S ts-forward >/dev/null 2>&1 \
+              || ! iptables -w -t nat -S ts-postrouting >/dev/null 2>&1; then
+              tailscale_ready=0
+              # A firewall reload can remove Tailscale's unhooked chains.
+              # Re-applying nodivert asks tailscaled to materialize them again.
+              tailscale set --netfilter-mode=nodivert 2>/dev/null || true
+              sleep 2
+              continue
+            fi
+
+            tailscale_ip="$(tailscale ip -4 | awk 'NR == 1 { print; exit }')"
+            if [ -z "$tailscale_ip" ]; then
+              tailscale_ready=0
+              sleep 2
+              continue
+            fi
+
+            if [ "$tailscale_ready" -eq 0 ]; then
+              tailscale set --advertise-exit-node
+              echo "Rust Steam identity IP: $RUST_STEAM_IDENTITY_IP"
+              echo "Rust Tailscale IP:      $tailscale_ip"
+              echo "Exit-node egress:       $(ip -4 route get 1.1.1.1 | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')"
+              tailscale_ready=1
+            fi
+
+            # Rust-specific interception: only traffic that has already arrived
+            # through tailscale0 and targets the Steam-visible identity address
+            # is redirected into the local Rust listener.
+            iptables -w -t nat -N RUST_STEAM_ID_PRE 2>/dev/null || true
+
+            if ! iptables -w -t nat -C RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_PORT" 2>/dev/null \
+              || ! iptables -w -t nat -C RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_QUERY_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_QUERY_PORT" 2>/dev/null; then
+              iptables -w -t nat -F RUST_STEAM_ID_PRE
+              iptables -w -t nat -A RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_PORT"
+              iptables -w -t nat -A RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_QUERY_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_QUERY_PORT"
+            fi
+
+            # Runtime-proven nodivert topology:
+            #   PREROUTING  -> RUST_STEAM_ID_PRE
+            #   FORWARD     -> ts-forward
+            #   POSTROUTING -> ts-postrouting
+            iptables -w -t nat -C PREROUTING -j RUST_STEAM_ID_PRE 2>/dev/null \
+              || iptables -w -t nat -I PREROUTING 1 -j RUST_STEAM_ID_PRE
+            iptables -w -C FORWARD -j ts-forward 2>/dev/null \
+              || iptables -w -I FORWARD 1 -j ts-forward
+            iptables -w -t nat -C POSTROUTING -j ts-postrouting 2>/dev/null \
+              || iptables -w -t nat -I POSTROUTING 1 -j ts-postrouting
+
+            # Reconcile periodically so firewall/tailscaled reloads cannot leave
+            # the exit-node advertisement alive while the hooks are missing.
+            sleep 5
+          done
+        '';
+      };
 
       systemd.services.rust-dedicated = {
         description = "Rust Dedicated Server";
