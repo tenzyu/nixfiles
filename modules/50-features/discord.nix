@@ -1,6 +1,7 @@
 {
   flake.local.featurePolicies.discord.unfree = [
     "discord"
+    "discord-unwrapped"
   ];
 
   flake.modules.nixos.discord = {

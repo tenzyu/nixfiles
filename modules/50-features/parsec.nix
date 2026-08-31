@@ -17,7 +17,13 @@
     pkgs,
     ...
   }: let
-    parsecPackage = pkgs.unstable.parsec-bin;
+    parsecPackage = pkgs.unstable.parsec-bin.overrideAttrs (_old: {
+      version = "150_104a";
+      src = pkgs.unstable.fetchurl {
+        url = "https://builds.parsec.app/package/parsec-linux.deb";
+        hash = "sha256-yKRAdxPXLcscWfCCl36B4bno/9Z50GZogs3kyKCCHdI=";
+      };
+    });
 
     parsecConfig = ''
       decoder_software=0

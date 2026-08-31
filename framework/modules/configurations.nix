@@ -50,8 +50,35 @@
     };
   };
 
+  llmAgentsFixesOverlay = final: prev: {
+    llm-agents = prev.llm-agents // {
+      herdr = prev.llm-agents.herdr.overrideAttrs (old: let
+        src = final.fetchFromGitHub {
+          owner = "ogulcancelik";
+          repo = "herdr";
+          tag = "v${old.version}";
+          hash = "sha256-empFQ+hrnCh2JhOzQRWSCLV0YoZC3DXW3bY6k8YuJjk=";
+        };
+      in {
+        inherit src;
+
+        cargoHash = "sha256-paqG2okPIz7b0HxyxGTECF45HeBmMMckDgkLdmTudt0=";
+        cargoDeps = old.cargoDeps.overrideAttrs (cargoOld: {
+          inherit src;
+          outputHash = "sha256-paqG2okPIz7b0HxyxGTECF45HeBmMMckDgkLdmTudt0=";
+          outputHashMode = "recursive";
+          vendorStaging = cargoOld.vendorStaging.overrideAttrs (_: {
+            inherit src;
+            outputHash = "sha256-E1lBgpTFZwNjeALeg/atwbDFL/XQbUnvCdX7ohbAHAc=";
+          });
+        });
+      });
+    };
+  };
+
   nixosOverlays = [
-    inputs.llm-agents.overlays.default
+    inputs.llm-agents.overlays.shared-nixpkgs
+    llmAgentsFixesOverlay
     unstableOverlay
   ];
 in {

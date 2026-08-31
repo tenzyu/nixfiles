@@ -1,5 +1,7 @@
 {
   configurations.nixos.neko5.module = {
+    local.context.flakePath = "/home/tenzyu/.nixfiles";
+
     local.features = {
       neko5-hardware.enable = true;
       nix.enable = true;
@@ -25,6 +27,7 @@
       desktop-performance.enable = true;
       wayland-session.enable = true;
       networkmanager.enable = true;
+      gaming-mouse.enable = true;
     };
 
     local.users.tenzyu = {
@@ -42,7 +45,7 @@
         android-mic.enable = true;
         discord.enable = true;
         prismlauncher.enable = true;
-        codex.enable = true;
+        codex.enable = false;
         opencode.enable = true;
         obsidian.enable = true;
         osu-lazer.enable = true;

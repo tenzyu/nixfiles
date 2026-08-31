@@ -15,6 +15,8 @@
         playerctl
         wl-clipboard
         unstable.grimblast
+        easyeffects
+        vrcx
       ];
     };
   };
