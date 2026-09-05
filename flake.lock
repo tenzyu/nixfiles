@@ -407,6 +407,27 @@
         "type": "github"
       }
     },
+    "proton-rtsp-wayland-ge": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-unstable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787609868,
+        "narHash": "sha256-PVibq2LJ+UZC0TrA/+yIThd8/TfOzRZnyzwBQbHIH2g=",
+        "owner": "Go08er",
+        "repo": "Proton-RTSP-Wayland-GE",
+        "rev": "9eb367c35ca96a5f4a4a3243459a3e6e6013e145",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Go08er",
+        "ref": "v11.1.0-beta.2",
+        "repo": "Proton-RTSP-Wayland-GE",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "castalia": "castalia",
@@ -425,6 +446,7 @@
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "onair": "onair",
+        "proton-rtsp-wayland-ge": "proton-rtsp-wayland-ge",
         "systems": "systems",
         "treefmt-nix": "treefmt-nix"
       }

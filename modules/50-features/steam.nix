@@ -1,4 +1,4 @@
-let
+{inputs, ...}: let
   steamPackage = pkgs:
     pkgs.unstable.steam.override {
       extraEnv = {
@@ -45,7 +45,10 @@ in {
         package = steamPackage pkgs;
         protontricks.enable = true;
 
-        extraCompatPackages = with pkgs; [proton-ge-bin];
+        extraCompatPackages = with pkgs; [
+          proton-ge-bin
+          inputs.proton-rtsp-wayland-ge.packages.${pkgs.system}.default
+        ];
 
         gamescopeSession = {
           enable = true;

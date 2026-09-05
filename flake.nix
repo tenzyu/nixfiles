@@ -97,5 +97,9 @@
       url = "github:hiraginoyuki/onair";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
+    proton-rtsp-wayland-ge = {
+      url = "github:Go08er/Proton-RTSP-Wayland-GE/v11.1.0-beta.2";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
   };
 }
