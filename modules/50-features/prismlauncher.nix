@@ -19,7 +19,7 @@
   }: {
     config = lib.mkIf config.local.features.prismlauncher.enable {
       home.packages = [
-        (pkgs.unstable.prismlauncher.override {jdks = [pkgs.unstable.jdk21];})
+        (pkgs.unstable.prismlauncher.override {jdks = [pkgs.unstable.jdk21 pkgs.unstable.jdk25];})
       ];
     };
   };

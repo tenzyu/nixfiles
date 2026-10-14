@@ -26,6 +26,7 @@
       fonts.enable = true;
       desktop-performance.enable = true;
       wayland-session.enable = true;
+      waydroid.enable = true;
       networkmanager.enable = true;
       gaming-mouse.enable = true;
     };
@@ -59,7 +60,7 @@
         nix-tools.enable = true;
         git-tools.enable = true;
         disk-tools.enable = true;
-        castalia.enable = true;
+        castalia.enable = false;
         onair.enable = true;
         herdr.enable = true;
       };
