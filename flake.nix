@@ -64,6 +64,11 @@
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
 
+    nix-minecraft = {
+      url = "github:Infinidoge/nix-minecraft";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # -- Other Ecosystems
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL";

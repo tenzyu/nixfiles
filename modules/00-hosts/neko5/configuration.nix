@@ -26,7 +26,7 @@
       fonts.enable = true;
       desktop-performance.enable = true;
       wayland-session.enable = true;
-      waydroid.enable = true;
+      waydroid.enable = false;
       networkmanager.enable = true;
       gaming-mouse.enable = true;
     };

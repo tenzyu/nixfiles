@@ -1,0 +1,388 @@
+{...}: {
+  flake.modules.nixos.game-server-containers = { config, lib, pkgs, ... }:
+    let
+      spec = {
+        key = "rust";
+        user = "game-rust";
+        uid = 27008;
+        gid = 27008;
+        home = "/home/game-rust";
+        containerName = "neko7-rust";
+        hostAddress = "10.77.20.1";
+        localAddress = "10.77.20.2";
+        tailscaleHostname = "neko7-rust";
+
+        udpPorts = [
+          # Rust game / query.
+          28015
+          28017
+        ];
+
+        tcpPorts = [
+          # Rust RCON / Rust+.
+          # Tailscale policy should expose these to owner/admin only.
+          28016
+          28082
+        ];
+      };
+      inherit (import ./_internal/container.nix { inherit lib pkgs; }) mkGame;
+    mkRustModule = spec: {
+      lib,
+      pkgs,
+      ...
+    }: let
+      home = spec.home;
+      installDir = "${home}/rust/server";
+      backupDir = "${home}/rust/backups";
+      envFile = "${home}/secrets/rust.env";
+      steamIdentityEnvFile = "${home}/secrets/rust-steam-identity.env";
+      serverBinary = "${installDir}/RustDedicated";
+    in {
+      environment.systemPackages = with pkgs; [
+        steamcmd
+        steam-run
+      ];
+
+      # Keep Tailscale in nodivert mode so the existing per-interface NixOS
+      # firewall remains authoritative. We provide only the forwarding/NAT
+      # rules needed for the shared-exit-node identity path below.
+      services.tailscale.useRoutingFeatures = "server";
+      boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
+      systemd.services.rust-steam-identity = {
+        description = "Rust Steam identity path over Tailscale";
+
+        # Keep this independent from rust-dedicated. Type=simple means systemd
+        # considers the unit started as soon as this controller is spawned, so
+        # waiting for Tailscale never blocks the container boot transaction.
+        wantedBy = ["multi-user.target"];
+        wants = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+        after = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+
+        path = with pkgs; [
+          coreutils
+          gawk
+          iproute2
+          iptables
+          jq
+          tailscale
+        ];
+
+        unitConfig = {
+          ConditionPathExists = [steamIdentityEnvFile];
+        };
+
+        serviceConfig = {
+          Type = "simple";
+          EnvironmentFile = steamIdentityEnvFile;
+          Restart = "on-failure";
+          RestartSec = "5s";
+          TimeoutStopSec = "15s";
+        };
+
+        script = ''
+          set -euo pipefail
+
+          : "''${RUST_STEAM_IDENTITY_IP:?Set RUST_STEAM_IDENTITY_IP in ${steamIdentityEnvFile}}"
+          : "''${RUST_SERVER_PORT:=28015}"
+          : "''${RUST_SERVER_QUERY_PORT:=28017}"
+
+          cleanup_legacy_rules() {
+            # Remove the superseded hand-written forwarding/SNAT path from the
+            # earlier experiment. Tailscale's native ts-forward/ts-postrouting
+            # chains own generic exit-node forwarding now.
+            while iptables -w -t nat -D POSTROUTING -j RUST_STEAM_ID_POST 2>/dev/null; do :; done
+            iptables -w -t nat -F RUST_STEAM_ID_POST 2>/dev/null || true
+            iptables -w -t nat -X RUST_STEAM_ID_POST 2>/dev/null || true
+
+            while iptables -w -D FORWARD -j RUST_STEAM_ID_FWD 2>/dev/null; do :; done
+            iptables -w -F RUST_STEAM_ID_FWD 2>/dev/null || true
+            iptables -w -X RUST_STEAM_ID_FWD 2>/dev/null || true
+          }
+
+          cleanup_owned_rules() {
+            # These three hooks are owned by this service while Tailscale runs
+            # in netfilter-mode=nodivert.
+            iptables -w -t nat -D PREROUTING -j RUST_STEAM_ID_PRE 2>/dev/null || true
+            iptables -w -D FORWARD -j ts-forward 2>/dev/null || true
+            iptables -w -t nat -D POSTROUTING -j ts-postrouting 2>/dev/null || true
+
+            iptables -w -t nat -F RUST_STEAM_ID_PRE 2>/dev/null || true
+            iptables -w -t nat -X RUST_STEAM_ID_PRE 2>/dev/null || true
+          }
+
+          shutdown() {
+            tailscale set --advertise-exit-node=false 2>/dev/null || true
+            cleanup_owned_rules
+          }
+
+          # Reconcile from a known state. This also cleans up the old runtime
+          # experiment after the first rebuild.
+          cleanup_legacy_rules
+          cleanup_owned_rules
+          trap shutdown EXIT
+          trap 'exit 0' INT TERM
+
+          tailscale_ready=0
+
+          while true; do
+            state="$(
+              (tailscale status --json 2>/dev/null || echo '{}') \
+                | jq -r '.BackendState // "Unknown"'
+            )"
+
+            if [ "$state" != "Running" ]; then
+              if [ "$tailscale_ready" -ne 0 ]; then
+                echo "Tailscale left Running state: $state"
+              fi
+              tailscale_ready=0
+              sleep 2
+              continue
+            fi
+
+            # nodivert creates Tailscale's chains but deliberately does not hook
+            # them into the built-in chains. Wait until tailscaled has created
+            # the native exit-node chains before attaching them.
+            if ! iptables -w -S ts-forward >/dev/null 2>&1 \
+              || ! iptables -w -t nat -S ts-postrouting >/dev/null 2>&1; then
+              tailscale_ready=0
+              # A firewall reload can remove Tailscale's unhooked chains.
+              # Re-applying nodivert asks tailscaled to materialize them again.
+              tailscale set --netfilter-mode=nodivert 2>/dev/null || true
+              sleep 2
+              continue
+            fi
+
+            tailscale_ip="$(tailscale ip -4 | awk 'NR == 1 { print; exit }')"
+            if [ -z "$tailscale_ip" ]; then
+              tailscale_ready=0
+              sleep 2
+              continue
+            fi
+
+            if [ "$tailscale_ready" -eq 0 ]; then
+              tailscale set --advertise-exit-node
+              echo "Rust Steam identity IP: $RUST_STEAM_IDENTITY_IP"
+              echo "Rust Tailscale IP:      $tailscale_ip"
+              echo "Exit-node egress:       $(ip -4 route get 1.1.1.1 | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')"
+              tailscale_ready=1
+            fi
+
+            # Rust-specific interception: only traffic that has already arrived
+            # through tailscale0 and targets the Steam-visible identity address
+            # is redirected into the local Rust listener.
+            iptables -w -t nat -N RUST_STEAM_ID_PRE 2>/dev/null || true
+
+            if ! iptables -w -t nat -C RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_PORT" 2>/dev/null \
+              || ! iptables -w -t nat -C RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_QUERY_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_QUERY_PORT" 2>/dev/null; then
+              iptables -w -t nat -F RUST_STEAM_ID_PRE
+              iptables -w -t nat -A RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_PORT"
+              iptables -w -t nat -A RUST_STEAM_ID_PRE \
+                -i tailscale0 -d "$RUST_STEAM_IDENTITY_IP" \
+                -p udp --dport "$RUST_SERVER_QUERY_PORT" \
+                -j DNAT --to-destination "$tailscale_ip:$RUST_SERVER_QUERY_PORT"
+            fi
+
+            # Runtime-proven nodivert topology:
+            #   PREROUTING  -> RUST_STEAM_ID_PRE
+            #   FORWARD     -> ts-forward
+            #   POSTROUTING -> ts-postrouting
+            iptables -w -t nat -C PREROUTING -j RUST_STEAM_ID_PRE 2>/dev/null \
+              || iptables -w -t nat -I PREROUTING 1 -j RUST_STEAM_ID_PRE
+            iptables -w -C FORWARD -j ts-forward 2>/dev/null \
+              || iptables -w -I FORWARD 1 -j ts-forward
+            iptables -w -t nat -C POSTROUTING -j ts-postrouting 2>/dev/null \
+              || iptables -w -t nat -I POSTROUTING 1 -j ts-postrouting
+
+            # Reconcile periodically so firewall/tailscaled reloads cannot leave
+            # the exit-node advertisement alive while the hooks are missing.
+            sleep 5
+          done
+        '';
+      };
+
+      systemd.services.rust-dedicated = {
+        description = "Rust Dedicated Server";
+        wantedBy = ["multi-user.target"];
+        wants = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+        after = [
+          "network-online.target"
+          "tailscaled.service"
+        ];
+
+        restartIfChanged = false;
+
+        unitConfig = {
+          ConditionPathExists = [
+            envFile
+            serverBinary
+          ];
+        };
+
+        path = with pkgs; [
+          coreutils
+          steam-run
+        ];
+
+        environment = {
+          HOME = home;
+        };
+
+        preStart = ''
+          set -euo pipefail
+
+          mkdir -p ${installDir} ${backupDir}
+          chmod 0750 ${home} ${home}/rust ${installDir} ${backupDir}
+
+          mkdir -p ${home}/.steam/sdk64
+          if [ -e ${home}/.local/share/Steam/steamcmd/linux64/steamclient.so ]; then
+            ln -sf ${home}/.local/share/Steam/steamcmd/linux64/steamclient.so ${home}/.steam/sdk64/steamclient.so
+          fi
+        '';
+
+        script = ''
+          set -euo pipefail
+
+          : "''${RUST_SERVER_HOSTNAME:=neko7-rust}"
+          : "''${RUST_SERVER_DESCRIPTION:=Private Rust server via Tailscale}"
+          : "''${RUST_SERVER_URL:=}"
+          : "''${RUST_SERVER_HEADER_IMAGE:=}"
+          : "''${RUST_SERVER_IDENTITY:=neko7-rust}"
+          : "''${RUST_SERVER_PORT:=28015}"
+          : "''${RUST_SERVER_QUERY_PORT:=28017}"
+          : "''${RUST_RCON_PORT:=28016}"
+          : "''${RUST_RCON_PASSWORD:?Set RUST_RCON_PASSWORD in ${envFile}}"
+          : "''${RUST_RCON_WEB:=1}"
+          : "''${RUST_SERVER_MAX_PLAYERS:=10}"
+          : "''${RUST_SERVER_LEVEL:=Procedural Map}"
+          : "''${RUST_SERVER_SEED:=12345}"
+          : "''${RUST_SERVER_WORLDSIZE:=3000}"
+          : "''${RUST_SERVER_SAVE_INTERVAL:=300}"
+          : "''${RUST_EXTRA_ARGS:=}"
+
+          cd ${installDir}
+
+          mkdir -p "server/''${RUST_SERVER_IDENTITY}"
+
+          exec steam-run ./RustDedicated \
+            -batchmode \
+            -nographics \
+            +server.ip "0.0.0.0" \
+            +server.port "''${RUST_SERVER_PORT}" \
+            +server.queryport "''${RUST_SERVER_QUERY_PORT}" \
+            +server.level "''${RUST_SERVER_LEVEL}" \
+            +server.seed "''${RUST_SERVER_SEED}" \
+            +server.worldsize "''${RUST_SERVER_WORLDSIZE}" \
+            +server.maxplayers "''${RUST_SERVER_MAX_PLAYERS}" \
+            +server.hostname "''${RUST_SERVER_HOSTNAME}" \
+            +server.description "''${RUST_SERVER_DESCRIPTION}" \
+            +server.url "''${RUST_SERVER_URL}" \
+            +server.headerimage "''${RUST_SERVER_HEADER_IMAGE}" \
+            +server.identity "''${RUST_SERVER_IDENTITY}" \
+            +server.saveinterval "''${RUST_SERVER_SAVE_INTERVAL}" \
+            +rcon.port "''${RUST_RCON_PORT}" \
+            +rcon.password "''${RUST_RCON_PASSWORD}" \
+            +rcon.web "''${RUST_RCON_WEB}" \
+            -logfile "${home}/rust/rust-dedicated.log" \
+            ''${RUST_EXTRA_ARGS}
+        '';
+
+        serviceConfig = {
+          User = spec.user;
+          Group = spec.user;
+          WorkingDirectory = home;
+          EnvironmentFile = envFile;
+
+          Restart = "on-failure";
+          RestartSec = "10s";
+
+          TimeoutStartSec = "5min";
+          TimeoutStopSec = "120s";
+          KillSignal = "SIGINT";
+
+          LimitNOFILE = 1048576;
+        };
+      };
+
+      systemd.services.rust-dedicated-update = {
+        description = "Install or update Rust Dedicated Server";
+        wants = ["network-online.target"];
+        after = ["network-online.target"];
+
+        path = with pkgs; [
+          coreutils
+          findutils
+          gnutar
+          gzip
+          steamcmd
+        ];
+
+        environment = {
+          HOME = home;
+        };
+
+        script = ''
+          set -euo pipefail
+
+          mkdir -p ${installDir} ${backupDir}
+          chmod 0750 ${home} ${home}/rust ${installDir} ${backupDir}
+
+          identity="neko7-rust"
+          if [ -f ${envFile} ]; then
+            # shellcheck disable=SC1090
+            . ${envFile}
+            identity="''${RUST_SERVER_IDENTITY:-neko7-rust}"
+          fi
+
+          if [ -d ${installDir}/server/"$identity" ]; then
+            backup="${backupDir}/server-$identity-$(date +%Y%m%d-%H%M%S).tar.gz"
+            tar -C ${installDir}/server -czf "$backup" "$identity"
+            find ${backupDir} -type f -name 'server-*.tar.gz' -mtime +14 -delete
+          fi
+
+          steamcmd \
+            +force_install_dir ${installDir} \
+            +login anonymous \
+            +app_update 258550 validate \
+            +quit
+
+          mkdir -p ${home}/.steam/sdk64
+          if [ -e ${home}/.local/share/Steam/steamcmd/linux64/steamclient.so ]; then
+            ln -sf ${home}/.local/share/Steam/steamcmd/linux64/steamclient.so ${home}/.steam/sdk64/steamclient.so
+          fi
+        '';
+
+        serviceConfig = {
+          Type = "oneshot";
+          User = spec.user;
+          Group = spec.user;
+          WorkingDirectory = home;
+          TimeoutStartSec = "45min";
+        };
+      };
+    };
+
+
+    in {
+      config = lib.mkIf config.local.features.game-server-containers.enable
+        (mkGame spec mkRustModule);
+    };
+}
