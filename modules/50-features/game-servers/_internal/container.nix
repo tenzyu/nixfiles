@@ -11,9 +11,16 @@
     "steam-original"
     "steam-unwrapped"
   ];
-  mkSteamUnfreePolicy = {lib, ...}: {
+  mkSteamUnfreePolicy = spec: {lib, ...}: {
     nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) steamUnfreeNames;
+      builtins.elem
+      (lib.getName pkg)
+      (
+        steamUnfreeNames
+        ++ lib.optionals (spec.key == "minecraft") [
+          "minecraft-server"
+        ]
+      );
   };
 
   mkHostUser = _name: spec: {
@@ -76,7 +83,7 @@
         systemd.tmpfiles.rules = mkHostTmpfiles spec.key spec;
       }
 
-      (mkSteamUnfreePolicy args)
+      (mkSteamUnfreePolicy spec args)
       (mkIf (spec.key != "minecraft") (mkContainerUserModule spec args))
       (mkTailscaleNodeModule spec args)
     ];
