@@ -18,7 +18,7 @@
       systemd-boot.enable = true;
       proxmox-guest.enable = true;
       nvidia-graphics.enable = true;
-      kernel-latest.enable = true;
+      kernel-latest.enable = false;
       networkmanager.enable = true;
       ja-extra-locales.enable = true;
       us-xserver-keyboard.enable = true;
