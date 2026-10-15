@@ -1,31 +1,35 @@
 {...}: {
-  flake.modules.nixos.game-server-containers = { config, lib, pkgs, ... }:
-    let
-      spec = {
-        key = "rust";
-        user = "game-rust";
-        uid = 27008;
-        gid = 27008;
-        home = "/home/game-rust";
-        containerName = "neko7-rust";
-        hostAddress = "10.77.20.1";
-        localAddress = "10.77.20.2";
-        tailscaleHostname = "neko7-rust";
+  flake.modules.nixos.game-server-containers = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
+    spec = {
+      key = "rust";
+      user = "game-rust";
+      uid = 27008;
+      gid = 27008;
+      home = "/home/game-rust";
+      containerName = "neko7-rust";
+      hostAddress = "10.77.20.1";
+      localAddress = "10.77.20.2";
+      tailscaleHostname = "neko7-rust";
 
-        udpPorts = [
-          # Rust game / query.
-          28015
-          28017
-        ];
+      udpPorts = [
+        # Rust game / query.
+        28015
+        28017
+      ];
 
-        tcpPorts = [
-          # Rust RCON / Rust+.
-          # Tailscale policy should expose these to owner/admin only.
-          28016
-          28082
-        ];
-      };
-      inherit (import ./_internal/container.nix { inherit lib pkgs; }) mkGame;
+      tcpPorts = [
+        # Rust RCON / Rust+.
+        # Tailscale policy should expose these to owner/admin only.
+        28016
+        28082
+      ];
+    };
+    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
     mkRustModule = spec: {
       lib,
       pkgs,
@@ -379,10 +383,9 @@
         };
       };
     };
-
-
-    in {
-      config = lib.mkIf config.local.features.game-server-containers.enable
-        (mkGame spec mkRustModule);
-    };
+  in {
+    config =
+      lib.mkIf config.local.features.game-server-containers.enable
+      (mkGame spec mkRustModule);
+  };
 }

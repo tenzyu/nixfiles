@@ -49,10 +49,14 @@
       config = prev.config;
     };
   };
-llmAgentsFixesOverlay = final: prev: { llm-agents = prev.llm-agents // { herdr =
-      inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system}.herdr;
+  llmAgentsFixesOverlay = final: prev: {
+    llm-agents =
+      prev.llm-agents
+      // {
+        herdr =
+          inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system}.herdr;
+      };
   };
-};
 
   nixosOverlays = [
     inputs.llm-agents.overlays.shared-nixpkgs

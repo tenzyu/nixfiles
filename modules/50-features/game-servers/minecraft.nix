@@ -1,5 +1,10 @@
-{ inputs, ... }: {
-  flake.modules.nixos.game-server-containers = {config, lib, pkgs, ...}: let
+{inputs, ...}: {
+  flake.modules.nixos.game-server-containers = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
     spec = {
       key = "minecraft";
       user = "game-minecraft";
@@ -13,11 +18,11 @@
       autoStart = true;
       udpPorts = [];
       tcpPorts = [25565];
-      extraModules = [ inputs.nix-minecraft.nixosModules.minecraft-servers ];
+      extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
     };
-    inherit (import ./_internal/container.nix { inherit lib pkgs; }) mkGame;
+    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
     mkMinecraftModule = spec: {pkgs, ...}: {
-      nixpkgs.overlays = [ inputs.nix-minecraft.overlay ];
+      nixpkgs.overlays = [inputs.nix-minecraft.overlay];
       users.users.minecraft.uid = spec.uid;
       users.groups.minecraft.gid = spec.gid;
       environment.systemPackages = [pkgs.tmux];
@@ -48,7 +53,8 @@
       };
     };
   in {
-    config = lib.mkIf config.local.features.game-server-containers.enable
+    config =
+      lib.mkIf config.local.features.game-server-containers.enable
       (mkGame spec mkMinecraftModule);
   };
 }

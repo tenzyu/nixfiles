@@ -1,32 +1,36 @@
 {...}: {
-  flake.modules.nixos.game-server-containers = { config, lib, pkgs, ... }:
-    let
-      spec = {
-        key = "ark";
-        user = "game-ark";
-        uid = 27007;
-        gid = 27007;
-        home = "/home/game-ark";
-        containerName = "neko7-ark";
-        hostAddress = "10.77.10.1";
-        localAddress = "10.77.10.2";
-        tailscaleHostname = "neko7-ark";
+  flake.modules.nixos.game-server-containers = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
+    spec = {
+      key = "ark";
+      user = "game-ark";
+      uid = 27007;
+      gid = 27007;
+      home = "/home/game-ark";
+      containerName = "neko7-ark";
+      hostAddress = "10.77.10.1";
+      localAddress = "10.77.10.2";
+      tailscaleHostname = "neko7-ark";
 
-        udpPorts = [
-          7777
-          7778
-          27015
-        ];
+      udpPorts = [
+        7777
+        7778
+        27015
+      ];
 
-        tcpPorts = [
-          # ARK RCON / optional browser RCON UI.
-          # Tailscale policy should expose these to owner/admin only.
-          27020
-          4326
-          4327
-        ];
-      };
-      inherit (import ./_internal/container.nix { inherit lib pkgs; }) mkGame;
+      tcpPorts = [
+        # ARK RCON / optional browser RCON UI.
+        # Tailscale policy should expose these to owner/admin only.
+        27020
+        4326
+        4327
+      ];
+    };
+    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
     mkArkModule = spec: {
       lib,
       pkgs,
@@ -165,10 +169,9 @@
         };
       };
     };
-
-
-    in {
-      config = lib.mkIf config.local.features.game-server-containers.enable
-        (mkGame spec mkArkModule);
-    };
+  in {
+    config =
+      lib.mkIf config.local.features.game-server-containers.enable
+      (mkGame spec mkArkModule);
+  };
 }
