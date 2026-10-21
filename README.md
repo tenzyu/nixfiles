@@ -165,6 +165,10 @@ system feature は host の capabilities (driver, daemon など) を表し、use
 
 ## よく使う操作
 
+XDG 保存先を既存ホームへ適用する場合は、先に
+[既存データの移行手順](assets/home-layout/README.md) を参照してください。
+ビルドした Home Manager generation の `home-layout-migrate check` / `apply` を使えます。
+
 ```sh
 nix fmt
 nix flake check

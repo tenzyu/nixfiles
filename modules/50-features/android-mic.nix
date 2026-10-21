@@ -1,7 +1,19 @@
 {lib, ...}: let
   version = "2.2.6";
 
-  mkAppimage = pkgs:
+  mkAndroidTools = pkgs: androidHome:
+    pkgs.symlinkJoin {
+      name = "android-tools-xdg";
+      paths = [pkgs.android-tools];
+      nativeBuildInputs = [pkgs.makeWrapper];
+      # adb 35 ignores ANDROID_USER_HOME and stores keys under $HOME/.android.
+      # Change HOME only for adb; AndroidMic keeps its normal config directory.
+      postBuild = ''
+        wrapProgram "$out/bin/adb" --set HOME ${lib.escapeShellArg androidHome}
+      '';
+    };
+
+  mkAppimage = pkgs: androidTools:
     pkgs.appimageTools.wrapType2 rec {
       pname = "android-mic";
       inherit version;
@@ -10,6 +22,9 @@
         url = "https://github.com/teamclouday/AndroidMic/releases/download/${version}/android-mic_${version}_x86_64.AppImage";
         hash = "sha256-5xMc/xv+MXjFllK7S68RgOeej9KBo8I/qTtb2P36EF0=";
       };
+
+      # AndroidMic invokes adb via PATH inside its FHS environment.
+      extraPkgs = _: [androidTools];
 
       extraInstallCommands = let
         contents = pkgs.appimageTools.extract {inherit pname version src;};
@@ -71,11 +86,16 @@ in {
     lib,
     pkgs,
     ...
-  }: {
+  }: let
+    androidTools =
+      if config.local.features.home-layout.enable
+      then mkAndroidTools pkgs "${config.xdg.dataHome}/android"
+      else pkgs.android-tools;
+  in {
     config = lib.mkIf config.local.features.android-mic.enable {
       home.packages = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
-        (mkAppimage pkgs)
-        pkgs.android-tools
+        (mkAppimage pkgs androidTools)
+        androidTools
       ];
     };
   };

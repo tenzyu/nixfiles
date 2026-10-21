@@ -46,6 +46,7 @@
         android-mic.enable = true;
         discord.enable = true;
         prismlauncher.enable = true;
+        home-layout.enable = true;
         codex.enable = false;
         opencode.enable = true;
         obsidian.enable = true;
@@ -62,6 +63,7 @@
         disk-tools.enable = true;
         castalia.enable = false;
         onair.enable = true;
+        llmproxy.enable = true;
         herdr.enable = true;
       };
     };

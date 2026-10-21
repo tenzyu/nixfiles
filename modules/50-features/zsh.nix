@@ -23,6 +23,13 @@
     ...
   }: {
     config = lib.mkIf config.local.features.zsh.enable {
+      local.homeMigration.paths = [
+        {
+          source = "${config.home.homeDirectory}/.zsh_history";
+          target = config.programs.zsh.history.path;
+        }
+      ];
+
       home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ../../assets/zshrc;
 
       programs.zsh = {

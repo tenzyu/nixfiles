@@ -6,9 +6,28 @@
     ...
   }: {
     config = lib.mkIf config.local.features.firefox.enable {
+      local.homeMigration.paths = [
+        {
+          source = "${config.home.homeDirectory}/.mozilla/firefox";
+          target = config.programs.firefox.configPath;
+          processes = ["*firefox*"];
+        }
+      ];
+
+      # HM otherwise keeps the legacy directory with only an empty .keep file.
+      # Retain the host directory if Firefox or Thunderbird requests real hosts.
+      home.file.".mozilla/native-messaging-hosts".enable =
+        lib.mkIf (
+          config.programs.firefox.nativeMessagingHosts
+          == []
+          && config.mozilla.thunderbirdNativeMessagingHosts == []
+        )
+        false;
+
       programs.firefox = {
         enable = true;
         package = pkgs.unstable.firefox;
+        configPath = "${config.xdg.configHome}/mozilla/firefox";
         profiles.default = {
           extensions.force = true;
           settings = {
