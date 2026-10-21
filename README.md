@@ -4,6 +4,17 @@
 
 `flake.nix` は薄く保ち、実装は `modules/` 配下の小さなモジュールとして登録します。ホストは必要な機能名だけを `local.features` / `local.users.<name>.features` に列挙して合成します。
 
+## 更新後のキャッシュ確認
+
+neko5 から両ホストを、OS ビルドを行わずに確認できます。
+
+```sh
+nix shell --no-update-lock-file --inputs-from . nixpkgs#python3 --command python3 scripts/cache-check.py --json cache-audit/latest.json --timeout 15
+```
+
+ローカル生成の検出は警告（exit 0）、評価失敗は exit 2、キャッシュ照会不完全は exit 3。
+母数・推定の意味、JSON、例外承認、更新手順は [手動チェックの運用](docs/cache-check.md)、原因と前後比較は [調査記録](docs/cache-investigation-2026-10-21.md) を参照。
+
 ## 設計方針
 
 - **flake は入口に徹する**  

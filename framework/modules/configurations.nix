@@ -49,18 +49,15 @@
       config = prev.config;
     };
   };
-  llmAgentsFixesOverlay = final: prev: {
-    llm-agents =
-      prev.llm-agents
-      // {
-        herdr =
-          inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system}.herdr;
-      };
+  llmAgentsOverlay = final: prev: {
+    # shared-nixpkgs rebuilds against the host's stable package set, even when
+    # llm-agents.inputs.nixpkgs follows unstable. Use the flake package outputs
+    # for the signed Numtide cache; versions/features still follow flake.lock.
+    llm-agents = inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system};
   };
 
   nixosOverlays = [
-    inputs.llm-agents.overlays.shared-nixpkgs
-    llmAgentsFixesOverlay
+    llmAgentsOverlay
     unstableOverlay
   ];
 in {

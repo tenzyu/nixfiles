@@ -5,3 +5,5 @@ result
 .env
 .opencode/
 current-nixfiles.zip
+cache-audit/
+__pycache__/
