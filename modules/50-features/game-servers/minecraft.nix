@@ -11,7 +11,7 @@
       uid = 27009;
       gid = 27009;
       home = "/home/game-minecraft";
-      containerName = "neko7-minecraft";
+      containerName = "neko7-mc";
       hostAddress = "10.77.30.1";
       localAddress = "10.77.30.2";
       tailscaleHostname = "neko7-minecraft";
@@ -21,8 +21,17 @@
       extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
     };
     inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
-    mkMinecraftModule = spec: {pkgs, ...}: {
+    mkMinecraftModule = spec: {
+      pkgs,
+      lib,
+      ...
+    }: {
       nixpkgs.overlays = [inputs.nix-minecraft.overlay];
+
+      # これで Minecraft サービスから /home/game-minecraft/minecraft を利用できるようになる。ただし /home 全体へのアクセス制限を緩めるため、将来的にはデータを /srv/minecraft に bind mount して ProtectHome = true を維持する設計が望ましい。
+      systemd.services.minecraft-server-survival.serviceConfig.ProtectHome =
+        lib.mkForce false;
+
       users.users.minecraft.uid = spec.uid;
       users.groups.minecraft.gid = spec.gid;
       environment.systemPackages = [pkgs.tmux];
@@ -42,11 +51,8 @@
             "server-ip" = "";
             "server-port" = 25565;
             "online-mode" = true;
-            # "white-list" = true;
-            # "enforce-whitelist" = true;
+            "white-list" = false;
             "max-players" = 8;
-            # "view-distance" = 16;
-            # "simulation-distance" = 6;
             "enable-rcon" = false;
           };
         };

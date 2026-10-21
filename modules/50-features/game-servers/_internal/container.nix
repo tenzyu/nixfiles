@@ -80,7 +80,9 @@
       {
         system.stateVersion = "26.05";
 
-        systemd.tmpfiles.rules = mkHostTmpfiles spec.key spec;
+        systemd.tmpfiles.rules =
+          lib.optionals (spec.key != "minecraft")
+          (mkHostTmpfiles spec.key spec);
       }
 
       (mkSteamUnfreePolicy spec args)

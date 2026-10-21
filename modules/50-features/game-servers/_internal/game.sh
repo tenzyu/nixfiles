@@ -36,7 +36,12 @@ declare -A backups=(
   [minecraft]=/home/game-minecraft/minecraft/backups
 )
 
-container() { printf 'neko7-%s' "$1"; }
+container() {
+  case "$1" in
+    minecraft) printf 'neko7-mc' ;;
+    *) printf 'neko7-%s' "$1" ;;
+  esac
+}
 require_game() {
   game=${1:-}
   if [[ ! -v service[$game] ]]; then
