@@ -34,29 +34,6 @@
         "type": "github"
       }
     },
-    "castalia": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "dir": "product/apps/castalia",
-        "lastModified": 1780894973,
-        "narHash": "sha256-zN7Jy6gbO1/WMXk9HuCwGGEH8vOaaNdezjZUD9A/T40=",
-        "owner": "tenzyu",
-        "repo": "tenzyudotcom",
-        "rev": "6e249c5358a3a3ee2880192fdb557e1ebd8c7b53",
-        "type": "github"
-      },
-      "original": {
-        "dir": "product/apps/castalia",
-        "owner": "tenzyu",
-        "ref": "develop",
-        "repo": "tenzyudotcom",
-        "type": "github"
-      }
-    },
     "catppuccin": {
       "inputs": {
         "nixpkgs": "nixpkgs"
@@ -469,7 +446,6 @@
     },
     "root": {
       "inputs": {
-        "castalia": "castalia",
         "catppuccin": "catppuccin",
         "flake-compat": "flake-compat",
         "flake-parts": "flake-parts",

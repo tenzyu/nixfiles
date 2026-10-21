@@ -94,10 +94,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
-    castalia = {
-      url = "github:tenzyu/tenzyudotcom/develop?dir=product/apps/castalia";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     onair = {
       url = "github:hiraginoyuki/onair";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
