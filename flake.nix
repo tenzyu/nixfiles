@@ -84,7 +84,8 @@
     # -- Other flake
     llm-agents = {
       url = "github:numtide/llm-agents.nix";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      # Keep upstream's nixpkgs lock for its signed cache and tested toolchain.
+      # Following our unstable can select an incompatible Zig for herdr.
       inputs.systems.follows = "systems";
       inputs.flake-parts.follows = "flake-parts";
       inputs.treefmt-nix.follows = "treefmt-nix";

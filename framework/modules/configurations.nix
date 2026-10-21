@@ -50,9 +50,9 @@
     };
   };
   llmAgentsOverlay = final: prev: {
-    # shared-nixpkgs rebuilds against the host's stable package set, even when
-    # llm-agents.inputs.nixpkgs follows unstable. Use the flake package outputs
-    # for the signed Numtide cache; versions/features still follow flake.lock.
+    # shared-nixpkgs rebuilds against the host's stable package set. Use the
+    # flake package outputs with upstream's own nixpkgs for the signed Numtide
+    # cache; versions/features still follow flake.lock.
     llm-agents = inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system};
   };
 
