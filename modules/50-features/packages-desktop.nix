@@ -6,18 +6,19 @@
     ...
   }: {
     config = lib.mkIf config.local.features.packages-desktop.enable {
-      home.packages = with pkgs; [
-        brightnessctl
-        cliphist
-        libnotify
-        obs-studio
-        pavucontrol
-        playerctl
-        wl-clipboard
-        unstable.grimblast
-        easyeffects
-        vrcx
-      ];
+      home.packages =
+        (with pkgs; [
+          brightnessctl
+          cliphist
+          libnotify
+          obs-studio
+          pavucontrol
+          playerctl
+          wl-clipboard
+          unstable.grimblast
+          vrcx
+        ])
+        ++ lib.optional (!config.local.features.splitcast-capture.enable) pkgs.easyeffects;
     };
   };
 }

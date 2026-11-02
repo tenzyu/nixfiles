@@ -1,5 +1,7 @@
 {
   configurations.nixos.neko5.module = {
+    home-manager.users.tenzyu.local.features.splitcast-capture.settings.peer.ssh_host = "neko7";
+
     local.context.flakePath = "/home/tenzyu/.nixfiles";
 
     local.features = {
@@ -13,6 +15,7 @@
       tailscale.enable = true;
       systemd-boot.enable = true;
       pipewire.enable = true;
+      splitcast-capture.enable = true;
       bluetooth.enable = true;
       intel-graphics.enable = true;
       docker-rootless.enable = true;
@@ -40,6 +43,7 @@
       homeDirectory = "/home/tenzyu";
 
       features = {
+        splitcast-capture.enable = true;
         tenzyu-desktop.enable = true;
         hyprland-tenzyu.enable = true;
         hyprland-gaming-mode.enable = true;

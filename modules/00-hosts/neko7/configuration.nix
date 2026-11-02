@@ -1,5 +1,7 @@
 {...}: {
   configurations.nixos.neko7.module = {
+    home-manager.users.tenzyu.local.features.splitcast-production.settings.peer.ssh_host = "neko5";
+
     local.features = {
       neko7-hardware.enable = true;
       nix.enable = true;
@@ -8,6 +10,7 @@
       locale.enable = true;
       ssh.enable = true;
       tailscale.enable = true;
+      splitcast-production.enable = true;
       # Final shape:
       #   neko7       = admin node
       #   neko7-ark   = ARK player node
@@ -38,6 +41,7 @@
       homeDirectory = "/home/tenzyu";
 
       features = {
+        splitcast-production.enable = true;
         tenzyu-cli.enable = true;
         catppuccin.enable = true;
         nix-access.enable = true;

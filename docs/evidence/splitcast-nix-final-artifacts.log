@@ -1,0 +1,36 @@
+PURPOSE: Verify realized artifacts and final checkout identity
+UTC=2026-11-01T15:00:32Z
+COMMAND: nix path-info <neko5 output> <VOICEVOX output> <SplitCast package> <SplitCast check outputs>
+/nix/store/gi4kxdkwbxvia7ghj6nllw1d7n9kq1pi-splitcast-host-configs-check
+/nix/store/illklarxvfspw633npgq25z3vvnncyyg-splitcast-0.1.0
+/nix/store/kp8zyvvrk7vn53wmk1ramlhcawjq9mjc-splitcast-package-check
+/nix/store/mbcy4d08ljlslfndkr75174v7rvgz28l-voicevox-engine-0.25.2
+/nix/store/vp6bn703n8262wz2qp4lkg58bxsxqvv9-nixos-system-neko5-26.05.20261020.cd4ea8d
+ARTIFACT_PATH_INFO_EXIT_STATUS: 0
+COMMAND: nix hash path /nix/store/g64nm44win17wy9zxyxyf3ihlazx5522-source
+sha256-NoWTSbG/02wqc51jWcKc9wQVkZtflNw2BlDwa42PcGg=
+SOURCE_NAR_HASH_EXIT_STATUS: 0
+COMMAND: git status --short --branch; git rev-parse HEAD
+## feat/splitcast-e2e
+ M modules/00-hosts/neko5/configuration.nix
+ M modules/00-hosts/neko7/configuration.nix
+ M modules/50-features/packages-desktop.nix
+?? .local/
+?? docs/
+?? modules/50-features/splitcast-capture.nix
+?? modules/50-features/splitcast-checks.nix
+?? modules/50-features/splitcast-packages.nix
+?? modules/50-features/splitcast-production.nix
+?? modules/50-features/splitcast/
+?? packages/
+?? pstack-claude/
+?? scripts/
+3cf330792d31df0721289d91e5643aa5fdee8f77
+SOURCE_SHA256_FINAL 1cc233b9370cfa46b9d3ec8dc9f8b21bd02b0fedc11abab050626a50af291566  -
+PACKAGE_SHA256_FINAL 6d1ca63d72d792ea30b332877fbab15df3ca5251cee143648dde5999297e80f3  -
+TRACKED_DIFF_SHA256_FINAL 8a53feac8ae9ac5f731007eaefa21195c7332a6ea2ea4a321e19f2642e86d991  -
+COMMAND: df -h / /nix /tmp
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  226G  115G  101G  54% /
+/dev/nvme0n1p1  226G  115G  101G  54% /
+/dev/nvme0n1p1  226G  115G  101G  54% /

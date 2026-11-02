@@ -1,0 +1,7 @@
+COMMAND: nix log /nix/store/wn7l6vxn5igh8s2nv86dcvkwl90gzclz-game.drv
+PURPOSE: Inspect in-progress neko7 dependency after timeout
+START_UTC=2026-11-01T14:52:55Z
+got build log for '/nix/store/wn7l6vxn5igh8s2nv86dcvkwl90gzclz-game.drv' from 'daemon'
+EXIT_STATUS: 0
+ELAPSED_SECONDS: 0
+END_UTC=2026-11-01T14:52:55Z

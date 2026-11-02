@@ -1,0 +1,34 @@
+COMMAND: nix log /nix/store/dkk241hszqdbs5g385y9kjg8bh12zv4i-splitcast-0.1.0.drv
+PURPOSE: Record package build test output for the checked source
+UTC=2026-11-01T14:59:18Z
+got build log for '/nix/store/dkk241hszqdbs5g385y9kjg8bh12zv4i-splitcast-0.1.0.drv' from 'daemon'
+Running phase: unpackPhase
+@nix { "action": "setPhase", "phase": "unpackPhase" }
+unpacking source archive /nix/store/g64nm44win17wy9zxyxyf3ihlazx5522-source
+source root is source
+Running phase: patchPhase
+@nix { "action": "setPhase", "phase": "patchPhase" }
+Running phase: updateAutotoolsGnuConfigScriptsPhase
+@nix { "action": "setPhase", "phase": "updateAutotoolsGnuConfigScriptsPhase" }
+Running phase: configurePhase
+@nix { "action": "setPhase", "phase": "configurePhase" }
+no configure script, doing nothing
+Running phase: installPhase
+@nix { "action": "setPhase", "phase": "installPhase" }
+Running phase: fixupPhase
+@nix { "action": "setPhase", "phase": "fixupPhase" }
+shrinking RPATHs of ELF executables and libraries in /nix/store/illklarxvfspw633npgq25z3vvnncyyg-splitcast-0.1.0
+checking for references to /build/ in /nix/store/illklarxvfspw633npgq25z3vvnncyyg-splitcast-0.1.0...
+patching script interpreter paths in /nix/store/illklarxvfspw633npgq25z3vvnncyyg-splitcast-0.1.0
+PACKAGE_LOG_EXIT_STATUS: 0
+COMMAND: nix derivation show /nix/store/dkk241hszqdbs5g385y9kjg8bh12zv4i-splitcast-0.1.0.drv | jq selected source fields
+{
+  "drv": "dkk241hszqdbs5g385y9kjg8bh12zv4i-splitcast-0.1.0.drv",
+  "src": "/nix/store/g64nm44win17wy9zxyxyf3ihlazx5522-source",
+  "outputs": {
+    "out": {
+      "path": "illklarxvfspw633npgq25z3vvnncyyg-splitcast-0.1.0"
+    }
+  }
+}
+PACKAGE_DERIVATION_EXIT_STATUS: 0

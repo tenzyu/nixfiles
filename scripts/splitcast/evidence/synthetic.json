@@ -1,0 +1,581 @@
+{
+  "acceptance": {
+    "A01": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A02": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A03": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A04": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A05": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A06": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A07": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A08": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A09": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A10": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A11": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A12": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A13": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A14": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance",
+    "A15": "NOT_RUN; synthetic transport evidence is not hardware/application acceptance"
+  },
+  "after_restart": {
+    "camera": {
+      "streams": {
+        "video": {
+          "bytes": 862234,
+          "codec": "h264",
+          "first_pts_s": 0.2,
+          "last_pts_s": 5.983,
+          "max_pts_gap_s": 0.017000000000000348,
+          "packets": 348,
+          "span_s": 5.7829999999999995
+        }
+      },
+      "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+      "transport": "RTSP interleaved TCP"
+    },
+    "children_stopped": true,
+    "game": {
+      "streams": {
+        "audio": {
+          "bytes": 7838,
+          "codec": "aac",
+          "first_pts_s": 0.0,
+          "last_pts_s": 5.995,
+          "max_pts_gap_s": 0.02200000000000024,
+          "packets": 282,
+          "span_s": 5.995
+        },
+        "video": {
+          "bytes": 876627,
+          "codec": "h264",
+          "first_pts_s": 0.115,
+          "last_pts_s": 5.998,
+          "max_pts_gap_s": 0.017000000000000348,
+          "packets": 354,
+          "span_s": 5.883
+        }
+      },
+      "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+      "transport": "RTMP/TCP"
+    },
+    "game_markers": {
+      "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+      "first_audio_minus_video_ms": -0.2708333333334423,
+      "first_to_last_drift_ms": 0.0,
+      "first_video_s": 1.115,
+      "last_audio_minus_video_ms": -0.2708333333334423,
+      "last_video_s": 5.115,
+      "marker_span_s": 4.0,
+      "max_abs_offset_ms": 0.2708333333334423,
+      "median_audio_minus_video_ms": -0.2708333333334423,
+      "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+      "pairs": 3,
+      "synthetic_10min_sync": "NOT_RUN",
+      "synthetic_30min_sync": "NOT_RUN",
+      "within_20ms": true
+    },
+    "mic": {
+      "streams": {
+        "audio": {
+          "bytes": 7838,
+          "codec": "aac",
+          "first_pts_s": 0.0,
+          "last_pts_s": 5.995,
+          "max_pts_gap_s": 0.02200000000000024,
+          "packets": 282,
+          "span_s": 5.995
+        }
+      },
+      "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+      "transport": "RTSP interleaved TCP"
+    },
+    "separate_feed_markers": {
+      "camera_flashes": 3,
+      "mic_pulses": 3,
+      "sync_verdict": "NOT_MEASURED; independent playback timelines"
+    }
+  },
+  "base_revision": "3cf330792d31df0721289d91e5643aa5fdee8f77",
+  "cleanup": {
+    "all_owned_children_reaped": true,
+    "listeners_closed": true,
+    "owned_child_count": 40,
+    "temporary_media_removed": true
+  },
+  "command": [
+    "python3",
+    "scripts/splitcast/media.py",
+    "--seconds",
+    "6.0",
+    "--cycles",
+    "5",
+    "--output",
+    "scripts/splitcast/evidence/synthetic.json"
+  ],
+  "config_reference": "https://raw.githubusercontent.com/bluenviron/mediamtx/v1.18.2/mediamtx.yml",
+  "config_sha256": "4cc2042b30fb2027d97a0824e83fcc0f1ea8e81474bff440effafd58e4fe1f30",
+  "cycles": [
+    {
+      "camera": {
+        "streams": {
+          "video": {
+            "bytes": 797547,
+            "codec": "h264",
+            "first_pts_s": 0.633,
+            "last_pts_s": 5.983,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 322,
+            "span_s": 5.35
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "children_stopped": true,
+      "game": {
+        "streams": {
+          "audio": {
+            "bytes": 7855,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          },
+          "video": {
+            "bytes": 792755,
+            "codec": "h264",
+            "first_pts_s": 0.667,
+            "last_pts_s": 5.984,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 320,
+            "span_s": 5.317
+          }
+        },
+        "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+        "transport": "RTMP/TCP"
+      },
+      "game_markers": {
+        "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+        "first_audio_minus_video_ms": -0.2708333333334423,
+        "first_to_last_drift_ms": 0.0,
+        "first_video_s": 0.667,
+        "last_audio_minus_video_ms": -0.2708333333334423,
+        "last_video_s": 4.667,
+        "marker_span_s": 4.0,
+        "max_abs_offset_ms": 0.2708333333334423,
+        "median_audio_minus_video_ms": -0.2708333333334423,
+        "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+        "pairs": 3,
+        "synthetic_10min_sync": "NOT_RUN",
+        "synthetic_30min_sync": "NOT_RUN",
+        "within_20ms": true
+      },
+      "mic": {
+        "streams": {
+          "audio": {
+            "bytes": 7838,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "separate_feed_markers": {
+        "camera_flashes": 3,
+        "mic_pulses": 3,
+        "sync_verdict": "NOT_MEASURED; independent playback timelines"
+      }
+    },
+    {
+      "camera": {
+        "streams": {
+          "video": {
+            "bytes": 792755,
+            "codec": "h264",
+            "first_pts_s": 0.667,
+            "last_pts_s": 5.983,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 320,
+            "span_s": 5.316
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "children_stopped": true,
+      "game": {
+        "streams": {
+          "audio": {
+            "bytes": 7855,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.994,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.994
+          },
+          "video": {
+            "bytes": 777858,
+            "codec": "h264",
+            "first_pts_s": 0.773,
+            "last_pts_s": 5.99,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 314,
+            "span_s": 5.2170000000000005
+          }
+        },
+        "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+        "transport": "RTMP/TCP"
+      },
+      "game_markers": {
+        "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+        "first_audio_minus_video_ms": 0.395833333333262,
+        "first_to_last_drift_ms": -1.1102230246251565e-13,
+        "first_video_s": 0.773,
+        "last_audio_minus_video_ms": 0.39583333333315096,
+        "last_video_s": 4.773,
+        "marker_span_s": 3.9999999999999996,
+        "max_abs_offset_ms": 0.395833333333262,
+        "median_audio_minus_video_ms": 0.39583333333315096,
+        "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+        "pairs": 3,
+        "synthetic_10min_sync": "NOT_RUN",
+        "synthetic_30min_sync": "NOT_RUN",
+        "within_20ms": true
+      },
+      "mic": {
+        "streams": {
+          "audio": {
+            "bytes": 7838,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "separate_feed_markers": {
+        "camera_flashes": 3,
+        "mic_pulses": 3,
+        "sync_verdict": "NOT_MEASURED; independent playback timelines"
+      }
+    },
+    {
+      "camera": {
+        "streams": {
+          "video": {
+            "bytes": 757709,
+            "codec": "h264",
+            "first_pts_s": 0.9,
+            "last_pts_s": 5.983,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 306,
+            "span_s": 5.082999999999999
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "children_stopped": true,
+      "game": {
+        "streams": {
+          "audio": {
+            "bytes": 7855,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          },
+          "video": {
+            "bytes": 762514,
+            "codec": "h264",
+            "first_pts_s": 0.88,
+            "last_pts_s": 5.997,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 308,
+            "span_s": 5.117
+          }
+        },
+        "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+        "transport": "RTMP/TCP"
+      },
+      "game_markers": {
+        "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+        "first_audio_minus_video_ms": 0.06249999999996536,
+        "first_to_last_drift_ms": 3.3306690738754696e-13,
+        "first_video_s": 0.88,
+        "last_audio_minus_video_ms": 0.06250000000029843,
+        "last_video_s": 4.88,
+        "marker_span_s": 4.0,
+        "max_abs_offset_ms": 0.06250000000029843,
+        "median_audio_minus_video_ms": 0.06249999999996536,
+        "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+        "pairs": 3,
+        "synthetic_10min_sync": "NOT_RUN",
+        "synthetic_30min_sync": "NOT_RUN",
+        "within_20ms": true
+      },
+      "mic": {
+        "streams": {
+          "audio": {
+            "bytes": 7838,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "separate_feed_markers": {
+        "camera_flashes": 3,
+        "mic_pulses": 3,
+        "sync_verdict": "NOT_MEASURED; independent playback timelines"
+      }
+    },
+    {
+      "camera": {
+        "streams": {
+          "video": {
+            "bytes": 775621,
+            "codec": "h264",
+            "first_pts_s": 0.783,
+            "last_pts_s": 5.983,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 313,
+            "span_s": 5.199999999999999
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "children_stopped": true,
+      "game": {
+        "streams": {
+          "audio": {
+            "bytes": 7855,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          },
+          "video": {
+            "bytes": 802564,
+            "codec": "h264",
+            "first_pts_s": 0.603,
+            "last_pts_s": 5.986,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 324,
+            "span_s": 5.383
+          }
+        },
+        "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+        "transport": "RTMP/TCP"
+      },
+      "game_markers": {
+        "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+        "first_audio_minus_video_ms": -0.27083333333333126,
+        "first_to_last_drift_ms": -1.1102230246251565e-13,
+        "first_video_s": 0.603,
+        "last_audio_minus_video_ms": -0.2708333333334423,
+        "last_video_s": 4.603,
+        "marker_span_s": 4.0,
+        "max_abs_offset_ms": 0.2708333333334423,
+        "median_audio_minus_video_ms": -0.2708333333334423,
+        "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+        "pairs": 3,
+        "synthetic_10min_sync": "NOT_RUN",
+        "synthetic_30min_sync": "NOT_RUN",
+        "within_20ms": true
+      },
+      "mic": {
+        "streams": {
+          "audio": {
+            "bytes": 7838,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "separate_feed_markers": {
+        "camera_flashes": 3,
+        "mic_pulses": 3,
+        "sync_verdict": "NOT_MEASURED; independent playback timelines"
+      }
+    },
+    {
+      "camera": {
+        "streams": {
+          "video": {
+            "bytes": 780651,
+            "codec": "h264",
+            "first_pts_s": 0.75,
+            "last_pts_s": 5.983,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 315,
+            "span_s": 5.233
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "children_stopped": true,
+      "game": {
+        "streams": {
+          "audio": {
+            "bytes": 7855,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.994,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.994
+          },
+          "video": {
+            "bytes": 777858,
+            "codec": "h264",
+            "first_pts_s": 0.773,
+            "last_pts_s": 5.99,
+            "max_pts_gap_s": 0.017000000000000348,
+            "packets": 314,
+            "span_s": 5.2170000000000005
+          }
+        },
+        "timestamp_policy": "combined game A/V timestamps preserved through remuxing",
+        "transport": "RTMP/TCP"
+      },
+      "game_markers": {
+        "cross_feed_sync": "NOT_MEASURED; independent feeds do not share a proven capture clock",
+        "first_audio_minus_video_ms": 0.395833333333262,
+        "first_to_last_drift_ms": -1.1102230246251565e-13,
+        "first_video_s": 0.773,
+        "last_audio_minus_video_ms": 0.39583333333315096,
+        "last_video_s": 4.773,
+        "marker_span_s": 3.9999999999999996,
+        "max_abs_offset_ms": 0.395833333333262,
+        "median_audio_minus_video_ms": 0.39583333333315096,
+        "method": "decoded white square and 1kHz pulse rising edges on recorded PTS",
+        "pairs": 3,
+        "synthetic_10min_sync": "NOT_RUN",
+        "synthetic_30min_sync": "NOT_RUN",
+        "within_20ms": true
+      },
+      "mic": {
+        "streams": {
+          "audio": {
+            "bytes": 7838,
+            "codec": "aac",
+            "first_pts_s": 0.0,
+            "last_pts_s": 5.995,
+            "max_pts_gap_s": 0.02200000000000024,
+            "packets": 282,
+            "span_s": 5.995
+          }
+        },
+        "timestamp_policy": "FFmpeg +genpts for RTSP remuxing; output PTS strictly increasing",
+        "transport": "RTSP interleaved TCP"
+      },
+      "separate_feed_markers": {
+        "camera_flashes": 3,
+        "mic_pulses": 3,
+        "sync_verdict": "NOT_MEASURED; independent playback timelines"
+      }
+    }
+  ],
+  "disabled_listeners": [
+    "webrtc",
+    "hls",
+    "srt",
+    "api",
+    "metrics",
+    "pprof",
+    "playback"
+  ],
+  "inspected_help_sha256": {
+    "mediamtx_cli": "15b388773665d50da475c003ddb419f7d601661dce7389327535730827d094c8",
+    "rtmp_container": "cbb89604798395fe23312a1861dac3bafe5465f6d8568391167c0cb58c486151",
+    "rtsp_input": "652d0f17cab1acb0e319e8396a7827432c58c0c092e42545c8789c521772ec5a",
+    "rtsp_output": "a53d4122edfd19042cf20f7a79b31d992fe02557fd3d59a0047b52140a8309fd"
+  },
+  "kind": "synthetic_real_network_media",
+  "listeners": [
+    {
+      "address_hex": "0100007F",
+      "port": 46813,
+      "protocol": "tcp"
+    },
+    {
+      "address_hex": "0100007F",
+      "port": 57887,
+      "protocol": "tcp"
+    }
+  ],
+  "long_sync": {
+    "synthetic_10min_sync": "NOT_RUN",
+    "synthetic_30min_sync": "NOT_RUN"
+  },
+  "loss": {
+    "bounded_exit_s": 0.42587786600051913,
+    "fault": "SIGKILL owned MediaMTX server; real TCP transport loss, not packet-loss emulation",
+    "partial_game_streams": {
+      "audio": {
+        "bytes": 4086,
+        "codec": "aac",
+        "first_pts_s": 0.0,
+        "last_pts_s": 2.475,
+        "max_pts_gap_s": 0.02200000000000024,
+        "packets": 117,
+        "span_s": 2.475
+      },
+      "video": {
+        "bytes": 305021,
+        "codec": "h264",
+        "first_pts_s": 0.459,
+        "last_pts_s": 2.459,
+        "max_pts_gap_s": 0.017000000000000348,
+        "packets": 121,
+        "span_s": 2.0
+      }
+    },
+    "publisher_exit_code": 224,
+    "reader_exit_code": 0,
+    "recovery": "explicit bounded restart by harness, not application auto-reconnect"
+  },
+  "moq": "not implemented in inspected MediaMTX v1.18.2; actual socket audit requires only two loopback TCP listeners",
+  "recorded_at_utc": "2026-11-01T13:38:30.892590+00:00",
+  "requested_seconds_per_cycle": 6.0,
+  "schema": 1,
+  "short_media_transmission": "PASS",
+  "software_encoding": "ONLY synthetic lavfi-generated source; libx264 and AAC",
+  "start_stop_5x": "PASS",
+  "status": "PASS",
+  "tool_sha256": "bd5bc0136fe72cc7e4e47c2f0eaf99a2138035a75d6841e58e7b6b92860684cc",
+  "versions": {
+    "ffmpeg": "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "ffprobe": "ffprobe version 8.1.2 Copyright (c) 2007-2026 the FFmpeg developers",
+    "mediamtx": "v1.18.2"
+  }
+}

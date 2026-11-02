@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SplitCast</title><link rel="stylesheet" href="/style.css"><script src="/ui.js" defer></script></head>
+<body><main><h1>SplitCast</h1><p>Game audio stays on your local headphones. Recording is the default output.</p>
+<p id="error" role="alert"></p>
+<section id="authentication"><h2>Connect to your agent</h2><p>Run <code>splitcast --config CONFIG ui</code> as the agent's user and open its private URL, or paste your control token here.</p><label>Control token <input id="control-token" type="password" autocomplete="off"></label><button id="connect">Connect</button></section>
+<pre id="status" aria-live="polite">Control token required.</pre>
+<section><h2>Discover and connect</h2><button data-command="devices">Discover both hosts</button><button data-command="doctor">Doctor</button><button data-command="routes">Show routes</button><pre id="result"></pre>
+<label>SSH host <input id="host" autocomplete="off" placeholder="neko7"></label>
+<label>Capture target <input id="target" placeholder="Choose from discovery"></label>
+<label>Game audio <input id="game" placeholder="app:exact game name"></label>
+<label>Raw microphone <select id="mic-source"><option value="">Discover first</option></select></label>
+<label>TTS playback sink <select id="tts-sink"><option value="">Discover first</option></select></label>
+<label><input id="camera-enabled" type="checkbox"> Enable selected camera</label>
+<label>Camera host <select id="camera-location"><option value="capture">Capture</option><option value="production">Production</option></select></label>
+<label>Stable camera device <select id="camera-device"><option value="">Discover first</option></select></label>
+<label>Camera mode <select id="camera-mode"><option value="h264">Native H264</option><option value="hardware">YUYV with hardware encoder</option></select></label>
+<button id="save">Save selections while stopped</button><p>Shared camera and speech selections are saved on production through SSH. Route changes require Stop.</p></section>
+<section><h2>Session</h2><p>Ready means infrastructure only. Capture and output begin at Start. The preview can remain blank until then. Start defaults to a private recording.</p><button data-command="prepare">Prepare connection</button><select id="output" aria-label="Output"><option value="recording">Private recording</option><option value="twitch">Twitch public stream</option></select><button id="start">Start selected output</button><button data-command="stop">Stop</button><button data-command="preview">Refresh preview</button><img id="preview" alt="Production preview" hidden>
+<button data-command="mic" data-action="mute">Mute mic</button><button data-command="mic" data-action="unmute">Unmute mic</button></section>
+<section><h2>Speech and overlay</h2><button data-command="tts" data-action="on">TTS on</button><button data-command="tts" data-action="off">TTS off</button><button data-command="tts" data-action="mute">Mute TTS</button><button data-command="tts" data-action="unmute">Unmute TTS</button><button data-command="tts" data-action="skip">Skip speech</button><button data-command="tts" data-action="clear">Clear queue</button>
+<label>Speech <input id="speech" maxlength="200"></label><button id="say">Say</button><label>Overlay text <textarea id="overlay-text" maxlength="1000"></textarea></label><button id="overlay">Update overlay</button><button data-command="diagnostics">Diagnostics</button></section>
+</main></body></html>

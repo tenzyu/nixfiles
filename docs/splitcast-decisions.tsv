@@ -1,0 +1,8 @@
+ts	phase	decision	why	evidence	result
+2026-11-01T00:00:00Z	frame	Work on feat/splitcast-e2e from 3cf330792d31df0721289d91e5643aa5fdee8f77	Preserve existing untracked user files	.local/AGENT_PROMPT.md	open
+2026-11-01T00:00:00Z	ground	Port legacy behavior instead of applying its patch	git apply --check fails at neko5 configuration line 25	/tmp/opencode/splitcast-handoff/splitcast_e2e_handoff/references/neko5-neko7-streaming-complete.patch	patch rejected
+2026-11-01T00:00:00Z	ground	Use observed RTX 4060 Ti and available local cameras as inventory	Handoff GPU model is a hypothesis; SSH and V4L2 queries reached real hosts	docs/ARCHITECTURE_DECISIONS.md	open
+2026-11-01T00:00:00Z	design	Use one Python agent per host with systemd as outer cleanup boundary	Dynamic routes need one lifecycle owner and explicit rollback	docs/ARCHITECTURE_DECISIONS.md	open
+2026-11-02T08:30:23Z	start	Resumed prior rows dated 2026-11-01T00:00:00Z and verified both hosts	Preserve the inherited SplitCast work and identify actual execution hosts	docs/ARCHITECTURE_DECISIONS.md	prior timestamps are placeholders
+2026-11-02T08:30:23Z	execution	Used an isolated neko7 snapshot for build and tests	Keep heavy work off neko5 without changing active configuration	docs/splitcast-remote-development.md	OBS and package built on neko7; tests passed with five skips
+2026-11-02T08:30:24Z	builder	Left daemon SSH identity and host-key setup for explicit approval	The daemon failed host-key verification and root SSH changes affect trust	docs/splitcast-remote-development.md	distributed build blocked

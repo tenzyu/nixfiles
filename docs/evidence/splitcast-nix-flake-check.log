@@ -1,0 +1,47 @@
+COMMAND: nix flake check --no-build path:/home/tenzyu/.nixfiles
+LIMIT_SECONDS: 900
+PURPOSE: Evaluate flake outputs and native checks without building checks
+START_UTC=2026-11-01T14:52:03Z
+3cf330792d31df0721289d91e5643aa5fdee8f77
+feat/splitcast-e2e
+SOURCE_SHA256_START 1cc233b9370cfa46b9d3ec8dc9f8b21bd02b0fedc11abab050626a50af291566  -
+PACKAGE_SHA256_START 6d1ca63d72d792ea30b332877fbab15df3ca5251cee143648dde5999297e80f3  -
+TRACKED_DIFF_SHA256_START 8a53feac8ae9ac5f731007eaefa21195c7332a6ea2ea4a321e19f2642e86d991  -
+evaluating flake...
+checking flake output 'lib'...
+checking flake output 'apps'...
+checking app 'apps.x86_64-linux.framework-cli'...
+copying path '/nix/store/862y83zlml306ks11pm82zgp1bvzz2qm-source' from 'https://nix-community.cachix.org'...
+checking app 'apps.x86_64-linux.framework-test'...
+checking app 'apps.x86_64-linux.framework-invariants'...
+checking app 'apps.x86_64-linux.feature-trace'...
+checking flake output 'checks'...
+checking derivation checks.x86_64-linux.deprecated-patterns...
+derivation evaluated to /nix/store/6kmhafdndnballbgcjhikr2xdddwinsk-check-deprecated-patterns.drv
+checking derivation checks.x86_64-linux.feature-name-shape...
+derivation evaluated to /nix/store/fmhbv97sb8fbhxb9y55bcwq9barld4fg-check-feature-name-shape.drv
+checking derivation checks.x86_64-linux.home-migration...
+derivation evaluated to /nix/store/fhy6d1kk724fnvih4rc5dz56pkvwfmi2-check-home-migration.drv
+checking derivation checks.x86_64-linux.splitcast-configs...
+error:
+       … while checking flake output 'checks'
+
+       … while checking the derivation 'checks.x86_64-linux.splitcast-configs'
+
+       … while calling the 'derivationStrict' builtin
+         at «nix-internal»/derivation-internal.nix:37:12:
+           36|
+           37|   strict = derivationStrict drvAttrs;
+             |            ^
+           38|
+
+       … while evaluating the option `home-manager.users.tenzyu.local.features.splitcast-capture.configFile':
+
+       (stack trace truncated; use '--show-trace' to show the full, detailed trace)
+
+       error: path 'g64nm44win17wy9zxyxyf3ihlazx5522-source' is not valid
+EXIT_STATUS: 1
+ELAPSED_SECONDS: 20
+END_UTC=2026-11-01T14:52:23Z
+SOURCE_SHA256_END 1cc233b9370cfa46b9d3ec8dc9f8b21bd02b0fedc11abab050626a50af291566  -
+PACKAGE_SHA256_END 6d1ca63d72d792ea30b332877fbab15df3ca5251cee143648dde5999297e80f3  -

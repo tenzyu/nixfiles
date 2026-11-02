@@ -1,0 +1,58 @@
+COMMAND: nix build --dry-run --no-link path:/home/tenzyu/.nixfiles#nixosConfigurations.neko7.config.system.build.toplevel
+LIMIT_SECONDS: 120
+PURPOSE: Identify remaining dependencies after the bounded host build
+START_UTC=2026-11-01T14:57:53Z
+3cf330792d31df0721289d91e5643aa5fdee8f77
+SOURCE_SHA256_START 1cc233b9370cfa46b9d3ec8dc9f8b21bd02b0fedc11abab050626a50af291566  -
+evaluation warning: system.stateVersion is not set, defaulting to 26.05. Read why this matters on https://nixos.org/manual/nixos/stable/options.html#opt-system.stateVersion.
+trace: LazyVim/LazyVim: Using source (v16.0.1)
+trace: folke/lazy.nvim: Using source (v11.17.5)
+these 36 derivations will be built:
+  /nix/store/payqyhn8qxrlkavci1hgl5xx4gnl54zh-graphics-drivers.drv
+  /nix/store/0b625hb0215izclwgdgqvz5jd5larny0-graphics-driver.conf.drv
+  /nix/store/3w224n10kxzn2km272bfxa9dcmkhr4qi-fabric-server-launch-0.20.1-26.3.drv
+  /nix/store/wdd34ihbfv2adrcmf4psfi8fb33rkwrv-minecraft-server-26.3.drv
+  /nix/store/3va67c9dvwj5h8zhj30fw4jdswm7m36s-minecraft-server.drv
+  /nix/store/2jkcg72i0fshi9ps599d4jc4h602apvw-minecraft-server-survival-start.drv
+  /nix/store/vxcrjii774c6d6z4gi0rgfyw43sd1a5k-unit-minecraft-server-survival.service.drv
+  /nix/store/zgaagb9y3rival8kq46ag50hmbl36rcz-system-units.drv
+  /nix/store/6awbm11r8gymxs44k7krmis0iw7jyfb0-etc.drv
+  /nix/store/mmi07g72k212l98p6m7y93jpkxz3m3rc-activate.drv
+  /nix/store/7jnvxhqplpwhpfp26w0s5fzwhz957b5f-nixos-system-neko7-minecraft-26.05pre-git.drv
+  /nix/store/rr4ahmvb503f5nyg33rzha13h6scm7ir-etc-nixos-containers-neko7-mc.conf.drv
+  /nix/store/lp7wbpx45cn9cnrmf0m9yah4hy3agw67-X-Restart-Triggers-container-neko7-mc.drv
+  /nix/store/0d3jfq7niqvsgb88h43i8syjj18wq1qb-unit-container-neko7-mc.service.drv
+  /nix/store/h3nm0sr1c2iklj7hd5x8r0h9qq3plzx5-system-path.drv
+  /nix/store/ys2qy0dg91v4yhsp2rh4hg05v44adjrl-dbus-1.drv
+  /nix/store/lf8sm2h4344qiglqcz009zfkvr1pkff7-X-Restart-Triggers-dbus-broker.drv
+  /nix/store/1bg1w0hnwizj2blljf2vkj50r2m19bcj-unit-dbus-broker.service.drv
+  /nix/store/669wzwffm2lysr7zabvhm1yvhnf0vsdr-user-units.drv
+  /nix/store/6jxi8qzwa3gnrjraq10kwpz4s1fj4909-X-Restart-Triggers-polkit.drv
+  /nix/store/gd4c89vg6p6qjsv78nm5x1w9kim6a1w0-unit-polkit.service.drv
+  /nix/store/k6bl0pvpq74r3pjl5bbsj488wsjv5ds2-unit-dbus-broker.service.drv
+  /nix/store/xzcwd74sdyp8c1rk81371yvh99abm7rz-tmpfiles.d.drv
+  /nix/store/sfmyjqf4kjhp5s84c580h9z57njl12l7-X-Restart-Triggers-systemd-tmpfiles-resetup.drv
+  /nix/store/nlcf40zgxfxlcihfhyk1xrd6f0ayri3d-unit-systemd-tmpfiles-resetup.service.drv
+  /nix/store/5am8j14mprg645bl6szbflkgfzyiyd6s-home-manager-path.drv
+  /nix/store/nkqhnf5wdpf95vay63bvir9j7199bxq4-hm_fontconfigconf.d10hmfonts.conf.drv
+  /nix/store/yivlgh254dymn2207lxzgpaqqr2cvdsb-splitcast-production.service.drv
+  /nix/store/3sm4331gj0i3a6c3kzqwpchxgrgvqd59-home-manager-files.drv
+  /nix/store/5df4y77n30fq93ihk2mgpsslyw6r6plk-home-manager-generation.drv
+  /nix/store/vwsdnallqqp9hqfq53s5yjxjq7gxsjdz-unit-home-manager-tenzyu.service.drv
+  /nix/store/rb0k905hij6s76jrl1dhwjr27dwhnh6d-system-units.drv
+  /nix/store/wh12rl2pz198dvndkksgidi9l7bqj2b1-user-environment.drv
+  /nix/store/ypzqbbayzrrq8yba3limiv7amrg7rmam-etc.drv
+  /nix/store/alfdr8450g1cm3qp3c3m00jikb021nqn-activate.drv
+  /nix/store/0j270jd75qkr12pzb9n00wp9jxag6iqc-nixos-system-neko7-26.05.20261020.cd4ea8d.drv
+these 8 paths will be fetched (1.3 GiB download, 3.8 GiB unpacked):
+  /nix/store/cxcayi7nxv83mk4b4dnx53j33sdviwxg-cuda12.9-libcublas-12.9.1.4-lib
+  /nix/store/p0i1n7m0cxzdnsjnni3whm0xbcnxn263-llama-cpp-9190
+  /nix/store/45c26c6bfdsxymhqcmf416r0dk95pic6-nvidia-settings-595.71.05
+  /nix/store/2bd2rdl1zklj5bd98ja67mc4jkbkrj7m-nvidia-x11-595.71.05
+  /nix/store/y6snn30x4lvdfpyiivw7rvvyz9hqyaf7-nvidia-x11-595.71.05-bin
+  /nix/store/iyhgi5f1xs5rxzh4c4hi7v5gns25ivip-openjdk-25.0.4.1+1
+  /nix/store/1arq9a57sqrn2z5ac362y2233dhcqgkc-openjdk-headless-21.0.12.1+1
+  /nix/store/k22pygkms9g0gkacb1hqfil8ng5gs5hf-openjdk-headless-25.0.4.1+1
+EXIT_STATUS: 0
+ELAPSED_SECONDS: 58
+END_UTC=2026-11-01T14:58:51Z
