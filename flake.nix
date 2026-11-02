@@ -13,6 +13,7 @@
     # -- nixpkgs
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs-opencode.url = "github:NixOS/nixpkgs/1c89083e451e891152365b799595cf7790a43325";
 
     # -- Theme
     # NOTE: omit follows, for cache hit.
