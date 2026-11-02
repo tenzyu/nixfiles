@@ -29,6 +29,7 @@
       waydroid.enable = false;
       networkmanager.enable = true;
       gaming-mouse.enable = true;
+      nix-remote-client.enable = true;
     };
 
     local.users.tenzyu = {

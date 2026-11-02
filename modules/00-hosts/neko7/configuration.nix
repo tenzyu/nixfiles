@@ -27,6 +27,7 @@
       nix-ld.enable = true;
       docker-rootless.enable = true;
       llama-cpp-cuda.enable = true;
+      nix-remote-builder.enable = true;
     };
 
     local.users.tenzyu = {
