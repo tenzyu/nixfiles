@@ -224,6 +224,15 @@ class InstrumentsTests(unittest.TestCase):
             with self.assertRaisesRegex(perf.EvidenceError, "missing an engine"):
                 perf.gpu_samples(path)
 
+    def test_external_gpu_evidence_does_not_claim_window_alignment(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "intel.json"
+            path.write_text(json.dumps([{"engines": {"Render/3D/0": {"busy": 20}, "Video/0": {"busy": 80}}}]))
+            result = perf.gpu_evidence(path)
+            self.assertEqual(result["status"], "UNVERIFIED")
+            self.assertIn("not verified", result["coverage"])
+            self.assertEqual(result["engines"]["Video/0"]["mean_busy_percent"], 80)
+
     def test_tailscale_status_reports_actual_direct_relay_fields_only(self):
         peer = {"HostName": "test-peer", "CurAddr": "192.0.2.1:1234", "Relay": "test-region", "Online": True, "Active": True,
                 "TailscaleIPs": ["100.64.0.1"], "PrivateField": "must-not-leak", "TxBytes": 100, "RxBytes": 200}

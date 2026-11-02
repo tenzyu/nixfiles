@@ -248,6 +248,12 @@ def gpu_samples(path):
     return {k: {"samples": len(v), "mean_busy_percent": statistics.mean(v), "max_busy_percent": max(v)} for k, v in engines.items()}
 
 
+def gpu_evidence(path):
+    """Summarize external GPU data without claiming window alignment."""
+    return {"status": "UNVERIFIED", "engines": gpu_samples(path),
+            "coverage": "external input; alignment with the CPU measurement window is not verified"}
+
+
 def frame_times(path, duration):
     with Path(path).open(newline="") as handle:
         reader = csv.DictReader(handle)
@@ -323,8 +329,7 @@ def collect(args):
     }
     if args.intel_gpu_json:
         try:
-            report["gpu"] = {"status": "PASS", "engines": gpu_samples(args.intel_gpu_json),
-                             "coverage": "external input; duration not inferred"}
+            report["gpu"] = gpu_evidence(args.intel_gpu_json)
         except (OSError, ValueError, TypeError) as exc:
             report["gpu"] = {"status": "ERROR", "reason": str(exc)}
     save(args.output, report)
