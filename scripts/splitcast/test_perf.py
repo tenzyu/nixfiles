@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import io
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 import perf
@@ -39,6 +41,42 @@ def matrix():
 
 
 class ComparatorTests(unittest.TestCase):
+    def test_cli_never_overwrites_inputs_or_existing_results(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            runs = matrix()
+            for command, selected in (("compare", runs), ("compare-series", runs[:3])):
+                inputs = []
+                for index, run in enumerate(selected):
+                    path = root / f"{command}-{index}.json"
+                    path.write_text(json.dumps(run))
+                    inputs.append(path)
+                for output, initial in ((inputs[0], inputs[0].read_bytes()),
+                                        (root / f"{command}-prior.json", b"prior evidence\n")):
+                    if output != inputs[0]:
+                        output.write_bytes(initial)
+                    stdout = io.StringIO()
+                    with patch("sys.argv", ["perf.py", command, *map(str, inputs), "--output", str(output)]), redirect_stdout(stdout):
+                        self.assertEqual(perf.main(), 2)
+                    self.assertEqual(output.read_bytes(), initial)
+                    self.assertEqual(json.loads(stdout.getvalue())["status"], "REFUSED")
+
+    def test_compare_one_series_compares_all_three_conditions(self):
+        runs = matrix()[:3]
+        result = perf.compare_series(runs)
+        self.assertEqual(result["status"], "COMPARABLE")
+        self.assertEqual(set(result["conditions"]), set(perf.CONDITIONS))
+        self.assertEqual(result["obs_increment_one_core_percent"], 300)
+        self.assertEqual(result["splitcast_increment_one_core_percent"], 100)
+
+    def test_compare_one_series_refuses_missing_or_mixed_cells(self):
+        with self.assertRaisesRegex(perf.EvidenceError, "exactly three"):
+            perf.compare_series(matrix()[:2])
+        runs = matrix()[:3]
+        runs[0]["series"] = "new"
+        with self.assertRaisesRegex(perf.EvidenceError, "same series"):
+            perf.compare_series(runs)
+
     def test_known_cpu_change_and_normalization(self):
         runs = matrix()
         for sample in runs[-1]["samples"][1:]:
@@ -106,6 +144,27 @@ class ComparatorTests(unittest.TestCase):
 
 
 class InstrumentsTests(unittest.TestCase):
+    def test_init_conditions_prefills_only_host_facts(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "conditions.json"
+            with patch.object(perf.sys, "argv", ["perf.py", "init-conditions", "--output", str(path)]):
+                self.assertEqual(perf.main(), 0)
+            generated = json.loads(path.read_text())
+            example = json.loads(Path(perf.__file__).with_name("conditions.example.json").read_text())
+            self.assertEqual(generated["common"]["kernel"], perf.platform.release())
+            self.assertEqual(generated["common"]["cpu_count"], perf.os.cpu_count())
+            self.assertEqual(generated["common"]["replay_sha256"], example["common"]["replay_sha256"])
+            self.assertEqual(generated["workload"], example["workload"])
+
+    def test_init_conditions_refuses_existing_file_without_changing_it(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "conditions.json"
+            original = b'{"operator": "keep this"}\n'
+            path.write_bytes(original)
+            with patch.object(perf.sys, "argv", ["perf.py", "init-conditions", "--output", str(path)]):
+                self.assertEqual(perf.main(), 2)
+            self.assertEqual(path.read_bytes(), original)
+
     def test_descendants_persist_after_reparenting_and_pid_reuse_refused(self):
         initial = {1: {"pid": 1, "ppid": 0, "start": 10, "ticks": 100},
                    2: {"pid": 2, "ppid": 1, "start": 11, "ticks": 50}}

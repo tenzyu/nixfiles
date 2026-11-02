@@ -4,8 +4,12 @@
 collect observes existing PIDs. It never starts or stops a workload. Frame CSV is
 an external recording with exact columns elapsed_s,frame_time_ms, relative to the
 same measurement window. No FPS-to-p99 estimation or implicit MangoHud units.
-compare requires six files, one per series/condition, all at least 600 seconds.
+compare requires six files; compare-series requires three files from one series.
+All runs must be at least 600 seconds.
 See conditions.example.json for the explicit nonsecret environment contract.
+
+Standalone setup: python3 perf.py init-conditions --output conditions.json
+then review/fill the remaining REPLACE values before collecting.
 """
 
 import argparse
@@ -54,6 +58,23 @@ def save(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
+
+
+def create(path, value):
+    """Create a new artifact without ever replacing an existing path."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x") as output:
+        output.write(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
+
+
+def conditions_template():
+    """Return the example contract with collector-host facts prefilled."""
+    template = Path(__file__).with_name("conditions.example.json")
+    value = load(template)
+    value["common"]["kernel"] = platform.release()
+    value["common"]["cpu_count"] = os.cpu_count()
+    return value
 
 
 def conditions(value, check_host=True):
@@ -384,9 +405,38 @@ def compare(runs):
             "interpretation": "Arithmetic only; no speedup or significance verdict. Repeat interleaved runs and inspect workload validity and limiter before making a performance claim."}
 
 
+def compare_series(runs):
+    require(len(runs) == 3, "exactly three run files required")
+    require(len({run["series"] for run in runs}) == 1, "all runs must belong to the same series")
+    require(len({run["revision"] for run in runs}) == 1, "all runs must use the same revision")
+    cells = {}
+    reference = runs[0]
+    for run in runs:
+        metrics = validate_run(run)
+        require(run["condition"] not in cells, "duplicate condition")
+        require(run["conditions"] == reference["conditions"], "incomparable conditions/replay/environment/flags/versions")
+        require(run["cpu_count"] == reference["cpu_count"] and run["clock_ticks_per_s"] == reference["clock_ticks_per_s"], "incomparable CPU accounting")
+        require(run["collector_versions"] == reference["collector_versions"], "incomparable collector versions")
+        cells[run["condition"]] = metrics
+    require(set(cells) == set(CONDITIONS), "all three conditions are required")
+    game, obs, split = [cells[c] for c in CONDITIONS]
+    denominator = obs["process_one_core_percent"] - game["process_one_core_percent"]
+    require(denominator > 0, "invalid OBS increment denominator (must be >0)")
+    increment = split["process_one_core_percent"] - game["process_one_core_percent"]
+    return {"status": "COMPARABLE", "series": reference["series"],
+            "conditions": cells, "obs_increment_one_core_percent": denominator,
+            "splitcast_increment_one_core_percent": increment,
+            "obs_increment_reduction_percent": (denominator - increment) / denominator * 100,
+            "splitcast_p99_degradation_percent": (split["p99_ms"] / game["p99_ms"] - 1) * 100,
+            "scope": "CPU and externally recorded p99 arithmetic only; supporting observations are not acceptance verdicts.",
+            "interpretation": "Arithmetic only; no speedup or significance verdict. Repeat interleaved runs and inspect workload validity and limiter before making a performance claim."}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("init-conditions", help="write a starter conditions file with host facts filled in")
+    p.add_argument("--output", required=True, help="new conditions JSON path (review and complete before collecting)")
     p = sub.add_parser("collect", help="observe existing process trees without changing them")
     p.add_argument("--conditions", required=True)
     p.add_argument("--series", choices=SERIES, required=True)
@@ -404,17 +454,30 @@ def main():
     p = sub.add_parser("compare", help="strict six-cell baseline/new comparison")
     p.add_argument("runs", nargs="+")
     p.add_argument("--output", required=True)
+    p = sub.add_parser("compare-series", help="strict three-condition comparison within one series")
+    p.add_argument("runs", nargs="+")
+    p.add_argument("--output", required=True)
     args = parser.parse_args()
     try:
-        if args.command == "collect":
+        if args.command == "init-conditions":
+            create(args.output, conditions_template())
+            result = {"status": "CREATED", "output": str(args.output),
+                      "note": "Replace every remaining REPLACE value; this is not measurement evidence."}
+        elif args.command == "collect":
             result = collect(args)
-        else:
+        elif args.command == "compare":
             result = compare([load(p) for p in args.runs])
-            save(args.output, result)
+            create(args.output, result)
+        else:
+            result = compare_series([load(p) for p in args.runs])
+            create(args.output, result)
     except (EvidenceError, OSError, ValueError, KeyError, TypeError) as exc:
         result = {"status": "REFUSED", "reason": str(exc)}
-        if args.command == "compare":
-            save(args.output, result)
+        if args.command in ("compare", "compare-series"):
+            try:
+                create(args.output, result)
+            except OSError:
+                pass
         print(json.dumps(result))
         return 2
     print(json.dumps(result))
