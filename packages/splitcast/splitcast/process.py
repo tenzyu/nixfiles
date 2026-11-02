@@ -32,6 +32,12 @@ def run(argv, timeout=10, env=None, *, allowed_codes=(0,)):
 
 def terminate(child):
     # The leader may already have exited while its process group still owns children.
+    if child.stdin and not child.stdin.closed:
+        child.stdin.close()
+        try:
+            child.wait(2)
+        except subprocess.TimeoutExpired:
+            pass
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
             os.killpg(child.pid, sig)
@@ -51,6 +57,7 @@ class Child:
     argv: list[str]
     process: subprocess.Popen
     env: dict | None
+    stdin: int | None
     progress: dict = field(default_factory=dict)
     updated: float = 0
     attempts: int = 0
@@ -61,15 +68,15 @@ class Processes:
         self.children: dict[str, Child] = {}
         self.cleanups = []
 
-    def spawn(self, name, argv, env=None):
+    def spawn(self, name, argv, env=None, *, stdin=subprocess.DEVNULL):
         if name in self.children:
             raise Error(f"{name} is already owned by this session")
         try:
-            process = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            process = subprocess.Popen(argv, env=env, stdin=stdin, stdout=subprocess.PIPE,
                                        stderr=subprocess.DEVNULL, start_new_session=True, bufsize=0)
         except OSError:
             raise Error(f"Cannot start {name}; run doctor") from None
-        child = Child(name, list(argv), process, env)
+        child = Child(name, list(argv), process, env, stdin)
         self.children[name] = child
         threading.Thread(target=self._drain, args=(child,), daemon=True).start()
         return child
@@ -98,7 +105,7 @@ class Processes:
         if child.attempts >= limit:
             raise Error(f"{name} exhausted retries; stop, run doctor, then prepare")
         self.stop(name)
-        new = self.spawn(name, child.argv, child.env)
+        new = self.spawn(name, child.argv, child.env, stdin=child.stdin)
         new.attempts = child.attempts + 1
 
     def close(self):

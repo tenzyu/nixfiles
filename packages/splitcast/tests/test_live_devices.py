@@ -35,6 +35,49 @@ class InstalledGSRTests(Fixture):
         self.assertFalse(report["ok"])
 
 
+class RemoteSenderCleanupTests(Fixture):
+    def test_real_ssh_stdin_eof_reaps_remote_child(self):
+        ssh = shutil.which("ssh")
+        host = os.environ.get("SPLITCAST_TEST_CAPTURE_SSH_HOST")
+        identity = os.environ.get("SPLITCAST_TEST_CAPTURE_IDENTITY")
+        if not ssh or not host or not identity or not os.path.exists(identity):
+            self.skipTest("Set SPLITCAST_TEST_CAPTURE_SSH_HOST and SPLITCAST_TEST_CAPTURE_IDENTITY for remote cleanup")
+        marker = f"/tmp/splitcast-eof-cleanup-{os.getpid()}"
+        remote = ("child=''; cleanup() { kill $child 2>/dev/null || true; "
+                  "wait $child 2>/dev/null || true; }; trap cleanup EXIT; "
+                  "sleep 300 & child=$!; " + f"printf '%s\\n' \"$child\" > {shlex.quote(marker)}; "
+                  "cat >/dev/null")
+        base = [ssh, "-i", identity, "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", host]
+        try:
+            child = subprocess.Popen([*base, "sh -c " + shlex.quote(remote)], stdin=subprocess.PIPE)
+            self.addCleanup(lambda: child.poll() is None and child.kill())
+            pid_text = ""
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                result = subprocess.run([*base, "cat " + shlex.quote(marker)], capture_output=True, text=True,
+                                        timeout=min(2, remaining), check=False)
+                if result.returncode == 0:
+                    pid_text = result.stdout.strip()
+                    break
+                time.sleep(min(.1, max(0, deadline - time.monotonic())))
+            self.assertTrue(pid_text, "Remote cleanup fixture did not start")
+            remote_pid = int(pid_text)
+            child.stdin.close()
+            child.wait(timeout=5)
+
+            def remote_child_gone():
+                probe = subprocess.run([*base, "kill -0 " + str(remote_pid)],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=False)
+                return probe.returncode != 0
+
+            self.assertTrue(wait_for(remote_child_gone, 5, "Remote child survived SSH stdin EOF"))
+        finally:
+            cleanup = subprocess.run([*base, "rm -f " + shlex.quote(marker)], timeout=5, check=False)
+            if cleanup.returncode:
+                self.fail(f"Could not remove remote cleanup marker (ssh exit {cleanup.returncode})")
+
+
 @skipUnless(os.environ.get("SPLITCAST_OBS_BINARY") and os.environ.get("SPLITCAST_RNNOISE_PLUGIN"),
             "Set SPLITCAST_OBS_BINARY to the loopback-patched OBS and SPLITCAST_RNNOISE_PLUGIN for real Pulse/OBS delivery")
 class PulseOBSRegressionTests(Fixture):
@@ -106,7 +149,10 @@ class PulseOBSRegressionTests(Fixture):
                 tunnel = ["ssh", "-N", "-T", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
                           "-o", "ConnectTimeout=5", *forwards, "--", target]
                 probe = [remote_python, "-c", "import socket,sys; [socket.create_connection(('127.0.0.1',int(p)),1).close() for p in sys.argv[1:]]", *map(str, ports)]
-                prefix = ("tunnel=''\ngame=''\nmic=''\ntrap 'kill $tunnel $game $mic 2>/dev/null || true' EXIT HUP TERM\n" +
+                prefix = ("tunnel=''\ngame=''\nmic=''\n"
+                          "cleanup() { kill $tunnel $game $mic 2>/dev/null || true; "
+                          "wait $tunnel $game $mic 2>/dev/null || true; }\n"
+                          "trap cleanup EXIT HUP TERM\n" +
                           shlex.join(tunnel) + " >/dev/null 2>&1 &\ntunnel=$!\n" +
                           "n=0\nwhile ! " + shlex.join(probe) + " >/dev/null 2>&1; do\n" +
                           "  kill -0 \"$tunnel\" 2>/dev/null || exit 1\n  n=$((n+1))\n  [ \"$n\" -lt 50 ] || exit 1\n  sleep 0.2\ndone\n")
@@ -115,10 +161,10 @@ class PulseOBSRegressionTests(Fixture):
                 prefix = "game=''\nmic=''\ntrap 'kill $game $mic 2>/dev/null || true' EXIT HUP TERM\n"
                 forwards = [arg for port in ports for arg in ("-R", f"127.0.0.1:{port}:127.0.0.1:{port}")]
             script = (prefix + shlex.join(game) + " >/dev/null 2>&1 &\ngame=$!\n" +
-                      shlex.join(mic) + " >/dev/null 2>&1 &\nmic=$!\nwait\n")
+                      shlex.join(mic) + " >/dev/null 2>&1 &\nmic=$!\ncat >/dev/null\n")
             processes.spawn("remote-senders", ["ssh", "-i", identity, "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
                                              "-o", "ExitOnForwardFailure=yes", *forwards, remote_host,
-                                             "timeout 90s sh -c " + shlex.quote(script)])
+                                             "sh -c " + shlex.quote(script)], stdin=subprocess.PIPE)
         else:
             processes.spawn("synthetic-game", ffmpeg("-re", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=30",
                             "-re", "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-c:v", "libx264",
