@@ -6,34 +6,42 @@
 
     local.features = {
       neko5-hardware.enable = true;
-      nix.enable = true;
-      nix-store-clean.enable = true;
+      laptop-input.enable = true;
+
+      kernel-latest.enable = true;
+      systemd-boot.enable = true;
       zsh.enable = true;
+
       time.enable = true;
       locale.enable = true;
+      fonts.enable = true;
+
+      nix.enable = true;
+      nix-store-clean.enable = true;
+      nix-remote-client.enable = true;
+      stub-ld.enable = true;
+
+      networkmanager.enable = true;
       ssh.enable = true;
       tailscale.enable = true;
-      systemd-boot.enable = true;
+
       pipewire.enable = true;
-      splitcast-capture.enable = true;
-      bluetooth.enable = true;
-      intel-graphics.enable = true;
-      fcitx5.enable = true;
-      kernel-latest.enable = true;
       udiskie.enable = true;
-      open-tablet-driver.enable = true;
-      stub-ld.enable = true;
-      laptop-input.enable = true;
-      fonts.enable = true;
-      desktop-performance.enable = true;
+      fcitx5.enable = true;
+
+      intel-graphics.enable = true;
       wayland-session.enable = true;
-      networkmanager.enable = true;
+      desktop-performance.enable = true;
       gaming-mouse.enable = true;
-      nix-remote-client.enable = true;
+      open-tablet-driver.enable = true;
+
+      # NOTE: Under configuration.
+      splitcast-capture.enable = false;
 
       docker-rootless.enable = false;
       hyprlock.enable = false;
       waydroid.enable = false;
+      bluetooth.enable = false;
     };
 
     local.users.tenzyu = {
@@ -44,30 +52,35 @@
       homeDirectory = "/home/tenzyu";
 
       features = {
-        splitcast-capture.enable = true;
-        tenzyu-desktop.enable = true;
-        hyprland-tenzyu.enable = true;
-        hyprland-gaming-mode.enable = true;
-        steam.enable = true;
-        discord.enable = true;
-        prismlauncher.enable = true;
-        home-layout.enable = true;
-
-        opencode.enable = true;
-        rtk.enable = true;
-
-        obsidian.enable = true;
-        osu-lazer.enable = true;
-        parsec.enable = true;
         networkmanager-access.enable = true;
         nix-access.enable = true;
         catppuccin.enable = true;
-        dolphin.enable = true;
         zsh.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
         disk-tools.enable = true;
         herdr.enable = true;
+
+        tenzyu-desktop.enable = true;
+        hyprland-tenzyu.enable = true;
+        hyprland-gaming-mode.enable = true;
+        obsidian.enable = true;
+        osu-lazer.enable = true;
+        parsec.enable = true;
+        dolphin.enable = true;
+        steam.enable = true;
+        discord.enable = true;
+        prismlauncher.enable = true;
+
+        # TODO: migration scripts are buggy right now.
+        home-layout.enable = true; 
+
+        # NOTE: under construction.
+        splitcast-capture.enable = false; 
+
+        # NOTE: it's running on neko7 now.
+        opencode.enable = false;
+        rtk.enable = false;
 
         codex.enable = false;
         onair.enable = false;
