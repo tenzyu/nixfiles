@@ -18,21 +18,22 @@
       splitcast-capture.enable = true;
       bluetooth.enable = true;
       intel-graphics.enable = true;
-      docker-rootless.enable = true;
       fcitx5.enable = true;
       kernel-latest.enable = true;
       udiskie.enable = true;
-      hyprlock.enable = true;
       open-tablet-driver.enable = true;
       stub-ld.enable = true;
       laptop-input.enable = true;
       fonts.enable = true;
       desktop-performance.enable = true;
       wayland-session.enable = true;
-      waydroid.enable = false;
       networkmanager.enable = true;
       gaming-mouse.enable = true;
       nix-remote-client.enable = true;
+
+      docker-rootless.enable = false;
+      hyprlock.enable = false;
+      waydroid.enable = false;
     };
 
     local.users.tenzyu = {
@@ -48,28 +49,31 @@
         hyprland-tenzyu.enable = true;
         hyprland-gaming-mode.enable = true;
         steam.enable = true;
-        android-mic.enable = true;
         discord.enable = true;
         prismlauncher.enable = true;
         home-layout.enable = true;
-        codex.enable = false;
+
         opencode.enable = true;
+        rtk.enable = true;
+
         obsidian.enable = true;
         osu-lazer.enable = true;
         parsec.enable = true;
         networkmanager-access.enable = true;
         nix-access.enable = true;
-        rtk.enable = true;
         catppuccin.enable = true;
         dolphin.enable = true;
         zsh.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
         disk-tools.enable = true;
-        castalia.enable = false;
-        onair.enable = true;
-        llmproxy.enable = true;
         herdr.enable = true;
+
+        codex.enable = false;
+        onair.enable = false;
+        llmproxy.enable = false;
+        castalia.enable = false;
+        android-mic.enable = false;
       };
     };
   };
