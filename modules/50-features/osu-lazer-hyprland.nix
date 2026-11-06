@@ -11,28 +11,8 @@
       ) {
         wayland.windowManager.hyprland.settings.window_rule = [
           {
-            match = {
-              class = "^(osu!)$";
-            };
+            match.class = "^(osu!|osu-lazer)$";
             immediate = true;
-          }
-          {
-            match = {
-              class = "^(osu!)$";
-            };
-            fullscreen = true;
-          }
-          {
-            match = {
-              class = "^(osu-lazer)$";
-            };
-            immediate = true;
-          }
-          {
-            match = {
-              class = "^(osu-lazer)$";
-            };
-            fullscreen = true;
           }
         ];
       };

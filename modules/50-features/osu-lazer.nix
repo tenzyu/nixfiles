@@ -22,71 +22,32 @@
     lib,
     pkgs,
     ...
-  }: {
+  }: let
+    osuLauncher = pkgs.writeShellScriptBin "osu-lazer" ''
+      set -euo pipefail
+
+      for candidate in \
+        "${pkgs.unstable.osu-lazer-bin}/bin/osu!" \
+        "${pkgs.unstable.osu-lazer-bin}/bin/osu-lazer" \
+        "${pkgs.unstable.osu-lazer-bin}/bin/osu"
+      do
+        if [ -x "$candidate" ]; then
+          exec "$candidate" "$@"
+        fi
+      done
+
+      echo "osu-lazer: executable not found in ${pkgs.unstable.osu-lazer-bin}/bin" >&2
+      exit 127
+    '';
+
+    osuLaunchers = pkgs.runCommand "osu-lazer-launchers" {} ''
+      mkdir -p "$out/bin"
+      ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer"
+      ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer-raw"
+    '';
+  in {
     config = lib.mkIf config.local.features.osu-lazer.enable {
-      home.packages = [
-        (pkgs.writeShellApplication {
-          name = "osu-lazer";
-          runtimeInputs = with pkgs; [
-            coreutils
-            gamemode
-          ];
-          text = ''
-            set -euo pipefail
-
-            osu_exe=""
-            for candidate in \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu!" \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu-lazer" \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu"
-            do
-              if [ -x "$candidate" ]; then
-                osu_exe="$candidate"
-                break
-              fi
-            done
-
-            if [ -z "$osu_exe" ]; then
-              echo "osu-lazer: executable not found in ${pkgs.unstable.osu-lazer-bin}/bin" >&2
-              exit 127
-            fi
-
-            if command -v hypr-gaming-mode >/dev/null 2>&1; then
-              hypr-gaming-mode on || true
-              trap 'hypr-gaming-mode off || true' EXIT INT TERM
-            fi
-
-            exec gamemoderun "$osu_exe" "$@"
-          '';
-        })
-
-        (pkgs.writeShellApplication {
-          name = "osu-lazer-raw";
-          runtimeInputs = [pkgs.coreutils];
-          text = ''
-            set -euo pipefail
-
-            osu_exe=""
-            for candidate in \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu!" \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu-lazer" \
-              "${pkgs.unstable.osu-lazer-bin}/bin/osu"
-            do
-              if [ -x "$candidate" ]; then
-                osu_exe="$candidate"
-                break
-              fi
-            done
-
-            if [ -z "$osu_exe" ]; then
-              echo "osu-lazer-raw: executable not found in ${pkgs.unstable.osu-lazer-bin}/bin" >&2
-              exit 127
-            fi
-
-            exec "$osu_exe" "$@"
-          '';
-        })
-      ];
+      home.packages = [osuLaunchers];
 
       xdg.desktopEntries.osu-lazer = {
         name = "osu! lazer";
@@ -94,16 +55,7 @@
         exec = "osu-lazer";
         terminal = false;
         categories = ["Game"];
-        comment = "Run osu! lazer through GameMode.";
-      };
-
-      xdg.desktopEntries.osu-lazer-raw = {
-        name = "osu! lazer Raw";
-        genericName = "Rhythm Game";
-        exec = "osu-lazer-raw";
-        terminal = false;
-        categories = ["Game"];
-        comment = "Run osu! lazer without GameMode or Gamescope.";
+        comment = "Launch osu! lazer directly.";
       };
     };
   };

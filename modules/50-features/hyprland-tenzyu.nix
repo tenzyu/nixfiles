@@ -275,8 +275,6 @@
             (modBind "Space" (luaExec "pkill rofi || rofi -show drun -replace -i"))
             (modBind "v" (luaExec "cliphist list | rofi -dmenu -replace | cliphist decode | wl-copy"))
             (modBind "p" (luaExec "pkill castalia || castalia launch"))
-            (modBind "SHIFT + g" (luaExec "hypr-gaming-mode on"))
-            (modBind "CTRL + SHIFT + g" (luaExec "hypr-gaming-mode off"))
             (bind "XF86MonBrightnessUp" (luaExec "brightnessctl -q s +10%"))
             (bind "XF86MonBrightnessDown" (luaExec "brightnessctl -q s 10%-"))
             (bind "XF86AudioRaiseVolume" (luaExec "pactl set-sink-volume @DEFAULT_SINK@ +5%"))

@@ -63,7 +63,6 @@
 
         tenzyu-desktop.enable = true;
         hyprland-tenzyu.enable = true;
-        hyprland-gaming-mode.enable = true;
         obsidian.enable = true;
         osu-lazer.enable = true;
         parsec.enable = true;

@@ -9,7 +9,7 @@
         enable = true;
         settings = {
           anchor = "top-right";
-          layer = "overlay";
+          layer = "top";
           font = "FiraCode Nerd Font 11";
           width = 360;
           height = 120;
