@@ -1,0 +1,16 @@
+[package]
+name = "splitcast-rs-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Isolated, opt-in Rust lifecycle and process-owner core for a future SplitCast rewrite"
+
+[lib]
+name = "splitcast_rs_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "splitcast-rs-core"
+path = "src/main.rs"
+
+[dependencies]

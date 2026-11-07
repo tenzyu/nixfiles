@@ -10,7 +10,14 @@
   in {
     packages = pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       splitcast = package;
-      splitcast-obs = package.obs;
+      splitcast-obs = package.obs; # Retained until stock OBS isolation is verified.
+      splitcast-obs-stock-candidate = pkgs.obs-studio.override {browserSupport = false;};
+      splitcast-rs-core = pkgs.rustPlatform.buildRustPackage {
+        pname = "splitcast-rs-core";
+        version = "0.1.0";
+        src = ../../packages/splitcast-rs;
+        cargoLock.lockFile = ../../packages/splitcast-rs/Cargo.lock;
+      };
       splitcast-voicevox = voicevoxPkgs.voicevox-engine;
     };
     checks = pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {

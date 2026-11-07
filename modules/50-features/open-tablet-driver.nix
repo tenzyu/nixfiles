@@ -5,7 +5,10 @@
     ...
   }: {
     config = lib.mkIf config.local.features.open-tablet-driver.enable {
-      hardware.opentabletdriver.enable = true;
+      hardware.opentabletdriver = {
+        enable = true;
+        daemon.enable = false;
+      };
     };
   };
 }
