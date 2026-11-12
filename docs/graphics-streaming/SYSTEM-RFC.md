@@ -1,6 +1,6 @@
 # Next-generation capture/stream architecture (proposal)
 
-Updated for `tenzyu/nixfiles` `main` `d373e872031eb6c4a9839d1ef234ae803647ff9d`, 2026-11-06. Approved choices and incomplete implementation stages are tracked in [DECISIONS-2026-11-06.md](DECISIONS-2026-11-06.md).
+Historical design base: `tenzyu/nixfiles` `main` `d373e872031eb6c4a9839d1ef234ae803647ff9d`, 2026-11-06. Latest repo-facing baseline at `1c2d78964608fe02086977b4642989def316d004`: [NEKO5-OBSERVED-2026-11-07.md](NEKO5-OBSERVED-2026-11-07.md), [ADR-2026-11-07-performance-first.md](ADR-2026-11-07-performance-first.md), [SPLITCAST-AGENT-PORTING-2026-11-07.md](SPLITCAST-AGENT-PORTING-2026-11-07.md), and priority/evidence TSVs. Earlier decisions remain historical context, not current acceptance evidence.
 
 This is a **design and measurement specification, not an implemented SplitCast replacement**. Hardware acceptance is pending. Do not enable SplitCast services, patch the kernel, delete the existing OBS security patch, or change the proven osu! graphics and input state from this document alone.
 

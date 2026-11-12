@@ -40,6 +40,12 @@
       exit 127
     '';
 
+    osuAudioLab = pkgs.writeShellScriptBin "osu-audio-quantum-lab" ''
+      export PW_METADATA="${pkgs.pipewire}/bin/pw-metadata"
+      export FLOCK="${pkgs.util-linux}/bin/flock"
+      exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/audio-quantum-lab.sh} "$@"
+    '';
+
     osuLaunchers = pkgs.runCommand "osu-lazer-launchers" {} ''
       mkdir -p "$out/bin"
       ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer"
@@ -47,7 +53,9 @@
     '';
   in {
     config = lib.mkIf config.local.features.osu-lazer.enable {
-      home.packages = [osuLaunchers];
+      # Opt-in, automatically reverted PipeWire graph-quantum experiment only.
+      # No audio changes occur when launching osu-lazer normally.
+      home.packages = [osuLaunchers osuAudioLab];
 
       xdg.desktopEntries.osu-lazer = {
         name = "osu! lazer";
