@@ -1,5 +1,9 @@
 //! Unprivileged replacement core. Not an active SplitCast media service.
 //! The existing Python controller remains authoritative until parity gates pass.
+pub mod config;
+pub mod control;
+pub mod media;
+pub mod obs;
 use std::fmt;
 use std::io;
 use std::os::unix::process::CommandExt;

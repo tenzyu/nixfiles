@@ -32,6 +32,16 @@ in {
       default = pkgs.callPackage ../../../../packages/splitcast {};
       description = "SplitCast package, including the authoritative example configuration.";
     };
+    rustCandidate = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Explicit experimental Rust agent selection. FALSE by default: the Python agent remains authoritative until parity tests pass.";
+    };
+    rustPackage = lib.mkOption {
+      type = lib.types.package;
+      default = pkgs.callPackage ../../../../packages/splitcast-rs {};
+      description = "Unprivileged Rust replacement candidate, disabled unless rustCandidate=true.";
+    };
     settings = lib.mkOption {
       type = lib.types.attrsOf json.type;
       default = {};
@@ -69,7 +79,7 @@ in {
         message = "SplitCast settings.role must match the enabled feature.";
       }
     ];
-    home.packages = [cfg.package];
+    home.packages = [cfg.package] ++ lib.optional cfg.rustCandidate cfg.rustPackage;
     xdg.configFile."splitcast/${role}.json".source = generated;
     systemd.user.services.${feature} = {
       Unit = {
@@ -80,7 +90,7 @@ in {
       };
       Service = {
         Type = "simple";
-        ExecStart = "${lib.getExe cfg.package} agent --config ${lib.escapeShellArg cfg.configFile}";
+        ExecStart = "${lib.getExe (if cfg.rustCandidate then cfg.rustPackage else cfg.package)} agent --config ${lib.escapeShellArg cfg.configFile}";
         Environment = lib.mapAttrsToList (name: value: "${name}=${value}") cfg.environment;
         Restart = "on-failure";
         RestartSec = 5;

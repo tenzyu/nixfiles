@@ -34,6 +34,7 @@
       desktop-performance.enable = true;
       gaming-mouse.enable = true;
       open-tablet-driver.enable = true;
+      neko5-osu-first.enable = true;
 
       # NOTE: Under configuration.
       splitcast-capture.enable = false;
@@ -65,6 +66,7 @@
         hyprland-tenzyu.enable = true;
         obsidian.enable = true;
         osu-lazer.enable = true;
+        neko5-osu-first.enable = true;
         parsec.enable = true;
         dolphin.enable = true;
         steam.enable = true;
