@@ -15,6 +15,7 @@
         hyprpaper.enable = true;
         packages-desktop.enable = true;
         firefox.enable = true;
+        chromium.enable = true;
         zed-editor.enable = true;
       };
     };

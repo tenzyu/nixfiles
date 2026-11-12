@@ -18,6 +18,12 @@
         tealdeer
         xclip
         xdg-ninja
+
+        unzip
+        python3
+        coreutils
+        gnutar
+        usbutils
       ];
     };
   };
