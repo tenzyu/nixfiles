@@ -1,10 +1,10 @@
-//! Strictly bounded, version-1 SplitCast configuration. Parsing is delegated
+//! Bounded, version-1 SplitCast configuration. Parsing is delegated
 //! to the system jq executable (not to the legacy Python runtime).
-use std::fs;
-use std::io;
-use std::os::unix::fs::PermissionsExt;
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 fn error(msg: &str) -> io::Error { io::Error::new(io::ErrorKind::InvalidInput, msg) }
 
@@ -22,31 +22,30 @@ pub fn json_string(s: &str) -> String {
     out.push('"'); out
 }
 
-pub fn jq(file: &Path, filter: &str) -> io::Result<String> {
-    let result=Command::new("jq").args(["-erc",filter])
-        .arg(file).output()?;
+fn jq(input: &[u8], filter: &str) -> io::Result<String> {
+    let filter=format!("if length == 1 then .[0] else error(\"expected one JSON value\") end | ({filter})");
+    let mut child=Command::new("jq").args(["-rsc",&filter])
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
+    child.stdin.take().unwrap().write_all(input)?;
+    let result=child.wait_with_output()?;
     if !result.status.success() {
         return Err(error("SplitCast config failed JSON/required-field validation"));
     }
-    Ok(String::from_utf8_lossy(&result.stdout).trim_end().to_string())
+    let value=String::from_utf8(result.stdout).map_err(|_|error("invalid UTF-8"))?;
+    Ok(value.strip_suffix('\n').unwrap_or(&value).to_string())
 }
-fn get(file: &Path, key: &str) -> io::Result<String> {
+fn get(file: &[u8], key: &str) -> io::Result<String> {
     // The caller supplies only fixed compile-time key names, never user data.
-    let output=jq(file,&format!("{key} | if type==\"string\" then . else error(\"string required\") end"))?;
-    // jq -c returns quoted string, but -r is intentionally not used here.
-    // Decode via jq to avoid treating any escape sequence as a filesystem path.
-    let out=Command::new("jq").args(["-er",key]).arg(file).output()?;
-    if !out.status.success(){return Err(error("missing config string"));}
-    let value=String::from_utf8_lossy(&out.stdout).trim_end_matches(['\n','\r']).to_string();
-    if output == "null" || value.contains('\0') {return Err(error("invalid config string"));}
+    let value=jq(file,&format!("{key} | if type==\"string\" then . else error(\"string required\") end"))?;
+    if value.contains(['\0','\n','\r']) {return Err(error("invalid config string"));}
     Ok(value)
 }
-fn number(file:&Path,key:&str,min:u16,max:u16)->io::Result<u16>{
+fn number(file:&[u8],key:&str,min:u16,max:u16)->io::Result<u16>{
     let x=jq(file,&format!("{key} | if type==\"number\" and (. | floor)==. then . else error(\"integer\") end"))?;
     let n=x.parse::<u16>().map_err(|_|error("invalid integer"))?;
     if n<min || n>max{return Err(error("integer out of range"));} Ok(n)
 }
-fn boolean(file:&Path,key:&str)->io::Result<bool>{
+fn boolean(file:&[u8],key:&str)->io::Result<bool>{
     let s=jq(file,&format!("{key} | if type==\"boolean\" then . else error(\"bool\") end"))?;
     Ok(s=="true")
 }
@@ -57,6 +56,21 @@ fn path(s: String) -> PathBuf {
     PathBuf::from(s)
 }
 fn dirs_home()->PathBuf{std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(||PathBuf::from("/nonexistent"))}
+
+pub fn secret(path: &Path, max_bytes: usize) -> io::Result<String> {
+    let mut file=OpenOptions::new().read(true).custom_flags(0x800).open(path).map_err(|_|error("credential unavailable"))?;
+    let m=file.metadata().map_err(|_|error("credential unavailable"))?;
+    unsafe extern "C" { fn getuid() -> u32; }
+    if !m.is_file() || m.mode() & 0o077 != 0 || m.uid()!=unsafe {getuid()} {
+        return Err(error("credential must be a private file owned by this user"));
+    }
+    let mut bytes=Vec::new();
+    Read::by_ref(&mut file).take(max_bytes.saturating_add(1) as u64).read_to_end(&mut bytes).map_err(|_|error("credential unavailable"))?;
+    if bytes.len()>max_bytes {return Err(error("credential oversized"));}
+    let value=std::str::from_utf8(&bytes).map_err(|_|error("invalid credential"))?.trim();
+    if value.is_empty() {return Err(error("credential empty"));}
+    Ok(value.to_owned())
+}
 
 #[derive(Clone,Debug)]
 pub struct Config {
@@ -70,6 +84,7 @@ pub struct Config {
     pub remote_control_port:u16,
     pub forward_control_port:u16,
     pub timeout:u16,
+    pub retry_limit:u16,
     pub rtmp:u16,
     pub rtsp:u16,
     pub api:u16,
@@ -80,6 +95,7 @@ pub struct Config {
     pub target:String,
     pub game_audio:String,
     pub mic_source:String,
+    pub tts_sink:String,
     pub processed_sink:String,
     pub rnnoise_plugin:PathBuf,
     pub rnnoise_label:String,
@@ -105,11 +121,19 @@ pub struct Config {
     pub tts_speaker:u16,
     pub tts_max_text:u16,
     pub tts_queue_limit:u16,
+    pub tts_expiry_seconds:u16,
+    pub tts_credentials_file:PathBuf,
     pub tts_mix_remote:bool,
     pub eventsub_enabled:bool,
 }
 impl Config {
     pub fn load(filename:&Path)->io::Result<Self>{
+        let mut input=Vec::new();
+        let file=OpenOptions::new().read(true).custom_flags(0x800).open(filename)?;
+        if !file.metadata()?.is_file() {return Err(error("config must be a regular file"));}
+        file.take(65537).read_to_end(&mut input)?;
+        if input.len()>65536 {return Err(error("config exceeds 64 KiB"));}
+        let filename=input.as_slice();
         // Reject unknown top-level sections and unknown role, but do not trust
         // this as a complete JSON-Schema implementation. Route schema parity
         // is a separate acceptance gate.
@@ -127,8 +151,14 @@ impl Config {
         let mic_source=get(filename,".audio.mic_source")?;
         let processed_sink=get(filename,".audio.processed_sink")?;
         if !processed_sink.starts_with("splitcast_") || !safe_name(&processed_sink) { return Err(error("unsafe processed sink")); }
-        for v in [&target,&game_audio,&mic_source] {
+        for v in [&target,&mic_source] {
             if !v.is_empty() && !safe_name(v) {return Err(error("unsafe capture/device identifier"));}
+        }
+        if !game_audio.is_empty() {
+            let app=game_audio.strip_prefix("app:").ok_or_else(||error("game audio must select an application"))?;
+            if app.is_empty() || app.len()>252 || app.contains(['|',';']) || game_audio.eq_ignore_ascii_case("app:splitcast-tts") {
+                return Err(error("invalid game audio application"));
+            }
         }
         let rnnoise_plugin=path(get(filename,".audio.rnnoise_plugin")?);
         if !rnnoise_plugin.is_absolute()||!rnnoise_plugin.to_string_lossy().bytes().all(|b|b.is_ascii_alphanumeric()||b"/._+-".contains(&b)){
@@ -152,6 +182,7 @@ impl Config {
             remote_control_port:number(filename,".peer.remote_control_port",1024,65535)?,
             forward_control_port:number(filename,".peer.forward_control_port",1024,65535)?,
             timeout:number(filename,".peer.timeout_seconds",1,60)?,
+            retry_limit:number(filename,".peer.retry_limit",0,5)?,
             rtmp:number(filename,".capture.rtmp_port",1024,65535)?,
             rtsp:number(filename,".capture.rtsp_port",1024,65535)?,
             api:number(filename,".capture.api_port",1024,65535)?,
@@ -159,7 +190,7 @@ impl Config {
             height:number(filename,".capture.height",240,2160)?,
             fps:number(filename,".capture.fps",30,60)?,
             bitrate:number(filename,".capture.bitrate_kbps",1000,50000)?,
-            target,game_audio,mic_source,processed_sink,rnnoise_plugin,rnnoise_label,rnnoise_control,gain_db,mic_offset,
+            target,game_audio,mic_source,tts_sink:get(filename,".audio.tts_sink")?,processed_sink,rnnoise_plugin,rnnoise_label,rnnoise_control,gain_db,mic_offset,
             camera_enabled:boolean(filename,".camera.enabled")?,
             camera_location,camera_mode,camera_encoder,
             camera_device:get(filename,".camera.device")?,
@@ -177,18 +208,57 @@ impl Config {
             tts_speaker:number(filename,".tts.speaker",0,10000)?,
             tts_max_text:number(filename,".tts.max_text",1,500)?,
             tts_queue_limit:number(filename,".tts.queue_limit",1,32)?,
+            tts_expiry_seconds:number(filename,".tts.expiry_seconds",5,300)?,
+            tts_credentials_file:path(get(filename,".tts.credentials_file")?),
             tts_mix_remote:boolean(filename,".tts.mix_remote")?,
             eventsub_enabled:boolean(filename,".tts.eventsub")?,
         })
     }
     pub fn token(&self,remote:bool)->io::Result<String>{
         let p=if remote{&self.remote_token_file}else{&self.token_file};
-        let m=fs::metadata(p)?;
-        if m.permissions().mode() & 0o077 != 0 {return Err(error("token permissions must be 0600"));}
-        let s=fs::read_to_string(p)?.trim().to_string();
-        if s.len()<24||s.len()>512||s.contains('\n'){return Err(error("invalid secret token length"));}
+        let s=secret(p, 513)?;
+        if s.len()<24||s.len()>512||!s.bytes().all(|b|(0x21..=0x7e).contains(&b)){return Err(error("invalid secret token"));}
         Ok(s)
     }
 }
 
-#[cfg(test)] mod tests { use super::*; #[test] fn json_escaping(){assert_eq!(json_string("a\"b\n"),"\"a\\\"b\\n\"");} }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_escaping() { assert_eq!(json_string("a\"b\n"), "\"a\\\"b\\n\""); }
+
+    #[test]
+    fn jq_preserves_strings_and_false() {
+        let input = br#"{"text":"a b ","flag":false,"bad":"a\nb"}"#;
+        assert_eq!(get(input, ".text").unwrap(), "a b ");
+        assert!(!boolean(input, ".flag").unwrap());
+        assert!(get(input, ".bad").is_err());
+    }
+
+    #[test]
+    fn oversized_config_is_rejected() {
+        let name = std::env::temp_dir().join(format!("splitcast-config-{}", std::process::id()));
+        std::fs::write(&name, vec![b' '; 65537]).unwrap();
+        let result = Config::load(&name);
+        std::fs::remove_file(name).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn secret_requires_private_regular_bounded_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let name = std::env::temp_dir().join(format!("splitcast-secret-test-{}", std::process::id()));
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true).mode(0o600);
+        let mut file = options.open(&name).unwrap();
+        file.write_all(b"test credential\n").unwrap();
+        assert_eq!(secret(&name, 16).unwrap(), "test credential");
+        assert!(secret(&name, 4).is_err());
+        std::fs::set_permissions(&name, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(secret(&name, 32).is_err());
+        std::fs::remove_file(name).unwrap();
+        assert!(secret(std::env::temp_dir().as_path(), 32).is_err());
+    }
+}
