@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "role": "capture",
+  "peer": {
+    "ssh_host": "neko7", "ssh_port": 22,
+    "control_port": 17870, "remote_control_port": 17871, "forward_control_port": 17872,
+    "token_file": "~/.config/splitcast/control.token",
+    "remote_token_file": "~/.config/splitcast/production.token",
+    "state_dir": "~/.local/state/splitcast", "retry_limit": 3, "timeout_seconds": 15
+  },
+  "capture": {
+    "target": "", "game_audio": "", "width": 1920, "height": 1080,
+    "fps": 60, "bitrate_kbps": 12000, "rtmp_port": 1935, "rtsp_port": 8554, "api_port": 9997
+  },
+  "audio": {
+    "mic_source": "", "tts_sink": "", "processed_sink": "splitcast_mic",
+    "rnnoise_plugin": "/usr/lib/ladspa/librnnoise.so", "rnnoise_label": "noise_suppressor_mono", "rnnoise_control": "50|200|0|0|0",
+    "gain_db": 0, "mic_offset_ms": 0
+  },
+  "camera": {
+    "enabled": false, "location": "capture", "device": "", "mode": "h264",
+    "encoder": "h264_vaapi", "hw_device": "/dev/dri/renderD128",
+    "width": 1280, "height": 720, "fps": 30, "offset_ms": 0
+  },
+  "obs": {
+    "binary": "obs", "websocket_port": 4455,
+    "password_file": "~/.config/splitcast/obs.password",
+    "recording_dir": "~/Videos/SplitCast", "twitch_key_file": "~/.config/splitcast/twitch.key",
+    "bitrate_kbps": 6000
+  },
+  "tts": {
+    "enabled": false, "voicevox_url": "http://127.0.0.1:50021", "speaker": 3,
+    "queue_limit": 16, "expiry_seconds": 60, "max_text": 200, "mix_remote": false,
+    "eventsub": false, "credentials_file": "~/.config/splitcast/twitch.json"
+  },
+  "routes": [
+    {"id": "game", "source": "game.av", "processors": ["capture.gpu", "transport.rtmp"], "targets": ["local.headphones", "obs.game"], "enabled": true},
+    {"id": "mic", "source": "mic.raw", "processors": ["transport.rtsp", "remote.rnnoise"], "targets": ["obs.mic"], "enabled": true},
+    {"id": "camera", "source": "camera.selected", "processors": ["camera.hardware", "transport.rtsp"], "targets": ["obs.camera"], "enabled": false},
+    {"id": "tts", "source": "chat.text", "processors": ["remote.voicevox", "transport.http"], "targets": ["local.tts"], "enabled": true},
+    {"id": "overlay", "source": "overlay.text", "processors": ["obs.text"], "targets": ["obs.overlay"], "enabled": true}
+  ]
+}

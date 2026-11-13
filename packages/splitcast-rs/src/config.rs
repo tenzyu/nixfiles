@@ -57,6 +57,16 @@ fn path(s: String) -> PathBuf {
 }
 fn dirs_home()->PathBuf{std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(||PathBuf::from("/nonexistent"))}
 
+fn toml_json_compatible(value:&toml::Value)->bool {
+    match value {
+        toml::Value::Datetime(_) => false,
+        toml::Value::Float(n) => n.is_finite(),
+        toml::Value::Array(items) => items.iter().all(toml_json_compatible),
+        toml::Value::Table(items) => items.values().all(toml_json_compatible),
+        _ => true,
+    }
+}
+
 pub fn secret(path: &Path, max_bytes: usize) -> io::Result<String> {
     let mut file=OpenOptions::new().read(true).custom_flags(0x800).open(path).map_err(|_|error("credential unavailable"))?;
     let m=file.metadata().map_err(|_|error("credential unavailable"))?;
@@ -74,6 +84,7 @@ pub fn secret(path: &Path, max_bytes: usize) -> io::Result<String> {
 
 #[derive(Clone,Debug)]
 pub struct Config {
+    pub document:String,
     pub role:String,
     pub state_dir:PathBuf,
     pub token_file:PathBuf,
@@ -133,14 +144,23 @@ impl Config {
         if !file.metadata()?.is_file() {return Err(error("config must be a regular file"));}
         file.take(65537).read_to_end(&mut input)?;
         if input.len()>65536 {return Err(error("config exceeds 64 KiB"));}
-        let filename=input.as_slice();
-        // Reject unknown top-level sections and unknown role, but do not trust
-        // this as a complete JSON-Schema implementation. Route schema parity
-        // is a separate acceptance gate.
-        let checks=r#".version == 1 and (.role == "capture" or .role == "production") and
-           ((keys - ["version","role","peer","capture","audio","camera","obs","tts","routes"])|length)==0 and
-           (.routes|type)=="array" and (.routes|length)==5"#;
-        if jq(filename,checks)? != "true" {return Err(error("unsupported SplitCast config"));}
+        if filename.extension().is_some_and(|ext| ext == "toml") {
+            let text=std::str::from_utf8(&input).map_err(|_|error("invalid TOML UTF-8"))?;
+            let value:toml::Value=text.parse().map_err(|_|error("invalid TOML"))?;
+            if !toml_json_compatible(&value) {return Err(error("TOML contains unsupported value"));}
+            let json=serde_json::to_vec(&value).map_err(|_|error("invalid TOML value"))?;
+            Self::parse(&json)
+        } else {
+            Self::parse(&input)
+        }
+    }
+    pub fn parse(filename:&[u8])->io::Result<Self>{
+        if filename.len()>65536 {return Err(error("config exceeds 64 KiB"));}
+        let value:serde_json::Value=serde_json::from_slice(filename).map_err(|_|error("invalid JSON"))?;
+        let document=serde_json::to_string(&value).map_err(|_|error("invalid JSON"))?;
+        let filename=document.as_bytes();
+        let checks=format!("{} as $schema | {}", include_str!("config-schema.json"), include_str!("config-schema.jq"));
+        if jq(filename,&checks)? != "true" {return Err(error("unsupported SplitCast config"));}
         let role=get(filename,".role")?;
         let ssh_host=get(filename,".peer.ssh_host")?;
         if ssh_host.len()>253||!ssh_host.bytes().all(|b|b.is_ascii_alphanumeric()||b"._@-".contains(&b)) ||ssh_host.starts_with('-') {
@@ -151,15 +171,6 @@ impl Config {
         let mic_source=get(filename,".audio.mic_source")?;
         let processed_sink=get(filename,".audio.processed_sink")?;
         if !processed_sink.starts_with("splitcast_") || !safe_name(&processed_sink) { return Err(error("unsafe processed sink")); }
-        for v in [&target,&mic_source] {
-            if !v.is_empty() && !safe_name(v) {return Err(error("unsafe capture/device identifier"));}
-        }
-        if !game_audio.is_empty() {
-            let app=game_audio.strip_prefix("app:").ok_or_else(||error("game audio must select an application"))?;
-            if app.is_empty() || app.len()>252 || app.contains(['|',';']) || game_audio.eq_ignore_ascii_case("app:splitcast-tts") {
-                return Err(error("invalid game audio application"));
-            }
-        }
         let rnnoise_plugin=path(get(filename,".audio.rnnoise_plugin")?);
         if !rnnoise_plugin.is_absolute()||!rnnoise_plugin.to_string_lossy().bytes().all(|b|b.is_ascii_alphanumeric()||b"/._+-".contains(&b)){
             return Err(error("unsafe RNNoise LADSPA path"));
@@ -174,7 +185,7 @@ impl Config {
         let camera_encoder=get(filename,".camera.encoder")?;
         if !["capture","production"].contains(&camera_location.as_str())||!["hardware","h264"].contains(&camera_mode.as_str())||!["h264_vaapi","h264_nvenc"].contains(&camera_encoder.as_str()) {return Err(error("invalid camera mode"));}
         Ok(Self {
-            role, ssh_host, state_dir:path(get(filename,".peer.state_dir")?),
+            document:document.clone(), role, ssh_host, state_dir:path(get(filename,".peer.state_dir")?),
             token_file:path(get(filename,".peer.token_file")?),
             remote_token_file:path(get(filename,".peer.remote_token_file")?),
             ssh_port:number(filename,".peer.ssh_port",1,65535)?,
@@ -225,6 +236,33 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toml_example_loads() {
+        let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("example.toml");
+        let config=Config::load(&file).expect("valid TOML must load");
+        let json=std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/example.json")).unwrap();
+        let expected:serde_json::Value=serde_json::from_slice(&json).unwrap();
+        let actual:serde_json::Value=serde_json::from_str(&config.document).unwrap();
+        assert_eq!(actual,expected);
+    }
+
+    #[test]
+    fn toml_rejects_invalid_schema_and_non_json_values() {
+        let example=std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("example.toml")).unwrap();
+        let file=std::env::temp_dir().join(format!("splitcast-config-{}.toml",std::process::id()));
+        for (name, input) in [
+            ("unknown field", example.replace("ssh_host =", "unknown = 1\nssh_host =")),
+            ("wrong type", example.replace("width = 1920", "width = true")),
+            ("invalid route", example.replace("source = \"game.av\"", "source = \"mic.raw\"")),
+            ("non-finite", example.replace("width = 1920", "width = inf")),
+            ("datetime", example.replace("ssh_host = \"neko7\"", "ssh_host = 2026-01-01")),
+        ] {
+            std::fs::write(&file,input).unwrap();
+            assert!(Config::load(&file).is_err(), "{name} must be rejected");
+        }
+        std::fs::remove_file(file).unwrap();
+    }
 
     #[test]
     fn json_escaping() { assert_eq!(json_string("a\"b\n"), "\"a\\\"b\\n\""); }
