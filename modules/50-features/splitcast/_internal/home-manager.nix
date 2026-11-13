@@ -50,7 +50,7 @@ in {
     settings = lib.mkOption {
       type = lib.types.attrsOf json.type;
       default = {};
-      description = "JSON overrides merged into the application example and this host's role. Store credential paths here, never secrets.";
+      description = "Nix attribute overrides merged into the role's generated TOML. Store credential paths here, never secrets.";
     };
     configFile = lib.mkOption {
       type = lib.types.str;
@@ -101,6 +101,7 @@ in {
         RestartSec = 5;
         KillMode = "control-group";
         TimeoutStopSec = 20;
+        ExecStopPost = "${lib.getExe cfg.rustPackage} cleanup --config ${lib.escapeShellArg cfg.configFile}";
         SendSIGKILL = true;
         UMask = "0077";
         WorkingDirectory = config.home.homeDirectory;

@@ -20,32 +20,6 @@ use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-// Linux's siginfo_t union starts at the next pointer-aligned boundary.
-#[repr(C)]
-#[derive(Default)]
-struct ChildInfo {
-    pid: i32,
-    uid: u32,
-    status: i32,
-    user_time: i64,
-    system_time: i64,
-}
-
-#[repr(C)]
-struct Siginfo {
-    signo: i32,
-    errno: i32,
-    code: i32,
-    data: ChildInfo,
-    padding: [u8; 80],
-}
-
-unsafe extern "C" {
-    fn kill(pid: i32, signal: i32) -> i32;
-    fn waitid(kind: i32, id: u32, info: *mut Siginfo, options: i32) -> i32;
-    fn fcntl(fd: i32, cmd: i32, ...) -> i32;
-}
-
 const TICK: Duration = Duration::from_millis(5);
 const REAP_LIMIT: Duration = Duration::from_secs(1);
 
@@ -60,7 +34,6 @@ pub struct OwnedProcess {
 }
 
 impl OwnedProcess {
-    /// Executes argv directly in a fresh unprivileged process group.
     pub fn spawn(argv: &[String]) -> io::Result<Self> {
         let program = argv
             .first()
@@ -92,25 +65,26 @@ impl OwnedProcess {
         if let Ownership::Reaped(status) = self.ownership {
             return Ok(Some(status));
         }
-        let mut info = Siginfo {
-            signo: 0,
-            errno: 0,
-            code: 0,
-            data: ChildInfo::default(),
-            padding: [0; 80],
+        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        let rc = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                self.id(),
+                &mut info,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            )
         };
-        // P_PID, WEXITED | WNOHANG | WNOWAIT. The child remains waitable.
-        let rc = unsafe { waitid(1, self.id(), &mut info, 4 | 1 | 0x01000000) };
         if rc < 0 {
             return Err(io::Error::last_os_error());
         }
-        if info.data.pid == 0 {
+        if unsafe { info.si_pid() } == 0 {
             return Ok(None);
         }
-        let raw = match info.code {
-            1 => info.data.status << 8,
-            2 => info.data.status,
-            3 => info.data.status | 0x80,
+        let status = unsafe { info.si_status() };
+        let raw = match info.si_code {
+            libc::CLD_EXITED => status << 8,
+            libc::CLD_KILLED => status,
+            libc::CLD_DUMPED => status | 0x80,
             _ => return Err(io::Error::other("unexpected child exit notification")),
         };
         Ok(Some(ExitStatus::from_raw(raw)))
@@ -118,11 +92,11 @@ impl OwnedProcess {
 
     fn signal(&self, signal: i32) -> io::Result<()> {
         // Called only while the unreaped child pins this process-group number.
-        if unsafe { kill(-(self.id() as i32), signal) } == 0 {
+        if unsafe { libc::kill(-(self.id() as i32), signal) } == 0 {
             return Ok(());
         }
         let error = io::Error::last_os_error();
-        if error.raw_os_error() == Some(3) {
+        if error.raw_os_error() == Some(libc::ESRCH) {
             Ok(())
         } else {
             Err(error)
@@ -135,9 +109,9 @@ impl OwnedProcess {
         if let Ownership::Reaped(status) = self.ownership {
             return Ok(status);
         }
-        self.signal(15)?;
+        self.signal(libc::SIGTERM)?;
         thread::sleep(grace);
-        self.signal(9)?;
+        self.signal(libc::SIGKILL)?;
         let start = Instant::now();
         loop {
             if self.try_wait()?.is_some() {
@@ -166,17 +140,19 @@ impl Drop for OwnedProcess {
 
 fn nonblocking(pipe: &impl AsRawFd) -> io::Result<()> {
     let fd = pipe.as_raw_fd();
-    let flags = unsafe { fcntl(fd, 3) }; // F_GETFL
-    if flags < 0 || unsafe { fcntl(fd, 4, flags | 0x800) } < 0 {
-        // F_SETFL, O_NONBLOCK
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
         return Err(io::Error::last_os_error());
     }
     Ok(())
 }
 
-fn drain(pipe: &mut impl Read, output: &mut Vec<u8>, remaining: &mut usize) -> io::Result<bool> {
+fn read_once(
+    pipe: &mut impl Read,
+    output: &mut Vec<u8>,
+    remaining: &mut usize,
+) -> io::Result<bool> {
     let mut buffer = [0; 8192];
-    // One read per turn prevents a noisy pipe starving the other pipe or deadline.
     match pipe.read(&mut buffer) {
         Ok(0) => Ok(true),
         Ok(n) => {
@@ -255,10 +231,10 @@ pub fn run_bounded(
                 }
             }
             if !out_done {
-                out_done = drain(&mut stdout, &mut out, &mut remaining)?;
+                out_done = read_once(&mut stdout, &mut out, &mut remaining)?;
             }
             if !err_done {
-                err_done = drain(&mut stderr, &mut err, &mut remaining)?;
+                err_done = read_once(&mut stderr, &mut err, &mut remaining)?;
             }
             if let Some(status) = process.try_wait()? {
                 if out_done && err_done {
@@ -515,12 +491,5 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
         assert!(!std::path::Path::new(&format!("/proc/{}", marker.pid())).exists());
-    }
-
-    #[test]
-    fn waitid_layout_matches_linux_abi() {
-        assert_eq!(std::mem::size_of::<Siginfo>(), 128);
-        assert_eq!(std::mem::offset_of!(Siginfo, data), 16);
-        assert_eq!(std::mem::offset_of!(ChildInfo, status), 8);
     }
 }

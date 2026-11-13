@@ -16,8 +16,8 @@ timeout_seconds = 15
 [capture]
 target = ""
 game_audio = ""
-width = 1920
-height = 1080
+width = 1280
+height = 720
 fps = 60
 bitrate_kbps = 12000
 rtmp_port = 1935

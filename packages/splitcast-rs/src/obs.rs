@@ -23,8 +23,6 @@ fn remaining(deadline: Instant) -> io::Result<Duration> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "OBS control deadline exceeded"))
 }
 
-// A message may require many syscalls (including continuation frames). Every
-// syscall consumes the same deadline rather than renewing the timeout.
 struct DeadlineStream {
     stream: TcpStream,
     deadline: Instant,
@@ -58,10 +56,9 @@ fn normalize_timeout(e: io::Error) -> io::Error {
         e
     }
 }
-fn websocket_error(e: tungstenite::Error) -> io::Error {
+fn redacted_websocket_error(e: tungstenite::Error) -> io::Error {
     match e {
         tungstenite::Error::Io(e) => normalize_timeout(e),
-        // Never include peer payloads or authentication material in errors.
         tungstenite::Error::Capacity(_) => err("oversized OBS response"),
         _ => err("invalid or closed OBS WebSocket"),
     }
@@ -128,7 +125,7 @@ impl Obs {
             Some(config),
         )
         .map_err(|e| match e {
-            tungstenite::HandshakeError::Failure(e) => websocket_error(e),
+            tungstenite::HandshakeError::Failure(e) => redacted_websocket_error(e),
             _ => err("OBS WebSocket handshake interrupted"),
         })?;
         let mut obs = Self {
@@ -162,13 +159,13 @@ impl Obs {
         self.socket.get_mut().deadline = deadline;
         self.socket
             .send(Message::Text(text.into()))
-            .map_err(websocket_error)
+            .map_err(redacted_websocket_error)
     }
     fn next(&mut self, deadline: Instant) -> io::Result<Value> {
         loop {
             remaining(deadline)?;
             self.socket.get_mut().deadline = deadline;
-            match self.socket.read().map_err(websocket_error)? {
+            match self.socket.read().map_err(redacted_websocket_error)? {
                 Message::Text(text) => {
                     return serde_json::from_str(text.as_str()).map_err(|_| err("invalid OBS JSON"))
                 }
@@ -359,12 +356,12 @@ pub fn launch_args(cfg: &Config) -> io::Result<Vec<String>> {
         return Err(err("OBS auth password must be at least 16 characters"));
     }
     private_directory(&cfg.state_dir)?;
-    atomic_file(&studio.join("plugin_config/obs-websocket/config.json"), &json!({"server_enabled":true,"server_port":cfg.obs_port,"auth_required":true,"server_password":password,"first_load":false}).to_string())?;
+    atomic_file(&studio.join("plugin_config/obs-websocket/config.json"), json!({"server_enabled":true,"server_port":cfg.obs_port,"auth_required":true,"server_password":password,"first_load":false}).to_string())?;
     fs::create_dir_all(&cfg.recording_dir)?;
     if cfg.recording_dir.to_string_lossy().contains(['\n', '\r']) {
         return Err(err("invalid recording directory"));
     }
-    let profile = format!("[General]\nName=SplitCast\n[Video]\nBaseCX=1920\nBaseCY=1080\nOutputCX=1920\nOutputCY=1080\nFPSType=0\nFPSCommon=60\n[Output]\nMode=Advanced\n[AdvOut]\nEncoder=obs_nvenc_h264_tex\nRecType=Standard\nRecFilePath={}\nRecFormat2=mkv\nRecEncoder=obs_nvenc_h264_tex\nTrackIndex=1\nRecTracks=1\nRescale=false\n[Audio]\nSampleRate=48000\nChannelSetup=Stereo\n", cfg.recording_dir.display());
+    let profile = format!("[General]\nName=SplitCast\n[Video]\nBaseCX={width}\nBaseCY={height}\nOutputCX={width}\nOutputCY={height}\nFPSType=0\nFPSCommon={fps}\n[Output]\nMode=Advanced\n[AdvOut]\nEncoder=obs_nvenc_h264_tex\nRecType=Standard\nRecFilePath={}\nRecFormat2=mkv\nRecEncoder=obs_nvenc_h264_tex\nTrackIndex=1\nRecTracks=1\nRescale=false\n[Audio]\nSampleRate=48000\nChannelSetup=Stereo\n", cfg.recording_dir.display(),width=cfg.width,height=cfg.height,fps=cfg.fps);
     atomic_file(&studio.join("basic/profiles/SplitCast/basic.ini"), &profile)?;
     atomic_file(&studio.join("user.ini"), "[Basic]\nProfile=SplitCast\nProfileDir=SplitCast\nSceneCollection=SplitCast\nSceneCollectionFile=SplitCast\n[General]\nFirstRun=true\n")?;
     atomic_file(&studio.join("basic/scenes/SplitCast.json"), "{\"name\":\"SplitCast\",\"current_scene\":\"SplitCast\",\"current_program_scene\":\"SplitCast\",\"scene_order\":[{\"name\":\"SplitCast\"}],\"sources\":[],\"groups\":[],\"transitions\":[]}")?;
@@ -411,6 +408,34 @@ mod tests {
     impl Drop for Fixture {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+    #[test]
+    fn profile_uses_the_selected_video_geometry() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut cfg = fixture.config(listener.local_addr().unwrap().port());
+        drop(listener);
+        cfg.width = 1280;
+        cfg.height = 720;
+        cfg.fps = 30;
+        launch_args(&cfg).unwrap();
+        let profile = fs::read_to_string(
+            cfg.state_dir
+                .join("obs-config/obs-studio/basic/profiles/SplitCast/basic.ini"),
+        )
+        .unwrap();
+        for setting in [
+            "BaseCX=1280\n",
+            "BaseCY=720\n",
+            "OutputCX=1280\n",
+            "OutputCY=720\n",
+            "FPSCommon=30\n",
+        ] {
+            assert!(
+                profile.contains(setting),
+                "missing selected video setting {setting:?}"
+            );
         }
     }
     fn config(dir: &Path, port: u16) -> Config {
@@ -734,7 +759,6 @@ mod tests {
         let (port, thread) = server(|mut socket| {
             read(&mut socket);
             let stream = socket.get_mut();
-            // Two individually legal frames exceed the aggregate message limit.
             stream
                 .write_all(&[0x01, 127, 0, 0, 0, 0, 0, 0x20, 0, 0])
                 .unwrap();

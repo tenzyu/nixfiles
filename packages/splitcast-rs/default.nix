@@ -5,10 +5,6 @@
   callPackage,
   bash,
   coreutils,
-  jq,
-  curl,
-  openssl,
-  websocat,
   ffmpeg-full,
   gpu-screen-recorder,
   mediamtx,
@@ -21,7 +17,7 @@
   webAssets ? callPackage ../splitcast-web {},
 }: let
   obs = import ../../modules/50-features/splitcast/_internal/obs.nix {inherit obs-studio;};
-  runtime = [coreutils jq curl openssl websocat ffmpeg-full gpu-screen-recorder mediamtx pipewire pulseaudio openssh v4l-utils obs];
+  runtime = [coreutils ffmpeg-full gpu-screen-recorder mediamtx pipewire pulseaudio openssh v4l-utils obs];
 in
   rustPlatform.buildRustPackage {
     pname = "splitcast-rs-core";
@@ -39,7 +35,7 @@ in
     };
     sourceRoot = "source/splitcast-rs";
     cargoLock.lockFile = ./Cargo.lock;
-    nativeBuildInputs = [makeWrapper jq bash coreutils];
+    nativeBuildInputs = [makeWrapper bash coreutils];
     postInstall = ''
       wrapProgram "$out/bin/splitcast-rs-core" \
         --set SPLITCAST_WEB_ASSETS ${webAssets} \

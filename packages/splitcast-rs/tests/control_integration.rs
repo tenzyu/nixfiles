@@ -8,6 +8,7 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -15,8 +16,10 @@ const BIN: &str = env!("CARGO_BIN_EXE_splitcast-rs-core");
 const TOKEN: &str = "integration-private-token-never-serialize";
 const LIMIT: Duration = Duration::from_secs(5);
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+static NETWORK: Mutex<()> = Mutex::new(());
 
 struct Fixture {
+    _network: Option<MutexGuard<'static, ()>>,
     root: PathBuf,
     config: PathBuf,
     port: u16,
@@ -24,6 +27,9 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        let network = NETWORK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let base = if Path::new("/tmp/opencode").is_dir() {
             PathBuf::from("/tmp/opencode")
         } else {
@@ -39,7 +45,6 @@ impl Fixture {
         fs::write(&token, TOKEN).unwrap();
         fs::set_permissions(&token, fs::Permissions::from_mode(0o600)).unwrap();
         let mut cfg: Value = serde_json::from_str(include_str!("agent-example.json")).unwrap();
-        // Reserve distinct ports together so the config itself cannot collide.
         let reservations: Vec<_> = (0..9)
             .map(|_| TcpListener::bind("127.0.0.1:0").unwrap())
             .collect();
@@ -66,6 +71,7 @@ impl Fixture {
         let config = root.join("config.json");
         fs::write(&config, cfg.to_string()).unwrap();
         Self {
+            _network: Some(network),
             root,
             config,
             port: ports[0],
@@ -377,6 +383,7 @@ fn slow_client_does_not_block_status_or_sigterm_and_role_lock_is_exclusive() {
     fs::write(&second_config, other.to_string()).unwrap();
     drop(reservation);
     let second_fixture = Fixture {
+        _network: None,
         root: fixture.root.join("unused"),
         config: second_config,
         port: 0,
@@ -410,7 +417,10 @@ fn agent_refuses_world_readable_token_before_serving() {
     .unwrap();
     let (status, out, err) = fixture.cli(&["agent"], b"");
     assert!(!status.success());
-    assert!(err.contains("credential must be a private file owned by this user"), "{err}");
+    assert!(
+        err.contains("credential must be a private file owned by this user"),
+        "{err}"
+    );
     assert!(!out.contains(TOKEN));
     assert!(!err.contains(TOKEN));
     assert!(TcpListener::bind(("127.0.0.1", fixture.port)).is_ok());

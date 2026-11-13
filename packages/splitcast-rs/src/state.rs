@@ -1,4 +1,3 @@
-//! Private state files, resolved through pinned directory descriptors.
 use std::fs;
 use std::io::{self, Write};
 use std::os::fd::AsRawFd;
@@ -46,7 +45,7 @@ pub fn private_directory(path: &Path) -> io::Result<fs::File> {
     Ok(current)
 }
 
-pub fn atomic_file(path: &Path, contents: &str) -> io::Result<()> {
+pub fn atomic_file(path: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
     let directory = private_directory(path.parent().ok_or_else(|| invalid("invalid state path"))?)?;
     let anchored = PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
     let target = anchored.join(
@@ -75,7 +74,7 @@ pub fn atomic_file(path: &Path, contents: &str) -> io::Result<()> {
         .mode(0o600)
         .open(&part)?;
     let result = (|| {
-        file.write_all(contents.as_bytes())?;
+        file.write_all(contents.as_ref())?;
         file.sync_all()?;
         fs::rename(&part, &target)?;
         directory.sync_all()

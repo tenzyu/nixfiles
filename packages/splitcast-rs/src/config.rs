@@ -1,4 +1,3 @@
-//! TOML and transitional JSON share one bounded native validation boundary.
 use serde_json::Value;
 use std::fs::OpenOptions;
 use std::io::{self, Read};
@@ -511,13 +510,16 @@ mod tests {
             ),
             (
                 "wrong type",
-                example.replace("width = 1920", "width = true"),
+                example.replacen("width = 1280", "width = true", 1),
             ),
             (
                 "invalid route",
                 example.replace("source = \"game.av\"", "source = \"mic.raw\""),
             ),
-            ("non-finite", example.replace("width = 1920", "width = inf")),
+            (
+                "non-finite",
+                example.replacen("width = 1280", "width = inf", 1),
+            ),
             (
                 "datetime",
                 example.replace("ssh_host = \"neko7\"", "ssh_host = 2026-01-01"),

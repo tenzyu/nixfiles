@@ -69,22 +69,13 @@ impl ReceiveMonitor {
 }
 
 pub fn receive_snapshot(cfg: &Config) -> io::Result<String> {
-    run(
-        "curl",
-        &[
-            "--disable",
-            "--silent",
-            "--show-error",
-            "--fail",
-            "--noproxy",
-            "*",
-            "--max-time",
-            "2",
-            "--max-redirs",
-            "0",
-            &pcm_paths(cfg),
-        ],
+    crate::http::get_json(
+        cfg.api,
+        "/v3/paths/list",
+        Duration::from_secs(2),
+        1024 * 1024,
     )
+    .map(|v| v.to_string())
 }
 
 impl MediaObservation {
@@ -391,33 +382,6 @@ pub fn pcm_paths(cfg: &Config) -> String {
     format!("http://127.0.0.1:{}/v3/paths/list", cfg.api)
 }
 
-pub fn prepare_processed_sink(cfg: &Config) -> io::Result<u32> {
-    let exists = run("pactl", &["-f", "json", "list", "sinks"])?;
-    if exists.contains(&format!("\"name\": \"{}\"", cfg.processed_sink))
-        || exists.contains(&format!("\"name\":\"{}\"", cfg.processed_sink))
-    {
-        return Err(err(
-            "processed sink already exists; will not take ownership",
-        ));
-    }
-    let out = run(
-        "pactl",
-        &[
-            "load-module",
-            "module-null-sink",
-            &format!("sink_name={}", cfg.processed_sink),
-            "rate=48000",
-            "channels=1",
-            "sink_properties=device.description=SplitCast_Processed_Mic",
-        ],
-    )?;
-    out.parse::<u32>()
-        .map_err(|_| err("could not identify owned Pulse module"))
-}
-pub fn release_processed_sink(module: u32) -> io::Result<()> {
-    run("pactl", &["unload-module", &module.to_string()]).map(|_| ())
-}
-
 pub fn ready_output(buf: &str, name: &str) -> bool {
     let kind = match name {
         "game" => FeedKind::Game,
@@ -432,7 +396,7 @@ pub fn check_tools(role: &str) -> io::Result<Vec<String>> {
     if role == "capture" {
         req.extend(["ssh", "gpu-screen-recorder"])
     } else {
-        req.extend(["mediamtx"])
+        req.extend(["mediamtx", "pulseaudio"])
     };
     let mut missing = vec![];
     for name in req {
@@ -502,6 +466,35 @@ pub fn devices(role: &str) -> io::Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn receiver_api_needs_no_external_http_tool() {
+        use std::{
+            io::{Read, Write},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let mut cfg = Config::parse(include_bytes!("../tests/agent-example.json")).unwrap();
+        cfg.api = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while Instant::now() < deadline {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let mut input = [0; 4096];
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(1)))
+                        .unwrap();
+                    assert!(stream.read(&mut input).unwrap() > 0);
+                    stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 12\r\nConnection: close\r\n\r\n{\"items\":[]}").unwrap();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
+        let result = receive_snapshot(&cfg);
+        server.join().unwrap();
+        assert_eq!(result.unwrap(), "{\"items\":[]}");
+    }
     #[test]
     fn readiness_requires_typed_fields_and_progress() {
         let mut progress = MediaProgress::default();

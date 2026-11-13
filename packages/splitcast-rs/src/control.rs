@@ -2,6 +2,7 @@
 use crate::config::{json_string, Config};
 use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
+use std::net::Shutdown;
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
@@ -203,6 +204,31 @@ pub fn reply(stream: &mut TcpStream, status: u16, json: &str) -> io::Result<()> 
         "application/json; charset=utf-8",
         json.as_bytes(),
     )
+}
+
+pub fn reject(stream: &mut TcpStream) -> io::Result<()> {
+    reply(
+        stream,
+        403,
+        "{\"error\":\"unauthorized or malformed request\"}",
+    )?;
+    // RFC 9112 section 9.6. Closing with unread request data can reset the response.
+    stream.shutdown(Shutdown::Write)?;
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let mut budget = 64 * 1024;
+    let mut bytes = [0; 4096];
+    while budget > 0 {
+        let Ok(timeout) = remaining(deadline) else {
+            break;
+        };
+        stream.set_read_timeout(Some(timeout))?;
+        let count = budget.min(bytes.len());
+        match stream.read(&mut bytes[..count]) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => budget -= n,
+        }
+    }
+    Ok(())
 }
 
 pub fn listener(cfg: &Config) -> io::Result<TcpListener> {

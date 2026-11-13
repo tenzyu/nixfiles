@@ -57,8 +57,8 @@ fn parse(mut args: Vec<String>) -> io::Result<Cli> {
     let mut destination = None;
     let mut offline = false;
     match command.as_str() {
-        "agent" | "tui" | "ui" | "validate" | "prepare" | "stop" | "status" | "heartbeat"
-        | "devices" => {}
+        "agent" | "tui" | "ui" | "validate" | "cleanup" | "prepare" | "stop" | "status"
+        | "heartbeat" | "devices" => {}
         "doctor" => {
             if args.first().map(String::as_str) == Some("--offline") {
                 args.remove(0);
@@ -149,16 +149,15 @@ fn request(cfg: &config::Config, name: &str, args: &str) -> io::Result<String> {
 }
 
 fn run() -> io::Result<()> {
-    unsafe extern "C" {
-        fn umask(mask: u32) -> u32;
-    }
     unsafe {
-        umask(0o077);
+        libc::umask(0o077);
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["selfcheck"] {
         let mut session = Session::new(Role::Capture);
-        session.prepare().unwrap();
+        session
+            .prepare(None, std::time::Instant::now(), Duration::from_secs(30))
+            .unwrap();
         session.prepared().unwrap();
         session.stop().unwrap();
         session.stopped().unwrap();
@@ -177,6 +176,7 @@ fn run() -> io::Result<()> {
             return Ok(());
         }
         "agent" => return agent::serve(cfg),
+        "cleanup" => return agent::cleanup_after_exit(cfg),
         "tui" => {
             return tui::run_with(io::stdin().lock(), io::stdout().lock(), |name, args| {
                 request(&cfg, name, args)

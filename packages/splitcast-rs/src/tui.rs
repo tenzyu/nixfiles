@@ -1,4 +1,3 @@
-//! Line-mode client with no terminal dependencies. Authentication belongs to the dispatcher.
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Read, Write};
 
@@ -75,7 +74,6 @@ where
             ) {
                 return Err(error);
             }
-            // Never echo transport errors, which can contain authentication details.
             writeln!(output, "Operation failed ({:?}). Check the local agent, status and Doctor. No automatic retry.", error.kind())?;
         }
     }

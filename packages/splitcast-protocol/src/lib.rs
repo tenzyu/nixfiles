@@ -1,4 +1,3 @@
-//! Portable commands shared by native and WASM views. Effects belong to the agent.
 use serde_json::{json, Map, Value};
 use std::io;
 
@@ -59,7 +58,22 @@ pub enum Command {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Invocation {
     pub command: Command,
-    pub owner: Option<String>,
+    pub owner: Option<OwnerId>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OwnerId(String);
+impl OwnerId {
+    pub fn parse(owner: &str) -> io::Result<Self> {
+        if owner.is_empty() || owner.len() > 128 || owner.chars().any(char::is_control) {
+            Err(invalid())
+        } else {
+            Ok(Self(owner.to_owned()))
+        }
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 fn invalid() -> io::Error {
@@ -124,7 +138,7 @@ impl Invocation {
             if owner.is_empty() || owner.len() > 128 || owner.chars().any(char::is_control) {
                 return Err(invalid());
             }
-            Some(owner.to_owned())
+            Some(OwnerId::parse(owner)?)
         } else {
             None
         };
@@ -219,7 +233,7 @@ impl Invocation {
         if let Some(owner) = &self.owner {
             args.as_object_mut()
                 .unwrap()
-                .insert("_owner".into(), json!(owner));
+                .insert("_owner".into(), json!(owner.as_str()));
         }
         json!({"command":name,"args":args}).to_string()
     }

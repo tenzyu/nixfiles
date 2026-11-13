@@ -1,5 +1,4 @@
 //! Opt-in, real two-host synthetic transport validation, not an agent/OBS test.
-//! Standalone: rustc --edition=2021 --test tests/synthetic_ssh.rs -o /tmp/opencode/synthetic-ssh
 use std::{
     env,
     fs::{self, File},
@@ -41,8 +40,6 @@ struct Owned {
 
 impl Owned {
     fn stop(&mut self) -> bool {
-        // Explicit remote stop is independent of the transport session. Remote
-        // shell traps and RuntimeMaxSec remain fallbacks when SSH is unavailable.
         let remote = Command::new("timeout")
             .arg("20")
             .arg("ssh")
@@ -223,7 +220,7 @@ fn synthetic_av_over_encrypted_ssh() {
         return;
     }
     let deadline = Instant::now() + Duration::from_secs(seconds + 45);
-    let mut statuses = vec![None, None];
+    let mut statuses = [None, None];
     loop {
         for (i, c) in owned.children.iter_mut().enumerate() {
             if statuses[i].is_none() {
@@ -248,7 +245,6 @@ fn synthetic_av_over_encrypted_ssh() {
         statuses.iter().all(|s| s.unwrap().success()),
         "transport failed; inspect evidence"
     );
-    // Reading and decoding the artifact, not merely successful process startup.
     for (selector, name) in [("v:0", "video"), ("a:0", "audio")] {
         let output = bounded(&unit)
             .arg(FFPROBE)
