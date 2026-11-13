@@ -6,12 +6,15 @@
     ...
   }: {
     config = lib.mkIf config.local.features.packages-desktop.enable {
+      programs.obs-studio = {
+        enable = true;
+      };
+
       home.packages =
         (with pkgs; [
           brightnessctl
           cliphist
           libnotify
-          obs-studio
           pavucontrol
           playerctl
           wl-clipboard

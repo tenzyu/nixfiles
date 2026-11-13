@@ -1,0 +1,9 @@
+[package]
+name = "splitcast-protocol"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Portable SplitCast commands shared by native and WASM clients"
+
+[dependencies]
+serde_json = "1"

@@ -241,7 +241,29 @@
             (modBind "q" (lua "hl.dsp.window.close()"))
             (modBind "m" (moveWorkspaceSilent "special:minimized"))
             (modBind "SHIFT + m" (lua ''hl.dsp.workspace.toggle_special("minimized")''))
-            (modBind "f" (lua "hl.dsp.window.fullscreen_state({ internal = 2, client = 0 })"))
+            (modBind "f" (lua ''
+              function()
+                local win = hl.get_active_window()
+                if win and (win.class == "osu!" or win.class == "osu-lazer") then
+                  -- SDL may already have set 2/2. Do not use Hyprland's
+                  -- per-field fullscreen_state toggle in this case.
+                  if win.fullscreen == 2 and win.fullscreen_client == 0 then
+                    hl.dispatch(hl.dsp.window.fullscreen_state({
+                      internal = 0, client = 0, action = "set"
+                    }))
+                  else
+                    hl.dispatch(hl.dsp.window.fullscreen_state({
+                      internal = 2, client = 0, action = "set"
+                    }))
+                  end
+                else
+                  -- Preserve the preexisting Win+F toggle for other windows.
+                  hl.dispatch(hl.dsp.window.fullscreen_state({
+                    internal = 2, client = 0, action = "toggle"
+                  }))
+                end
+              end
+            ''))
             (modBind "t" (lua ''hl.dsp.window.float({ action = "toggle" })''))
             (modBind "SHIFT + j" (layout "togglesplit"))
             (modBind "s" (layout "swapsplit"))
@@ -275,8 +297,6 @@
             (modBind "Space" (luaExec "pkill rofi || rofi -show drun -replace -i"))
             (modBind "v" (luaExec "cliphist list | rofi -dmenu -replace | cliphist decode | wl-copy"))
             (modBind "p" (luaExec "pkill castalia || castalia launch"))
-            (modBind "SHIFT + g" (luaExec "hypr-gaming-mode on"))
-            (modBind "CTRL + SHIFT + g" (luaExec "hypr-gaming-mode off"))
             (bind "XF86MonBrightnessUp" (luaExec "brightnessctl -q s +10%"))
             (bind "XF86MonBrightnessDown" (luaExec "brightnessctl -q s 10%-"))
             (bind "XF86AudioRaiseVolume" (luaExec "pactl set-sink-volume @DEFAULT_SINK@ +5%"))

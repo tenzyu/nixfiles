@@ -35,11 +35,15 @@
             source = "${config.home.homeDirectory}/.bun/install/cache";
             target = config.home.sessionVariables.BUN_INSTALL_CACHE_DIR;
             processes = ["bun" ".bun-wrapped"];
+            # Cache is regenerable; preserve any existing target as a journaled backup.
+            onConflict = "backup";
+            repairAbsoluteLinks = true;
           }
           {
             source = "${config.home.homeDirectory}/.bun";
             target = config.home.sessionVariables.BUN_INSTALL;
             processes = ["bun" ".bun-wrapped"];
+            repairAbsoluteLinks = true;
           }
           {
             source = "${config.home.homeDirectory}/.bash_history";

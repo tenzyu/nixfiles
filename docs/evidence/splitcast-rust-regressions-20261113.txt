@@ -1,0 +1,125 @@
+Selected local red/green evidence, 2026-11-13.
+These are excerpts from actual runs, not a full parity claim.
+The tests are retained in packages/splitcast-rs and can be rerun with cargo.
+
+Stopping lease regression, before the fix:
+Source log: /tmp/opencode/splitcast-stopping-lease-red.log
+thread 'lifecycle::tests::lease_expiry_does_not_retrigger_teardown_while_stopping' (1182065) panicked at src/lifecycle.rs:260:9:
+stopping retriggers automatic expired-lease cleanup
+test lifecycle::tests::lease_expiry_does_not_retrigger_teardown_while_stopping ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 78 filtered out; finished in 0.00s
+
+Selected video geometry regression, before the fix:
+Source log: /tmp/opencode/splitcast-obs-geometry-red.log
+thread 'obs::tests::profile_uses_the_selected_video_geometry' (1179131) panicked at src/obs.rs:421:109:
+missing selected video setting "BaseCX=1280\n"
+test obs::tests::profile_uses_the_selected_video_geometry ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 77 filtered out; finished in 2.27s
+
+External HTTP dependency regression, before the native replacement:
+Source log: /tmp/opencode/splitcast-http-native-red.log
+The test executable ran with PATH empty against a real loopback HTTP server.
+thread 'media::tests::receiver_api_needs_no_external_http_tool' (1174810) panicked at src/media.rs:490:84:
+called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }
+test media::tests::receiver_api_needs_no_external_http_tool ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 74 filtered out; finished in 1.01s
+This is a runtime dependency failure, not a compiler failure.
+
+After the fixes:
+Source log: /tmp/opencode/splitcast-final-cargo-v2.log
+test lifecycle::tests::lease_expiry_does_not_retrigger_teardown_while_stopping ... ok
+test obs::tests::profile_uses_the_selected_video_geometry ... ok
+test media::tests::receiver_api_needs_no_external_http_tool ... ok
+test result: ok. 79 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.45s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.55s
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+The ignored tests are the real audio daemon and explicitly authorized synthetic SSH transport.
+
+Explicit empty-PATH green run:
+Source log: /tmp/opencode/splitcast-http-native-green.log
+test media::tests::receiver_api_needs_no_external_http_tool ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.01s
+
+Opt-in real private audio server:
+Source log: /tmp/opencode/splitcast-audio-final.log
+test audio::tests::private_audio_dies_with_its_owned_server ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.65s
+
+Shared protocol and native web model:
+Source logs: /tmp/opencode/splitcast-protocol-final.log and /tmp/opencode/splitcast-web-final.log
+Each ran three tests. Both reported three passed and zero failed.
+An initial --locked protocol invocation failed because this library had no standalone lock file.
+The subsequent protocol run used --offline to generate its development lock file.
+Neither native model test run proves live browser operation.
+
+Clippy:
+Source log: /tmp/opencode/splitcast-final-clippy-v3.log
+Command: cargo clippy --manifest-path packages/splitcast-rs/Cargo.toml --all-targets --locked --offline -- -D warnings
+Exit status: 0.
+The final correction replaced a two-item Vec in the synthetic test with an array.
+
+Independent reread of the existing synthetic recording:
+Source: /tmp/opencode/splitcast-synthetic-independent-probe.json
+H.264, 320x180, 15/1 fps, 9000 packets.
+AAC, 28126 packets.
+Duration 600.022000 seconds, size 27747018 bytes.
+Full ffmpeg decode with -xerror, both streams mapped, exit status 0.
+Decode log /tmp/opencode/splitcast-synthetic-independent-decode.log is empty.
+No physical capture or host operation was rerun for this check.
+
+Independent review regressions, before the repairs:
+Source log: /tmp/opencode/splitcast-review-regressions-red.log
+native_validation_rejects_monitor_microphone_sources failed because both JSON
+and TOML validation accepted alsa_output.integration_stereo.monitor and
+splitcast_mic.monitor with "valid":true.
+real_agent_routes_reject_monitor_microphones_without_saving failed:
+  left: 200
+ right: 409
+real_agent_refuses_mismatched_camera_before_remote_prepare failed:
+  mismatched camera reached ready
+  left: 200
+ right: 409
+real_agent_does_not_send_stop_to_an_incompatible_peer failed:
+  incompatible peer received a mutating command
+  The observed sequence was five status requests followed by owner-bearing stop.
+The initial expanded suite reported 10 passed and 7 failed.
+Three failures were blocked by the new full-camera fixture contract, not the
+behavior they intended to measure. They are not behavioral red evidence for
+mute observation, successful compatible preparation or failed-prepare cleanup.
+
+Independent actual-binary stale-mute reproduction before repair:
+Source log: /tmp/opencode/splitcast-independent-sol-probe.log
+mute command (200, {'muted': True})
+Following capture Status returned state running, output recording and
+mic_muted False. No real media device was opened.
+
+Repair and fixture verification:
+The first post-repair mute integration attempt failed with "not prepared".
+This was a fixture defect, not the stale-mute regression. Resolving the sleep
+symlink to a multicall coreutils executable changed its invocation semantics.
+Preserving the absolute sleep path made the stub stay alive as intended.
+The next complete run passed all 17 integration tests.
+
+Final post-repair suite, including two additional ownership-recovery cases:
+Source log: /tmp/opencode/splitcast-accepted-final-cargo.log
+test lifecycle::tests::capture_remote_obligation_survives_failure_until_confirmed_release ... ok
+test result: ok. 80 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 4.17s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+test native_validation_rejects_monitor_microphone_sources ... ok
+test real_agent_routes_reject_monitor_microphones_without_saving ... ok
+test real_agent_refuses_mismatched_camera_before_remote_prepare ... ok
+test real_agent_does_not_send_stop_to_an_incompatible_peer ... ok
+test real_agent_capture_status_tracks_remote_microphone_mute ... ok
+test real_agent_compatible_prepare_and_stop_release_owned_workers ... ok
+test real_agent_failed_remote_prepare_releases_tunnel_and_sends_owned_cleanup ... ok
+test real_agent_lost_prepare_response_still_requires_owned_cleanup ... ok
+test real_agent_unconfirmed_stop_retains_ownership_for_explicit_retry ... ok
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.26s
+Total 102 passed, two opt-in tests ignored by default.
+Source log: /tmp/opencode/splitcast-accepted-final-clippy.log
+Warning-denied all-target Clippy exited zero.
+These are native artifact tests with stub workers and a real loopback peer,
+not actual GSR, microphone, camera, OBS decode or gameplay acceptance.

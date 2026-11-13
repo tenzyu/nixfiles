@@ -357,16 +357,8 @@ This repo keeps gaming optimizations explicit instead of hiding them behind glob
 | --- | --- |
 | `game-scope %command%` | `gamemoderun` + `gamescope` をまとめて起動する汎用ラッパー。Steam の per-game launch options に指定する。 |
 
-`hyprland-gaming-mode` を有効化すると、以下のコマンドが追加されます。
-
-| コマンド | 役割 |
-| --- | --- |
-| `hypr-gaming-mode on\|off` | Hyprland の animation / blur / shadow / gap / vrr などを一括でゲーム向けプロファイルに切り替える。GameMode 起動時の `start` / `end` hook もこの feature が担う。 |
-
-`osu-lazer` を有効化すると `osu-lazer` / `osu-lazer-raw` の2つのラッパーが `home.packages` から使えるようになります。
-
-- `osu-lazer` は `gamemoderun` 経由で `osu-lazer-bin` を起動する。`hyprland-gaming-mode` が有効なら on/off を連動させる。
-- `osu-lazer-raw` は `gamemoderun` も `gamescope` も挟まない素の起動。
+`osu-lazer` を有効化すると、GameMode と Gamescope を経由しない `osu-lazer` が利用できます。
+従来の `osu-lazer-raw` は互換用のシンボリックリンクとして残しています。
 
 Steam per-game launch options の典型:
 
@@ -386,9 +378,6 @@ GAMESCOPE_SCALER=fsr \
 game-scope %command%
 ```
 
-`osu-lazer` は `gamemoderun` 単体で `osu-lazer-bin` を起動するラッパーであり、
-`GAMESCOPE_*` 環境変数は読みません。osu 側でフルスクリーン設定を使ってください。
-
-`osu-lazer-raw` はラッパーを完全に外した素の起動で、起動が遅い／GPU スタッキングを疑うときの切り札です。
+`osu-lazer` は `GAMESCOPE_*` 環境変数を読みません。フルスクリーンは osu! 側で設定します。
 
 MangoHud is intentionally not installed by default. It is useful for diagnostics and frame-time logging, but it is not part of the runtime path needed to make GameMode or gamescope work.

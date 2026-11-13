@@ -1,6 +1,6 @@
 # SplitCast E2E results
 
-This is an incomplete acceptance record. The results below do not establish a working two-host SplitCast session. Earlier test details and limitations are in [application verification](../packages/splitcast/TEST_RESULTS.md) and [Nix gate evidence](evidence/splitcast-nix-gates.md).
+This is an incomplete historical acceptance record for the retired Python implementation. The results below do not establish a working two-host SplitCast session. Historical application tests remain available in Git at `cd9fece`; they are not part of the current runtime. See [current Rust verification](graphics-streaming/rust-completion-20261113.md) and [historical Nix gate evidence](evidence/splitcast-nix-gates.md).
 
 ## Results on 2026-11-02
 

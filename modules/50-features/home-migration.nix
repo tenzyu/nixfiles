@@ -37,6 +37,16 @@
             default = [];
             description = "JSON/TOML files containing references to this application's old root.";
           };
+          onConflict = lib.mkOption {
+            type = lib.types.enum ["reject" "backup"];
+            default = "reject";
+            description = "Save an existing directory under migration state before moving; never merge.";
+          };
+          repairAbsoluteLinks = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Repair absolute symlinks pointing to a declared legacy migration root.";
+          };
         };
       });
     };

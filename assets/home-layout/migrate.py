@@ -28,15 +28,17 @@ def store_link(path):
             and path.resolve().is_relative_to("/nix/store"))
 
 
-def tree(path):
+def tree(path, excluded=()):
     # Path.rglob may silently suppress permission errors. An unreadable directory
     # must never be classified as empty/generated and moved out of the way.
     with os.scandir(path) as entries:
         for entry in entries:
             child = Path(entry.path)
+            if any(child == root or child.is_relative_to(root) for root in excluded):
+                continue
             yield child
             if entry.is_dir(follow_symlinks=False):
-                yield from tree(child)
+                yield from tree(child, excluded)
 
 
 def generated_tree(path):
@@ -105,6 +107,37 @@ def replace_references(text, source, target, home):
     return text
 
 
+def relocated_absolute(value, rules):
+    """Map legacy absolute paths using the most specific migration rule."""
+    if not os.path.isabs(value):
+        return None
+    path = Path(os.path.normpath(value))
+    matches = []
+    for rule in rules:
+        source, target = Path(rule["source"]), Path(rule["target"])
+        if source != target and (path == source or path.is_relative_to(source)):
+            matches.append((len(source.parts), target / path.relative_to(source)))
+    return max(matches, key=lambda item: item[0])[1] if matches else None
+
+
+def link_repairs(root, destination, manifest, excluded=()):
+    """Plan link changes, including resumption after a successful directory rename."""
+    actions = []
+    for link in tree(root, excluded):
+        if not link.is_symlink():
+            continue
+        original = os.readlink(link)
+        relocated = relocated_absolute(original, manifest["rules"])
+        if relocated is None:
+            continue
+        new_link = destination / link.relative_to(root)
+        replacement = os.path.relpath(relocated, new_link.parent)
+        if original != replacement:
+            actions.append({"action": "symlink", "target": str(new_link),
+                            "original": original, "replacement": replacement})
+    return actions
+
+
 def plan(manifest):
     home = Path(manifest["home"])
     moves, actions, patterns = [], [], []
@@ -124,12 +157,13 @@ def plan(manifest):
             if not (actual_source.is_dir() or actual_source.is_file()):
                 raise Conflict(f"Unsupported legacy file type: {source}")
             if actual_source.is_dir():
-                for link in tree(actual_source):
+                for link in tree(actual_source, [old for old, _ in moves]):
                     if not link.is_symlink():
                         continue
                     value = os.readlink(link)
                     if value.startswith(str(source) + "/") or value == str(source):
-                        raise Conflict(f"Absolute legacy-root symlink requires repair: {link}")
+                        if not rule.get("repairAbsoluteLinks", False):
+                            raise Conflict(f"Absolute legacy-root symlink requires repair: {link}")
                     if not os.path.isabs(value):
                         # A relative link to another copied member remains valid,
                         # including cargo -> rustup -> /nix/store/... chains.
@@ -142,7 +176,18 @@ def plan(manifest):
                         if not old_resolved.is_relative_to(actual_source) and old_resolved != new_resolved:
                             raise Conflict(f"Relative symlink would change meaning: {link}")
             if present(actual_target):
-                if not generated_tree(actual_target) or not actual_source.is_dir():
+                generated = generated_tree(actual_target)
+                if not generated:
+                    if (rule.get("onConflict", "reject") != "backup"
+                            or not actual_source.is_dir() or not actual_target.is_dir()
+                            or actual_target.is_symlink()):
+                        raise Conflict(f"Both paths contain data: {source} -> {target}")
+                    # A backup is a rename into the private migration journal.
+                    # Refuse if that would become a cross-filesystem move.
+                    state_parent = nearest(Path(manifest["state"]))
+                    if actual_target.stat().st_dev != state_parent.stat().st_dev:
+                        raise Conflict(f"Backup requires same filesystem: {target}")
+                elif not actual_source.is_dir():
                     raise Conflict(f"Both paths contain data: {source} -> {target}")
             # HM checks the current layout before writeBoundary. Check files that
             # will appear there after moving, so linkGeneration cannot clobber them.
@@ -158,9 +203,20 @@ def plan(manifest):
                 raise Conflict(f"Destination parent is not a directory: {target.parent}")
             if actual_source.stat().st_dev != parent.stat().st_dev:
                 raise Conflict(f"Cross-filesystem move requires manual migration: {source} -> {target}")
-            actions.append({"action": "move", "source": str(source), "target": str(target)})
+            actions.append({"action": "move", "source": str(source), "target": str(target),
+                            "onConflict": rule.get("onConflict", "reject")})
             moves.append((source, target))
             patterns.extend(rule.get("processes", []))
+            if rule.get("repairAbsoluteLinks", False) and actual_source.is_dir():
+                actions.extend(link_repairs(actual_source, target, manifest,
+                                            [old for old, _ in moves[:-1]]))
+        elif (rule.get("repairAbsoluteLinks", False) and present(actual_target)
+              and actual_target.is_dir() and not actual_target.is_symlink()):
+            # Recover a crash between the directory rename and symlink repair.
+            repairs = link_repairs(actual_target, target, manifest)
+            actions.extend(repairs)
+            if repairs:
+                patterns.extend(rule.get("processes", []))
 
         # Run even when the directory has already moved: a crash between rename
         # and reference repair is recoverable on the next activation.
@@ -231,10 +287,48 @@ def apply(manifest):
             # Recheck after preflight; never treat a newly created real file as
             # scaffolding, and never use a copying fallback across filesystems.
             if exists(target):
-                if not generated_tree(target) or not source.is_dir():
+                if not source.is_dir() or target.is_symlink() or not target.is_dir():
                     raise Conflict(f"Destination changed during migration: {target}")
-                move(target, run / "scaffolding" / str(index))
+                if generated_tree(target):
+                    archive = run / "scaffolding" / str(index)
+                elif action["onConflict"] == "backup":
+                    archive = run / "conflicts" / str(index)
+                else:
+                    raise Conflict(f"Destination changed during migration: {target}")
+                if target.stat().st_dev != nearest(archive.parent).stat().st_dev:
+                    raise Conflict(f"Backup requires same filesystem: {target}")
+                move(target, archive)
             move(source, target)
+        elif action["action"] == "symlink":
+            if not target.is_symlink():
+                raise Conflict(f"Symlink changed during migration: {target}")
+            current = os.readlink(target)
+            replacement = action["replacement"]
+            if current == replacement:
+                continue
+            if current != action["original"]:
+                raise Conflict(f"Symlink changed during migration: {target}")
+            journal({"action": "symlink-intent", "target": str(target),
+                     "original": current, "replacement": replacement})
+            fd, temp = tempfile.mkstemp(prefix=".home-migration-link-", dir=target.parent)
+            os.close(fd)
+            os.unlink(temp)
+            try:
+                os.symlink(replacement, temp)
+                # Only the original symlink may be replaced, never a real file.
+                if not target.is_symlink() or os.readlink(target) != current:
+                    raise Conflict(f"Symlink changed during migration: {target}")
+                os.replace(temp, target)
+                fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            finally:
+                if exists(temp):
+                    os.unlink(temp)
+            journal({"action": "symlink", "target": str(target),
+                     "original": current, "replacement": replacement})
         else:
             text = target.read_text()
             updated = replace_references(text, Path(action["source"]), Path(action["root"]),

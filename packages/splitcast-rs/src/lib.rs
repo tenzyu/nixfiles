@@ -1,0 +1,18 @@
+pub mod agent;
+pub mod audio;
+pub mod config;
+pub mod control;
+pub mod http;
+pub mod lifecycle;
+pub mod media;
+pub mod obs;
+pub mod process;
+pub mod state;
+pub mod tts;
+pub mod tui;
+pub mod web;
+pub mod workers;
+pub use lifecycle::{Lifecycle, Role, Session, TransitionError};
+pub use process::{run_bounded, OwnedProcess};
+pub use protocol::Output;
+pub use splitcast_protocol as protocol;

@@ -240,6 +240,114 @@ class MigrationTest(unittest.TestCase):
         self.assertTrue((self.home / ".first/key").exists())
         self.assertFalse((self.home / "state").exists())
 
+    def test_bun_link_rewrite_and_backup_both_caches(self):
+        package = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package.json', 'legacy')
+        alias = self.home / '.bun/install/cache/cli-width/4.1.0@@@1'
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(package.parent)
+        inode = package.stat().st_ino
+        self.file('.cache/bun/install/new-cache', 'new')
+        self.file('.bun/bin/bun', 'binary')
+        self.rule('.bun/install/cache', '.cache/bun/install', onConflict='backup', repairAbsoluteLinks=True)
+        self.rule('.bun', '.local/share/bun', repairAbsoluteLinks=True)
+        before = migrate.plan(self.manifest)
+        self.assertTrue(any(a['action'] == 'symlink' for a in before))
+        self.assertEqual(os.readlink(alias), str(package.parent))  # check must not mutate
+        self.assertEqual((self.home / '.cache/bun/install/new-cache').read_text(), 'new')
+        migrate.apply(self.manifest)
+        new_alias = self.home / '.cache/bun/install/cli-width/4.1.0@@@1'
+        self.assertEqual(os.readlink(new_alias), '../cli-width@4.1.0@@@1')
+        self.assertEqual((new_alias / 'package.json').read_text(), 'legacy')
+        self.assertEqual((self.home / '.cache/bun/install/cli-width@4.1.0@@@1/package.json').stat().st_ino, inode)
+        backups = list((self.home / 'state').glob('*/conflicts/0/new-cache'))
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(), 'new')
+        self.assertEqual(migrate.plan(self.manifest), [])
+
+    def test_backup_optin_only(self):
+        self.file('.old/a', 'old')
+        self.file('.new/b', 'new')
+        self.rule('.old', '.new')
+        with self.assertRaisesRegex(migrate.Conflict, 'Both paths contain data'):
+            migrate.apply(self.manifest)
+        self.assertFalse((self.home / 'state').exists())
+
+    def test_no_moves_if_another_rule_conflicts_after_backup_policy(self):
+        self.file('.bun/install/cache/a')
+        self.file('.cache/bun/install/b')
+        self.file('.claude/key')
+        self.file('.config/claude/other')
+        self.rule('.bun/install/cache', '.cache/bun/install', onConflict='backup', repairAbsoluteLinks=True)
+        self.rule('.claude', '.config/claude')
+        with self.assertRaises(migrate.Conflict):
+            migrate.apply(self.manifest)
+        self.assertTrue((self.home / '.bun/install/cache/a').exists())
+        self.assertTrue((self.home / '.cache/bun/install/b').exists())
+        self.assertFalse((self.home / 'state').exists())
+
+    def test_cross_rule_absolute_link_uses_specific_target(self):
+        cache = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package', 'legacy')
+        link = self.home / '.bun/bin/cli'
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(cache)
+        self.rule('.bun/install/cache', '.cache/bun/install', repairAbsoluteLinks=True)
+        self.rule('.bun', '.local/share/bun', repairAbsoluteLinks=True)
+        migrate.apply(self.manifest)
+        new_link = self.home / '.local/share/bun/bin/cli'
+        self.assertEqual(new_link.read_text(), 'legacy')
+        self.assertEqual(os.readlink(new_link), os.path.relpath(self.home / '.cache/bun/install/cli-width@4.1.0@@@1/package',new_link.parent))
+
+    def test_interrupted_after_move_repairs_on_retry(self):
+        target = self.file('.old/package', 'value')
+        original_link = self.home / '.old/alias'
+        original_link.symlink_to(target)
+        self.rule('.old', '.new', repairAbsoluteLinks=True)
+        original_symlink = migrate.os.symlink
+        def crash_rewrite(value, path, *args, **kwargs):
+            if '.home-migration-link-' in str(path):
+                raise OSError('simulated crash')
+            return original_symlink(value, path, *args, **kwargs)
+        with patch.object(migrate.os, 'symlink', side_effect=crash_rewrite):
+            with self.assertRaisesRegex(OSError, 'simulated crash'):
+                migrate.apply(self.manifest)
+        self.assertFalse((self.home / '.old').exists())
+        new_link = self.home / '.new/alias'
+        self.assertEqual(os.readlink(new_link), str(target))
+        migrate.apply(self.manifest)
+        self.assertEqual(os.readlink(new_link), 'package')
+        self.assertEqual(new_link.read_text(), 'value')
+        self.assertEqual(migrate.apply(self.manifest), [])
+
+    def test_non_opted_absolute_link_still_blocked(self):
+        target = self.file('.old/key')
+        (self.home / '.old/link').symlink_to(target)
+        self.rule('.old', '.new')
+        with self.assertRaisesRegex(migrate.Conflict, 'Absolute legacy-root'):
+            migrate.apply(self.manifest)
+
+    def test_external_link_untouched(self):
+        self.file('.old/key')
+        (self.home / '.old/link').symlink_to('/nix/store/not-present/file')
+        self.rule('.old', '.new', repairAbsoluteLinks=True)
+        migrate.apply(self.manifest)
+        self.assertEqual(os.readlink(self.home / '.new/link'), '/nix/store/not-present/file')
+
+    def test_backup_rejects_symlink_or_file_destination(self):
+        self.file('.old/key')
+        self.file('other/key')
+        target = self.home / '.new'
+        target.symlink_to('other')
+        self.rule('.old', '.new', onConflict='backup')
+        with self.assertRaises(migrate.Conflict):
+            migrate.apply(self.manifest)
+        self.assertTrue(target.is_symlink())
+        self.assertFalse((self.home / 'state').exists())
+        target.unlink()
+        target.write_text('real')
+        with self.assertRaises(migrate.Conflict):
+            migrate.apply(self.manifest)
+        self.assertEqual(target.read_text(), 'real')
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-07",
+  "runtime_sample_archive_sha256": "78b3853d48a23471c60c62fd52d69615e1b42193d19c8ceb404305e5456c6937",
+  "repo_main_at_review": "1c2d78964608fe02086977b4642989def316d004",
+  "device": {
+    "host": "neko5",
+    "model": "dynabook BJ65/FS A6BJFSFAL511",
+    "cpu": "Intel Core i5-10210U 4C8T",
+    "gpu": "Intel UHD 8086:9b41 / i915"
+  },
+  "display": {
+    "connector": "eDP-1",
+    "physical_resolution": [
+      1366,
+      768
+    ],
+    "refresh_hz": 60.003,
+    "vrr": false,
+    "sample_count": 8,
+    "foreground_direct_scanout_count": 8,
+    "active_tearing_count": 0,
+    "capture_running_during_samples": false
+  },
+  "audio": {
+    "driver": "snd_hda_intel",
+    "codec": "Realtek ALC257",
+    "route": "osu! BASS/ALSA -> PipeWire 1.6.6 -> ALC257",
+    "rate_hz": 48000,
+    "alsa_pcm_format": "S32_LE",
+    "channels": 2,
+    "alsa_period_frames": 1024,
+    "alsa_buffer_frames": 32768,
+    "pipewire_quantum_configured_frames": 1024,
+    "pipewire_active_node_quantum_verified": false,
+    "xrun_count_verified": false
+  },
+  "input": {
+    "o3c": {
+      "usb_device": "1-2",
+      "full_speed_mbps": 12,
+      "interrupt_in_binterval_ms": 1,
+      "user_configured_hz": 1000,
+      "effective_hz_verified": false
+    },
+    "wacom": {
+      "model": "CTL-472",
+      "usb_device": "1-4.2",
+      "full_speed_mbps": 12,
+      "interrupt_in_binterval_ms": 2,
+      "effective_hz_verified": false
+    }
+  },
+  "thermals": {
+    "cpu_pkg_temp_c": {
+      "min": 95,
+      "max": 98,
+      "samples": 8
+    },
+    "cpu0_scaling_cur_freq_ghz": {
+      "min": 2.9,
+      "max": 3.083,
+      "samples": 8
+    },
+    "throttling_verified": false
+  },
+  "network": {
+    "active_type": "Wi-Fi",
+    "tailscale_present": true,
+    "ethernet_active": false,
+    "neko7_route_verified": false
+  },
+  "splitcast": {
+    "deployed_capture": false,
+    "performance_nonregression_verified": false,
+    "design_status": "proposal"
+  },
+  "follow_up_2026_11_07_1530": {
+    "raw_archive_sha256": "d3457f068ac93d56fefab5c5007b38457f1ba69bee931abcae2063613acf2904",
+    "captured_local_time": "2026-11-07T15:30:01+09:00",
+    "audio": {
+      "force_quantum_metadata_frames": 256,
+      "driver_node": {
+        "name": "alsa_output.pci-0000_00_1f.3.analog-stereo",
+        "active_quantum_frames": 256,
+        "rate_hz": 48000,
+        "active_period_ms": 5.3333,
+        "err_first_running": 12,
+        "err_last_running": 12,
+        "err_running_delta": 0,
+        "startup_err_cumulative_jump_detected": 12
+      },
+      "game_stream": {
+        "name": "alsa_playback.osu!",
+        "suggested_quantum_frames": 441,
+        "rate_hz": 44100,
+        "suggested_period_ms": 10,
+        "format": "F32LE",
+        "actual_bass_device_period_verified": false
+      },
+      "alsa_hw_params_snapshot": {
+        "period_frames": 1024,
+        "rate_hz": 48000,
+        "buffer_capacity_frames": 32768,
+        "captured_before_foreground_sampling": true
+      },
+      "hitsound_onset_ms_verified": false
+    },
+    "thermal": {
+      "x86_pkg_temp_c_min": 94,
+      "x86_pkg_temp_c_max": 98,
+      "n_samples": 12,
+      "cpu0_package_throttle_count_start": 15811,
+      "cpu0_package_throttle_count_end": 15815,
+      "delta": 4,
+      "thermally_throttled_during_capture": true,
+      "quantum_causal_effect_verified": false
+    },
+    "limits": [
+      "only experimental quantum=256; no paired game-only baseline",
+      "driver ERR cumulative change 0 to 12 preceded two running data rows and cannot be assigned to a stable playing window",
+      "stream quantum 441/44100 is a follower suggestion, not BASS update-period proof",
+      "ALSA hw_params collected before focus and not repeatedly during active window"
+    ]
+  }
+}

@@ -14,7 +14,6 @@
           general = {
             inhibit_screensaver = 0;
             renice = 10;
-            softrealtime = "auto";
           };
         };
       };

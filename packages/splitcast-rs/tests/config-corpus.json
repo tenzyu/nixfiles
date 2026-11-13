@@ -1,0 +1,6220 @@
+[
+  {
+    "name": "valid",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": null
+  },
+  {
+    "name": "valid target",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "app:osu!",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": null
+  },
+  {
+    "name": "valid game audio",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "app:osu!",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": null
+  },
+  {
+    "name": "valid camera",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": true,
+        "location": "capture",
+        "device": "/dev/v4l/by-id/camera",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": null
+  },
+  {
+    "name": "valid remote tts",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": true,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": true,
+        "eventsub": true,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts",
+            "obs.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": null
+  },
+  {
+    "name": "missing nested field",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key"
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown peer",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15,
+        "unknown": 1
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown capture",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997,
+        "unknown": 1
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown audio",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0,
+        "unknown": 1
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown camera",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0,
+        "unknown": 1
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown obs",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000,
+        "unknown": 1
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown tts",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json",
+        "unknown": 1
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "unknown route",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true,
+          "unknown": 1
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "version=True",
+    "input": {
+      "version": true,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "role='other'",
+    "input": {
+      "version": 1,
+      "role": "other",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "peer/ssh_host='-host'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "-host",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "peer/ssh_port=True",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": true,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "peer/retry_limit=6",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 6,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "capture/width='1920'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": "1920",
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "capture/width=1920.0",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920.0,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "capture/fps=45",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 45,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "capture/game_audio='sink.monitor'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "sink.monitor",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "capture/game_audio='app:splitcast-tts'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "app:splitcast-tts",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "audio/processed_sink='splitcast_bad-name'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_bad-name",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "audio/rnnoise_label='bad-label'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "bad-label",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "audio/rnnoise_control=''",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "audio/gain_db=-31",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": -31,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "camera/enabled=1",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": 1,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "camera/offset_ms=1.0",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 1.0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "camera/offset_ms=2001",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 2001
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "camera/mode='invalid'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "invalid",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "obs/bitrate_kbps=10001",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 10001
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "tts/eventsub=0",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": 0,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "tts/voicevox_url='http://127.0.0.1:50021/redirect'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021/redirect",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "tts/voicevox_url='http://127.0.0.1.evil/'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1.evil/",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "tts/voicevox_url='http://127.0.0.1:65536'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:65536",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": true,
+    "reason": "Rust rejects out-of-range URL ports; the Python validator accepts them."
+  },
+  {
+    "name": "tts/voicevox_url='http://127.0.0.1?x=1'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1?x=1",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/0/enabled=False",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/0/source='mic.raw'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "mic.raw",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/0/processors=['transport.rtmp', 'capture.gpu']",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "transport.rtmp",
+            "capture.gpu"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/1/id='game'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "game",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/2/enabled=True",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "routes/3/targets=['local.tts', 'obs.tts']",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts",
+            "obs.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "peer/control_port=1935",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 1935,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "obs/binary='x\\nfoo'",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "x\nfoo",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "~/.config/splitcast/twitch.json"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  },
+  {
+    "name": "tts/credentials_file='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "input": {
+      "version": 1,
+      "role": "capture",
+      "peer": {
+        "ssh_host": "neko7",
+        "ssh_port": 22,
+        "control_port": 17870,
+        "remote_control_port": 17871,
+        "forward_control_port": 17872,
+        "token_file": "~/.config/splitcast/control.token",
+        "remote_token_file": "~/.config/splitcast/production.token",
+        "state_dir": "~/.local/state/splitcast",
+        "retry_limit": 3,
+        "timeout_seconds": 15
+      },
+      "capture": {
+        "target": "",
+        "game_audio": "",
+        "width": 1920,
+        "height": 1080,
+        "fps": 60,
+        "bitrate_kbps": 12000,
+        "rtmp_port": 1935,
+        "rtsp_port": 8554,
+        "api_port": 9997
+      },
+      "audio": {
+        "mic_source": "",
+        "tts_sink": "",
+        "processed_sink": "splitcast_mic",
+        "rnnoise_plugin": "/tmp/rnnoise.so",
+        "rnnoise_label": "noise_suppressor_mono",
+        "rnnoise_control": "50|200|0|0|0",
+        "gain_db": 0,
+        "mic_offset_ms": 0
+      },
+      "camera": {
+        "enabled": false,
+        "location": "capture",
+        "device": "",
+        "mode": "h264",
+        "encoder": "h264_vaapi",
+        "hw_device": "/dev/dri/renderD128",
+        "width": 1280,
+        "height": 720,
+        "fps": 30,
+        "offset_ms": 0
+      },
+      "obs": {
+        "binary": "obs",
+        "websocket_port": 4455,
+        "password_file": "~/.config/splitcast/obs.password",
+        "recording_dir": "~/Videos/SplitCast",
+        "twitch_key_file": "~/.config/splitcast/twitch.key",
+        "bitrate_kbps": 6000
+      },
+      "tts": {
+        "enabled": false,
+        "voicevox_url": "http://127.0.0.1:50021",
+        "speaker": 3,
+        "queue_limit": 16,
+        "expiry_seconds": 60,
+        "max_text": 200,
+        "mix_remote": false,
+        "eventsub": false,
+        "credentials_file": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "routes": [
+        {
+          "id": "game",
+          "source": "game.av",
+          "processors": [
+            "capture.gpu",
+            "transport.rtmp"
+          ],
+          "targets": [
+            "local.headphones",
+            "obs.game"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "mic",
+          "source": "mic.raw",
+          "processors": [
+            "transport.rtsp",
+            "remote.rnnoise"
+          ],
+          "targets": [
+            "obs.mic"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "camera",
+          "source": "camera.selected",
+          "processors": [
+            "camera.hardware",
+            "transport.rtsp"
+          ],
+          "targets": [
+            "obs.camera"
+          ],
+          "enabled": false
+        },
+        {
+          "id": "tts",
+          "source": "chat.text",
+          "processors": [
+            "remote.voicevox",
+            "transport.http"
+          ],
+          "targets": [
+            "local.tts"
+          ],
+          "enabled": true
+        },
+        {
+          "id": "overlay",
+          "source": "overlay.text",
+          "processors": [
+            "obs.text"
+          ],
+          "targets": [
+            "obs.overlay"
+          ],
+          "enabled": true
+        }
+      ]
+    },
+    "oracle_accepted": false,
+    "reason": null
+  }
+]

@@ -1,0 +1,460 @@
+<svg height="654pt" viewbox="0.00 0.00 2983.32 654.32" width="2983pt" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(20.16 634.16)">
+<title>overview</title>
+<polygon fill="#101722" points="-20.16,20.16 -20.16,-634.16 2963.16,-634.16 2963.16,20.16 -20.16,20.16" stroke="transparent"></polygon>
+<text fill="#e2e8f0" font-family="Noto Sans CJK JP" font-size="17.00" text-anchor="middle" x="1471.5" y="-596.4">neko5 ⇄ neko7 : End-to-end system map</text>
+<text fill="#e2e8f0" font-family="Noto Sans CJK JP" font-size="17.00" text-anchor="middle" x="1471.5" y="-577.4">実線＝経路  /  破線＝設計上の観測・制御  /  橙＝資源競合</text>
+<!-- o1&#45;&gt;o3 -->
+<g class="edge" id="edge1">
+<title>o1-&gt;o3</title>
+<path d="M129.02,-550C164.78,-550 214.5,-550 256.64,-550" fill="none" stroke="#34d399" stroke-width="1.5"></path>
+<polygon fill="#34d399" points="256.8,-552.1 262.8,-550 256.8,-547.9 256.8,-552.1" stroke="#34d399" stroke-width="1.5"></polygon>
+</g>
+<!-- o2&#45;&gt;o4 -->
+<g class="edge" id="edge2">
+<title>o2-&gt;o4</title>
+<path d="M134.25,-492C175.04,-492 231.5,-492 274.88,-492" fill="none" stroke="#34d399" stroke-width="1.5"></path>
+<polygon fill="#34d399" points="274.92,-494.1 280.92,-492 274.92,-489.9 274.92,-494.1" stroke="#34d399" stroke-width="1.5"></polygon>
+</g>
+<!-- o3&#45;&gt;o5 -->
+<g class="edge" id="edge3">
+<title>o3-&gt;o5</title>
+<path d="M395.29,-531.97C417.42,-524.55 442.89,-516.01 464.59,-508.73" fill="none" stroke="#34d399" stroke-width="1.5"></path>
+<polygon fill="#34d399" points="465.3,-510.71 470.32,-506.81 463.96,-506.73 465.3,-510.71" stroke="#34d399" stroke-width="1.5"></polygon>
+</g>
+<!-- o4&#45;&gt;o5 -->
+<g class="edge" id="edge4">
+<title>o4-&gt;o5</title>
+<path d="M400.07,-492C420.95,-492 444.25,-492 464.36,-492" fill="none" stroke="#34d399" stroke-width="1.5"></path>
+<polygon fill="#34d399" points="464.49,-494.1 470.49,-492 464.49,-489.9 464.49,-494.1" stroke="#34d399" stroke-width="1.5"></polygon>
+</g>
+<!-- o5&#45;&gt;o6 -->
+<g class="edge" id="edge5">
+<title>o5-&gt;o6</title>
+<path d="M537.7,-473.65C585.79,-432.01 703.05,-330.49 755.23,-285.31" fill="none" stroke="#fbbf24" stroke-width="1.5"></path>
+<polygon fill="#fbbf24" points="756.91,-286.64 760.07,-281.12 754.16,-283.46 756.91,-286.64" stroke="#fbbf24" stroke-width="1.5"></polygon>
+</g>
+<!-- o6&#45;&gt;o11 -->
+<g class="edge" id="edge10">
+<title>o6-&gt;o11</title>
+<path d="M820.31,-262.71C831.08,-262.63 843.09,-262.53 854.78,-262.44" fill="none" stroke="#fbbf24" stroke-width="1.5"></path>
+<polygon fill="#fbbf24" points="854.87,-264.54 860.86,-262.4 854.84,-260.34 854.87,-264.54" stroke="#fbbf24" stroke-width="1.5"></polygon>
+</g>
+<!-- o7&#45;&gt;o8 -->
+<g class="edge" id="edge6">
+<title>o7-&gt;o8</title>
+<path d="M136.77,-197C180.72,-197 241.63,-197 285.19,-197" fill="none" stroke="#60a5fa" stroke-width="1.5"></path>
+<polygon fill="#60a5fa" points="285.22,-199.1 291.22,-197 285.22,-194.9 285.22,-199.1" stroke="#60a5fa" stroke-width="1.5"></polygon>
+</g>
+<!-- o8&#45;&gt;o9 -->
+<g class="edge" id="edge7">
+<title>o8-&gt;o9</title>
+<path d="M361.36,-215.11C384,-235.26 422.59,-268.11 459,-292 463.18,-294.74 467.65,-297.44 472.17,-300.01" fill="none" stroke="#60a5fa" stroke-width="1.5"></path>
+<polygon fill="#60a5fa" points="471.22,-301.89 477.49,-302.97 473.27,-298.22 471.22,-301.89" stroke="#60a5fa" stroke-width="1.5"></polygon>
+</g>
+<!-- o8&#45;&gt;o10 -->
+<g class="edge" id="edge8">
+<title>o8-&gt;o10</title>
+<path d="M388.77,-215.03C411.28,-223.62 438.27,-233.92 461.47,-242.77" fill="none" stroke="#60a5fa" stroke-width="1.5"></path>
+<polygon fill="#60a5fa" points="460.93,-244.81 467.28,-244.99 462.43,-240.89 460.93,-244.81" stroke="#60a5fa" stroke-width="1.5"></polygon>
+</g>
+<!-- o8&#45;&gt;o20 -->
+<g class="edge" id="edge20">
+<title>o8-&gt;o20</title>
+<path d="M389.76,-185.22C442,-172.47 525.84,-152.01 585.68,-137.41" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="586.43,-139.39 591.76,-135.92 585.43,-135.31 586.43,-139.39" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o10&#45;&gt;o6 -->
+<g class="edge" id="edge9">
+<title>o10-&gt;o6</title>
+<path d="M572.27,-263C621.63,-263 692.65,-263 737.8,-263" fill="none" stroke="#60a5fa" stroke-width="1.5"></path>
+<polygon fill="#60a5fa" points="738,-265.1 744,-263 738,-260.9 738,-265.1" stroke="#60a5fa" stroke-width="1.5"></polygon>
+</g>
+<!-- o11&#45;&gt;o12 -->
+<g class="edge" id="edge11">
+<title>o11-&gt;o12</title>
+<path d="M965.03,-262C976.2,-262 988.15,-262 999.74,-262" fill="none" stroke="#fbbf24" stroke-width="1.5"></path>
+<polygon fill="#fbbf24" points="999.76,-264.1 1005.76,-262 999.76,-259.9 999.76,-264.1" stroke="#fbbf24" stroke-width="1.5"></polygon>
+</g>
+<!-- o12&#45;&gt;o13 -->
+<g class="edge" id="edge12">
+<title>o12-&gt;o13</title>
+<path d="M1123.02,-262C1153.11,-262 1189.76,-262 1219.53,-262" fill="none" stroke="#a78bfa" stroke-width="1.5"></path>
+<polygon fill="#a78bfa" points="1219.78,-264.1 1225.78,-262 1219.78,-259.9 1219.78,-264.1" stroke="#a78bfa" stroke-width="1.5"></polygon>
+</g>
+<!-- o13&#45;&gt;o14 -->
+<g class="edge" id="edge13">
+<title>o13-&gt;o14</title>
+<path d="M1326.26,-262C1337.25,-262 1349.04,-262 1360.47,-262" fill="none" stroke="#a78bfa" stroke-width="1.5"></path>
+<polygon fill="#a78bfa" points="1360.78,-264.1 1366.78,-262 1360.78,-259.9 1360.78,-264.1" stroke="#a78bfa" stroke-width="1.5"></polygon>
+</g>
+<!-- o14&#45;&gt;o15 -->
+<g class="edge" id="edge14">
+<title>o14-&gt;o15</title>
+<path d="M1480.44,-262C1491.5,-262 1503.28,-262 1514.91,-262" fill="none" stroke="#a78bfa" stroke-width="1.5"></path>
+<polygon fill="#a78bfa" points="1514.96,-264.1 1520.96,-262 1514.96,-259.9 1514.96,-264.1" stroke="#a78bfa" stroke-width="1.5"></polygon>
+</g>
+<!-- o15&#45;&gt;o16 -->
+<g class="edge" id="edge15">
+<title>o15-&gt;o16</title>
+<path d="M1666.47,-262C1677.98,-262 1689.75,-262 1700.84,-262" fill="none" stroke="#a78bfa" stroke-width="1.5"></path>
+<polygon fill="#a78bfa" points="1700.93,-264.1 1706.93,-262 1700.93,-259.9 1700.93,-264.1" stroke="#a78bfa" stroke-width="1.5"></polygon>
+</g>
+<!-- o16&#45;&gt;o17 -->
+<g class="edge" id="edge16">
+<title>o16-&gt;o17</title>
+<path d="M1807.85,-243.97C1824.67,-237.69 1843.64,-230.62 1860.9,-224.18" fill="none" stroke="#a78bfa" stroke-width="1.5"></path>
+<polygon fill="#a78bfa" points="1861.79,-226.09 1866.68,-222.02 1860.33,-222.15 1861.79,-226.09" stroke="#a78bfa" stroke-width="1.5"></polygon>
+</g>
+<!-- o16&#45;&gt;o18 -->
+<g class="edge" id="edge17">
+<title>o16-&gt;o18</title>
+<path d="M1810.42,-262C1826.29,-262 1843.86,-262 1860,-262" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="1860.35,-264.1 1866.35,-262 1860.35,-259.9 1860.35,-264.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o18&#45;&gt;o19 -->
+<g class="edge" id="edge18">
+<title>o18-&gt;o19</title>
+<path d="M1965.59,-249.27C1981.21,-245.18 1998.84,-240.57 2015.65,-236.16" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2016.53,-238.1 2021.8,-234.55 2015.47,-234.04 2016.53,-238.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o19&#45;&gt;o21 -->
+<g class="edge" id="edge19">
+<title>o19-&gt;o21</title>
+<path d="M2150.22,-202.6C2161.42,-199.87 2173.21,-197 2184.78,-194.18" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2185.48,-196.17 2190.81,-192.71 2184.48,-192.09 2185.48,-196.17" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o20&#45;&gt;o21 -->
+<g class="edge" id="edge21">
+<title>o20-&gt;o21</title>
+<path d="M724.28,-137.22C758.49,-144.79 801.23,-152 840,-152 840,-152 840,-152 2087,-152 2119.16,-152 2154.33,-155.8 2184.76,-160.31" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2184.54,-162.4 2190.78,-161.22 2185.17,-158.25 2184.54,-162.4" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o21&#45;&gt;o22 -->
+<g class="edge" id="edge22">
+<title>o21-&gt;o22</title>
+<path d="M2338.31,-175C2349.78,-175 2361.51,-175 2372.61,-175" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2372.7,-177.1 2378.7,-175 2372.7,-172.9 2372.7,-177.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o22&#45;&gt;o23 -->
+<g class="edge" id="edge23">
+<title>o22-&gt;o23</title>
+<path d="M2486.21,-175C2497.34,-175 2509.2,-175 2520.65,-175" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2520.97,-177.1 2526.97,-175 2520.97,-172.9 2520.97,-177.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o23&#45;&gt;o24 -->
+<g class="edge" id="edge24">
+<title>o23-&gt;o24</title>
+<path d="M2641.32,-175C2652.44,-175 2664.2,-175 2675.59,-175" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2675.87,-177.1 2681.87,-175 2675.87,-172.9 2675.87,-177.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o24&#45;&gt;o25 -->
+<g class="edge" id="edge25">
+<title>o24-&gt;o25</title>
+<path d="M2802.32,-175C2813.68,-175 2825.54,-175 2836.77,-175" fill="none" stroke="#f472b6" stroke-width="1.5"></path>
+<polygon fill="#f472b6" points="2836.94,-177.1 2842.94,-175 2836.94,-172.9 2836.94,-177.1" stroke="#f472b6" stroke-width="1.5"></polygon>
+</g>
+<!-- o26&#45;&gt;o5 -->
+<g class="edge" id="edge26">
+<title>o26-&gt;o5</title>
+<path d="M112.84,-330.01C148.62,-349.8 208.81,-381.72 263,-404 329.95,-431.52 349.85,-429.62 418,-454 433.12,-459.41 449.41,-465.66 464.23,-471.51" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="463.69,-473.56 470.04,-473.81 465.24,-469.65 463.69,-473.56" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="340.5" y="-456.6">shared resources</text>
+</g>
+<!-- o26&#45;&gt;o8 -->
+<g class="edge" id="edge27">
+<title>o26-&gt;o8</title>
+<path d="M121.67,-293.9C168.22,-273.2 244.3,-239.35 293.12,-217.63" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="294.01,-219.54 298.64,-215.18 292.3,-215.7 294.01,-219.54" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="211.5" y="-267.6">shared resources</text>
+</g>
+<!-- o26&#45;&gt;o11 -->
+<g class="edge" id="edge28">
+<title>o26-&gt;o11</title>
+<path d="M107.77,-330.25C126.94,-342.18 153.88,-356.67 180,-363 234.07,-376.11 379.92,-386.96 418,-358 467.24,-320.56 426.26,-277.48 459,-225 501.93,-156.17 516.58,-129.88 592,-100 646.54,-78.39 669,-79.57 724,-100 799.37,-128 864.76,-201.26 894.67,-238.92" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="893.12,-240.35 898.48,-243.77 896.42,-237.76 893.12,-240.35" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="515.5" y="-227.6">shared resources</text>
+</g>
+<!-- o26&#45;&gt;o13 -->
+<g class="edge" id="edge29">
+<title>o26-&gt;o13</title>
+<path d="M132.17,-330.05C204.57,-352.01 337.1,-378.51 418,-312 454.39,-282.08 425.42,-137.04 459,-104 543.29,-21.05 606.14,-70.25 724,-80 767.11,-83.57 777.59,-87.49 820,-96 894.31,-110.9 914.12,-110.99 986,-135 1076.96,-165.39 1178.6,-213.57 1233.82,-241.02" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="1233.04,-242.98 1239.35,-243.78 1234.91,-239.22 1233.04,-242.98" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="782" y="-98.6">shared resources</text>
+</g>
+<!-- o26&#45;&gt;o19 -->
+<g class="edge" id="edge30">
+<title>o26-&gt;o19</title>
+<path d="M160.32,-311.53C248.12,-309.27 382,-300.12 418,-266 426.79,-257.67 449.67,-59.71 459,-52 528.33,5.31 1063.81,-5.82 1831,-135 1899.04,-146.46 1915.64,-152.88 1981,-175 2000.12,-181.47 2020.75,-189.72 2038.55,-197.26" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="2038.13,-199.37 2044.47,-199.79 2039.78,-195.51 2038.13,-199.37" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="1174.5" y="-51.6">shared resources</text>
+</g>
+<!-- o26&#45;&gt;o21 -->
+<g class="edge" id="edge31">
+<title>o26-&gt;o21</title>
+<path d="M150.55,-293.93C184.45,-285.15 225.84,-274.47 263,-265 331.83,-247.45 369.04,-277.47 418,-226 450.17,-192.18 423.48,-50.28 459,-20 467.17,-13.04 567.99,0 1275,0 1275,0 1275,0 1501,0 1775.08,0 2090.86,-108.74 2212.29,-154.79" fill="none" stroke="#f97316" stroke-dasharray="5,2" stroke-width="1.5"></path>
+<polygon fill="#f97316" points="2211.57,-156.76 2217.92,-156.93 2213.06,-152.83 2211.57,-156.76" stroke="#f97316" stroke-width="1.5"></polygon>
+<text fill="#b9c7d5" font-family="Noto Sans CJK JP" font-size="8.00" text-anchor="middle" x="1276" y="-3.6">shared resources</text>
+</g>
+<!-- o1 -->
+<g class="node" id="node1">
+<title>o1</title>
+<g id="a_node1"><a xlink:href="#o1" xlink:title="【実機確定】O3CはUSB 1-2に接続。evdev event1にキーボード入力あり。1000Hzは設定済みとのユーザー報告で、転送間隔の実測ではない。資料：dev-input(1), usb-power(1)。">
+<path d="M117,-568C117,-568 43,-568 43,-568 37,-568 31,-562 31,-556 31,-556 31,-544 31,-544 31,-538 37,-532 43,-532 43,-532 117,-532 117,-532 123,-532 129,-538 129,-544 129,-544 129,-556 129,-556 129,-562 123,-568 117,-568" fill="#1c2939" stroke="#34d399" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="80" y="-553">O3C</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="80" y="-542">O3C / USB 1ms endpoint</text>
+</a>
+</g>
+</g>
+<!-- o2 -->
+<g class="node" id="node2">
+<title>o2</title>
+<g id="a_node2"><a xlink:href="#o2" xlink:title="【実機確定】CTL-472は外部ハブ1-4の下位1-4.2。event5、hidraw5/6が存在し、runtime PM=on。カスタムFWと1kHz動作は未確認。資料：dev-input(1), usb-power(1)。">
+<path d="M122,-510C122,-510 38,-510 38,-510 32,-510 26,-504 26,-498 26,-498 26,-486 26,-486 26,-480 32,-474 38,-474 38,-474 122,-474 122,-474 128,-474 134,-480 134,-486 134,-486 134,-498 134,-498 134,-504 128,-510 122,-510" fill="#1c2939" stroke="#34d399" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="80" y="-495">Wacom</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="80" y="-484">Wacom / USB 2ms endpoint</text>
+</a>
+</g>
+</g>
+<!-- o3 -->
+<g class="node" id="node3">
+<title>o3</title>
+<g id="a_node3"><a xlink:href="#o3" xlink:title="evdev → Wayland: O3CはカーネルevdevとWaylandキーボードイベントを経る。">
+<path d="M406,-568C406,-568 275,-568 275,-568 269,-568 263,-562 263,-556 263,-556 263,-544 263,-544 263,-538 269,-532 275,-532 275,-532 406,-532 406,-532 412,-532 418,-538 418,-544 418,-544 418,-556 418,-556 418,-562 412,-568 406,-568" fill="#1c2939" stroke="#34d399" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-553">evdev → Wayland</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-542">libinput → Hyprland → SDL3</text>
+</a>
+</g>
+</g>
+<!-- o4 -->
+<g class="node" id="node4">
+<title>o4</title>
+<g id="a_node4"><a xlink:href="#o4" xlink:title="OTD inside osu!: 生タブレット入力をOpenTabletDriverHandlerが処理。">
+<path d="M388,-510C388,-510 293,-510 293,-510 287,-510 281,-504 281,-498 281,-498 281,-486 281,-486 281,-480 287,-474 293,-474 293,-474 388,-474 388,-474 394,-474 400,-480 400,-486 400,-486 400,-498 400,-498 400,-504 394,-510 388,-510" fill="#1c2939" stroke="#34d399" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-495">OTD inside osu!</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-484">absolute coordinates</text>
+</a>
+</g>
+</g>
+<!-- o5 -->
+<g class="node" id="node5">
+<title>o5</title>
+<g id="a_node5"><a xlink:href="#o5" xlink:title="PendingInputs: 入力キューがゲーム内の状態に反映される。">
+<path d="M548.5,-510C548.5,-510 482.5,-510 482.5,-510 476.5,-510 470.5,-504 470.5,-498 470.5,-498 470.5,-486 470.5,-486 470.5,-480 476.5,-474 482.5,-474 482.5,-474 548.5,-474 548.5,-474 554.5,-474 560.5,-480 560.5,-486 560.5,-486 560.5,-498 560.5,-498 560.5,-504 554.5,-510 548.5,-510" fill="#1c2939" stroke="#34d399" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="515.5" y="-495">PendingInputs</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="515.5" y="-484">InputManager</text>
+</a>
+</g>
+</g>
+<!-- o6 -->
+<g class="node" id="node6">
+<title>o6</title>
+<g id="a_node6"><a xlink:href="#o6" xlink:title="Judgement: GameplayClockと入力状態を組み合わせる。">
+<path d="M808,-281C808,-281 756,-281 756,-281 750,-281 744,-275 744,-269 744,-269 744,-257 744,-257 744,-251 750,-245 756,-245 756,-245 808,-245 808,-245 814,-245 820,-251 820,-257 820,-257 820,-269 820,-269 820,-275 814,-281 808,-281" fill="#1c2939" stroke="#fbbf24" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="782" y="-266">Judgement</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="782" y="-255">osu! ruleset</text>
+</a>
+</g>
+</g>
+<!-- o7 -->
+<g class="node" id="node7">
+<title>o7</title>
+<g id="a_node7"><a xlink:href="#o7" xlink:title="Beatmap audio: 楽曲とヒットサウンドは別の発音イベント。">
+<path d="M124.5,-215C124.5,-215 35.5,-215 35.5,-215 29.5,-215 23.5,-209 23.5,-203 23.5,-203 23.5,-191 23.5,-191 23.5,-185 29.5,-179 35.5,-179 35.5,-179 124.5,-179 124.5,-179 130.5,-179 136.5,-185 136.5,-191 136.5,-191 136.5,-203 136.5,-203 136.5,-209 130.5,-215 124.5,-215" fill="#1c2939" stroke="#60a5fa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="80" y="-200">Beatmap audio</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="80" y="-189">decode / Bass mixer</text>
+</a>
+</g>
+</g>
+<!-- o8 -->
+<g class="node" id="node8">
+<title>o8</title>
+<g id="a_node8"><a xlink:href="#o8" xlink:title="【15:30】osu! ALSAクライアント F32LE 44100Hz follower QUANT=441、PipeWire output R/256/48000。ALSA物理PCM事前hw_paramsは1024/48000で継続実行値は未確認。">
+<path d="M377.5,-215C377.5,-215 303.5,-215 303.5,-215 297.5,-215 291.5,-209 291.5,-203 291.5,-203 291.5,-191 291.5,-191 291.5,-185 297.5,-179 303.5,-179 303.5,-179 377.5,-179 377.5,-179 383.5,-179 389.5,-185 389.5,-191 389.5,-191 389.5,-203 389.5,-203 389.5,-209 383.5,-215 377.5,-215" fill="#1c2939" stroke="#60a5fa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-200">BASS → ALSA</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="340.5" y="-189">PipeWire / RTKit</text>
+</a>
+</g>
+</g>
+<!-- o9 -->
+<g class="node" id="node9">
+<title>o9</title>
+<g id="a_node9"><a xlink:href="#o9" xlink:title="【実機確定】HDA Intel PCH PCI 8086:02c8、ドライバ snd_hda_intel、codec Realtek ALC257。ALSA pcm0pはS32_LE、2ch、48kHz、period1024 frames、buffer32768 frames。">
+<path d="M560,-339C560,-339 471,-339 471,-339 465,-339 459,-333 459,-327 459,-327 459,-315 459,-315 459,-309 465,-303 471,-303 471,-303 560,-303 560,-303 566,-303 572,-309 572,-315 572,-315 572,-327 572,-327 572,-333 566,-339 560,-339" fill="#1c2939" stroke="#60a5fa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="515.5" y="-324">ALSA → DAC</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="515.5" y="-313">ALC257 / HDA</text>
+</a>
+</g>
+</g>
+<!-- o10 -->
+<g class="node" id="node10">
+<title>o10</title>
+<g id="a_node10"><a xlink:href="#o10" xlink:title="Audio clock: BASS再生位置から補間されたGameplayClockへ。">
+<path d="M560,-281C560,-281 471,-281 471,-281 465,-281 459,-275 459,-269 459,-269 459,-257 459,-257 459,-251 465,-245 471,-245 471,-245 560,-245 560,-245 566,-245 572,-251 572,-257 572,-257 572,-269 572,-269 572,-275 566,-281 560,-281" fill="#1c2939" stroke="#60a5fa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="515.5" y="-266">Audio clock</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="515.5" y="-255">interpolate / offsets</text>
+</a>
+</g>
+</g>
+<!-- o11 -->
+<g class="node" id="node11">
+<title>o11</title>
+<g id="a_node11"><a xlink:href="#o11" xlink:title="Update: Root.UpdateSubTree、timing、judgement、DrawNode生成。">
+<path d="M953,-280C953,-280 873,-280 873,-280 867,-280 861,-274 861,-268 861,-268 861,-256 861,-256 861,-250 867,-244 873,-244 873,-244 953,-244 953,-244 959,-244 965,-250 965,-256 965,-256 965,-268 965,-268 965,-274 959,-280 953,-280" fill="#1c2939" stroke="#fbbf24" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="913" y="-265">Update</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="913" y="-254">scene graph / hits</text>
+</a>
+</g>
+</g>
+<!-- o12 -->
+<g class="node" id="node12">
+<title>o12</title>
+<g id="a_node12"><a xlink:href="#o12" xlink:title="TripleBuffer: UpdateとDrawが構造化されたスナップショットを交換。">
+<path d="M1111,-280C1111,-280 1018,-280 1018,-280 1012,-280 1006,-274 1006,-268 1006,-268 1006,-256 1006,-256 1006,-250 1012,-244 1018,-244 1018,-244 1111,-244 1111,-244 1117,-244 1123,-250 1123,-256 1123,-256 1123,-268 1123,-268 1123,-274 1117,-280 1111,-280" fill="#1c2939" stroke="#fbbf24" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1064.5" y="-265">TripleBuffer</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1064.5" y="-254">DrawNode snapshot</text>
+</a>
+</g>
+</g>
+<!-- o13 -->
+<g class="node" id="node13">
+<title>o13</title>
+<g id="a_node13"><a xlink:href="#o13" xlink:title="Draw: 描画命令を生成、GPUへ送る。">
+<path d="M1314,-280C1314,-280 1238,-280 1238,-280 1232,-280 1226,-274 1226,-268 1226,-268 1226,-256 1226,-256 1226,-250 1232,-244 1238,-244 1238,-244 1314,-244 1314,-244 1320,-244 1326,-250 1326,-256 1326,-256 1326,-268 1326,-268 1326,-274 1320,-280 1314,-280" fill="#1c2939" stroke="#a78bfa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1276" y="-265">Draw</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1276" y="-254">OpenGL / Veldrid</text>
+</a>
+</g>
+</g>
+<!-- o14 -->
+<g class="node" id="node14">
+<title>o14</title>
+<g id="a_node14"><a xlink:href="#o14" xlink:title="Mesa → i915: GLドライバ、GPUメモリ、同期。">
+<path d="M1468,-280C1468,-280 1379,-280 1379,-280 1373,-280 1367,-274 1367,-268 1367,-268 1367,-256 1367,-256 1367,-250 1373,-244 1379,-244 1379,-244 1468,-244 1468,-244 1474,-244 1480,-250 1480,-256 1480,-256 1480,-268 1480,-268 1480,-274 1474,-280 1468,-280" fill="#1c2939" stroke="#a78bfa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1423.5" y="-265">Mesa → i915</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1423.5" y="-254">GEM / sync / buffers</text>
+</a>
+</g>
+</g>
+<!-- o15 -->
+<g class="node" id="node15">
+<title>o15</title>
+<g id="a_node15"><a xlink:href="#o15" xlink:title="【実機観測：ユーザー報告】osu!をアクティブにしたときDirect Scanoutは成立。添付のhyprctlはアクティブワークスペースが別で、その時点のdirectScanoutTo=0は否定材料ではない。ゲーム内での連続成功率は未測定。">
+<path d="M1654,-280C1654,-280 1533,-280 1533,-280 1527,-280 1521,-274 1521,-268 1521,-268 1521,-256 1521,-256 1521,-250 1527,-244 1533,-244 1533,-244 1654,-244 1654,-244 1660,-244 1666,-250 1666,-256 1666,-256 1666,-268 1666,-268 1666,-274 1660,-280 1654,-280" fill="#1c2939" stroke="#a78bfa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1593.5" y="-265">Wayland / Hyprland</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="1593.5" y="-254">DSO observed 8/8</text>
+</a>
+</g>
+</g>
+<!-- o16 -->
+<g class="node" id="node16">
+<title>o16</title>
+<g id="a_node16"><a xlink:href="#o16" xlink:title="【実機確定】eDP-1、1366×768@60.003Hz、VRR=false、scale=1、currentFormat XRGB8888。osu!内部1280×720とパネル走査モードを同一視しない。">
+<path d="M1798,-280C1798,-280 1719,-280 1719,-280 1713,-280 1707,-274 1707,-268 1707,-268 1707,-256 1707,-256 1707,-250 1713,-244 1719,-244 1719,-244 1798,-244 1798,-244 1804,-244 1810,-250 1810,-256 1810,-256 1810,-268 1810,-268 1810,-274 1804,-280 1798,-280" fill="#1c2939" stroke="#a78bfa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1758.5" y="-265">DRM/KMS</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="1758.5" y="-254">eDP 60.003Hz</text>
+</a>
+</g>
+</g>
+<!-- o17 -->
+<g class="node" id="node17">
+<title>o17</title>
+<g id="a_node17"><a xlink:href="#o17" xlink:title="eDP panel: 物理リフレッシュ、走査時間、液晶応答。">
+<path d="M1969,-222C1969,-222 1863,-222 1863,-222 1857,-222 1851,-216 1851,-210 1851,-210 1851,-198 1851,-198 1851,-192 1857,-186 1863,-186 1863,-186 1969,-186 1969,-186 1975,-186 1981,-192 1981,-198 1981,-198 1981,-210 1981,-210 1981,-216 1975,-222 1969,-222" fill="#1c2939" stroke="#a78bfa" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1916" y="-207">eDP panel</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1916" y="-196">photon / pixel response</text>
+</a>
+</g>
+</g>
+<!-- o18 -->
+<g class="node" id="node18">
+<title>o18</title>
+<g id="a_node18"><a xlink:href="#o18" xlink:title="KMS capture: スキャンアウトバッファへの参照。動作・直走査維持は要測定。">
+<path d="M1953.5,-280C1953.5,-280 1878.5,-280 1878.5,-280 1872.5,-280 1866.5,-274 1866.5,-268 1866.5,-268 1866.5,-256 1866.5,-256 1866.5,-250 1872.5,-244 1878.5,-244 1878.5,-244 1953.5,-244 1953.5,-244 1959.5,-244 1965.5,-250 1965.5,-256 1965.5,-256 1965.5,-268 1965.5,-268 1965.5,-274 1959.5,-280 1953.5,-280" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1916" y="-265">KMS capture</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="1916" y="-254">independent tap</text>
+</a>
+</g>
+</g>
+<!-- o19 -->
+<g class="node" id="node19">
+<title>o19</title>
+<g id="a_node19"><a xlink:href="#o19" xlink:title="VAAPI encoder: 同じiGPUを使うため競合はゼロではない。">
+<path d="M2138,-236C2138,-236 2034,-236 2034,-236 2028,-236 2022,-230 2022,-224 2022,-224 2022,-212 2022,-212 2022,-206 2028,-200 2034,-200 2034,-200 2138,-200 2138,-200 2144,-200 2150,-206 2150,-212 2150,-212 2150,-224 2150,-224 2150,-230 2144,-236 2138,-236" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2086" y="-221">VAAPI encoder</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2086" y="-210">NV12 / H.264 hardware</text>
+</a>
+</g>
+</g>
+<!-- o20 -->
+<g class="node" id="node20">
+<title>o20</title>
+<g id="a_node20"><a xlink:href="#o20" xlink:title="ゲーム音声の通常出力はALC257。実験時PipeWire ALC257 driver R/256/48000を確認。SplitCastはゲーム経路を維持し、別の音声タップで取得する理想設計（未配備）。">
+<path d="M712,-138C712,-138 604,-138 604,-138 598,-138 592,-132 592,-126 592,-126 592,-114 592,-114 592,-108 598,-102 604,-102 604,-102 712,-102 712,-102 718,-102 724,-108 724,-114 724,-114 724,-126 724,-126 724,-132 718,-138 712,-138" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="658" y="-123">PipeWire monitor</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="658" y="-112">PipeWire 1.6.6</text>
+</a>
+</g>
+</g>
+<!-- o21 -->
+<g class="node" id="node21">
+<title>o21</title>
+<g id="a_node21"><a xlink:href="#o21" xlink:title="Media TX: 遅延優先:バックプレッシャーをゲームへ伝播しない。">
+<path d="M2326,-193C2326,-193 2203,-193 2203,-193 2197,-193 2191,-187 2191,-181 2191,-181 2191,-169 2191,-169 2191,-163 2197,-157 2203,-157 2203,-157 2326,-157 2326,-157 2332,-157 2338,-163 2338,-169 2338,-169 2338,-181 2338,-181 2338,-187 2332,-193 2326,-193" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2264.5" y="-178">Media TX</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2264.5" y="-167">timestamps / queues / UDP</text>
+</a>
+</g>
+</g>
+<!-- o22 -->
+<g class="node" id="node22">
+<title>o22</title>
+<g id="a_node22"><a xlink:href="#o22" xlink:title="【実機確定】wlo1(Intel AX201)はUP、tailscale0はUPでMTU1280。Ethernet eno2とUSB EthernetはDOWN。neko7 RTT/経路品質・SplitCast通信は未測定。">
+<path d="M2474,-193C2474,-193 2391,-193 2391,-193 2385,-193 2379,-187 2379,-181 2379,-181 2379,-169 2379,-169 2379,-163 2385,-157 2391,-157 2391,-157 2474,-157 2474,-157 2480,-157 2486,-163 2486,-169 2486,-169 2486,-181 2486,-181 2486,-187 2480,-193 2474,-193" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2432.5" y="-178">Tailscale / NIC</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="2432.5" y="-167">Wi-Fi + Tailscale</text>
+</a>
+</g>
+</g>
+<!-- o23 -->
+<g class="node" id="node23">
+<title>o23</title>
+<g id="a_node23"><a xlink:href="#o23" xlink:title="neko7 ingest: 受信、クロック関連付け、音映像同期。">
+<path d="M2629,-193C2629,-193 2539,-193 2539,-193 2533,-193 2527,-187 2527,-181 2527,-181 2527,-169 2527,-169 2527,-163 2533,-157 2539,-157 2539,-157 2629,-157 2629,-157 2635,-157 2641,-163 2641,-169 2641,-169 2641,-181 2641,-181 2641,-187 2635,-193 2629,-193" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2584" y="-178">neko7 ingest</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2584" y="-167">jitter / sync / demux</text>
+</a>
+</g>
+</g>
+<!-- o24 -->
+<g class="node" id="node24">
+<title>o24</title>
+<g id="a_node24"><a xlink:href="#o24" xlink:title="OBS on neko7: 重い合成処理をRTX 4060 Ti側へ。">
+<path d="M2790,-193C2790,-193 2694,-193 2694,-193 2688,-193 2682,-187 2682,-181 2682,-181 2682,-169 2682,-169 2682,-163 2688,-157 2694,-157 2694,-157 2790,-157 2790,-157 2796,-157 2802,-163 2802,-169 2802,-169 2802,-181 2802,-181 2802,-187 2796,-193 2790,-193" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2742" y="-178">OBS on neko7</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2742" y="-167">mix / overlay / record</text>
+</a>
+</g>
+</g>
+<!-- o25 -->
+<g class="node" id="node25">
+<title>o25</title>
+<g id="a_node25"><a xlink:href="#o25" xlink:title="Output on neko7: 配信・録画、独立した停止/復帰。">
+<path d="M2931,-193C2931,-193 2855,-193 2855,-193 2849,-193 2843,-187 2843,-181 2843,-181 2843,-169 2843,-169 2843,-163 2849,-157 2855,-157 2855,-157 2931,-157 2931,-157 2937,-157 2943,-163 2943,-169 2943,-169 2943,-181 2943,-181 2943,-187 2937,-193 2931,-193" fill="#26202e" stroke="#f472b6" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2893" y="-178">Output on neko7</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="2893" y="-167">stream / archive</text>
+</a>
+</g>
+</g>
+<!-- o26 -->
+<g class="node" id="node26">
+<title>o26</title>
+<g id="a_node26"><a xlink:href="#o26" xlink:title="【15:30熱スロットリング観測】CPU Package 94–98℃（12点）、cpu0 package_throttle_count 15811→15815（+4）。原因がPipeWire量子変更か、osu!単独か、因果未検証。">
+<path d="M148,-330C148,-330 12,-330 12,-330 6,-330 0,-324 0,-318 0,-318 0,-306 0,-306 0,-300 6,-294 12,-294 12,-294 148,-294 148,-294 154,-294 160,-300 160,-306 160,-306 160,-318 160,-318 160,-324 154,-330 148,-330" fill="#1c2939" stroke="#f97316" stroke-width="1.1"></path>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="10.00" text-anchor="middle" x="80" y="-315">Linux scheduler</text>
+<text fill="#e8f0fa" font-family="Noto Sans CJK JP" font-size="9" text-anchor="middle" x="80" y="-304">Package 95–98C</text>
+</a>
+</g>
+</g>
+</g>
+</svg>
