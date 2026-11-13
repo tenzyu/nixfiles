@@ -2,6 +2,7 @@
   lib,
   rustPlatform,
   makeWrapper,
+  bash,
   coreutils,
   jq,
   curl,
@@ -23,21 +24,25 @@ in
   rustPlatform.buildRustPackage {
     pname = "splitcast-rs-core";
     version = "0.1.0";
-    src = lib.cleanSource ./.;
+    src = lib.cleanSourceWith {
+      src = ./.;
+      filter = path: type: baseNameOf path != "target" && lib.cleanSourceFilter path type;
+    };
     cargoLock.lockFile = ./Cargo.lock;
-    nativeBuildInputs = [makeWrapper];
+    nativeBuildInputs = [makeWrapper jq bash coreutils];
     postInstall = ''
       wrapProgram "$out/bin/splitcast-rs-core" \
         --prefix PATH : ${lib.makeBinPath runtime} \
         --prefix LADSPA_PATH : ${rnnoise-plugin.ladspa}/lib/ladspa
+      ln -s splitcast-rs-core "$out/bin/splitcast"
     '';
     passthru = {
-      example = ../splitcast/example.json;
+      example = ./tests/example.json;
       rnnoise = rnnoise-plugin.ladspa;
       inherit obs;
     };
     meta = {
-      mainProgram = "splitcast-rs-core";
+      mainProgram = "splitcast";
       description = "Rust SplitCast agent candidate (no implicit service cutover)";
       platforms = lib.platforms.linux;
     };
