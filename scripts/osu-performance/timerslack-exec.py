@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in Linux per-process timer slack for osu!; no system/kernel config changes.
-
-This changes only the launcher thread, survives exec, and is inherited by the
-newly created game threads. It cannot guarantee wakeup latency or frame rate.
-"""
+"""Per-process timer slack for osu!: optional hint, never modifies the game."""
 from __future__ import annotations
 
 import argparse
@@ -37,10 +33,9 @@ def apply_timer_slack(ns: int) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Launch a process with a specified per-thread Linux timer slack. Opt-in, reversible on exit."
-    )
-    parser.add_argument("--nanoseconds", type=int, required=True, help="1..50000 ns (50us common inherited default)")
+    parser = argparse.ArgumentParser(description="Run a command with optional per-process Linux timer slack")
+    parser.add_argument("--nanoseconds", type=int, required=True, help="1..50000 ns")
+    parser.add_argument("--best-effort", action="store_true", help="continue without override if prctl fails")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- osu-lazer [args]")
     args = parser.parse_args(argv)
     command = args.command
@@ -53,14 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         actual = apply_timer_slack(args.nanoseconds)
     except (OSError, RuntimeError, ValueError) as error:
-        print(f"timerslack-exec: {error}; command NOT launched", file=sys.stderr)
-        return 1
-    print(
-        f"timerslack-exec: per-process slack={actual} ns; exec={command[0]!r}; "
-        "not a guaranteed frame-time improvement",
-        file=sys.stderr,
-        flush=True,
-    )
+        if not args.best_effort:
+            print(f"timerslack-exec: {error}; command NOT launched", file=sys.stderr)
+            return 1
+        print(f"timerslack-exec: {error}; proceeding without timer override", file=sys.stderr)
+    else:
+        print(f"timerslack-exec: per-process slack={actual} ns; not a guaranteed frame-time improvement", file=sys.stderr)
     try:
         os.execvp(command[0], command)
     except OSError as error:

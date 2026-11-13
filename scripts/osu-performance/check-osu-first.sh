@@ -4,11 +4,14 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 cd "$repo"
 bash -n scripts/osu-performance/osu-first.sh
-python3 -m py_compile scripts/osu-performance/timerslack-exec.py
+bash -n scripts/osu-performance/draw-observe.sh
+bash scripts/osu-performance/test-draw-observe.sh
+python3 -c 'from pathlib import Path; p=Path("scripts/osu-performance/timerslack-exec.py"); compile(p.read_text(), str(p), "exec")'
+bash scripts/osu-performance/test-osu-first.sh
 # Verify this change has no patch to upstream game binaries or libraries.
-git diff --name-only -- HEAD | while IFS= read -r file; do
+git diff --name-only HEAD -- | while IFS= read -r file; do
   case "$file" in
-    modules/*|scripts/osu-performance/*|packages/splitcast-rs/*|docs/graphics-streaming/*) ;;
+    modules/*|scripts/osu-performance/*|packages/splitcast-rs/*|docs/*) ;;
     *) printf 'unexpected changed file: %s\n' "$file" >&2; exit 1;;
   esac
 done
