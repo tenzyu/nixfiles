@@ -1,11 +1,18 @@
 //! Unprivileged replacement core. Not an active SplitCast media service.
 //! The existing Python controller remains authoritative until parity gates pass.
+pub mod agent;
 pub mod config;
 pub mod control;
 pub mod media;
 pub mod obs;
 pub mod process;
+pub use splitcast_protocol as protocol;
+pub mod state;
+pub mod tts;
+pub mod tui;
+pub mod web;
 pub use process::{run_bounded, OwnedProcess};
+pub use protocol::Output;
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,7 +40,11 @@ pub struct TransitionError {
 
 impl fmt::Display for TransitionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid lifecycle transition: {:?} via {}", self.from, self.event)
+        write!(
+            f,
+            "invalid lifecycle transition: {:?} via {}",
+            self.from, self.event
+        )
     }
 }
 
@@ -47,25 +58,35 @@ pub struct Session {
     output: Option<Output>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Output {
-    Recording,
-    Twitch,
-}
-
 impl Session {
     pub fn new(role: Role) -> Self {
-        Self { role, state: Lifecycle::Idle, output: None }
+        Self {
+            role,
+            state: Lifecycle::Idle,
+            output: None,
+        }
     }
-    pub fn role(&self) -> Role { self.role }
-    pub fn state(&self) -> Lifecycle { self.state }
-    pub fn output(&self) -> Option<Output> { self.output }
+    pub fn role(&self) -> Role {
+        self.role
+    }
+    pub fn state(&self) -> Lifecycle {
+        self.state
+    }
+    pub fn output(&self) -> Option<Output> {
+        self.output
+    }
 
-    fn transition(&mut self, allowed: &[Lifecycle], to: Lifecycle, event: &'static str)
-        -> Result<(), TransitionError>
-    {
+    fn transition(
+        &mut self,
+        allowed: &[Lifecycle],
+        to: Lifecycle,
+        event: &'static str,
+    ) -> Result<(), TransitionError> {
         if !allowed.contains(&self.state) {
-            return Err(TransitionError { from: self.state, event });
+            return Err(TransitionError {
+                from: self.state,
+                event,
+            });
         }
         self.state = to;
         Ok(())
@@ -83,19 +104,42 @@ impl Session {
         Ok(())
     }
     pub fn degrade(&mut self) -> Result<(), TransitionError> {
-        self.transition(&[Lifecycle::Ready, Lifecycle::Running], Lifecycle::Degraded, "degrade")
+        self.transition(
+            &[Lifecycle::Ready, Lifecycle::Running],
+            Lifecycle::Degraded,
+            "degrade",
+        )
     }
     pub fn fail(&mut self) -> Result<(), TransitionError> {
-        self.transition(&[Lifecycle::Preparing, Lifecycle::Ready, Lifecycle::Running,
-            Lifecycle::Degraded], Lifecycle::Failed, "fail")
+        self.transition(
+            &[
+                Lifecycle::Preparing,
+                Lifecycle::Ready,
+                Lifecycle::Running,
+                Lifecycle::Degraded,
+            ],
+            Lifecycle::Failed,
+            "fail",
+        )?;
+        self.output = None;
+        Ok(())
     }
     pub fn stop(&mut self) -> Result<(), TransitionError> {
         // Idempotent stop prevents duplicate teardown and preserves rollback.
         if matches!(self.state, Lifecycle::Idle | Lifecycle::Stopping) {
             return Ok(());
         }
-        self.transition(&[Lifecycle::Preparing, Lifecycle::Ready, Lifecycle::Running,
-            Lifecycle::Degraded, Lifecycle::Failed], Lifecycle::Stopping, "stop")
+        self.transition(
+            &[
+                Lifecycle::Preparing,
+                Lifecycle::Ready,
+                Lifecycle::Running,
+                Lifecycle::Degraded,
+                Lifecycle::Failed,
+            ],
+            Lifecycle::Stopping,
+            "stop",
+        )
     }
     /// Call only after all owned subprocess groups, listeners and routes are gone.
     pub fn stopped(&mut self) -> Result<(), TransitionError> {
@@ -131,8 +175,12 @@ mod tests {
 
     #[test]
     fn stops_a_owned_subprocess_group() {
-        let mut p = OwnedProcess::spawn(&["bash".to_string(), "-c".to_string(),
-            "sleep 30 & wait".to_string()]).unwrap();
+        let mut p = OwnedProcess::spawn(&[
+            "bash".to_string(),
+            "-c".to_string(),
+            "sleep 30 & wait".to_string(),
+        ])
+        .unwrap();
         assert!(p.id() > 0);
         let status = p.stop(Duration::from_millis(100)).unwrap();
         assert!(!status.success());
@@ -140,6 +188,9 @@ mod tests {
 
     #[test]
     fn rejects_empty_command() {
-        assert_eq!(OwnedProcess::spawn(&[]).err().unwrap().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(
+            OwnedProcess::spawn(&[]).err().unwrap().kind(),
+            io::ErrorKind::InvalidInput
+        );
     }
 }

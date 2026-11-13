@@ -89,6 +89,7 @@ fn request<F>(dispatch: &mut F, command: &str, args: Value) -> io::Result<Value>
 where
     F: FnMut(&str, &str) -> io::Result<String>,
 {
+    crate::protocol::Invocation::parse(command, &args, 500)?;
     let body = dispatch(command, &args.to_string())?;
     if body.len() > 4 * 1024 * 1024 {
         return Err(invalid("oversized response"));

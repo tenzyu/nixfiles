@@ -250,10 +250,7 @@ pub fn run_bounded(
                         if matches!(
                             e.kind(),
                             io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
-                        ) =>
-                    {
-                        ()
-                    }
+                        ) => {}
                     Err(e) => return Err(e),
                 }
             }

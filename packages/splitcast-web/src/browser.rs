@@ -36,13 +36,20 @@ fn render_routes(doc: &Document, target: &Element, value: &Value) -> Result<(), 
     }
     for route in routes {
         let row = element(doc, &table, "tr", "")?;
-        for field in ["source", "processor", "target"] {
-            element(
-                doc,
-                &row,
-                "td",
-                route.get(field).and_then(Value::as_str).unwrap_or("—"),
-            )?;
+        for field in ["source", "processors", "targets"] {
+            let text = route
+                .get(field)
+                .map(|value| match value {
+                    Value::String(s) => s.clone(),
+                    Value::Array(items) => items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(" -> "),
+                    _ => String::new(),
+                })
+                .unwrap_or_default();
+            element(doc, &row, "td", &text)?;
         }
     }
     Ok(())

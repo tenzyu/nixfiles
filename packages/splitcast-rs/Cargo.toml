@@ -14,5 +14,10 @@ name = "splitcast-rs-core"
 path = "src/main.rs"
 
 [dependencies]
+tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
+sha2 = "0.10"
+base64 = "0.22"
+splitcast-protocol = { path = "../splitcast-protocol" }
+regex = "1"
 serde_json = "1"
 toml = "0.8"

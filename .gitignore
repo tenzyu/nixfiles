@@ -7,3 +7,6 @@ result
 current-nixfiles.zip
 cache-audit/
 __pycache__/
+/packages/splitcast-*/target/
+/packages/splitcast-protocol/Cargo.lock
+/.audit/*.todo.md

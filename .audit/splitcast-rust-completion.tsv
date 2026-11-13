@@ -1,0 +1,4 @@
+ts	phase	decision	why	evidence	result
+2026-11-13T14:43:56+09:00	frame	Create a work branch from fetched origin/main and retain local main	The original checkout has five unintegrated local commits	6ceeb53b0d1e267fa01f04c94fdb6226877c93cf	VERIFIED
+2026-11-13T14:43:56+09:00	baseline	Keep runtime generation separate from repository reference	Git does not establish deployed code	docs/graphics-streaming/rust-completion-20261113.md	neko7 observed; neko5 BLOCKED
+2026-11-13T14:43:56+09:00	access	Do not bypass failed neko5 SSH authentication	No authenticated access was established	docs/graphics-streaming/rust-completion-20261113.md	BLOCKED two-host and competitive verification

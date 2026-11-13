@@ -1,7 +1,10 @@
 use serde_json::{json, Value};
+pub use splitcast_protocol as protocol;
 
 pub fn command(name: &str, args: Value) -> String {
-    json!({"command": name, "args": args}).to_string()
+    protocol::Invocation::parse(name, &args, 500)
+        .expect("view constructs a supported command")
+        .to_body()
 }
 
 pub fn start_command() -> String {

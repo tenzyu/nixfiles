@@ -7,6 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+splitcast-protocol = { path = "../splitcast-protocol" }
 serde_json = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

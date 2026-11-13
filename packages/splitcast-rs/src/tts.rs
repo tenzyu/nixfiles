@@ -138,10 +138,7 @@ fn post(
                     io::ErrorKind::WouldBlock
                         | io::ErrorKind::TimedOut
                         | io::ErrorKind::Interrupted
-                ) =>
-            {
-                ()
-            }
+                ) => {}
             Err(e) => return Err(e),
         }
     }
@@ -478,7 +475,7 @@ impl Speech {
             handle,
         });
     }
-    pub fn next(&mut self) -> Value {
+    pub fn next_ready(&mut self) -> Value {
         self.expire();
         if !self.enabled || self.muted || self.playing.is_some() {
             return Value::Null;
@@ -717,7 +714,7 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         assert!(s.worker.is_none());
-        assert!(s.next().is_null());
+        assert!(s.next_ready().is_null());
         assert!(s.audio("cancelled").is_err());
         assert_eq!(fs::read_dir(&s.cache).unwrap().count(), 0);
         let cache = s.cache.clone();
@@ -791,7 +788,7 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         assert!(s.worker.is_none() && s.pending.is_empty());
-        assert!(s.next().is_null());
+        assert!(s.next_ready().is_null());
         assert_eq!(server.join().unwrap(), 3);
         let cache = s.cache.clone();
         drop(s);
@@ -856,19 +853,19 @@ mod tests {
         s.tick();
         let req = handle.join().unwrap();
         let deadline = Instant::now() + Duration::from_secs(2);
-        while s.next().is_null() && Instant::now() < deadline {
+        while s.next_ready().is_null() && Instant::now() < deadline {
             s.tick();
             thread::sleep(Duration::from_millis(5));
         }
         assert!(req[0]
             .starts_with("POST /audio_query?text=hello%20%26%20%E4%B8%96%E7%95%8C&speaker=1 "));
         assert!(req[1].ends_with("{\"query\":true}"));
-        assert_eq!(s.next()["id"], "abc");
+        assert_eq!(s.next_ready()["id"], "abc");
         let path = s.audio("abc").unwrap();
         assert_eq!(fs::read(&path).unwrap(), sample_wav());
         assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
         s.ack("abc");
-        assert!(s.next().is_null());
+        assert!(s.next_ready().is_null());
         assert!(s.audio("abc").is_err());
         s.finished("abc");
         assert!(!path.exists());
@@ -892,7 +889,7 @@ mod tests {
             s.tick();
             thread::sleep(Duration::from_millis(5));
         }
-        assert!(s.next().is_null());
+        assert!(s.next_ready().is_null());
         assert_eq!(s.command("status", &[]).unwrap()["pending"], 0);
         assert_eq!(s.enqueue("c", "c").unwrap()["duplicate"], true);
         s.command("mute", &[]).unwrap();
