@@ -154,7 +154,7 @@ fn run() -> io::Result<()> {
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["selfcheck"] {
-        let mut session = Session::new(Role::Capture);
+        let mut session = Session::new(Role::Production);
         session
             .prepare(None, std::time::Instant::now(), Duration::from_secs(30))
             .unwrap();

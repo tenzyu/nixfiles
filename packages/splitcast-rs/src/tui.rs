@@ -567,9 +567,7 @@ fn device_choices(host: &Value, selection: Selection) -> Vec<(Value, String)> {
                         return None;
                     }
                     if matches!(selection, Selection::Microphone)
-                        && ["monitor", "easyeffects", "rnnoise", "splitcast_"]
-                            .iter()
-                            .any(|part| raw.to_lowercase().contains(part))
+                        && !crate::config::is_raw_microphone(raw)
                     {
                         return None;
                     }

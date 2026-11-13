@@ -212,6 +212,12 @@ fn safe_name(s: &str) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"._:-".contains(&b))
 }
+pub fn is_raw_microphone(name: &str) -> bool {
+    safe_name(name)
+        && !["monitor", "easyeffects", "rnnoise", "splitcast"]
+            .iter()
+            .any(|part| name.to_ascii_lowercase().contains(part))
+}
 fn path(s: String) -> PathBuf {
     if s == "~" {
         return dirs_home();
@@ -378,6 +384,11 @@ impl Config {
         let target = get(filename, ".capture.target")?;
         let game_audio = get(filename, ".capture.game_audio")?;
         let mic_source = get(filename, ".audio.mic_source")?;
+        if !mic_source.is_empty() && !is_raw_microphone(&mic_source) {
+            return Err(error(
+                "mic_source must select a raw microphone, not a monitor or processed source",
+            ));
+        }
         let processed_sink = get(filename, ".audio.processed_sink")?;
         if !processed_sink.starts_with("splitcast_") || !safe_name(&processed_sink) {
             return Err(error("unsafe processed sink"));

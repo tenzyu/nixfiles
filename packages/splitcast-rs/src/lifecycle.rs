@@ -19,14 +19,20 @@ pub enum Lifecycle {
 }
 
 #[derive(Clone, Debug)]
+enum CaptureAuthority {
+    LocalOnly,
+    RemoteAttempt(OwnerId),
+}
+#[derive(Clone, Debug)]
 enum Authority {
+    Capture(CaptureAuthority),
     Local,
     Peer { owner: OwnerId, expires: Instant },
 }
 impl Authority {
     fn matches(&self, peer: Option<&OwnerId>) -> bool {
         match self {
-            Self::Local => peer.is_none(),
+            Self::Local | Self::Capture(_) => peer.is_none(),
             Self::Peer { owner, .. } => peer == Some(owner),
         }
     }
@@ -162,6 +168,7 @@ impl Session {
                 expires: now + ttl,
             },
             Some(_) => return Err(self.error("capture peer ownership")),
+            None if self.role == Role::Capture => Authority::Capture(CaptureAuthority::LocalOnly),
             None => Authority::Local,
         };
         self.phase = Phase::Preparing(authority);
@@ -171,8 +178,41 @@ impl Session {
         let Phase::Preparing(authority) = &self.phase else {
             return Err(self.error("prepared"));
         };
+        if matches!(authority, Authority::Capture(CaptureAuthority::LocalOnly)) {
+            return Err(self.error("capture requires a remote preparation"));
+        }
         self.phase = Phase::Ready(authority.clone());
         Ok(())
+    }
+    pub(crate) fn record_remote_attempt(&mut self, owner: OwnerId) -> Result<(), TransitionError> {
+        let Phase::Preparing(Authority::Capture(authority @ CaptureAuthority::LocalOnly)) =
+            &mut self.phase
+        else {
+            return Err(self.error("remote preparation"));
+        };
+        *authority = CaptureAuthority::RemoteAttempt(owner);
+        Ok(())
+    }
+    pub(crate) fn remote_owner(&self) -> Option<&OwnerId> {
+        match self.phase.authority() {
+            Some(Authority::Capture(CaptureAuthority::RemoteAttempt(owner))) => Some(owner),
+            _ => None,
+        }
+    }
+    pub(crate) fn remote_released(&mut self) -> Result<(), TransitionError> {
+        if !matches!(
+            self.state(),
+            Lifecycle::Preparing | Lifecycle::Failed | Lifecycle::Stopping
+        ) {
+            return Err(self.error("remote release"));
+        }
+        match self.phase.authority_mut() {
+            Some(Authority::Capture(authority @ CaptureAuthority::RemoteAttempt(_))) => {
+                *authority = CaptureAuthority::LocalOnly;
+                Ok(())
+            }
+            _ => Err(self.error("remote release")),
+        }
     }
     pub fn renew(
         &mut self,
@@ -242,7 +282,7 @@ impl Session {
         Ok(())
     }
     pub fn stopped(&mut self) -> Result<(), TransitionError> {
-        if self.state() != Lifecycle::Stopping {
+        if self.state() != Lifecycle::Stopping || self.remote_owner().is_some() {
             return Err(self.error("stopped"));
         }
         self.phase = Phase::Idle;
@@ -253,6 +293,28 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn capture_remote_obligation_survives_failure_until_confirmed_release() {
+        let now = Instant::now();
+        let owner = OwnerId::parse("attempt").unwrap();
+        let mut session = Session::new(Role::Capture);
+        session.prepare(None, now, Duration::from_secs(30)).unwrap();
+        assert!(session.prepared().is_err());
+        assert!(session.remote_owner().is_none());
+        session.record_remote_attempt(owner.clone()).unwrap();
+        session.prepared().unwrap();
+        session.start(Output::Recording).unwrap();
+        assert!(session.remote_released().is_err());
+        session.fail().unwrap();
+        session.stop().unwrap();
+        assert_eq!(session.remote_owner(), Some(&owner));
+        assert!(session.stopped().is_err());
+        session.remote_released().unwrap();
+        session.stopped().unwrap();
+        assert!(session.remote_owner().is_none());
+        let mut production = ready(None, now);
+        assert!(production.record_remote_attempt(owner).is_err());
+    }
     #[test]
     fn lease_expiry_does_not_retrigger_teardown_while_stopping() {
         let now = Instant::now();
