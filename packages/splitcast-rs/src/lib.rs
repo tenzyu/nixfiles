@@ -4,12 +4,9 @@ pub mod config;
 pub mod control;
 pub mod media;
 pub mod obs;
+pub mod process;
+pub use process::{run_bounded, OwnedProcess};
 use std::fmt;
-use std::io;
-use std::os::unix::process::CommandExt;
-use std::process::{Child, Command, ExitStatus, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Role {
@@ -108,86 +105,10 @@ impl Session {
     }
 }
 
-// Signal the whole process group, not just its original leader. Only groups
-// created by OwnedProcess may be targeted. This is Linux/Unix-only by design.
-unsafe extern "C" {
-    fn kill(pid: i32, sig: i32) -> i32;
-}
-const SIGTERM: i32 = 15;
-const SIGKILL: i32 = 9;
-
-fn signal_group(pgid: i32, sig: i32) -> io::Result<()> {
-    let rc = unsafe { kill(-pgid, sig) };
-    if rc == 0 { return Ok(()); }
-    let err = io::Error::last_os_error();
-    // ESRCH: no process in the process group remains.
-    if err.raw_os_error() == Some(3) { Ok(()) } else { Err(err) }
-}
-
-pub struct OwnedProcess {
-    child: Child,
-    pgid: i32,
-    finished: bool,
-}
-
-impl OwnedProcess {
-    /// argv[0] is a fixed executable, with no shell interpolation.
-    /// The new process group is not granted any elevated privileges.
-    pub fn spawn(argv: &[String]) -> io::Result<Self> {
-        let program = argv.first().filter(|s| !s.is_empty())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "empty argv"))?;
-        let mut cmd = Command::new(program);
-        cmd.args(&argv[1..]);
-        cmd.process_group(0);
-        cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        let child = cmd.spawn()?;
-        let pgid = i32::try_from(child.id())
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "pid overflow"))?;
-        Ok(Self { child, pgid, finished: false })
-    }
-
-    pub fn id(&self) -> u32 { self.child.id() }
-
-    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        let status = self.child.try_wait()?;
-        if status.is_some() { self.finished = true; }
-        Ok(status)
-    }
-
-    /// Best-effort group cleanup. An exact descendant lifecycle guarantee
-    /// needs a systemd/cgroup v2 scope, not an eventually recycled PGID.
-    pub fn stop(&mut self, grace: Duration) -> io::Result<ExitStatus> {
-        if self.finished { return self.child.wait(); }
-        // This process is not yet reaped, so its PID cannot be reused.
-        signal_group(self.pgid, SIGTERM)?;
-        let deadline = Instant::now() + grace;
-        while Instant::now() < deadline {
-            if let Some(status) = self.child.try_wait()? {
-                self.finished = true;
-                // Do not signal PGID after reaping: another process may reuse it.
-                return Ok(status);
-            }
-            thread::sleep(Duration::from_millis(20));
-        }
-        // Leader still reserved its identity; terminate the group then reap.
-        signal_group(self.pgid, SIGKILL)?;
-        let status = self.child.wait()?;
-        self.finished = true;
-        Ok(status)
-    }
-}
-
-impl Drop for OwnedProcess {
-    fn drop(&mut self) {
-        if !self.finished {
-            let _ = self.stop(Duration::from_millis(200));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{io, time::Duration};
 
     #[test]
     fn lifecycle_requires_explicit_authorization() {
