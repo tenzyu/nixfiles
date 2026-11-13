@@ -34,6 +34,7 @@
       desktop-performance.enable = true;
       gaming-mouse.enable = true;
       open-tablet-driver.enable = true;
+      otd-access.enable = true; # for flash custom firmware
       neko5-osu-first.enable = true;
 
       # NOTE: Under configuration.
@@ -74,10 +75,10 @@
         prismlauncher.enable = true;
 
         # TODO: migration scripts are buggy right now.
-        home-layout.enable = true; 
+        home-layout.enable = true;
 
         # NOTE: under construction.
-        splitcast-capture.enable = false; 
+        splitcast-capture.enable = false;
 
         # NOTE: it's running on neko7 now.
         opencode.enable = false;
