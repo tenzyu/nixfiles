@@ -90,7 +90,11 @@ in {
       };
       Service = {
         Type = "simple";
-        ExecStart = "${lib.getExe (if cfg.rustCandidate then cfg.rustPackage else cfg.package)} agent --config ${lib.escapeShellArg cfg.configFile}";
+        ExecStart = "${lib.getExe (
+          if cfg.rustCandidate
+          then cfg.rustPackage
+          else cfg.package
+        )} agent --config ${lib.escapeShellArg cfg.configFile}";
         Environment = lib.mapAttrsToList (name: value: "${name}=${value}") cfg.environment;
         Restart = "on-failure";
         RestartSec = 5;

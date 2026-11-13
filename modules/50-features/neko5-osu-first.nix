@@ -1,8 +1,12 @@
-{ ... }: {
+{...}: {
   # The official upstream AppImage and bundled libraries are never patched.
   # This module only influences scheduling, device power policy, and PipeWire
   # via ordinary Linux/Wayland interfaces. It is enabled ONLY on neko5.
-  flake.modules.nixos.neko5-osu-first = {config, lib, ...}: {
+  flake.modules.nixos.neko5-osu-first = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.neko5-osu-first.enable {
       # No OTD daemon: the official osu! process owns the in-process tablet driver.
       # Keep the two known critical HID devices out of runtime autosuspend.
@@ -19,16 +23,20 @@
       # Hardware/driver may reject or round this request; no improvement claimed.
       # An unsupported period may be rounded by ALSA/PipeWire.
       services.pipewire.wireplumber.extraConfig."90-neko5-alc257-lowlatency" = {
-        "monitor.alsa.rules" = [{
-          matches = [{ "node.name" = "~alsa_output.pci-0000_00_1f.3.*"; }];
-          actions = { "update-props" = {
-            "api.alsa.period-size" = 128;
-            "api.alsa.period-num" = 3;
-            "api.alsa.headroom" = 64;
-            "session.suspend-timeout-seconds" = 0;
-            "api.alsa.disable-tsched" = false;
-          }; };
-        }];
+        "monitor.alsa.rules" = [
+          {
+            matches = [{"node.name" = "~alsa_output.pci-0000_00_1f.3.*";}];
+            actions = {
+              "update-props" = {
+                "api.alsa.period-size" = 128;
+                "api.alsa.period-num" = 3;
+                "api.alsa.headroom" = 64;
+                "session.suspend-timeout-seconds" = 0;
+                "api.alsa.disable-tsched" = false;
+              };
+            };
+          }
+        ];
       };
       # PREEMPT_DYNAMIC was confirmed on neko5's 7.3 kernel. Full kernel
       # preemption is a bounded, revertible latency candidate. It is not
@@ -40,7 +48,12 @@
     };
   };
 
-  flake.modules.homeManager.neko5-osu-first = {config, lib, pkgs, ...}: let
+  flake.modules.homeManager.neko5-osu-first = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
     launcher = pkgs.writeShellApplication {
       name = "osu-first";
       runtimeInputs = with pkgs; [bash coreutils findutils gnugrep procps systemd python3 util-linux];

@@ -1,14 +1,21 @@
 {inputs, ...}: {
-  flake.modules.homeManager.opencode-neko7-service = {config, lib, pkgs, ...}: let
+  flake.modules.homeManager.opencode-neko7-service = {
+    config,
+    lib,
+    pkgs,
+    ...
+  }: let
     opencode = inputs.nixpkgs-opencode.legacyPackages.${pkgs.stdenv.hostPlatform.system}.opencode;
   in {
     # Review-only migration candidate. Do not enable while the existing
     # manually managed unit owns this name and port.
     config = lib.mkIf config.local.features.opencode-neko7-service.enable {
-      assertions = [{
-        assertion = opencode.version == "2.2.1";
-        message = "opencode-neko7-service requires the reviewed OpenCode 2.2.1 package; see docs/opencode-neko7-migration.md";
-      }];
+      assertions = [
+        {
+          assertion = opencode.version == "2.2.1";
+          message = "opencode-neko7-service requires the reviewed OpenCode 2.2.1 package; see docs/opencode-neko7-migration.md";
+        }
+      ];
       systemd.user.services.opencode-neko7-persistent = {
         Unit = {
           Description = "OpenCode v2 development server";

@@ -1,5 +1,9 @@
 {...}: {
-  flake.modules.nixos.nix-remote-builder = {config, lib, ...}: {
+  flake.modules.nixos.nix-remote-builder = {
+    config,
+    lib,
+    ...
+  }: {
     config = lib.mkIf config.local.features.nix-remote-builder.enable {
       users.groups.nixbuilder = {};
       users.users.nixbuilder = {

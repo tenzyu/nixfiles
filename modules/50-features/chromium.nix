@@ -5,9 +5,9 @@
     ...
   }: {
     config = lib.mkIf config.local.features.chromium.enable {
-       programs.chromium = {
-          enable = true;
-        }; 
+      programs.chromium = {
+        enable = true;
+      };
     };
   };
 }
