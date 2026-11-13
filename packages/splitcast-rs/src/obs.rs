@@ -1,244 +1,273 @@
-//! OBS WebSocket v5 controller, with authentication on loopback only.
-//! Uses websocat and OpenSSL CLI instead of embedding a TLS/WebSocket stack in
-//! the real-time capture process. This is control-plane I/O on neko7 only.
-use crate::config::{Config,json_string,secret};
+//! Authenticated OBS WebSocket v5 control over loopback TCP only.
+use crate::config::{secret, Config};
+use crate::state::{atomic_file, private_directory};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs;
-use std::io::{self,Read,Write};
-use std::net::{Ipv4Addr,SocketAddrV4,TcpStream,TcpListener};
-use std::os::fd::{AsRawFd,RawFd};
-use std::os::unix::fs::{DirBuilderExt,OpenOptionsExt,PermissionsExt,MetadataExt};
-use std::process::{Child,ChildStdin,ChildStdout,Command,Stdio};
-use std::time::{Duration,Instant};
+use std::io::{self, Read, Write};
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
+use std::time::{Duration, Instant};
+use tungstenite::{Message, WebSocket, protocol::WebSocketConfig};
 
-const LIMIT:usize=4*1024*1024;
-const TIMEOUT:Duration=Duration::from_secs(5);
-const F_GETFL:i32=3;
-const F_SETFL:i32=4;
-const O_NONBLOCK:i32=0x800;
-const O_DIRECTORY:i32=0x10000;
-const O_NOFOLLOW:i32=0x20000;
-const POLLIN:i16=1;
-const POLLOUT:i16=4;
-#[repr(C)]
-struct PollFd{fd:RawFd,events:i16,revents:i16}
-unsafe extern "C" {
-    fn poll(fds:*mut PollFd,nfds:usize,timeout:i32)->i32;
-    fn fcntl(fd:RawFd,cmd:i32,...)->i32;
+const LIMIT: usize = 4 * 1024 * 1024;
+const TIMEOUT: Duration = Duration::from_secs(5);
+
+fn err(message: &str) -> io::Error { io::Error::other(message) }
+fn remaining(deadline: Instant) -> io::Result<Duration> {
+    deadline.checked_duration_since(Instant::now()).filter(|d| !d.is_zero())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "OBS control deadline exceeded"))
 }
-fn nonblocking(fd:RawFd)->io::Result<()> {
-    let flags=unsafe{fcntl(fd,F_GETFL)};
-    if flags<0 || unsafe{fcntl(fd,F_SETFL,flags|O_NONBLOCK)}<0{return Err(io::Error::last_os_error());}
-    Ok(())
-}
-fn poll_until(fds:&mut [PollFd],deadline:Instant)->io::Result<()> {
-    loop {
-        let left=deadline.checked_duration_since(Instant::now()).ok_or_else(||io::Error::new(io::ErrorKind::TimedOut,"OBS control deadline exceeded"))?;
-        let ms=left.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
-        let result=unsafe{poll(fds.as_mut_ptr(),fds.len(),ms)};
-        if result>0{return Ok(());}
-        if result==0{continue;}
-        let error=io::Error::last_os_error();
-        if error.kind()!=io::ErrorKind::Interrupted{return Err(error);}
+
+// A message may require many syscalls (including continuation frames). Every
+// syscall consumes the same deadline rather than renewing the timeout.
+struct DeadlineStream { stream: TcpStream, deadline: Instant }
+impl Read for DeadlineStream {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        self.stream.set_read_timeout(Some(remaining(self.deadline)?))?;
+        self.stream.read(bytes).map_err(normalize_timeout)
     }
 }
-fn write_until<T:Write+AsRawFd>(output:&mut T,mut bytes:&[u8],deadline:Instant)->io::Result<()> {
-    while !bytes.is_empty() {
-        poll_until(&mut [PollFd{fd:output.as_raw_fd(),events:POLLOUT,revents:0}],deadline)?;
-        match output.write(bytes) {
-            Ok(0)=>return Err(err("OBS control pipe closed")),
-            Ok(n)=>bytes=&bytes[n..],
-            Err(e) if matches!(e.kind(),io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted)=>{},
-            Err(e)=>return Err(e),
+impl Write for DeadlineStream {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.stream.set_write_timeout(Some(remaining(self.deadline)?))?;
+        self.stream.write(bytes).map_err(normalize_timeout)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.set_write_timeout(Some(remaining(self.deadline)?))?;
+        self.stream.flush().map_err(normalize_timeout)
+    }
+}
+fn normalize_timeout(e: io::Error) -> io::Error {
+    if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) {
+        io::Error::new(io::ErrorKind::TimedOut, "OBS control deadline exceeded")
+    } else { e }
+}
+fn websocket_error(e: tungstenite::Error) -> io::Error {
+    match e {
+        tungstenite::Error::Io(e) => normalize_timeout(e),
+        // Never include peer payloads or authentication material in errors.
+        tungstenite::Error::Capacity(_) => err("oversized OBS response"),
+        _ => err("invalid or closed OBS WebSocket"),
+    }
+}
+fn base64_sha(input: &[u8]) -> String { STANDARD.encode(Sha256::digest(input)) }
+fn auth_string<'a>(hello: &'a Value, key: &str) -> io::Result<&'a str> {
+    hello["d"]["authentication"][key].as_str()
+        .filter(|s| !s.is_empty() && s.len() <= 4096)
+        .ok_or_else(|| err("OBS authentication string required"))
+}
+fn response_data(response: &str) -> io::Result<Value> {
+    let value: Value = serde_json::from_str(response).map_err(|_| err("invalid OBS JSON"))?;
+    value["d"]["responseData"].as_object().map(|_| value["d"]["responseData"].clone())
+        .ok_or_else(|| err("OBS response data required"))
+}
+fn output_method(output: &str) -> io::Result<&'static str> {
+    match output {
+        "recording" => Ok("GetRecordStatus"),
+        "twitch" => Ok("GetStreamStatus"),
+        _ => Err(err("unknown output")),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutputStatus {
+    pub active: bool,
+    pub bytes: Option<u64>,
+    pub frames: Option<u64>,
+    pub duration_ms: Option<u64>,
+}
+
+pub struct Obs { socket: WebSocket<DeadlineStream>, seq: u64, failed: bool }
+impl Obs {
+    pub fn connect(cfg: &Config) -> io::Result<Self> {
+        Self::connect_until(cfg, Instant::now() + TIMEOUT)
+    }
+    fn connect_until(cfg: &Config, deadline: Instant) -> io::Result<Self> {
+        let password = secret(&cfg.obs_password, 4096)?;
+        if password.len() < 16 { return Err(err("OBS password is missing or too short")); }
+        let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, cfg.obs_port);
+        let stream = TcpStream::connect_timeout(&addr.into(), remaining(deadline)?.min(Duration::from_secs(2)))?;
+        let stream = DeadlineStream { stream, deadline };
+        let config = WebSocketConfig::default().max_message_size(Some(LIMIT))
+            .max_frame_size(Some(LIMIT)).max_write_buffer_size(LIMIT + 1024);
+        let (socket, _) = tungstenite::client::client_with_config(
+            format!("ws://127.0.0.1:{}/", cfg.obs_port), stream, Some(config))
+            .map_err(|e| match e {
+                tungstenite::HandshakeError::Failure(e) => websocket_error(e),
+                _ => err("OBS WebSocket handshake interrupted"),
+            })?;
+        let mut obs = Self { socket, seq: 0, failed: false };
+        let hello = obs.next(deadline)?;
+        if hello["op"].as_u64() != Some(0) { return Err(err("OBS WebSocket v5 Hello required")); }
+        let salt = auth_string(&hello, "salt")?;
+        let challenge = auth_string(&hello, "challenge")?;
+        let secret = base64_sha(format!("{password}{salt}").as_bytes());
+        let proof = base64_sha(format!("{secret}{challenge}").as_bytes());
+        obs.send(&json!({"op":1,"d":{"rpcVersion":1,"authentication":proof,"eventSubscriptions":0}}), deadline)?;
+        if obs.next(deadline)?["op"].as_u64() != Some(2) {
+            return Err(err("OBS WebSocket authentication rejected"));
         }
+        Ok(obs)
     }
-    Ok(())
-}
-struct Lines<R>{reader:R,pending:Vec<u8>}
-impl<R:Read+AsRawFd> Lines<R> {
-    fn new(reader:R)->io::Result<Self>{nonblocking(reader.as_raw_fd())?;Ok(Self{reader,pending:Vec::new()})}
-    fn next(&mut self,deadline:Instant)->io::Result<String> {
-        let mut scanned=0;
+    fn send(&mut self, value: &Value, deadline: Instant) -> io::Result<()> {
+        remaining(deadline)?;
+        let text = value.to_string();
+        if text.len() > LIMIT { return Err(err("oversized OBS request")); }
+        self.socket.get_mut().deadline = deadline;
+        self.socket.send(Message::Text(text.into())).map_err(websocket_error)
+    }
+    fn next(&mut self, deadline: Instant) -> io::Result<Value> {
         loop {
-            if Instant::now()>=deadline{return Err(io::Error::new(io::ErrorKind::TimedOut,"OBS control deadline exceeded"));}
-            if let Some(offset)=self.pending[scanned..].iter().position(|b|*b==b'\n') {
-                let end=scanned+offset;
-                let bytes:Vec<u8>=self.pending.drain(..=end).collect();
-                return String::from_utf8(bytes).map_err(|_|err("invalid OBS response encoding"));
-            }
-            scanned=self.pending.len();
-            if self.pending.len()==LIMIT{return Err(err("oversized OBS response"));}
-            poll_until(&mut [PollFd{fd:self.reader.as_raw_fd(),events:POLLIN,revents:0}],deadline)?;
-            let mut chunk=[0u8;8192];
-            let size=chunk.len().min(LIMIT-self.pending.len());
-            match self.reader.read(&mut chunk[..size]) {
-                Ok(0)=>return Err(err("OBS websocket closed")),
-                Ok(n)=>self.pending.extend_from_slice(&chunk[..n]),
-                Err(e) if matches!(e.kind(),io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted)=>{},
-                Err(e)=>return Err(e),
+            remaining(deadline)?;
+            self.socket.get_mut().deadline = deadline;
+            match self.socket.read().map_err(websocket_error)? {
+                Message::Text(text) => return serde_json::from_str(text.as_str()).map_err(|_| err("invalid OBS JSON")),
+                Message::Ping(_) | Message::Pong(_) => {},
+                _ => return Err(err("OBS text message required")),
             }
         }
     }
-}
-
-fn run_bounded(program:&str,args:&[&str],input:&[u8],cap:usize,deadline:Instant)->io::Result<Vec<u8>> {
-    if input.len()>LIMIT{return Err(err("oversized OBS helper input"));}
-    let mut child=Command::new(program).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
-    let result=(|| {
-        let stdin=child.stdin.take().ok_or_else(||err("helper stdin unavailable"))?;
-        let mut stdout=child.stdout.take().ok_or_else(||err("helper stdout unavailable"))?;
-        nonblocking(stdin.as_raw_fd())?;nonblocking(stdout.as_raw_fd())?;
-        let mut input=input;
-        let mut writer=Some(stdin);
-        let mut output=Vec::new();
-        let mut eof=false;
-        loop {
-            if input.is_empty(){writer.take();}
-            let mut fds=[PollFd{fd:writer.as_ref().map_or(-1,AsRawFd::as_raw_fd),events:POLLOUT,revents:0},PollFd{fd:if eof{-1}else{stdout.as_raw_fd()},events:POLLIN,revents:0}];
-            // A helper may close stdout and continue running. Keep its exit under the same deadline.
-            if eof&&writer.is_none() {
-                if let Some(status)=child.try_wait()? {
-                    return if status.success(){Ok(output)}else{Err(err("OBS helper failed"))};
+    pub fn call(&mut self, name: &str, body: &str) -> io::Result<String> {
+        self.call_until(name, body, Instant::now() + TIMEOUT)
+    }
+    fn call_until(&mut self, name: &str, body: &str, deadline: Instant) -> io::Result<String> {
+        if self.failed { return Err(err("OBS connection must be re-established")); }
+        if body.len() > LIMIT / 2 || name.len() > 256 { return Err(err("oversized OBS request")); }
+        let body: Value = serde_json::from_str(body).map_err(|_| err("invalid OBS request JSON"))?;
+        if !body.is_object() { return Err(err("OBS request object required")); }
+        self.seq = self.seq.checked_add(1).ok_or_else(|| err("OBS request sequence exhausted"))?;
+        let id = self.seq.to_string();
+        let result = (|| {
+            self.send(&json!({"op":6,"d":{"requestType":name,"requestId":id,"requestData":body}}), deadline)?;
+            for _ in 0..64 {
+                let answer = self.next(deadline)?;
+                if answer["op"].as_u64() != Some(7) { continue; }
+                if answer["d"]["requestId"].as_str() != Some(id.as_str()) { continue; }
+                if answer["d"]["requestStatus"]["result"].as_bool() != Some(true) {
+                    return Err(err("OBS request rejected"));
                 }
-                let tick=(Instant::now()+Duration::from_millis(10)).min(deadline);
-                match poll_until(&mut fds,tick){Ok(())=>{},Err(e) if e.kind()==io::ErrorKind::TimedOut&&Instant::now()<deadline=>{},Err(e)=>return Err(e)}
-                continue;
+                return Ok(answer.to_string());
             }
-            poll_until(&mut fds,deadline)?;
-            if fds[0].revents!=0 {
-                match writer.as_mut().unwrap().write(input) {
-                    Ok(0)=>return Err(err("OBS helper stdin closed")),
-                    Ok(n)=>input=&input[n..],
-                    Err(e) if matches!(e.kind(),io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted)=>{},
-                    Err(e)=>return Err(e),
-                }
-            }
-            if fds[1].revents!=0 {
-                let mut chunk=[0u8;8192];
-                let size=chunk.len().min(cap.saturating_sub(output.len()).saturating_add(1));
-                match stdout.read(&mut chunk[..size]) {
-                    Ok(0)=>eof=true,
-                    Ok(n)=>{if n>cap-output.len(){return Err(err("oversized OBS helper output"));}output.extend_from_slice(&chunk[..n]);},
-                    Err(e) if matches!(e.kind(),io::ErrorKind::WouldBlock|io::ErrorKind::Interrupted)=>{},
-                    Err(e)=>return Err(e),
-                }
-            }
+            Err(err("OBS request lost amidst other events"))
+        })();
+        // A timed-out fragmented exchange must never be reused for another request.
+        if result.is_err() { self.failed = true; }
+        result
+    }
+    fn has(&mut self, method: &str, list: &str, key: &str, needle: &str) -> io::Result<bool> {
+        let response = response_data(&self.call(method, "{}")?)?;
+        let entries = response[list].as_array().ok_or_else(|| err("OBS list required"))?;
+        Ok(entries.iter().any(|entry| entry[key].as_str() == Some(needle)))
+    }
+    fn input(&mut self, name: &str, kind: &str, settings: Value) -> io::Result<()> {
+        if !self.has("GetInputList", "inputs", "inputName", name)? {
+            self.call("CreateInput", &json!({"sceneName":"SplitCast","inputName":name,"inputKind":kind,"inputSettings":settings,"sceneItemEnabled":true}).to_string())?;
+        } else {
+            self.call("SetInputSettings", &json!({"inputName":name,"inputSettings":settings,"overlay":false}).to_string())?;
         }
-    })();
-    if result.is_err(){let _=child.kill();}
-    let _=child.wait();
-    result
+        Ok(())
+    }
+    pub fn configure(&mut self, cfg: &Config) -> io::Result<()> {
+        self.call("GetVersion", "{}")?;
+        if !self.has("GetSceneList", "scenes", "sceneName", "SplitCast")? {
+            self.call("CreateScene", "{\"sceneName\":\"SplitCast\"}")?;
+        }
+        let feed = |name| json!({"is_local_file":false,"input":format!("rtsp://127.0.0.1:{}/{name}",cfg.rtsp),"input_format":"rtsp","ffmpeg_options":"rtsp_transport=tcp","hw_decode":true,"buffering_mb":1});
+        self.input("GameFeed", "ffmpeg_source", feed("game"))?;
+        self.input("MicProcessed", "pulse_input_capture", json!({"device_id":format!("{}.monitor",cfg.processed_sink)}))?;
+        self.call("SetInputAudioSyncOffset", &json!({"inputName":"MicProcessed","inputAudioSyncOffset":cfg.mic_offset}).to_string())?;
+        self.call("SetInputAudioMonitorType", "{\"inputName\":\"MicProcessed\",\"monitorType\":\"OBS_MONITORING_TYPE_NONE\"}")?;
+        if cfg.camera_enabled { self.input("CameraFeed", "ffmpeg_source", feed("camera"))?; }
+        self.input("Overlay", "text_ft2_source_v2", json!({"text":"SplitCast","font":{"face":"Sans","size":36}}))?;
+        if cfg.tts_mix_remote { self.input("TTSMix", "ffmpeg_source", json!({"is_local_file":true,"local_file":""}))?; }
+        self.call("SetCurrentProgramScene", "{\"sceneName\":\"SplitCast\"}")?;
+        Ok(())
+    }
+    pub fn start(&mut self, cfg: &Config, output: &str) -> io::Result<()> {
+        match output {
+            "recording" => { self.call("StartRecord", "{}")?; },
+            "twitch" => {
+                let key = secret(&cfg.twitch_key, 4096)?;
+                if key.is_empty() { return Err(err("Twitch key is empty")); }
+                self.call("SetStreamServiceSettings", &json!({"streamServiceType":"rtmp_custom","streamServiceSettings":{"server":"rtmps://live.twitch.tv:443/app","key":key,"use_auth":false}}).to_string())?;
+                self.call("StartStream", "{}")?;
+            },
+            _ => return Err(err("unknown output")),
+        }
+        Ok(())
+    }
+    pub fn stop(&mut self) -> io::Result<()> {
+        for (output, stop) in [("recording", "StopRecord"), ("twitch", "StopStream")] {
+            if self.status(output)? { self.call(stop, "{}")?; }
+        }
+        Ok(())
+    }
+    pub fn overlay(&mut self, text: &str) -> io::Result<()> {
+        if text.chars().count() > 1000 { return Err(err("overlay too long")); }
+        self.call("SetInputSettings", &json!({"inputName":"Overlay","inputSettings":{"text":text},"overlay":true}).to_string())?;
+        Ok(())
+    }
+    pub fn observe(&mut self, output: &str) -> io::Result<OutputStatus> {
+        let response = response_data(&self.call(output_method(output)?, "{}")?)?;
+        Ok(OutputStatus {
+            active: response["outputActive"].as_bool().ok_or_else(|| err("OBS outputActive boolean required"))?,
+            bytes: response["outputBytes"].as_u64(),
+            frames: response["outputTotalFrames"].as_u64(),
+            duration_ms: response["outputDuration"].as_u64(),
+        })
+    }
+    pub fn status(&mut self, output: &str) -> io::Result<bool> { Ok(self.observe(output)?.active) }
+    pub fn preview(&mut self) -> io::Result<String> {
+        let response = response_data(&self.call("GetSourceScreenshot", "{\"sourceName\":\"SplitCast\",\"imageFormat\":\"png\",\"imageWidth\":960,\"imageHeight\":540}")?)?;
+        let image = response["imageData"].as_str().ok_or_else(|| err("OBS image required"))?;
+        let encoded = image.strip_prefix("data:image/png;base64,").ok_or_else(|| err("invalid OBS preview format"))?;
+        let data = STANDARD.decode(encoded).map_err(|_| err("invalid OBS preview base64"))?;
+        if !data.starts_with(b"\x89PNG\r\n\x1a\n") { return Err(err("invalid OBS preview PNG data")); }
+        Ok(json!({"image":image}).to_string())
+    }
 }
 
-fn err(msg:&str)->io::Error{io::Error::new(io::ErrorKind::Other,msg)}
-fn json_lookup(payload:&str,filter:&str)->io::Result<String>{
-    json_at(payload,filter,Instant::now()+TIMEOUT)
-}
-fn json_at(payload:&str,filter:&str,deadline:Instant)->io::Result<String>{
-    let filter=format!("if length==1 then .[0] else error(\"one value required\") end | ({filter})");
-    let bytes=run_bounded("jq",&["-rsc",&filter],payload.as_bytes(),LIMIT,deadline)?;
-    let out=String::from_utf8(bytes).map_err(|_|err("invalid OBS JSON encoding"))?;
-    Ok(out.strip_suffix('\n').unwrap_or(&out).to_owned())
+pub fn launch_args(cfg: &Config) -> io::Result<Vec<String>> {
+    let _port = TcpListener::bind((Ipv4Addr::LOCALHOST, cfg.obs_port)).map_err(|_| err("OBS port is already occupied"))?;
+    let base = cfg.state_dir.join("obs-config");
+    let studio = base.join("obs-studio");
+    let password = secret(&cfg.obs_password, 4096)?;
+    if password.len() < 16 { return Err(err("OBS auth password must be at least 16 characters")); }
+    private_directory(&cfg.state_dir)?;
+    atomic_file(&studio.join("plugin_config/obs-websocket/config.json"), &json!({"server_enabled":true,"server_port":cfg.obs_port,"auth_required":true,"server_password":password,"first_load":false}).to_string())?;
+    fs::create_dir_all(&cfg.recording_dir)?;
+    if cfg.recording_dir.to_string_lossy().contains(['\n','\r']) { return Err(err("invalid recording directory")); }
+    let profile = format!("[General]\nName=SplitCast\n[Video]\nBaseCX=1920\nBaseCY=1080\nOutputCX=1920\nOutputCY=1080\nFPSType=0\nFPSCommon=60\n[Output]\nMode=Advanced\n[AdvOut]\nEncoder=obs_nvenc_h264_tex\nRecType=Standard\nRecFilePath={}\nRecFormat2=mkv\nRecEncoder=obs_nvenc_h264_tex\nTrackIndex=1\nRecTracks=1\nRescale=false\n[Audio]\nSampleRate=48000\nChannelSetup=Stereo\n", cfg.recording_dir.display());
+    atomic_file(&studio.join("basic/profiles/SplitCast/basic.ini"), &profile)?;
+    atomic_file(&studio.join("user.ini"), "[Basic]\nProfile=SplitCast\nProfileDir=SplitCast\nSceneCollection=SplitCast\nSceneCollectionFile=SplitCast\n[General]\nFirstRun=true\n")?;
+    atomic_file(&studio.join("basic/scenes/SplitCast.json"), "{\"name\":\"SplitCast\",\"current_scene\":\"SplitCast\",\"current_program_scene\":\"SplitCast\",\"scene_order\":[{\"name\":\"SplitCast\"}],\"sources\":[],\"groups\":[],\"transitions\":[]}")?;
+    Ok(vec!["env".into(), format!("XDG_CONFIG_HOME={}", base.display()), cfg.obs_binary.to_string_lossy().to_string(), "--multi".into(), "--disable-shutdown-check".into(), "--profile".into(), "SplitCast".into(), "--collection".into(), "SplitCast".into()])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::symlink;
-    use std::time::Instant;
+    use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
+    use std::path::{Path, PathBuf};
+    use std::thread;
 
-    #[test]
-    fn stalled_obs_response_is_bounded() {
-        let mut child=Command::new("sh").args(["-c","printf partial; exec sleep 30"])
-            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
-        let input=child.stdin.take().unwrap();
-        let output=Lines::new(child.stdout.take().unwrap()).unwrap();
-        let mut obs=Obs{child,input,output,seq:0};
-        let started=Instant::now();
-        assert!(obs.next(Instant::now()+TIMEOUT).is_err());
-        assert!(started.elapsed()<Duration::from_secs(6));
+    const PNG: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a8xkAAAAASUVORK5CYII=";
+    struct Fixture { dir: PathBuf }
+    impl Fixture {
+        fn new() -> Self {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let dir = PathBuf::from("/tmp/opencode").join(format!("native-obs-{}-{}",std::process::id(), NEXT.fetch_add(1,std::sync::atomic::Ordering::Relaxed)));
+            private_directory(&dir).unwrap();
+            atomic_file(&dir.join("password"), "a-private-password-long-enough").unwrap();
+            Self { dir }
+        }
+        fn config(&self, port: u16) -> Config { config(&self.dir, port) }
     }
-
-    #[test]
-    fn events_do_not_extend_transaction_deadline() {
-        let mut child=Command::new("sh").args(["-c","sleep 2; printf '%s\n' '{\"op\":5}'; exec sleep 30"])
-            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
-        let input=child.stdin.take().unwrap();nonblocking(input.as_raw_fd()).unwrap();
-        let output=Lines::new(child.stdout.take().unwrap()).unwrap();
-        let mut obs=Obs{child,input,output,seq:0};
-        let started=Instant::now();
-        assert_eq!(obs.call("GetVersion","{}").unwrap_err().kind(),io::ErrorKind::TimedOut);
-        assert!(started.elapsed()<Duration::from_secs(6));
-    }
-
-    #[test]
-    fn atomic_state_does_not_follow_temp_symlink() {
-        let dir=std::env::temp_dir().join(format!("splitcast-obs-red-{}",std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let victim=dir.join("victim");
-        fs::write(&victim,"untouched").unwrap();
-        let state=dir.join("state.json");
-        symlink(&victim,state.with_extension("tmp")).unwrap();
-        let result=atomic_file(&state,"private");
-        assert_eq!(fs::read_to_string(&victim).unwrap(),"untouched");
-        result.unwrap();
-        fs::remove_dir_all(dir).unwrap();
-    }
-
-    #[test]
-    fn partial_bytes_do_not_extend_deadline() {
-        let (reader,mut writer)=std::os::unix::net::UnixStream::pair().unwrap();
-        let thread=std::thread::spawn(move||{
-            for _ in 0..100 {
-                if writer.write_all(b"x").is_err(){break;}
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        });
-        let mut lines=Lines::new(reader).unwrap();
-        let start=Instant::now();
-        assert_eq!(lines.next(start+Duration::from_millis(100)).unwrap_err().kind(),io::ErrorKind::TimedOut);
-        assert!(start.elapsed()<Duration::from_millis(500));
-        drop(lines);thread.join().unwrap();
-    }
-
-    #[test]
-    fn oversized_unterminated_response_is_rejected() {
-        let (reader,mut writer)=std::os::unix::net::UnixStream::pair().unwrap();
-        let thread=std::thread::spawn(move||{let _=writer.write_all(&vec![b'x';LIMIT+1]);});
-        let mut lines=Lines::new(reader).unwrap();
-        assert!(lines.next(Instant::now()+TIMEOUT).unwrap_err().to_string().contains("oversized"));
-        assert!(lines.pending.len()<=LIMIT);
-        drop(lines);thread.join().unwrap();
-    }
-
-    #[test]
-    fn blocked_writes_and_helpers_are_bounded() {
-        let (mut writer,_reader)=std::os::unix::net::UnixStream::pair().unwrap();
-        nonblocking(writer.as_raw_fd()).unwrap();
-        assert_eq!(write_until(&mut writer,&vec![0;LIMIT],Instant::now()+Duration::from_millis(100)).unwrap_err().kind(),io::ErrorKind::TimedOut);
-        assert_eq!(run_bounded("sh",&["-c","exec sleep 30"],b"",100,Instant::now()+Duration::from_millis(100)).unwrap_err().kind(),io::ErrorKind::TimedOut);
-        assert!(run_bounded("sh",&["-c","exec yes x"],b"",100,Instant::now()+TIMEOUT).unwrap_err().to_string().contains("oversized"));
-    }
-
-    #[test]
-    fn state_paths_reject_symlinks_and_keep_private_modes() {
-        let dir=std::env::temp_dir().join(format!("splitcast-obs-state-{}",std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let victim=dir.join("victim");fs::write(&victim,"untouched").unwrap();
-        let state=dir.join("state");symlink(&victim,&state).unwrap();
-        assert!(atomic_file(&state,"private").is_err());
-        assert_eq!(fs::read_to_string(&victim).unwrap(),"untouched");
-        fs::remove_file(&state).unwrap();
-        atomic_file(&state,"private").unwrap();
-        assert_eq!(fs::metadata(&state).unwrap().mode()&0o777,0o600);
-        assert_eq!(fs::metadata(&dir).unwrap().mode()&0o777,0o700);
-        let alias=dir.join("alias");symlink(&dir,&alias).unwrap();
-        assert!(atomic_file(&alias.join("other"),"private").is_err());
-        fs::remove_dir_all(dir).unwrap();
-    }
-
-    fn config(dir:&std::path::Path,port:u16)->Config {
-        Config{
-            role:"production".into(),state_dir:dir.into(),token_file:dir.join("token"),remote_token_file:dir.join("token"),
+    impl Drop for Fixture { fn drop(&mut self) { let _ = fs::remove_dir_all(&self.dir); } }
+    fn config(dir: &Path, port: u16) -> Config {
+        Config {
+            document:String::new(), role:"production".into(),state_dir:dir.into(),token_file:dir.join("token"),remote_token_file:dir.join("token"),
             ssh_host:"localhost".into(),ssh_port:22,control_port:18001,remote_control_port:18002,forward_control_port:18003,timeout:1,retry_limit:0,
             rtmp:18004,rtsp:18005,api:18006,width:1920,height:1080,fps:60,bitrate:10000,target:String::new(),game_audio:String::new(),
             mic_source:String::new(),tts_sink:String::new(),processed_sink:"splitcast_mic".into(),rnnoise_plugin:dir.join("rnnoise"),
@@ -248,279 +277,292 @@ mod tests {
             tts_enabled:false,voicevox_url:String::new(),tts_speaker:0,tts_max_text:100,tts_queue_limit:1,tts_expiry_seconds:5,tts_credentials_file:dir.join("tts"),tts_mix_remote:false,eventsub_enabled:false,
         }
     }
-
-    #[test]
-    fn launch_refuses_occupied_port() {
-        let dir=std::env::temp_dir().join(format!("splitcast-obs-launch-{}",std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let listener=TcpListener::bind((Ipv4Addr::LOCALHOST,0)).unwrap();
-        let cfg=config(&dir,listener.local_addr().unwrap().port());
-        fs::write(&cfg.obs_password,"a-private-password-long-enough").unwrap();
-        fs::set_permissions(&cfg.obs_password,fs::Permissions::from_mode(0o600)).unwrap();
-        assert!(launch_args(&cfg).unwrap_err().to_string().contains("occupied"));
-        fs::remove_dir_all(dir).unwrap();
+    fn read(socket: &mut WebSocket<TcpStream>) -> Value {
+        serde_json::from_str(socket.read().unwrap().to_text().unwrap()).unwrap()
     }
-
-    #[test]
-    fn launch_refuses_public_credentials() {
-        let dir=std::env::temp_dir().join(format!("splitcast-obs-credentials-{}",std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        // Avoid ephemeral ports that the concurrent websocat test can claim after this listener closes.
-        let listener=(20000..30000).find_map(|port|TcpListener::bind((Ipv4Addr::LOCALHOST,port)).ok()).unwrap();
-        let cfg=config(&dir,listener.local_addr().unwrap().port());
-        drop(listener);
-        fs::write(&cfg.obs_password,"a-private-password-long-enough").unwrap();
-        fs::set_permissions(&cfg.obs_password,fs::Permissions::from_mode(0o644)).unwrap();
-        assert!(launch_args(&cfg).is_err());
-        fs::set_permissions(&cfg.obs_password,fs::Permissions::from_mode(0o600)).unwrap();
-        launch_args(&cfg).unwrap();
-        assert_eq!(fs::metadata(&cfg.obs_password).unwrap().mode()&0o777,0o600);
-        assert_eq!(fs::read_to_string(&cfg.obs_password).unwrap(),"a-private-password-long-enough");
-        fs::remove_dir_all(dir).unwrap();
+    fn send(socket: &mut WebSocket<TcpStream>, value: Value) {
+        socket.send(Message::Text(value.to_string().into())).unwrap();
     }
-
-    fn websocket_frame(stream:&mut TcpStream,text:&str) {
-        let size=text.len();
-        assert!(size<65536);
-        let header=if size<126 {vec![0x81,size as u8]}else{vec![0x81,126,(size>>8) as u8,size as u8]};
-        stream.write_all(&header).unwrap();stream.write_all(text.as_bytes()).unwrap();
+    fn answer(socket: &mut WebSocket<TcpStream>, request: &Value, data: Value) {
+        send(socket, json!({"op":7,"d":{"requestId":request["d"]["requestId"],"requestStatus":{"result":true},"responseData":data}}));
     }
-    fn websocket_read(stream:&mut TcpStream)->String {
-        let mut header=[0;2];stream.read_exact(&mut header).unwrap();
-        assert_eq!(header[0],0x81);assert_ne!(header[1]&128,0);
-        let mut size=(header[1]&127) as usize;
-        if size==126 {let mut extended=[0;2];stream.read_exact(&mut extended).unwrap();size=u16::from_be_bytes(extended) as usize;}
-        assert!(size<65536);
-        let mut mask=[0;4];stream.read_exact(&mut mask).unwrap();
-        let mut data=vec![0;size];stream.read_exact(&mut data).unwrap();
-        for (index,byte) in data.iter_mut().enumerate(){*byte^=mask[index%4];}
-        String::from_utf8(data).unwrap()
+    fn server(f: impl FnOnce(WebSocket<TcpStream>) + Send + 'static) -> (u16, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(TIMEOUT)).unwrap();
+            stream.set_write_timeout(Some(TIMEOUT)).unwrap();
+            let mut socket = tungstenite::accept(stream).unwrap();
+            send(&mut socket, json!({"op":0,"d":{"authentication":{"salt":"salt\"","challenge":"challenge\\"}}}));
+            let identify = read(&mut socket);
+            let secret = base64_sha(b"a-private-password-long-enoughsalt\"");
+            assert_eq!(identify["d"]["authentication"], base64_sha(format!("{secret}challenge\\").as_bytes()));
+            assert_eq!(identify["d"]["eventSubscriptions"], 0);
+            send(&mut socket, json!({"op":2,"d":{"negotiatedRpcVersion":1}}));
+            f(socket);
+        });
+        (port, thread)
     }
 
     #[test]
     fn authenticates_and_decodes_preview_over_real_websocket() {
-        let dir=std::env::temp_dir().join(format!("splitcast-obs-websocket-{}",std::process::id()));
-        fs::create_dir_all(&dir).unwrap();
-        let listener=TcpListener::bind((Ipv4Addr::LOCALHOST,0)).unwrap();
-        let cfg=config(&dir,listener.local_addr().unwrap().port());
-        fs::write(&cfg.obs_password,"a-private-password-long-enough").unwrap();
-        fs::set_permissions(&cfg.obs_password,fs::Permissions::from_mode(0o600)).unwrap();
-        let server=std::thread::spawn(move|| {
-            // connect() first probes the TCP port, then websocat performs the upgrade.
-            let (probe,_)=listener.accept().unwrap();drop(probe);
-            let (mut stream,_)=listener.accept().unwrap();
-            stream.set_read_timeout(Some(TIMEOUT)).unwrap();stream.set_write_timeout(Some(TIMEOUT)).unwrap();
-            let mut header=Vec::new();
-            while !header.ends_with(b"\r\n\r\n") {
-                let mut byte=[0];stream.read_exact(&mut byte).unwrap();header.push(byte[0]);assert!(header.len()<8192);
-            }
-            let header=String::from_utf8(header).unwrap();
-            let key=header.lines().find_map(|line|line.split_once(':').filter(|(name,_)|name.eq_ignore_ascii_case("sec-websocket-key")).map(|(_,value)|value.trim())).unwrap();
-            let accept=run_bounded("websocat",&["--just-generate-accept",key],b"",256,Instant::now()+TIMEOUT).unwrap();
-            write!(stream,"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",String::from_utf8(accept).unwrap().trim()).unwrap();
-            websocket_frame(&mut stream,r#"{"op":0,"d":{"authentication":{"salt":"salt\u0022","challenge":"challenge\\"}}}"#);
-            let identify=websocket_read(&mut stream);
-            let secret=base64_sha(b"a-private-password-long-enoughsalt\"",Instant::now()+TIMEOUT).unwrap();
-            let proof=base64_sha(format!("{secret}challenge\\").as_bytes(),Instant::now()+TIMEOUT).unwrap();
-            assert_eq!(json_lookup(&identify,".d.authentication").unwrap(),proof);
-            websocket_frame(&mut stream,"{\"op\":2}");
-            let request=websocket_read(&mut stream);
-            assert_eq!(json_lookup(&request,".d.requestType").unwrap(),"GetSourceScreenshot");
-            websocket_frame(&mut stream,r#"{"op":7,"d":{"requestId":"1","requestStatus":{"result":true},"responseData":{"imageData":"data:image\/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8\/x8AAwMCAO+a8xkAAAAASUVORK5CYII="}}}"#);
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            let request = read(&mut socket);
+            assert_eq!(request["d"]["requestType"], "GetSourceScreenshot");
+            answer(&mut socket, &request, json!({"imageData":PNG}));
         });
-        let mut obs=Obs::connect(&cfg).unwrap();
-        let preview=obs.preview().unwrap();
-        assert!(preview.starts_with("{\"image\":\"data:image/png;base64,iVBORw0KGgo"));
-        server.join().unwrap();drop(obs);fs::remove_dir_all(dir).unwrap();
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&obs.preview().unwrap()).unwrap()["image"], PNG);
+        thread.join().unwrap();
     }
-}
-fn base64_sha(input:&[u8],deadline:Instant)->io::Result<String>{
-    let digest=run_bounded("openssl",&["dgst","-sha256","-binary"],input,32,deadline)?;
-    if digest.len()!=32{return Err(err("openssl SHA256 failed"));}
-    let bytes=run_bounded("base64",&["-w0"],&digest,44,deadline)?;
-    String::from_utf8(bytes).map_err(|_|err("invalid base64 output"))
-}
-pub struct Obs {
-    child: Child,
-    input: ChildStdin,
-    output: Lines<ChildStdout>,
-    seq:u64,
-}
-impl Obs {
-    pub fn connect(cfg:&Config)->io::Result<Self>{
-        let deadline=Instant::now()+TIMEOUT;
-        // Never connect to a LAN/tailnet OBS WebSocket. SSH forwarding happens
-        // only for the control agent; OBS is bound to 127.0.0.1.
-        let addr=SocketAddrV4::new(Ipv4Addr::LOCALHOST,cfg.obs_port);
-        TcpStream::connect_timeout(&addr.into(),Duration::from_secs(2))?;
-        let mut child=Command::new("websocat")
-            .args(["-t","-B","4194304","--max-ws-frame-length","4194304","--max-ws-message-length","4194304"])
-            .arg(format!("ws://127.0.0.1:{}",cfg.obs_port))
-            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
-        let input=child.stdin.take().ok_or_else(||err("OBS websocket stdin unavailable"))?;
-        let stdout=child.stdout.take().ok_or_else(||err("OBS websocket stdout unavailable"))?;
-        let output=match Lines::new(stdout).and_then(|out|{nonblocking(input.as_raw_fd())?;Ok(out)}) {
-            Ok(out)=>out,Err(e)=>{let _=child.kill();let _=child.wait();return Err(e);}
-        };
-        let mut obs=Self{child,input,output,seq:0};
-        let hello=obs.next(deadline)?;
-        if json_at(&hello,".op",deadline)?!="0" {return Err(err("OBS WebSocket v5 Hello required"));}
-        let string_filter="if type==\"string\" and length>0 and length<=4096 then . else error(\"authentication string required\") end";
-        let salt=json_at(&hello,&format!(".d.authentication.salt | {string_filter}"),deadline)?;
-        let challenge=json_at(&hello,&format!(".d.authentication.challenge | {string_filter}"),deadline)?;
-        let password=secret(&cfg.obs_password,4096)?;
-        if password.len()<16{return Err(err("OBS password is missing or too short"));}
-        let secret=base64_sha(format!("{password}{salt}").as_bytes(),deadline)?;
-        let proof=base64_sha(format!("{secret}{challenge}").as_bytes(),deadline)?;
-        obs.send(&format!("{{\"op\":1,\"d\":{{\"rpcVersion\":1,\"authentication\":{}}}}}",json_string(&proof)),deadline)?;
-        if json_at(&obs.next(deadline)?,".op",deadline)?!="2" {return Err(err("OBS WebSocket authentication rejected"));}
-        Ok(obs)
+    #[test]
+    fn wrong_ids_are_ignored_and_result_must_be_boolean() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            let request = read(&mut socket);
+            send(&mut socket, json!({"op":7,"d":{"requestId":"wrong","requestStatus":{"result":true}}}));
+            send(&mut socket, json!({"op":5}));
+            send(&mut socket, json!({"op":7,"d":{"requestId":request["d"]["requestId"],"requestStatus":{"result":"true"}}}));
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert_eq!(obs.call("GetVersion", "{}").unwrap_err().to_string(), "OBS request rejected");
+        assert!(obs.call("GetVersion", "{}").unwrap_err().to_string().contains("re-established"));
+        thread.join().unwrap();
     }
-    fn send(&mut self,text:&str,deadline:Instant)->io::Result<()>{
-        if text.len()>LIMIT{return Err(err("oversized OBS request"));}
-        write_until(&mut self.input,text.as_bytes(),deadline)?;
-        write_until(&mut self.input,b"\n",deadline)
+    #[test]
+    fn stalled_response_and_events_share_one_deadline() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            for _ in 0..20 {
+                if socket.send(Message::Text("{\"op\":5}".into())).is_err() { break; }
+                thread::sleep(Duration::from_millis(20));
+            }
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        let start = Instant::now();
+        assert_eq!(obs.call_until("GetVersion", "{}", start + Duration::from_millis(100)).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        drop(obs); thread.join().unwrap();
     }
-    fn next(&mut self,deadline:Instant)->io::Result<String>{
-        self.output.next(deadline)
+    #[test]
+    fn dripfed_partial_frame_cannot_extend_deadline() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            let stream = socket.get_mut();
+            stream.write_all(&[0x81, 126, 0, 200]).unwrap();
+            for _ in 0..200 {
+                if stream.write_all(b"x").is_err() { break; }
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        let start = Instant::now();
+        assert_eq!(obs.call_until("GetVersion", "{}", start + Duration::from_millis(100)).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        drop(obs); thread.join().unwrap();
     }
-    pub fn call(&mut self,name:&str,body:&str)->io::Result<String>{
-        let deadline=Instant::now()+TIMEOUT;
-        if body.len()>LIMIT/2 || name.len()>256{return Err(err("oversized OBS request"));}
-        self.seq+=1;let id=self.seq.to_string();
-        let request=format!("{{\"op\":6,\"d\":{{\"requestType\":{},\"requestId\":{},\"requestData\":{}}}}}",json_string(name),json_string(&id),body);
-        self.send(&request,deadline)?;
-        for _ in 0..64 {
-            let answer=self.next(deadline)?;
-            if json_at(&answer,".op",deadline)?!="7"{continue;}
-            if json_at(&answer,".d.requestId",deadline)?!=id{continue;}
-            if json_at(&answer,".d.requestStatus.result",deadline)?!="true"{return Err(err("OBS request rejected"));}
-            return Ok(answer)
-        }
-        Err(err("OBS request lost amidst other events"))
+    #[test]
+    fn stalled_response_is_bounded() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            thread::sleep(Duration::from_millis(250));
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        let start = Instant::now();
+        assert_eq!(obs.call_until("GetVersion", "{}", start + Duration::from_millis(100)).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        drop(obs); thread.join().unwrap();
     }
-    fn has(&mut self,method:&str,key:&str,needle:&str)->io::Result<bool>{
-        let response=self.call(method,"{}")?;
-        Ok(json_lookup(&response,key)?.contains(&json_string(needle)))
+    #[test]
+    fn dripfed_http_upgrade_is_bounded() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let cfg = fixture.config(listener.local_addr().unwrap().port());
+        let thread = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(TIMEOUT)).unwrap();
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0]; stream.read_exact(&mut byte).unwrap(); request.push(byte[0]);
+            }
+            for byte in b"HTTP/1.1 101 Switching Protocols\r\n" {
+                if stream.write_all(&[*byte]).is_err() { break; }
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let start = Instant::now();
+        let result = Obs::connect_until(&cfg, start + Duration::from_millis(100));
+        assert_eq!(result.err().unwrap().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        thread.join().unwrap();
     }
-    fn input(&mut self,name:&str,kind:&str,settings:&str)->io::Result<()> {
-        let encoded=json_string(name);
-        if !self.has("GetInputList",".d.responseData.inputs",name)? {
-            self.call("CreateInput",&format!("{{\"sceneName\":\"SplitCast\",\"inputName\":{encoded},\"inputKind\":{},\"inputSettings\":{settings},\"sceneItemEnabled\":true}}",json_string(kind)))?;
-        }else{
-            self.call("SetInputSettings",&format!("{{\"inputName\":{encoded},\"inputSettings\":{settings},\"overlay\":false}}"))?;
-        }
-        Ok(())
+    #[test]
+    fn unauthenticated_server_is_rejected() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let cfg = fixture.config(listener.local_addr().unwrap().port());
+        let thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut socket = tungstenite::accept(stream).unwrap();
+            send(&mut socket, json!({"op":0,"d":{"rpcVersion":1}}));
+        });
+        assert!(Obs::connect(&cfg).err().unwrap().to_string().contains("authentication string required"));
+        thread.join().unwrap();
     }
-    pub fn configure(&mut self,cfg:&Config)->io::Result<()> {
-        self.call("GetVersion","{}")?;
-        if !self.has("GetSceneList",".d.responseData.scenes","SplitCast")? {
-            self.call("CreateScene","{\"sceneName\":\"SplitCast\"}")?;
-        }
-        // Configuring from explicit RTSP loopback paths avoids screen capture
-        // inside OBS and does not modify the running osu! process.
-        let game=format!("{{\"is_local_file\":false,\"input\":\"rtsp://127.0.0.1:{}/game\",\"input_format\":\"rtsp\",\"ffmpeg_options\":\"rtsp_transport=tcp\",\"hw_decode\":true,\"buffering_mb\":1}}",cfg.rtsp);
-        self.input("GameFeed","ffmpeg_source",&game)?;
-        let mic=format!("{{\"device_id\":{}}}",json_string(&format!("{}.monitor",cfg.processed_sink)));
-        self.input("MicProcessed","pulse_input_capture",&mic)?;
-        self.call("SetInputAudioSyncOffset",&format!("{{\"inputName\":\"MicProcessed\",\"inputAudioSyncOffset\":{}}}",cfg.mic_offset))?;
-        self.call("SetInputAudioMonitorType","{\"inputName\":\"MicProcessed\",\"monitorType\":\"OBS_MONITORING_TYPE_NONE\"}")?;
-        if cfg.camera_enabled {
-            let cam=format!("{{\"is_local_file\":false,\"input\":\"rtsp://127.0.0.1:{}/camera\",\"input_format\":\"rtsp\",\"ffmpeg_options\":\"rtsp_transport=tcp\",\"hw_decode\":true,\"buffering_mb\":1}}",cfg.rtsp);
-            self.input("CameraFeed","ffmpeg_source",&cam)?;
-        }
-        self.input("Overlay","text_ft2_source_v2","{\"text\":\"SplitCast\",\"font\":{\"face\":\"Sans\",\"size\":36}}")?;
-        if cfg.tts_mix_remote {self.input("TTSMix","ffmpeg_source","{\"is_local_file\":true,\"local_file\":\"\"}")?;}
-        self.call("SetCurrentProgramScene","{\"sceneName\":\"SplitCast\"}")?;
-        Ok(())
+    #[test]
+    fn blocked_tcp_writes_share_one_deadline() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (_peer, _) = listener.accept().unwrap();
+        let start = Instant::now();
+        let mut stream = DeadlineStream { stream, deadline: start + Duration::from_millis(100) };
+        assert_eq!(stream.write_all(&vec![0; 32 * 1024 * 1024]).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
     }
-    pub fn start(&mut self,cfg:&Config,output:&str)->io::Result<()> {
-        if output=="recording"{self.call("StartRecord","{}")?;return Ok(());}
-        if output!="twitch"{return Err(err("unknown output"));}
-        let key=secret(&cfg.twitch_key,4096)?;
-        let request=format!("{{\"streamServiceType\":\"rtmp_custom\",\"streamServiceSettings\":{{\"server\":\"rtmps://live.twitch.tv:443/app\",\"key\":{},\"use_auth\":false}}}}",json_string(&key));
-        self.call("SetStreamServiceSettings",&request)?;
-        self.call("StartStream","{}")?;Ok(())
+    #[test]
+    fn dripfed_continuations_cannot_extend_deadline() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            let stream = socket.get_mut();
+            stream.write_all(&[0x01, 1, b'{']).unwrap();
+            for _ in 0..100 {
+                if stream.write_all(&[0x00, 1, b' ']).is_err() { break; }
+                thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        let start = Instant::now();
+        assert_eq!(obs.call_until("GetVersion", "{}", start + Duration::from_millis(100)).unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_millis(500));
+        drop(obs); thread.join().unwrap();
     }
-    pub fn stop(&mut self)->io::Result<()> {
-        for (status,stop) in [("GetRecordStatus","StopRecord"),("GetStreamStatus","StopStream")] {
-            let ret=self.call(status,"{}")?;
-            if json_lookup(&ret,".d.responseData.outputActive")?=="true" {self.call(stop,"{}")?;}
-        }Ok(())
+    #[test]
+    fn oversized_frame_is_rejected_before_payload() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            socket.get_mut().write_all(&[0x81, 127, 0, 0, 0, 0, 0, 0x40, 0, 1]).unwrap();
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert!(obs.call("GetVersion", "{}").unwrap_err().to_string().contains("oversized"));
+        thread.join().unwrap();
     }
-    pub fn overlay(&mut self,text:&str)->io::Result<()> {
-        if text.chars().count()>1000 {return Err(err("overlay too long"));}
-        self.call("SetInputSettings",&format!("{{\"inputName\":\"Overlay\",\"inputSettings\":{{\"text\":{}}},\"overlay\":true}}",json_string(text)))?;Ok(())
+    #[test]
+    fn oversized_fragmented_message_is_rejected() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            read(&mut socket);
+            let stream = socket.get_mut();
+            // Two individually legal frames exceed the aggregate message limit.
+            stream.write_all(&[0x01, 127, 0, 0, 0, 0, 0, 0x20, 0, 0]).unwrap();
+            stream.write_all(&vec![b'x'; LIMIT / 2]).unwrap();
+            stream.write_all(&[0x80, 127, 0, 0, 0, 0, 0, 0x20, 0, 1]).unwrap();
+            let _ = stream.write_all(&vec![b'x'; LIMIT / 2 + 1]);
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert!(obs.call("GetVersion", "{}").unwrap_err().to_string().contains("oversized"));
+        drop(obs); thread.join().unwrap();
     }
-    pub fn status(&mut self,output:&str)->io::Result<bool>{
-        let method=if output=="recording"{"GetRecordStatus"}else{"GetStreamStatus"};
-        let ret=self.call(method,"{}")?;
-        Ok(json_lookup(&ret,".d.responseData.outputActive")?=="true")
+    #[test]
+    fn exact_names_only_not_settings_or_substrings() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            let request = read(&mut socket);
+            answer(&mut socket, &request, json!({"scenes":[{"sceneName":"SplitCastBackup"},{"sceneName":"Other","settings":"SplitCast"}]}));
+            let request = read(&mut socket);
+            answer(&mut socket, &request, json!({"inputs":[{"inputName":"GameFeedBackup"},{"inputName":"Other","settings":"GameFeed"}]}));
+            let request = read(&mut socket);
+            answer(&mut socket, &request, json!({"scenes":[{"sceneName":"SplitCast"}]}));
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert!(!obs.has("GetSceneList", "scenes", "sceneName", "SplitCast").unwrap());
+        assert!(!obs.has("GetInputList", "inputs", "inputName", "GameFeed").unwrap());
+        assert!(obs.has("GetSceneList", "scenes", "sceneName", "SplitCast").unwrap());
+        thread.join().unwrap();
     }
-    pub fn preview(&mut self)->io::Result<String>{
-        let ret=self.call("GetSourceScreenshot","{\"sourceName\":\"SplitCast\",\"imageFormat\":\"png\",\"imageWidth\":960,\"imageHeight\":540}")?;
-        let image=json_lookup(&ret,".d.responseData.imageData | if type==\"string\" then . else error(\"image required\") end")?;
-        let data=image.strip_prefix("data:image/png;base64,").ok_or_else(||err("invalid OBS preview format"))?;
-        if data.len()<12 || data.len()%4!=0 || !data.starts_with("iVBORw0KGgo") ||
-            !data.trim_end_matches('=').bytes().all(|b|b.is_ascii_alphanumeric()||b"+/".contains(&b)) ||
-            data.len()-data.trim_end_matches('=').len()>2 {
-            return Err(err("invalid OBS preview PNG data"));
-        }
-        Ok(format!("{{\"image\":{}}}",json_string(&image)))
+    #[test]
+    fn preview_requires_decodable_png_not_just_prefix() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            for image in ["data:image/png;base64,iVBORw0KGgoA===", "data:image/png;base64,aGVsbG8=", "data:image/jpeg;base64,iVBORw0KGgo="] {
+                let request = read(&mut socket);
+                answer(&mut socket, &request, json!({"imageData":image}));
+            }
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        for _ in 0..3 { assert!(obs.preview().is_err()); }
+        thread.join().unwrap();
     }
-}
-impl Drop for Obs {fn drop(&mut self){let _=self.child.kill();let _=self.child.wait();}}
-
-fn atomic_file(p:&std::path::Path,s:&str)->io::Result<()> {
-    let dir=p.parent().ok_or_else(||err("invalid state path"))?;
-    let directory=private_directory(dir)?;
-    let anchored=std::path::PathBuf::from(format!("/proc/self/fd/{}",directory.as_raw_fd()));
-    let target=anchored.join(p.file_name().ok_or_else(||err("invalid state filename"))?);
-    match fs::symlink_metadata(&target) {
-        Ok(m) if !m.is_file()=>return Err(err("state target must be a regular file")),
-        Ok(_)=>{},Err(e) if e.kind()==io::ErrorKind::NotFound=>{},Err(e)=>return Err(e),
+    #[test]
+    fn output_status_reports_progress_and_rejects_unknown_output() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            let request = read(&mut socket);
+            assert_eq!(request["d"]["requestType"], "GetRecordStatus");
+            answer(&mut socket, &request, json!({"outputActive":true,"outputBytes":123,"outputTotalFrames":42,"outputDuration":99}));
+        });
+        let mut obs = Obs::connect(&fixture.config(port)).unwrap();
+        assert!(obs.status("invalid").is_err());
+        assert_eq!(obs.observe("recording").unwrap(), OutputStatus { active:true, bytes:Some(123), frames:Some(42), duration_ms:Some(99) });
+        thread.join().unwrap();
     }
-    static NEXT:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
-    let stamp=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|err("invalid system clock"))?.as_nanos();
-    let part=anchored.join(format!(".splitcast-{}-{stamp}-{}.tmp",std::process::id(),NEXT.fetch_add(1,std::sync::atomic::Ordering::Relaxed)));
-    let mut file=fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&part)?;
-    let result=(||{file.write_all(s.as_bytes())?;file.sync_all()?;fs::rename(&part,&target)?;directory.sync_all()})();
-    if result.is_err(){let _=fs::remove_file(&part);}
-    result
-}
-fn private_directory(path:&std::path::Path)->io::Result<fs::File>{
-    use std::path::Component;
-    let path=if path.is_absolute(){path.to_owned()}else{std::env::current_dir()?.join(path)};
-    let mut current=fs::File::open("/")?;
-    for component in path.components() {
-        let name=match component {Component::RootDir|Component::CurDir=>continue,Component::Normal(name)=>name,_=>return Err(err("invalid state directory"))};
-        // Resolve through pinned directory descriptors, never through a symlink in the state path.
-        let next=std::path::PathBuf::from(format!("/proc/self/fd/{}",current.as_raw_fd())).join(name);
-        match fs::DirBuilder::new().mode(0o700).create(&next) {
-            Ok(())=>{},Err(e) if e.kind()==io::ErrorKind::AlreadyExists=>{},Err(e)=>return Err(e),
-        }
-        current=fs::OpenOptions::new().read(true).custom_flags(O_DIRECTORY|O_NOFOLLOW).open(&next)?;
+    #[test]
+    fn recording_does_not_read_twitch_key_or_start_streaming() {
+        let fixture = Fixture::new();
+        let (port, thread) = server(|mut socket| {
+            let request = read(&mut socket);
+            assert_eq!(request["d"]["requestType"], "StartRecord");
+            answer(&mut socket, &request, json!({}));
+        });
+        let cfg = fixture.config(port);
+        assert!(!cfg.twitch_key.exists());
+        let mut obs = Obs::connect(&cfg).unwrap();
+        assert!(obs.start(&cfg, "unknown").is_err());
+        assert!(obs.start(&cfg, "twitch").is_err());
+        obs.start(&cfg, "recording").unwrap();
+        thread.join().unwrap();
     }
-    unsafe extern "C" {fn getuid()->u32;}
-    if current.metadata()?.uid()!=unsafe{getuid()}{return Err(err("state directory must belong to this user"));}
-    current.set_permissions(fs::Permissions::from_mode(0o700))?;
-    Ok(current)
-}
-pub fn launch_args(cfg:&Config)->io::Result<Vec<String>>{
-    let _port=TcpListener::bind((Ipv4Addr::LOCALHOST,cfg.obs_port)).map_err(|_|err("OBS port is already occupied"))?;
-    // A dedicated profile avoids contaminating the user's OBS installation.
-    let base=cfg.state_dir.join("obs-config");let studio=base.join("obs-studio");
-    let password=secret(&cfg.obs_password,4096)?;
-    if password.len()<16 {return Err(err("OBS auth password must be at least 16 characters"));}
-    for dir in [cfg.state_dir.clone(),base.clone(),studio.clone(),studio.join("plugin_config"),studio.join("basic"),studio.join("basic/profiles")] {
-        private_directory(&dir)?;
+    #[test]
+    fn launch_refuses_occupied_port() {
+        let fixture = Fixture::new();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        assert!(launch_args(&fixture.config(listener.local_addr().unwrap().port())).unwrap_err().to_string().contains("occupied"));
     }
-    atomic_file(&studio.join("plugin_config/obs-websocket/config.json"),&format!("{{\"server_enabled\":true,\"server_port\":{},\"auth_required\":true,\"server_password\":{},\"first_load\":false}}",cfg.obs_port,json_string(&password)))?;
-    fs::create_dir_all(&cfg.recording_dir)?;
-    let profile=format!("[General]\nName=SplitCast\n[Video]\nBaseCX=1920\nBaseCY=1080\nOutputCX=1920\nOutputCY=1080\nFPSType=0\nFPSCommon=60\n[Output]\nMode=Advanced\n[AdvOut]\nEncoder=obs_nvenc_h264_tex\nRecType=Standard\nRecFilePath={}\nRecFormat2=mkv\nRecEncoder=obs_nvenc_h264_tex\nTrackIndex=1\nRecTracks=1\nRescale=false\n[Audio]\nSampleRate=48000\nChannelSetup=Stereo\n",cfg.recording_dir.display());
-    atomic_file(&studio.join("basic/profiles/SplitCast/basic.ini"),&profile)?;
-    atomic_file(&studio.join("user.ini"),"[Basic]\nProfile=SplitCast\nProfileDir=SplitCast\nSceneCollection=SplitCast\nSceneCollectionFile=SplitCast\n[General]\nFirstRun=true\n")?;
-    atomic_file(&studio.join("basic/scenes/SplitCast.json"),"{\"name\":\"SplitCast\",\"current_scene\":\"SplitCast\",\"current_program_scene\":\"SplitCast\",\"scene_order\":[{\"name\":\"SplitCast\"}],\"sources\":[],\"groups\":[],\"transitions\":[]}")?;
-    // The OBS process must be a child owned by the systemd user service.
-    Ok(vec!["env".into(),format!("XDG_CONFIG_HOME={}",base.display()),cfg.obs_binary.to_string_lossy().to_string(),"--multi".into(),"--disable-shutdown-check".into(),"--profile".into(),"SplitCast".into(),"--collection".into(),"SplitCast".into()])
+    #[test]
+    fn launch_refuses_public_credentials_and_keeps_generated_files_private() {
+        let fixture = Fixture::new();
+        let cfg = fixture.config(0);
+        fs::set_permissions(&cfg.obs_password, fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(launch_args(&cfg).is_err());
+        fs::set_permissions(&cfg.obs_password, fs::Permissions::from_mode(0o600)).unwrap();
+        launch_args(&cfg).unwrap();
+        let credentials = cfg.state_dir.join("obs-config/obs-studio/plugin_config/obs-websocket/config.json");
+        assert_eq!(fs::metadata(&credentials).unwrap().mode() & 0o777, 0o600);
+        assert_eq!(fs::metadata(credentials.parent().unwrap()).unwrap().mode() & 0o777, 0o700);
+        assert_eq!(fs::read_to_string(&cfg.obs_password).unwrap(), "a-private-password-long-enough");
+    }
+    #[test]
+    fn atomic_state_rejects_symlinks_and_ignores_predictable_temp_symlink() {
+        let fixture = Fixture::new();
+        let victim = fixture.dir.join("victim");
+        fs::write(&victim, "untouched").unwrap();
+        let state = fixture.dir.join("state.json");
+        symlink(&victim, state.with_extension("tmp")).unwrap();
+        atomic_file(&state, "private").unwrap();
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
+        assert_eq!(fs::metadata(&state).unwrap().mode() & 0o777, 0o600);
+        fs::remove_file(&state).unwrap();
+        symlink(&victim, &state).unwrap();
+        assert!(atomic_file(&state, "private").is_err());
+        let alias = fixture.dir.join("alias");
+        symlink(&fixture.dir, &alias).unwrap();
+        assert!(atomic_file(&alias.join("other"), "private").is_err());
+        assert_eq!(fs::read_to_string(victim).unwrap(), "untouched");
+    }
 }
