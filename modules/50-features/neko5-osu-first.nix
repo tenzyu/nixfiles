@@ -104,6 +104,15 @@
         exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/osu-display.sh} "$@"
       '';
     };
+    latencyLab = pkgs.writeShellApplication {
+      name = "osu-lab";
+      # Only read-only telemetry; no setcap, sudo, USB command or game injection.
+      # hyprctl is already supplied by the user's Hyprland session.
+      runtimeInputs = with pkgs; [python3 coreutils procps pipewire util-linux];
+      text = ''
+        exec ${pkgs.python3}/bin/python3 ${../../scripts/osu-performance/osu-lab.py} "$@"
+      '';
+    };
   in {
     config = lib.mkIf config.local.features.neko5-osu-first.enable {
       # In Hyprland 0.57.2 this setting may switch the compositing fallback
@@ -143,7 +152,7 @@
           ];
         }
       ];
-      home.packages = [launcher drawObserve displayExperiment];
+      home.packages = [launcher drawObserve displayExperiment latencyLab];
       # Dedicated entry only. The existing osu! desktop entry remains unchanged.
       xdg.desktopEntries.osu-first = {
         name = "osu! (neko5 performance profile)";
