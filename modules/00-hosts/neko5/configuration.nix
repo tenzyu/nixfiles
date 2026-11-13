@@ -1,6 +1,6 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu.local.features.splitcast-capture.settings.peer.ssh_host = "neko7";
+    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko7";
 
     local.context.flakePath = "/home/tenzyu/.nixfiles";
 

@@ -10,6 +10,10 @@
     };
 
   inputs = {
+    splitcast = {
+      url = "github:tenzyu/splitcast";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     # -- nixpkgs
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";

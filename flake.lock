@@ -494,8 +494,29 @@
         "nixpkgs-unstable": "nixpkgs-unstable",
         "onair": "onair",
         "proton-rtsp-wayland-ge": "proton-rtsp-wayland-ge",
+        "splitcast": "splitcast",
         "systems": "systems_2",
         "treefmt-nix": "treefmt-nix"
+      }
+    },
+    "splitcast": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794584949,
+        "narHash": "sha256-YkXwy5Q0fv89UWTQdYCojT5FQqlXlG8YDy1cCui8Zpc=",
+        "owner": "tenzyu",
+        "repo": "splitcast",
+        "rev": "aa86fe0d443d55a1a66c61198811a5b906ebef57",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tenzyu",
+        "repo": "splitcast",
+        "type": "github"
       }
     },
     "systems": {

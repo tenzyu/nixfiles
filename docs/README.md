@@ -1,11 +1,9 @@
 # Documentation index
 
-`flake.nix`, `modules/`, `packages/`, and `scripts/` are the executable definitions. Git state is not proof of deployment on either host.
+`flake.nix`, `modules/`, and `scripts/` define this system configuration. Git state does not establish which operating-system generation is running.
 
-- [Graphics/streaming historical research](graphics-streaming/README.md) — prior proposals and evidence, not authoritative for current runtime.
-- [SplitCast end-to-end evidence](E2E_RESULTS.md) and [Nix verification gates](evidence/splitcast-nix-gates.md) — preserve unfinished and failed gates.
-- [SplitCast historical architecture](ARCHITECTURE_DECISIONS.md), [remote-development notes](splitcast-remote-development.md), and [neko7 migration](opencode-neko7-migration.md).
+SplitCast implementation, package definitions, patches, tests, research, evidence and development memory now belong to the independent SplitCast repository. This repository consumes its flake input and retains only integration settings. See [consumer setup](splitcast-consumer.md).
 
-The user-provided *osu! LLM Wiki* (2026-11-13) is maintained separately from this Git repository; it holds the working summaries and raw captures for neko5 osu! optimisation. Do not automatically replace that source of evidence with dated documents under `docs/`.
+The earlier source material remains recoverable from source commit `3c8857353581424e5cca517d7ccf0db8de7514d4`. The independent repository's import manifest records original Git blob and content identities and labels normalized publication copies. No historical pass implies current deployment acceptance.
 
-Six byte-identical archived copies were removed from `docs/graphics-streaming/`; they remain recoverable in [the pre-cleanup commit](https://github.com/tenzyu/nixfiles/tree/1d05b8b6901c6b9f0d990f2b88009867932c1321/docs/graphics-streaming) and in the supplied wiki. Remaining SplitCast logs under `docs/evidence/` have not been shown redundant and are deliberately retained for a separate source-preserving pass.
+The separately supplied game-optimization wiki remains separate evidence. Moving SplitCast does not replace that wiki or establish new game-performance measurements.

@@ -1,6 +1,6 @@
 {...}: {
   configurations.nixos.neko7.module = {
-    home-manager.users.tenzyu.local.features.splitcast-production.settings.peer.ssh_host = "neko5";
+    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko5";
 
     local.features = {
       neko7-hardware.enable = true;

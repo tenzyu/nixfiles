@@ -11,16 +11,11 @@ bash scripts/osu-performance/test-osu-first.sh
 # Verify this change has no patch to upstream game binaries or libraries.
 git diff --name-only HEAD -- | while IFS= read -r file; do
   case "$file" in
-    modules/*|scripts/osu-performance/*|packages/splitcast-rs/*|docs/*) ;;
+    modules/*|scripts/osu-performance/*|docs/*) ;;
     *) printf 'unexpected changed file: %s\n' "$file" >&2; exit 1;;
   esac
 done
-# Full compile and Nix evaluation are mandatory before enabling Rust.
-if command -v cargo >/dev/null; then
-  (cd packages/splitcast-rs && cargo test --locked --offline)
-else
-  echo 'UNVERIFIED: rustc/cargo unavailable; Rust build/test not performed' >&2
-fi
+# SplitCast owns its Rust verification in its independent flake.
 if command -v nix >/dev/null; then
   nix flake check --no-build
 else
