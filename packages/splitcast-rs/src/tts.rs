@@ -1,10 +1,16 @@
-use crate::{config::Config, process::run_bounded};
+use crate::config::Config;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
+use std::net::{SocketAddr, TcpStream};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc,
+};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const AUDIO_LIMIT: usize = 4 * 1024 * 1024;
@@ -98,47 +104,166 @@ fn wav(data: &[u8]) -> io::Result<()> {
     }
     Ok(())
 }
-fn post(url: String, input: Option<&[u8]>, cap: usize) -> io::Result<Vec<u8>> {
-    let mut args: Vec<String> = [
-        "--disable",
-        "--silent",
-        "--show-error",
-        "--fail",
-        "--noproxy",
-        "*",
-        "--proto",
-        "=http",
-        "--max-redirs",
-        "0",
-        "--max-time",
-        "15",
-        "--request",
-        "POST",
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect();
-    if input.is_some() {
-        args.extend([
-            "--header".into(),
-            "Content-Type: application/json".into(),
-            "--data-binary".into(),
-            "@-".into(),
-        ]);
+fn post(
+    root: &str,
+    path: &str,
+    input: &[u8],
+    cap: usize,
+    cancel: &AtomicBool,
+    deadline: Instant,
+) -> io::Result<Vec<u8>> {
+    check_cancel(cancel, deadline)?;
+    let port = root
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .parse::<u16>()
+        .map_err(|_| invalid("invalid port"))?;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(200))?;
+    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+    stream.set_write_timeout(Some(Duration::from_millis(100)))?;
+    let request = format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", input.len());
+    let mut outgoing = request.into_bytes();
+    outgoing.extend_from_slice(input);
+    let mut written = 0;
+    while written < outgoing.len() {
+        check_cancel(cancel, deadline)?;
+        match stream.write(&outgoing[written..]) {
+            Ok(0) => return Err(io::Error::other("VOICEVOX connection closed")),
+            Ok(n) => written += n,
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                        | io::ErrorKind::Interrupted
+                ) =>
+            {
+                ()
+            }
+            Err(e) => return Err(e),
+        }
     }
-    args.extend(["--".into(), url]);
-    let result = run_bounded("curl", &args, input, Duration::from_secs(16), cap)?;
-    if !result.status.success() {
-        return Err(io::Error::other("VOICEVOX request failed"));
+    let mut response = Vec::new();
+    let mut framing = None;
+    loop {
+        check_cancel(cancel, deadline)?;
+        let mut buf = [0; 8192];
+        match stream.read(&mut buf) {
+            Ok(0) => return Err(io::Error::other("truncated VOICEVOX response")),
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                        | io::ErrorKind::Interrupted
+                ) =>
+            {
+                continue
+            }
+            Err(e) => return Err(e),
+        }
+        if framing.is_none() {
+            if let Some(end) = response.windows(4).position(|v| v == b"\r\n\r\n") {
+                if end > 16384 {
+                    return Err(invalid("HTTP headers too large"));
+                }
+                let headers = std::str::from_utf8(&response[..end])
+                    .map_err(|_| invalid("invalid HTTP headers"))?;
+                let mut lines = headers.split("\r\n");
+                let status = lines.next().unwrap_or("");
+                if !status.starts_with("HTTP/1.1 200 ") && !status.starts_with("HTTP/1.0 200 ") {
+                    return Err(invalid("VOICEVOX HTTP error"));
+                }
+                let mut length = None;
+                for line in lines {
+                    let (key, value) = line
+                        .split_once(':')
+                        .ok_or_else(|| invalid("invalid HTTP header"))?;
+                    if key.eq_ignore_ascii_case("transfer-encoding") {
+                        return Err(invalid("unsupported HTTP framing"));
+                    }
+                    if key.eq_ignore_ascii_case("content-length") {
+                        if length.is_some() {
+                            return Err(invalid("duplicate HTTP length"));
+                        }
+                        length = Some(
+                            value
+                                .trim()
+                                .parse::<usize>()
+                                .map_err(|_| invalid("invalid HTTP length"))?,
+                        );
+                    }
+                }
+                let length = length.ok_or_else(|| invalid("missing HTTP length"))?;
+                if length > cap {
+                    return Err(invalid("VOICEVOX response too large"));
+                }
+                framing = Some((end + 4, length));
+            } else if response.len() > 16384 {
+                return Err(invalid("HTTP headers too large"));
+            }
+        }
+        if let Some((start, length)) = framing {
+            if response.len() >= start + length {
+                return Ok(response[start..start + length].to_vec());
+            }
+        }
     }
-    Ok(result.stdout)
+}
+fn check_cancel(cancel: &AtomicBool, deadline: Instant) -> io::Result<()> {
+    if cancel.load(Ordering::Acquire) || Instant::now() >= deadline {
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "VOICEVOX cancelled or timed out",
+        ))
+    } else {
+        Ok(())
+    }
+}
+fn synthesize(
+    root: &str,
+    speaker: u16,
+    text: &str,
+    cancel: &AtomicBool,
+    expires: Instant,
+) -> io::Result<Vec<u8>> {
+    let deadline = expires.min(Instant::now() + Duration::from_secs(15));
+    let query = post(
+        root,
+        &format!("/audio_query?text={}&speaker={speaker}", encode(text)),
+        &[],
+        QUERY_LIMIT,
+        cancel,
+        deadline,
+    )?;
+    let _: Value =
+        serde_json::from_slice(&query).map_err(|_| invalid("invalid audio query JSON"))?;
+    let audio = post(
+        root,
+        &format!("/synthesis?speaker={speaker}"),
+        &query,
+        AUDIO_LIMIT,
+        cancel,
+        deadline,
+    )?;
+    wav(&audio)?;
+    check_cancel(cancel, deadline)?;
+    Ok(audio)
+}
+struct Worker {
+    job: Option<Job>,
+    cancel: Arc<AtomicBool>,
+    result: mpsc::Receiver<io::Result<Vec<u8>>>,
+    handle: JoinHandle<()>,
 }
 
 struct Job {
     id: String,
     text: String,
     expires: Instant,
-    expires_epoch: f64,
     path: Option<PathBuf>,
     attempts: u8,
 }
@@ -152,6 +277,7 @@ pub struct Speech {
     cache: PathBuf,
     enabled: bool,
     muted: bool,
+    worker: Option<Worker>,
     pending: VecDeque<Job>,
     ready: VecDeque<Job>,
     playing: Option<Job>,
@@ -191,6 +317,7 @@ impl Speech {
             cache,
             enabled: cfg.tts_enabled,
             muted: false,
+            worker: None,
             pending: VecDeque::new(),
             ready: VecDeque::new(),
             playing: None,
@@ -246,20 +373,19 @@ impl Speech {
         if !self.enabled || self.muted {
             return Err(invalid("TTS is disabled or muted"));
         }
-        if self.pending.len() + self.ready.len() + usize::from(self.playing.is_some()) >= self.limit
+        if self.pending.len()
+            + self.ready.len()
+            + usize::from(self.playing.is_some())
+            + usize::from(self.worker.as_ref().is_some_and(|w| w.job.is_some()))
+            >= self.limit
         {
             return Err(invalid("TTS queue is full"));
         }
         let now = Instant::now();
-        let epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs_f64();
         self.pending.push_back(Job {
             id: id.into(),
             text: text.into(),
             expires: now + self.expiry,
-            expires_epoch: epoch + self.expiry.as_secs_f64(),
             path: None,
             attempts: 0,
         });
@@ -269,25 +395,7 @@ impl Speech {
         }
         Ok(json!({"id":id,"duplicate":false}))
     }
-    fn synthesize(&mut self, job: &Job) -> io::Result<PathBuf> {
-        let query = post(
-            format!(
-                "{}/audio_query?text={}&speaker={}",
-                self.root,
-                encode(&job.text),
-                self.speaker
-            ),
-            None,
-            QUERY_LIMIT,
-        )?;
-        let _: Value =
-            serde_json::from_slice(&query).map_err(|_| invalid("invalid audio query JSON"))?;
-        let audio = post(
-            format!("{}/synthesis?speaker={}", self.root, self.speaker),
-            Some(&query),
-            AUDIO_LIMIT,
-        )?;
-        wav(&audio)?;
+    fn publish(&mut self, job: &Job, audio: &[u8]) -> io::Result<PathBuf> {
         self.serial += 1;
         let name = format!("{}-{}-{}", std::process::id(), self.serial, job.id);
         let tmp = self.cache.join(format!(".{name}.tmp"));
@@ -298,8 +406,7 @@ impl Speech {
                 .create_new(true)
                 .mode(0o600)
                 .open(&tmp)?;
-            file.write_all(&audio)?;
-            file.sync_all()?;
+            file.write_all(audio)?;
             fs::rename(&tmp, &path)?;
             Ok(path)
         })();
@@ -308,33 +415,68 @@ impl Speech {
         }
         result
     }
-    /// Performs at most one bounded synthesis attempt. Call outside latency-sensitive handlers.
+    fn cancel_worker(&mut self) {
+        if let Some(worker) = &mut self.worker {
+            worker.cancel.store(true, Ordering::Release);
+            worker.job = None;
+        }
+    }
     pub fn tick(&mut self) {
         self.expire();
-        if !self.enabled || self.muted {
+        if self
+            .worker
+            .as_ref()
+            .and_then(|w| w.job.as_ref())
+            .is_some_and(|j| j.expires <= Instant::now())
+        {
+            self.cancel_worker();
+        }
+        if self.worker.as_ref().is_some_and(|w| w.handle.is_finished()) {
+            let mut worker = self.worker.take().unwrap();
+            let result = worker.result.try_recv();
+            let _ = worker.handle.join();
+            if let Some(mut job) = worker.job.take() {
+                if job.expires > Instant::now() && self.enabled && !self.muted {
+                    let result = result
+                        .ok()
+                        .and_then(Result::ok)
+                        .and_then(|audio| self.publish(&job, &audio).ok());
+                    if let Some(path) = result {
+                        job.path = Some(path);
+                        self.ready.push_back(job);
+                        self.error.clear();
+                    } else {
+                        self.error = "VOICEVOX synthesis failed".into();
+                        if job.attempts < 3 {
+                            self.pending.push_front(job);
+                        }
+                    }
+                }
+            }
+        }
+        if self.worker.is_some() || !self.enabled || self.muted {
             return;
         }
         let Some(mut job) = self.pending.pop_front() else {
             return;
         };
         job.attempts += 1;
-        match self.synthesize(&job) {
-            Ok(path) => {
-                job.path = Some(path);
-                if job.expires > Instant::now() {
-                    self.ready.push_back(job);
-                    self.error.clear();
-                } else {
-                    Self::remove(job);
-                }
-            }
-            Err(_) => {
-                self.error = "VOICEVOX synthesis failed".into();
-                if job.attempts < 3 && job.expires > Instant::now() {
-                    self.pending.push_front(job);
-                }
-            }
-        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        let flag = cancel.clone();
+        let root = self.root.clone();
+        let speaker = self.speaker;
+        let text = job.text.clone();
+        let expires = job.expires;
+        let (tx, result) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let _ = tx.send(synthesize(&root, speaker, &text, &flag, expires));
+        });
+        self.worker = Some(Worker {
+            job: Some(job),
+            cancel,
+            result,
+            handle,
+        });
     }
     pub fn next(&mut self) -> Value {
         self.expire();
@@ -343,7 +485,7 @@ impl Speech {
         }
         self.ready
             .front()
-            .map(|j| json!({"id":j.id,"expires":j.expires_epoch}))
+            .map(|j| json!({"id":j.id,"expires_in_seconds":j.expires.saturating_duration_since(Instant::now()).as_secs_f64()}))
             .unwrap_or(Value::Null)
     }
     pub fn audio(&mut self, id: &str) -> io::Result<PathBuf> {
@@ -400,6 +542,7 @@ impl Speech {
                 if action == "mute" {
                     self.muted = true;
                 }
+                self.cancel_worker();
                 while let Some(job) = self.pending.pop_front() {
                     Self::remove(job);
                 }
@@ -415,7 +558,14 @@ impl Speech {
                     .playing
                     .take()
                     .or_else(|| self.ready.pop_front())
-                    .or_else(|| self.pending.pop_front())
+                    .or_else(|| {
+                        if self.worker.as_ref().is_some_and(|w| w.job.is_some()) {
+                            self.cancel_worker();
+                            None
+                        } else {
+                            self.pending.pop_front()
+                        }
+                    })
                 {
                     Self::remove(job);
                 }
@@ -424,12 +574,16 @@ impl Speech {
             _ => return Err(invalid("unknown TTS command")),
         }
         Ok(
-            json!({"enabled":self.enabled,"muted":self.muted,"pending":self.pending.len(),"ready":self.ready.len(),"active":false,"playing":self.playing.as_ref().map(|j| &j.id),"error":self.error}),
+            json!({"enabled":self.enabled,"muted":self.muted,"pending":self.pending.len(),"ready":self.ready.len(),"active":self.worker.as_ref().is_some_and(|w| w.job.is_some()),"playing":self.playing.as_ref().map(|j| &j.id),"error":self.error}),
         )
     }
 }
 impl Drop for Speech {
     fn drop(&mut self) {
+        self.cancel_worker();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.handle.join();
+        }
         while let Some(job) = self.ready.pop_front() {
             Self::remove(job);
         }
@@ -447,6 +601,38 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
     static NEXT: AtomicUsize = AtomicUsize::new(0);
+    #[test]
+    fn tick_returns_while_voicevox_is_delayed() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let root = format!("http://{}", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
+        let server = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((_stream, _)) => {
+                        thread::sleep(Duration::from_millis(500));
+                        break;
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5))
+                    }
+                    Err(e) => panic!("{e}"),
+                }
+            }
+        });
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let mut s = setup(root);
+            s.enqueue("hello", "delayed").unwrap();
+            s.tick();
+            tx.send(()).unwrap();
+        });
+        let prompt = rx.recv_timeout(Duration::from_millis(200)).is_ok();
+        server.join().unwrap();
+        worker.join().unwrap();
+        assert!(prompt, "tick blocked on VOICEVOX");
+    }
     fn setup(root: String) -> Speech {
         let cache = std::env::temp_dir().join(format!(
             "splitcast-tts-test-{}-{}",
@@ -463,6 +649,7 @@ mod tests {
             cache,
             enabled: true,
             muted: false,
+            worker: None,
             pending: VecDeque::new(),
             ready: VecDeque::new(),
             playing: None,
@@ -486,6 +673,129 @@ mod tests {
         v.extend(2u32.to_le_bytes());
         v.extend([0, 0]);
         v
+    }
+    #[test]
+    fn cancellation_rejects_delayed_synthesis_without_creating_audio() {
+        for action in ["clear", "skip"] {
+            cancel_delayed_synthesis(action);
+        }
+    }
+    fn cancel_delayed_synthesis(action: &str) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let root = format!("http://{}", listener.local_addr().unwrap());
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut query, _) = listener.accept().unwrap();
+            let mut buf = [0; 4096];
+            let _ = query.read(&mut buf);
+            query
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                .unwrap();
+            let (mut stream, _) = listener.accept().unwrap();
+            let _ = stream.read(&mut buf);
+            started_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+            let audio = sample_wav();
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+                audio.len()
+            );
+            let _ = stream.write_all(&audio);
+        });
+        let mut s = setup(root);
+        s.enqueue("cancel me", "cancelled").unwrap();
+        s.tick();
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        s.command(action, &[]).unwrap();
+        release_tx.send(()).unwrap();
+        server.join().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while s.worker.is_some() && Instant::now() < deadline {
+            s.tick();
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(s.worker.is_none());
+        assert!(s.next().is_null());
+        assert!(s.audio("cancelled").is_err());
+        assert_eq!(fs::read_dir(&s.cache).unwrap().count(), 0);
+        let cache = s.cache.clone();
+        drop(s);
+        fs::remove_dir(cache).unwrap();
+    }
+    #[test]
+    fn rejects_redirects_and_oversized_http_bodies() {
+        for response in [
+            "HTTP/1.1 302 Found\r\nLocation: http://example.com/\r\nContent-Length: 0\r\n\r\n"
+                .to_string(),
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+                QUERY_LIMIT + 1
+            ),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let root = format!("http://{}", listener.local_addr().unwrap());
+            let server = thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buf = [0; 4096];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(response.as_bytes());
+            });
+            assert!(post(
+                &root,
+                "/",
+                &[],
+                QUERY_LIMIT,
+                &AtomicBool::new(false),
+                Instant::now() + Duration::from_secs(2)
+            )
+            .is_err());
+            server.join().unwrap();
+        }
+    }
+    #[test]
+    fn failed_requests_stop_after_three_attempts() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let root = format!("http://{}", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
+        let server = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let mut count = 0;
+            while count < 3 && Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(1)))
+                            .unwrap();
+                        let mut buf = [0; 4096];
+                        let _ = stream.read(&mut buf);
+                        let _ =
+                            stream.write_all(b"HTTP/1.1 500 Error\r\nContent-Length: 0\r\n\r\n");
+                        count += 1;
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5))
+                    }
+                    Err(e) => panic!("{e}"),
+                }
+            }
+            count
+        });
+        let mut s = setup(root);
+        s.enqueue("hello", "retry").unwrap();
+        s.tick();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while (s.worker.is_some() || !s.pending.is_empty()) && Instant::now() < deadline {
+            s.tick();
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(s.worker.is_none() && s.pending.is_empty());
+        assert!(s.next().is_null());
+        assert_eq!(server.join().unwrap(), 3);
+        let cache = s.cache.clone();
+        drop(s);
+        fs::remove_dir(cache).unwrap();
     }
     #[test]
     fn synthesis_claim_and_replay() {
@@ -545,6 +855,11 @@ mod tests {
         assert_eq!(s.enqueue("hello", "abc").unwrap()["duplicate"], true);
         s.tick();
         let req = handle.join().unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while s.next().is_null() && Instant::now() < deadline {
+            s.tick();
+            thread::sleep(Duration::from_millis(5));
+        }
         assert!(req[0]
             .starts_with("POST /audio_query?text=hello%20%26%20%E4%B8%96%E7%95%8C&speaker=1 "));
         assert!(req[1].ends_with("{\"query\":true}"));
@@ -572,8 +887,10 @@ mod tests {
         s.enqueue("c", "c").unwrap();
         s.pending.front_mut().unwrap().expires = Instant::now();
         assert_eq!(s.command("status", &[]).unwrap()["pending"], 1);
-        for _ in 0..4 {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while (s.worker.is_some() || !s.pending.is_empty()) && Instant::now() < deadline {
             s.tick();
+            thread::sleep(Duration::from_millis(5));
         }
         assert!(s.next().is_null());
         assert_eq!(s.command("status", &[]).unwrap()["pending"], 0);
