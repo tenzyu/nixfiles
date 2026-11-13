@@ -69,7 +69,7 @@ if [[ "$profile" == stream ]]; then
   echo 'SplitCast must be started separately; no capture is injected into osu!' >&2
 fi
 printf 'osu-first profile=%s BASS=%s slack=%sns uclamp=%s%%; native Wayland, official binary\n' "$profile" "$period" "$slack" "$uclamp" >&2
-systemd-run --user --scope --collect --wait --quiet \
+systemd-run --user --scope --collect --quiet \
   --property=CPUWeight=10000 \
   --property=CPUUClampMin="${uclamp}%" \
   -- \
