@@ -2,8 +2,8 @@
 
 Build with Rust 1.95, its `wasm32-unknown-unknown` standard library, `lld`, and `wasm-bindgen-cli` 0.2.121. Run `bash scripts/build-web.sh` from the repository root. Pass an output directory as the first argument to override `packages/splitcast-web/dist`.
 
-The loopback service must serve the generated files at the same origin as `/api/command`, including the WASM MIME type `application/wasm`. Its content security policy must permit same-origin scripts, WASM compilation, and connections. The baseline service does not serve these files. Do not expose the service on a public interface.
+The Nix package supplies generated assets to the loopback agent through `SPLITCAST_WEB_ASSETS`. The server permits only fixed asset paths and serves WASM as `application/wasm`. Its content security policy permits same-origin scripts, WASM compilation and connections. Do not expose the service on a public interface.
 
-The token remains in page memory and is sent in the Authorization header. Server validation remains authoritative. The baseline `routes` command reports that route editing is not ported; the browser shows that response rather than inventing routes. The route table accepts an array, or an object with a `routes` array, containing string `source`, `processor`, and `target` fields.
+The token remains in page memory and is sent in the Authorization header. Server validation remains authoritative. The route table displays the source and finite processor and target arrays returned by the server. It does not invent an editable graph.
 
-The browser client currently serializes the command envelope locally. Replace that code with the shared portable protocol when the service library exports it. The native unit tests do not test a browser, the server, or media operations.
+The browser and TUI use `splitcast-protocol` for the command model. Browser rendering and operation logic are Rust. The handwritten loader only initializes generated WASM glue. The native unit tests do not establish live browser or media operation.
