@@ -79,7 +79,23 @@ def check_parents(path, home):
             raise Conflict(f"Legacy path contains a symlink: {parent}")
 
 
-def busy(patterns):
+def mounts(path):
+    for line in path.read_text().splitlines():
+        fields = line.split()
+        decode = lambda value: Path(re.sub(r"\\([0-7]{3})",
+                                          lambda match: chr(int(match[1], 8)), value))
+        yield fields[2], decode(fields[3]), decode(fields[4])
+
+
+def busy(patterns, paths=None):
+    host_mounts = list(mounts(Path("/proc/self/mountinfo")))
+    filesystem_paths = []
+    for path in paths or [Path.home()]:
+        path = path.resolve()
+        device, root, mountpoint = max(
+            (mount for mount in host_mounts if path.is_relative_to(mount[2])),
+            key=lambda mount: len(mount[2].parts))
+        filesystem_paths.append((device, root / path.relative_to(mountpoint)))
     matches = []
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit() or int(proc.name) == os.getpid():
@@ -94,6 +110,19 @@ def busy(patterns):
                       (proc / "cmdline").read_bytes().split(b"\0")[:3]]
             if any(fnmatch.fnmatch(name.lower(), pattern.lower())
                    for name in names for pattern in patterns):
+                # Same-UID rootless containers need not see the host home at all.
+                # Compare filesystem roots, not namespace IDs: a bind mount can
+                # expose the home at a different path in another mount namespace.
+                try:
+                    exposed = any(dev == device and
+                                  (path.is_relative_to(mount_root)
+                                   or mount_root.is_relative_to(path))
+                                  for dev, mount_root, _ in mounts(proc / "mountinfo")
+                                  for device, path in filesystem_paths)
+                except OSError:
+                    exposed = True  # Unknown visibility must still block migration.
+                if not exposed:
+                    continue
                 matches.append(proc.name)
         except (OSError, UnicodeError):
             continue
@@ -238,7 +267,8 @@ def plan(manifest):
             actions.append({"action": "rewrite", "target": str(dest), "source": str(source),
                             "root": str(target)})
             patterns.extend(rule.get("processes", []))
-    pids = busy(patterns) if patterns else []
+    paths = [Path(rule[key]) for rule in manifest["rules"] for key in ("source", "target")]
+    pids = busy(patterns, paths) if patterns else []
     if pids:
         raise Conflict(f"Close applications before migration (PIDs: {', '.join(pids)})")
     return actions

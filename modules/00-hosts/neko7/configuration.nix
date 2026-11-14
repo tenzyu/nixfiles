@@ -48,6 +48,8 @@
         nix-tools.enable = true;
         git-tools.enable = true;
         herdr.enable = true;
+        rtk.enable = true;
+        opencode-direnv.enable = true;
       };
     };
   };

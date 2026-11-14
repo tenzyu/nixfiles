@@ -433,6 +433,19 @@
         "type": "github"
       }
     },
+    "nixpkgs_4": {
+      "locked": {
+        "lastModified": 1787640266,
+        "narHash": "sha256-tbu/95O8ZRmCj0kfSiDvz3YT7GSnD0fO6cxLRVYtXnU=",
+        "rev": "f4f698677b11021a8f84f452e23ae9ef2427bec3",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/26.05/nixos-26.05.8409.f4f698677b11/nixexprs.tar.xz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://channels.nixos.org/nixos-26.05/nixexprs.tar.xz"
+      }
+    },
     "onair": {
       "inputs": {
         "nixpkgs": [
@@ -501,21 +514,20 @@
     },
     "splitcast": {
       "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1794584949,
-        "narHash": "sha256-YkXwy5Q0fv89UWTQdYCojT5FQqlXlG8YDy1cCui8Zpc=",
+        "lastModified": 1794634119,
+        "narHash": "sha256-hVlb9nzjk+0EHyFFLSY/VjN0wYIYL+pbsDuC6o2LBwI=",
         "owner": "tenzyu",
         "repo": "splitcast",
-        "rev": "aa86fe0d443d55a1a66c61198811a5b906ebef57",
+        "rev": "d2205d06b0dc695c3d9b7372fafa7facee769fa9",
         "type": "github"
       },
       "original": {
         "owner": "tenzyu",
         "repo": "splitcast",
+        "rev": "d2205d06b0dc695c3d9b7372fafa7facee769fa9",
         "type": "github"
       }
     },

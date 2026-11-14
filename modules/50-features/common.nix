@@ -13,7 +13,7 @@
         (move "${home}/.cargo" vars.CARGO_HOME ["cargo" "rustc" "rustup"])
         (move "${home}/.rustup" vars.RUSTUP_HOME ["cargo" "rustc" "rustup"])
         (move "${home}/.nuget/packages" vars.NUGET_PACKAGES ["*dotnet*"])
-        (move "${home}/.npm" vars.NPM_CONFIG_CACHE ["*npm*" "node"])
+        ((move "${home}/.npm" vars.NPM_CONFIG_CACHE ["*npm*" "node"]) // {onConflict = "backup";})
         (move "${home}/.npm-init.js" vars.NPM_CONFIG_INIT_MODULE ["*npm*"])
         (move "${home}/.node_repl_history" vars.NODE_REPL_HISTORY ["node"])
         (move "${home}/.gtkrc-2.0" vars.GTK2_RC_FILES [])

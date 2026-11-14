@@ -144,6 +144,38 @@ class MigrationTest(unittest.TestCase):
         self.assertTrue((self.home / ".android/adbkey").exists())
         self.assertFalse((self.home / "state").exists())
 
+    def test_container_node_blocks_only_when_home_filesystem_is_exposed(self):
+        proc = self.home / "proc" / "123"
+        proc.mkdir(parents=True)
+        (proc / "comm").write_text("node\n")
+        (proc / "cmdline").write_bytes(b"node\0opt/index.js\0")
+        (proc / "exe").symlink_to("/container/bin/node")
+        device = self.home.stat().st_dev
+        device_id = f"{os.major(device)}:{os.minor(device)}"
+        mounts = migrate.mounts
+
+        def mount_table(path):
+            if path == Path("/proc/self/mountinfo"):
+                return iter([(device_id, Path("/"), Path("/"))])
+            return mounts(path)
+
+        self.enterContext(patch.object(migrate, "mounts", side_effect=mount_table))
+        cases = [
+            ("1 0 0:999 / / rw - overlay overlay rw\n", []),
+            (f"1 0 {device_id} {self.home}/.local/share/docker/hostname /etc/hostname rw - ext4 disk rw\n", []),
+            # A bind mount at another container path still exposes the home.
+            (f"1 0 {device_id} {self.home} /data rw - ext4 disk rw\n", ["123"]),
+            (f"1 0 {device_id} / / rw - ext4 disk rw\n", ["123"]),
+        ]
+        for mountinfo, expected in cases:
+            with self.subTest(mountinfo=mountinfo):
+                (proc / "mountinfo").write_text(mountinfo)
+                with patch.object(Path, "iterdir", return_value=iter([proc])):
+                    self.assertEqual(migrate.busy(["node"], [self.home / ".npm"]), expected)
+        (proc / "mountinfo").unlink()
+        with patch.object(Path, "iterdir", return_value=iter([proc])):
+            self.assertEqual(migrate.busy(["node"], [self.home / ".npm"]), ["123"])
+
     def test_reference_repair_is_backed_up_and_resumes_after_directory_move(self):
         # Simulate a prior run interrupted after rename but before reference repair.
         old = self.home / ".codex"
