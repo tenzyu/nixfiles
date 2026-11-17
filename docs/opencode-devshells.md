@@ -1,3 +1,18 @@
+---
+type: Playbook
+title: "opencode-devshells.md"
+description: "Direnv integration for OpenCode shell invocations"
+status: stable
+source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+sources:
+  - id: source-1
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/assets/opencode/direnv.ts
+    title: "assets/opencode/direnv.ts"
+  - id: source-2
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/opencode-direnv.nix
+    title: "modules/50-features/opencode-direnv.nix"
+---
+
 # Per-command development environments in OpenCode
 
 The `opencode-direnv` Home Manager feature loads an approved direnv environment into each OpenCode shell invocation. It does not start the shared server inside a project's devShell or change `process.env`.
@@ -75,3 +90,7 @@ To disable the integration, set `local.users.tenzyu.features.opencode-direnv.ena
 - [Direnv 2.37.1 approval states](https://github.com/direnv/direnv/blob/v2.37.1/internal/cmd/rc.go)
 - [Nix-direnv 3.1.2 cache, watches, and GC roots](https://github.com/nix-community/nix-direnv/blob/3.1.2/direnvrc)
 - [Rejected session-start plugin: global process.env mutation](https://github.com/simonwjackson/opencode-direnv/blob/main/src/index.ts)
+
+## Wiki context
+
+The host enables this integration as a configuration declaration. The per-command hook does not activate the candidate managed OpenCode server. See [host state](host-state.md).

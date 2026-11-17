@@ -1,5 +1,8 @@
 # neko5 osu! eDP async-presentation experiment
 
+> **Historical experiment:** dated observations below are not proof that the present NixOS generation has the same Direct Scanout behavior or that actual async flips succeeded. See [evidence policy](../../docs/schema.md).
+
+
 **Default OFF; not benchmark-validated.** This is the executable companion to the separately maintained 2026-11-13 osu! LLM Wiki (`wiki/DRAW.md`, `wiki/DECISIONS.md`). Do not copy that Wiki's research and raw logs into nixfiles.
 
 The user's 2026-11-13 11:10 JST observation showed 25/25 DSO selection in known-good `fullscreen=2/fullscreenClient=0` samples. `activelyTearing` was false in 30/30. This experiment changes only the compositor's **named, disabled-by-default** `immediate` rule and does not patch osu!, SDL, KMS or i915.

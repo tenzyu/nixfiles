@@ -1,3 +1,21 @@
+---
+type: Reference
+title: "splitcast-consumer.md"
+description: "Pinned SplitCast input and consumer roles"
+status: stable
+source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+sources:
+  - id: source-1
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/flake.nix
+    title: "flake.nix"
+  - id: source-2
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/splitcast-capture.nix
+    title: "modules/50-features/splitcast-capture.nix"
+  - id: source-3
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/splitcast-production.nix
+    title: "modules/50-features/splitcast-production.nix"
+---
+
 # Consume the independent SplitCast flake
 
 SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local feature files only import those modules and map existing role-enable settings. Host files supply peer settings through `home-manager.users.<user>.services.splitcast.settings`.
@@ -13,3 +31,7 @@ The capture role remains disabled. The production integration remains configured
 Run SplitCast's own verification from its repository. This consumer reuses its package and configuration checks, rather than retaining a second implementation or test suite. The independent repository's `docs/operations.md`, `docs/design-review.md`, `docs/verification.md`, and `MEMORY.md` are the current references. The historical graphics research and isolated experiments were transferred there as non-current evidence.
 
 Before any later deployment, evaluate the actual consumer configuration, inspect the selected package and generated TOML, confirm cgroup teardown and credential ownership, and obtain separate authorization for physical capture, privileges, firewall changes, public publication and activation. Restoring a Git input does not itself restore a running generation.
+
+## Wiki context
+
+The input pin and role selections are code-backed; current running binary, cache availability, live streaming and PoC acceptance are **not inferred**. See [host state](host-state.md).
