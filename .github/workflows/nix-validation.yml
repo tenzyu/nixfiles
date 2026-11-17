@@ -27,8 +27,8 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check flake outputs without building
-        run: nix flake check --no-build --show-trace
+      - name: Evaluate flake and build declared checks
+        run: nix flake check -L --show-trace
 
       - name: Evaluate each NixOS host closure
         shell: bash
@@ -43,17 +43,3 @@ jobs:
       - name: Framework Nix-unit tests and nixd invariants
         run: nix run -L .#framework-test
 
-      - name: Build fast, deterministic check derivations
-        shell: bash
-        run: |
-          set -euo pipefail
-          for check in \
-            framework-cli \
-            home-migration \
-            nix-store-clean \
-            deprecated-patterns \
-            feature-name-shape; do
-            echo "::group::Build ${check}"
-            nix build --no-link -L ".#checks.x86_64-linux.${check}"
-            echo "::endgroup::"
-          done
