@@ -243,20 +243,34 @@
       raw = trim hit.text;
     };
 
+  # Source discovery is recursive: import-tree registers nested aspects too.
+  # Ignore _private helpers, just as import-tree does.
   featureFiles = repo: let
-    dir = toString repo + "/modules/50-features";
-    entries =
-      if builtins.pathExists dir
-      then builtins.readDir dir
-      else {};
+    walk = dir: relative: let
+      entries =
+        if builtins.pathExists dir
+        then builtins.readDir dir
+        else {};
+      visit = name: let
+        entry = entries.${name};
+        path = dir + "/${name}";
+        rel = relative + "/${name}";
+      in
+        if hasPrefix "_" name
+        then []
+        else if entry == "directory"
+        then walk path rel
+        else if entry == "regular" && hasSuffix ".nix" name
+        then [{
+          inherit name rel;
+          featureName = lib.removeSuffix ".nix" name;
+          text = readFileIfExists path;
+        }]
+        else [];
+    in
+      concatMap visit (attrNames entries);
   in
-    map (name: {
-      inherit name;
-      rel = "modules/50-features/${name}";
-      featureName = lib.removeSuffix ".nix" name;
-      text = readFileIfExists (dir + "/${name}");
-    })
-    (builtins.filter (name: entries.${name} == "regular" && hasSuffix ".nix" name) (attrNames entries));
+    walk (toString repo + "/modules/50-features") "modules/50-features";
 
   findImplementation = {
     repo,
@@ -317,11 +331,9 @@
     featureName,
   }: d: let
     rel = toRepoPath repo d.file;
-    fName = let
-      m = match "modules/50-features/([^/]+)\\.nix" rel;
-    in
-      if m != null
-      then head m
+    fName =
+      if hasPrefix "modules/50-features/" rel && hasSuffix ".nix" rel
+      then lib.removeSuffix ".nix" (lib.last (splitString "/" rel))
       else null;
   in {
     kind =
@@ -537,7 +549,7 @@
     then [explicitUser]
     else enabled;
 in {
-  inherit toRepoPath renderLocation;
+  inherit toRepoPath renderLocation featureFiles;
 
   traceHost = {
     flake,
