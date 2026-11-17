@@ -1,3 +1,18 @@
+---
+type: Playbook
+title: "nix-store-clean.md"
+description: "Conservative Nix store cleanup and generation safety"
+status: draft
+source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+sources:
+  - id: source-1
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/assets/nix-store-clean/cli.py
+    title: "assets/nix-store-clean/cli.py"
+  - id: source-2
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/nix-store-clean.nix
+    title: "modules/50-features/nix-store-clean.nix"
+---
+
 # Nix Store cleanup on neko5 (safe maintenance)
 
 ## Why this changed
@@ -91,3 +106,7 @@ Before treating this as production-ready, run a real NixOS VM lifecycle test cov
 - [Nix environment generations (`+N`)](https://nix.dev/manual/nix/2.30/command-ref/nix-env/delete-generations.html)
 - [nix-direnv GC root behavior](https://github.com/nix-community/nix-direnv#readme)
 - [NixOS VM integration testing](https://nix.dev/tutorials/nixos/integration-testing-using-virtual-machines.html)
+
+## Wiki context
+
+The executable supports root-aware native GC. This runbook does **not** establish VM lifecycle or host acceptance. See [safety decisions](decisions.md) and [roadmap](../ROADMAP.md).
