@@ -1,5 +1,5 @@
 {
-  flake.modules.homeManager.parsec-hyprland = {
+  flake.modules.homeManager.parsec = {
     config,
     lib,
     ...
