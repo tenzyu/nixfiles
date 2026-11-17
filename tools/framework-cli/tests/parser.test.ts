@@ -5,12 +5,12 @@ test("parseTraceArgs parses feature selector", () => {
   expect(parseTraceArgs(["--host", "neko5", "--feature", "zsh"]).feature).toBe("zsh");
 });
 
-test("parseTraceArgs rejects missing host", () => {
-  expect(() => parseTraceArgs(["--feature", "zsh"])).toThrow("--host is required");
+test("parseTraceArgs retains an absent host for traceCommand validation", () => {
+  expect(parseTraceArgs(["--feature", "zsh"]).host).toBe("");
 });
 
-test("parseTraceArgs parses edit target", () => {
-  const parsed = parseTraceArgs(["--host", "neko5", "--edit-config"]);
+test("parseTraceArgs parses the documented implementation edit target", () => {
+  const parsed = parseTraceArgs(["--host", "neko5", "--edit-implementation"]);
   expect(parsed.edit).toBe(true);
   expect(parsed.editTarget).toBe("implementation");
 });
