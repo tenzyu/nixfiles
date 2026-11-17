@@ -17,7 +17,7 @@ generation=$(nix build --no-link --print-out-paths \
 
 保存先の宣言と既存データの移行は一組。`home-layout` だけでなく、保存先を変える
 `common` / `zsh` / `firefox` がそれぞれ `local.homeMigration.paths` を宣言する。
-実行部分は `modules/50-features/home-migration.nix` と `migrate.py`。
+実行部分は `modules/50-features/home/home-migration.nix` と `migrate.py`。
 ユーザー名、ホスト名、固定の `.config` / `.local/share` を実装に埋め込まない。
 
 ## 初めて別マシンへ適用する
