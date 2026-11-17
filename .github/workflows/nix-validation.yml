@@ -1,0 +1,69 @@
+name: Nix validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Build every declared flake check (expensive)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Nix evaluation and focused regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Do not use 'nix flake check' in a PR gate: it builds *all* checks,
+      # including unrelated Rust and system-level derivations.
+      - name: Build narrowly scoped, deterministic checks
+        run: |
+          nix build -L --no-link \
+            .#checks.x86_64-linux.framework-cli \
+            .#checks.x86_64-linux.deprecated-patterns \
+            .#checks.x86_64-linux.feature-name-shape
+
+      - name: Test framework semantics and editor option types
+        run: nix run -L .#framework-test
+
+      - name: Evaluate all NixOS host derivations without building systems
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in neko5 neko6 neko7; do
+            echo "::group::Evaluate ${host}"
+            nix eval --raw ".#nixosConfigurations.${host}.config.system.build.toplevel.drvPath"
+            echo "::endgroup::"
+          done
+
+  full-audit:
+    name: On-demand full flake check (expensive)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix flake check -L --show-trace
