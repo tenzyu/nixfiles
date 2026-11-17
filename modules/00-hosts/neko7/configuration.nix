@@ -1,6 +1,8 @@
 {...}: {
   configurations.nixos.neko7.module = {
     home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko5";
+    # Keep the T3 user service running after logout and across reboots.
+    users.users.tenzyu.linger = true;
 
     local.features = {
       neko7-hardware.enable = true;
@@ -50,6 +52,8 @@
         herdr.enable = true;
         rtk.enable = true;
         opencode-direnv.enable = true;
+        codex.enable = true;
+        t3code-neko7.enable = true;
       };
     };
   };
