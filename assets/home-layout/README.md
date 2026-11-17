@@ -1,5 +1,8 @@
 # XDG home layout / 既存ホームの移行
 
+> **2026-11-17 documentation reconciliation:** `neko5` enables `home-layout` but still contains a TODO reporting migration bugs. The procedure below describes the implementation contract; acceptance on the current real home was **not** verified here. See [safety decisions](../../docs/decisions.md).
+
+
 保存先の宣言と既存データの移行は一組。`home-layout` だけでなく、保存先を変える
 `common` / `zsh` / `firefox` がそれぞれ `local.homeMigration.paths` を宣言する。
 実行部分は `modules/50-features/home-migration.nix` と `migrate.py`。
