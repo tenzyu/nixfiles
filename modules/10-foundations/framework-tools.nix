@@ -30,6 +30,14 @@
         framework-seed = import (root + "/tests/seed.nix") { inherit lib; };
         framework-modules = import (root + "/tests/modules.nix") { inherit lib; };
         framework-trace = import (root + "/tests/trace.nix") { inherit lib traceLib; };
+        integration-steam-hyprland = import (root + "/tests/integrations-steam.nix") {
+          inherit lib;
+          integrationModule = (import ${../60-integrations/desktop/steam-hyprland.nix}).flake.modules.homeManager.steam;
+        };
+        integration-parsec-hyprland = import (root + "/tests/integrations.nix") {
+          inherit lib;
+          integrationModule = (import ${../60-integrations/desktop/parsec-hyprland.nix}).flake.modules.homeManager.parsec;
+        };
       }
     '';
 

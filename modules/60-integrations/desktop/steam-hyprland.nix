@@ -1,5 +1,5 @@
 {
-  flake.modules.homeManager.steam-hyprland = {
+  flake.modules.homeManager.steam = {
     config,
     lib,
     ...
