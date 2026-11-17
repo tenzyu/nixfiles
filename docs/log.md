@@ -1,5 +1,9 @@
 # Knowledge update log
 
+## 2026-11-18
+
+- [neko7 development runbook](t3code-neko7.md) records the SplitCast regression, clean-clone replay, rollback, observed T3 access and the on-demand Serve declaration. It supersedes the earlier source-only remote-access status for this observation window.
+
 ## 2026-11-17
 
 - **Architecture correction (PR #12):** Removed the nested framework Flake; moved projection into `modules/_internal/framework/`, kept `modules/10-fundamental/`, and separated tooling and package overlays. The CLI names and host declaration surface remain unchanged.

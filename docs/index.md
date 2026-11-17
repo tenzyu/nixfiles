@@ -16,6 +16,7 @@ This OKF v0.2 bundle is a **compiled, source-grounded understanding** of the rep
 ## Runbooks and references
 
 - [Nix store cleanup](nix-store-clean.md)
+- [neko7 development cycle, Serve recovery and PR resumption](t3code-neko7.md)
 - [OpenCode devShell / direnv integration](opencode-devshells.md)
 - [OpenCode service migration](opencode-neko7-migration.md)
 - [SplitCast consumer](splitcast-consumer.md)

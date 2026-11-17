@@ -40,6 +40,7 @@ Proxmox guest, CUDA/NVIDIA, Nix remote builder, game-server containers, `opencod
 - `opencode-neko7-service` candidate source exists but is **not enabled in the host**. Whether a separately managed server is running requires runtime verification.
 - `splitcast-production` is enabled in system and user scope; the consumer defines `rustCandidate = lib.mkDefault false`. Actual process state, streaming and PoC acceptance are not established by the declaration.
 - `kernel-latest = false` is explicit.
+- The [T3 runbook](t3code-neko7.md) records the later 2026-11-18 runtime observation and the separately tested on-demand Serve restore.
 
 ## Runtime acceptance
 
