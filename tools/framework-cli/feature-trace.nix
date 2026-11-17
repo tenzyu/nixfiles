@@ -444,7 +444,7 @@
     seedActivations = optionals (directSeedActivation != null) [directSeedActivation] ++ userSeedActivations;
 
     optionDefActivations =
-      if scope == "system" && seedActivations == []
+      if scope == "system"
       then
         optionDefinitions {
           inherit repo;
@@ -459,7 +459,12 @@
       then []
       else findFeatureModuleActivations {inherit repo feature;};
 
-    activations = seedActivations ++ optionDefActivations ++ scannedFeatureActivations;
+    # Evaluated Nix definitions are authoritative; textual source inspection
+    # remains only a separately labeled location hint.
+    activations =
+      if optionDefActivations != []
+      then optionDefActivations
+      else seedActivations;
 
     implClass =
       if scope == "system"
@@ -513,6 +518,7 @@
     hm_enabled = hmEnabled;
     kind = primaryKind;
     activations = activations;
+    source_hints = seedActivations ++ scannedFeatureActivations;
     implementations = implementations;
     effects = effectDefs;
     definitions = activations;
@@ -539,6 +545,7 @@ in {
     host,
     user ? null,
     scope ? "all",
+    feature ? null,
   }: let
     cfg = flake.nixosConfigurations.${host}.config;
     enabledSysNames = attrNames (filterAttrs (_: f: f.enable or false) (cfg.local.features or {}));
@@ -546,8 +553,12 @@ in {
       cfg = cfg;
       explicitUser = user;
     };
+    systemFeatureNames =
+      if feature == null then enabledSysNames else [feature];
     homeFeatureNames = u:
-      attrNames (filterAttrs (_: f: f.enable or false) (cfg.local.users.${u}.features or {}));
+      if feature == null
+      then attrNames (filterAttrs (_: f: f.enable or false) (cfg.local.users.${u}.features or {}))
+      else [feature];
   in {
     type = "host";
     inherit host scope;
@@ -560,7 +571,7 @@ in {
             inherit flake repo host feature;
             scope = "system";
           })
-        enabledSysNames;
+        systemFeatureNames;
     home =
       if scope == "system"
       then []

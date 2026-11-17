@@ -391,7 +391,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("mode", choices=["check", "apply"], nargs="?", default="check")
+    parser.add_argument("--require-noop", action="store_true",
+                        help="fail read-only check when any migration action is pending")
     args = parser.parse_args()
+    if args.require_noop and args.mode != "check":
+        parser.error("--require-noop is only valid with check")
     manifest = json.loads(args.manifest.read_text())
     try:
         actions = apply(manifest) if args.mode == "apply" else plan(manifest)
@@ -399,6 +403,11 @@ def main():
         print(f"home migration stopped: {error}", file=sys.stderr)
         return 1
     print(json.dumps(actions, ensure_ascii=False, indent=2))
+    if args.require_noop and actions:
+        print("home migration pending: activation blocked before writes; "
+              "inspect the plan and explicitly authorize autoApply only after approval",
+              file=sys.stderr)
+        return 2
     return 0
 
 

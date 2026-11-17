@@ -79,7 +79,7 @@ export async function traceCommand(argv: string[]): Promise<void> {
   await editCandidate(repo, candidate);
 }
 
-function parseTraceArgs(argv: string[]): TraceArgs {
+export function parseTraceArgs(argv: string[]): TraceArgs {
   const args: TraceArgs = {
     host: "",
     user: "",
@@ -199,9 +199,9 @@ async function repoRoot(): Promise<string> {
 }
 
 async function evalTrace(args: TraceArgs, repo: string): Promise<AnyRecord> {
-  const frameworkRoot = Bun.env.FRAMEWORK_ROOT;
-  if (!frameworkRoot) {
-    throw new Error("FRAMEWORK_ROOT is not set");
+  const traceModulePath = Bun.env.FEATURE_TRACE_LIB;
+  if (!traceModulePath) {
+    throw new Error("FEATURE_TRACE_LIB is not set");
   }
 
   const nixArgs = JSON.stringify(args);
@@ -210,13 +210,16 @@ async function evalTrace(args: TraceArgs, repo: string): Promise<AnyRecord> {
     let
       repo = ${JSON.stringify(repo)};
       flake = builtins.getFlake "path:${repo}";
-      core = import (${JSON.stringify(frameworkRoot)} + "/modules/tools/feature-trace.nix") {
+      core = import (builtins.toPath ${JSON.stringify(traceModulePath)}) {
         lib = flake.inputs.nixpkgs.lib;
       };
       args = builtins.fromJSON ${JSON.stringify(nixArgs)};
       base = { inherit repo flake; host = args.host; };
       withUser = if args.user != "" then base // { user = args.user; } else base;
-      fullArgs = withUser // { scope = args.scope; };
+      fullArgs = withUser // {
+        scope = args.scope;
+        feature = if args.feature != "" then args.feature else null;
+      };
     in
       if args.why != "" then
         core.traceWhy (base // { option = args.why; } // (if args.user != "" then { user = args.user; } else {}))
@@ -366,7 +369,17 @@ function collectHomeFeatureGroups(result: AnyRecord): HomeFeatureGroup[] {
   if (Array.isArray(value)) {
     const rows = featureRowsFromUnknown(value);
     if (rows.length > 0) {
-      return [{ user: "unknown", rows }];
+      const grouped = new Map<string, FeatureRow[]>();
+      for (const entry of value) {
+        const record = asRecord(entry);
+        const user = stringFromUnknown(record.user) || "unknown";
+        const row = featureRowsFromUnknown([entry])[0];
+        if (row) grouped.set(user, [...(grouped.get(user) ?? []), row]);
+      }
+      return [...grouped].map(([user, groupRows]) => ({
+        user,
+        rows: groupRows,
+      }));
     }
 
     return value.flatMap((entry) => {

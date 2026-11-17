@@ -1,4 +1,4 @@
-{lib}: let
+{lib, policyLib}: let
   fpConfig = {
     flake.local.featurePolicies = {
       alpha = {
@@ -11,7 +11,7 @@
       };
     };
   };
-  policiesLib = import ../lib/policies.nix {inherit lib fpConfig;};
+  policiesLib = policyLib {inherit lib fpConfig;};
 in {
   testPolicyForFeaturesCollectsOnlyEnabled = {
     expr = policiesLib.policyForFeatures {

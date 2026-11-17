@@ -4,14 +4,15 @@ This document tracks **unverified work**, not features already deployed. Host ac
 
 | Priority | Work | Current implementation evidence | Acceptance criteria / failure boundary |
 | --- | --- | --- | --- |
-| P0 | XDG home migration | `neko5` has `home-layout.enable = true` **and** an explicit buggy-migration TODO; Python migration implementation and fixtures exist | Verify conflict handling, backups, interruption recovery and real home state before approved activation; abort on unresolved profile/credential conflicts |
+| P0 | XDG home migration | `neko5` has `home-layout.enable = true` and an unresolved migration TODO; activation is now fail-closed on pending moves unless `local.homeMigration.autoApply` is explicitly enabled | Verify conflict handling, backups, interruption recovery and real home state; require separate approval for auto-apply; abort on unresolved profile/credential conflicts |
 | P0 | Nix store cleaner safety | `assets/nix-store-clean/cli.py` uses native GC and guarded pruning | VM test staged boot, mismatched current/booted/profile generations, GC and rollback; preserve boot entries and GC roots |
 | P0 | Documentation drift checks | Old README referenced non-existent `docs/cache-check.md` and `modules/10-framework/` | CI validates Markdown links, referenced features/hosts, OKF frontmatter and source revisions |
 | P1 | OpenCode user service migration | `opencode-neko7-service.nix` exists but is not enabled in neko7 host | Confirm running version, backup DB/WAL, prove single writer and restore path, obtain switch approval |
 | P1 | SplitCast consumer acceptance | Separate pinned flake; capture disabled on neko5, production feature enabled on neko7 | Verify cached derivations, consumer config, service activation state and independently tested output; separately authorize capture or publication |
 | P1 | Catppuccin build-cache diagnosis | Catppuccin input and substituter configured in `flake.nix` / `nix.nix` | Compare derivation hashes, lock resolution and substitute queries before changing `follows` or pinning |
 | P2 | osu! latency studies | `neko5-osu-first`, `osu-lab`, `osu-display` provide candidate controls and telemetry | Controlled A/B, tail latency and error reporting with fixed DSO baseline; never infer input-to-photon from indirect telemetry |
-| P2 | Framework and Wiki regression tests | Framework CLI, Nix tests, static checks; new OKF bundle | Complete reproducible tests of projected host options and Wiki provenance/links |
+| P2 | Framework and Wiki regression tests | Private framework, separate tools CLI, Nix tests and OKF bundle | Complete reproducible tests of projected host options, preserved nixd completion and Wiki provenance/links |
+| P2 | Host declaration ergonomics | `configurations.nixos.<host>.module` uses typed seed compaction for nixd completion | Explore native module-shaped hosts without losing completion, tri-state null semantics or rollback; migrate only after host parity tests |
 
 ## Completion discipline
 
