@@ -18,7 +18,7 @@ These are **source declarations**, not evidence of the generation currently boot
 flake.nix                        Flake inputs and two module imports
 modules/_internal/framework/     private host/feature projection
 modules/00-hosts/                neko5, neko6, neko7 declarations
-modules/10-fundamental/          baseline, tooling and package overlays
+modules/10-foundations/          baseline, tooling and package overlays
 modules/50-features/             NixOS and Home Manager feature modules
 tools/framework-cli/             separate inspection and test CLI
 assets/                          migration, GC and OpenCode resources

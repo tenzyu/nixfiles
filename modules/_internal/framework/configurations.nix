@@ -9,7 +9,7 @@
   modulesLib = import ./lib/modules.nix {inherit lib;};
   featuresLib = import ./lib/features.nix {inherit lib;};
   usersLib = import ./lib/users.nix {inherit lib featuresLib;};
-  policiesLib = import ../../10-fundamental/_policy/lib.nix {inherit lib fpConfig;};
+  policiesLib = import ../../10-foundations/_policy/lib.nix {inherit lib fpConfig;};
   seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib;};
 
   nixosModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.nixos or {});
@@ -27,7 +27,7 @@
     inherit lib nixosFeatureNames homeFeatureNames featuresLib;
   };
 
-  policyMaterializers = import ../../10-fundamental/_policy/materializer.nix {
+  policyMaterializers = import ../../10-foundations/_policy/materializer.nix {
     inherit lib policiesLib usersLib;
   };
 
