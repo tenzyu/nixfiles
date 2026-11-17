@@ -1,6 +1,8 @@
 """Data-preservation regression tests; fixtures never touch the real home."""
 
 import importlib.util
+from contextlib import redirect_stdout, redirect_stderr
+import io
 import json
 import os
 from pathlib import Path
@@ -379,6 +381,46 @@ class MigrationTest(unittest.TestCase):
         with self.assertRaises(migrate.Conflict):
             migrate.apply(self.manifest)
         self.assertEqual(target.read_text(), 'real')
+
+    def test_require_noop_guard_blocks_pending_move_before_writes(self):
+        self.file(".old/credential", "secret")
+        self.rule(".old", ".new")
+        manifest = self.home / "manifest.json"
+        manifest.write_text(json.dumps(self.manifest))
+        output = io.StringIO()
+        errors = io.StringIO()
+        with patch("sys.argv", ["migrate", "--manifest", str(manifest),
+                                "--require-noop", "check"]):
+            with redirect_stdout(output), redirect_stderr(errors):
+                status = migrate.main()
+        self.assertEqual(status, 2)
+        self.assertIn("pending", errors.getvalue())
+        self.assertTrue((self.home / ".old/credential").exists())
+        self.assertFalse((self.home / ".new").exists())
+        self.assertFalse((self.home / "state").exists())
+
+    def test_require_noop_guard_accepts_empty_plan(self):
+        self.rule(".old", ".new")
+        manifest = self.home / "manifest.json"
+        manifest.write_text(json.dumps(self.manifest))
+        with patch("sys.argv", ["migrate", "--manifest", str(manifest),
+                                "--require-noop", "check"]):
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(migrate.main(), 0)
+        self.assertFalse((self.home / "state").exists())
+
+    def test_require_noop_guard_cannot_be_combined_with_apply(self):
+        self.file(".old/key")
+        self.rule(".old", ".new")
+        manifest = self.home / "manifest.json"
+        manifest.write_text(json.dumps(self.manifest))
+        with patch("sys.argv", ["migrate", "--manifest", str(manifest),
+                                "--require-noop", "apply"]):
+            with redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    migrate.main()
+        self.assertTrue((self.home / ".old/key").exists())
+        self.assertFalse((self.home / "state").exists())
 
 
 if __name__ == "__main__":

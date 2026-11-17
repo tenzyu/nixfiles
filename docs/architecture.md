@@ -38,7 +38,7 @@ flake.nix / import-tree
     -> Home Manager embedded users
 ```
 
-The old README's `modules/10-framework/` directory is absent; the actual implementation resides in `framework/`.
+The former `framework/` source directory now resides in `foundations/framework/`; `modules/10-fundamental/` moved to `foundations/fundamental/`. The flake input is still named `framework` for compatibility. Source links in this document's YAML frontmatter are pinned to an older commit and remain historical references.
 
 ## Projection rules
 
@@ -49,12 +49,16 @@ The old README's `modules/10-framework/` directory is absent; the actual impleme
 - Seed `null` values are dropped so missing declarations do not turn into explicit disables. `false` remains an explicit disable.
 - Standalone `configurations.homeManager` is supported by the framework, but the current three host entries declare NixOS configurations.
 
+## Cross-scope feature invariant
+
+A selected Home Manager feature with a same-named NixOS module still implies the system feature via `mkDefault true`. If an explicit system override disables it, a NixOS assertion now fails instead of silently permitting inconsistent system/home feature states. This preserves current defaults while making the cross-scope dependency observable.
+
 ## Package policy
 
 Feature policy declarations are not blanket package authorization. The NixOS materializer aggregates enabled system and user feature policy into `local.nixpkgsPolicy`, then maps to `nixpkgs.config.allowUnfreePredicate` and `permittedInsecurePackages`. Standalone Home Manager has a separate materializer.
 
 ## Verification interfaces
 
-`framework/cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `framework/modules/cli-apps.nix`. `modules/10-fundamental/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
+`foundations/framework/cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `foundations/framework/modules/cli-apps.nix`. `foundations/fundamental/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).

@@ -25,9 +25,19 @@
 
     names = lib.filter (name: builtins.hasAttr name nixosModules) enabledUserFeatureNames;
   in {
-    config.local.features = lib.genAttrs names (_name: {
-      enable = lib.mkDefault true;
-    });
+    config = {
+      local.features = lib.genAttrs names (_name: {
+        enable = lib.mkDefault true;
+      });
+      assertions = map (name: {
+        assertion = config.local.features.${name}.enable;
+        message = ''
+          A Home Manager user enabled feature '${name}', but its NixOS
+          counterpart is disabled. Enable local.features.${name} on the host
+          or disable the user feature; a partial projection is not supported.
+        '';
+      }) names;
+    };
   };
 
   nixosUserAccountsModule = {

@@ -3,6 +3,18 @@
 > **2026-11-17 documentation reconciliation:** `neko5` enables `home-layout` but still contains a TODO reporting migration bugs. The procedure below describes the implementation contract; acceptance on the current real home was **not** verified here. See [safety decisions](../../docs/decisions.md).
 
 
+## 自動移行の安全ゲート
+
+`local.homeMigration.autoApply` は **既定で false**。未移行のファイル・参照修復があるときは、Home Manager activation の `writeBoundary` より前の読み取り専用チェックが失敗する。移行は行われず、プロファイルも切り替えない。既存の移行が完了している場合は通常どおり activation を続ける。
+
+```sh
+generation=$(nix build --no-link --print-out-paths \
+  .#nixosConfigurations.neko5.config.home-manager.users.tenzyu.home.activationPackage)
+"$generation/home-layout-migrate" check
+```
+
+バックアップ、停止プロセス、対象パス、衝突、ロールバックを確認して初めて、対象 Home Manager configuration の `local.homeMigration.autoApply = true` を明示できる。これは無条件の実行許可ではなく、別途の人間の承認を要する。手動の `home-layout-migrate apply` も書き込み操作なので同様に承認が必要。
+
 保存先の宣言と既存データの移行は一組。`home-layout` だけでなく、保存先を変える
 `common` / `zsh` / `firefox` がそれぞれ `local.homeMigration.paths` を宣言する。
 実行部分は `modules/50-features/home-migration.nix` と `migrate.py`。

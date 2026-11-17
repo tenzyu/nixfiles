@@ -5,6 +5,7 @@
     inputs.flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
         inputs.framework.flakeModules.default
+        (inputs.import-tree ./foundations/fundamental)
         (inputs.import-tree ./modules)
       ];
     };
@@ -52,7 +53,7 @@
 
     # -- Feature framework
     framework = {
-      url = "path:./framework";
+      url = "path:./foundations/framework";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
       inputs.flake-parts.follows = "flake-parts";

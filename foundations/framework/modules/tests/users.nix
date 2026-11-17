@@ -1,6 +1,38 @@
 {lib}: let
   featuresLib = import ../lib/features.nix {inherit lib;};
   usersLib = import ../lib/users.nix {inherit lib featuresLib;};
+  projection = import ../materializers/users.nix {
+    inherit lib usersLib;
+    nixosModules = {steam = {};};
+  };
+  projectionConfig = disabled:
+    (lib.evalModules {
+      modules = [
+        ({lib, ...}: {
+          options.local.users = lib.mkOption {
+            type = lib.types.attrsOf lib.types.anything;
+            default = {};
+          };
+          options.local.features.steam.enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+          };
+          options.assertions = lib.mkOption {
+            type = lib.types.listOf lib.types.anything;
+            default = [];
+          };
+          config = {
+            local.users.alice = {
+              enable = true;
+              features.steam.enable = true;
+            };
+          } // lib.optionalAttrs disabled {
+            local.features.steam.enable = false;
+          };
+        })
+        projection.userSeededNixosFeaturesModule
+      ];
+    }).config;
 in {
   testEnabledUsersExcludesExplicitFalse = {
     expr = usersLib.enabledUsers {
@@ -73,5 +105,19 @@ in {
         features = {};
       };
     };
+  };
+  testUserFeatureAutomaticallyProjectsToNixos = {
+    expr = (projectionConfig false).local.features.steam.enable;
+    expected = true;
+  };
+
+  testUserFeatureSystemDisableIsRejectedByAssertion = {
+    expr = (builtins.head (projectionConfig true).assertions).assertion;
+    expected = false;
+  };
+
+  testProjectedUserFeatureAssertionPasses = {
+    expr = (builtins.head (projectionConfig false).assertions).assertion;
+    expected = true;
   };
 }

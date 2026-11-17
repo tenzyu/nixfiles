@@ -25,6 +25,7 @@
         framework-policies = import (root + "/tests/policies.nix") { inherit lib; };
         framework-seed = import (root + "/tests/seed.nix") { inherit lib; };
         framework-modules = import (root + "/tests/modules.nix") { inherit lib; };
+        framework-trace = import (root + "/tests/trace.nix") { inherit lib; };
       }
     '';
 

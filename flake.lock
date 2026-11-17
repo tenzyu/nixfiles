@@ -147,11 +147,11 @@
         ]
       },
       "locked": {
-        "path": "./framework",
+        "path": "./foundations/framework",
         "type": "path"
       },
       "original": {
-        "path": "./framework",
+        "path": "./foundations/framework",
         "type": "path"
       },
       "parent": []
