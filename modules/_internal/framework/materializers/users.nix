@@ -1,9 +1,7 @@
 {
   lib,
-  pkgs ? null,
   nixosModules,
   usersLib,
-  policiesLib ? null,
 }: rec {
   userSeededNixosFeaturesModule = {
     config,

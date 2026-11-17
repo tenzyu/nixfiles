@@ -11,7 +11,7 @@
         bad=0
 
         if rg -n \
-          -g '!foundations/fundamental/checks.nix' \
+          -g '!modules/10-fundamental/checks.nix' \
           -g '!result' \
           -g '!result-*' \
           -e 'flake\.effects' \

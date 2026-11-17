@@ -26,11 +26,11 @@ sources:
 
 ## Entry and registry
 
-`flake.nix` imports the local `framework.flakeModules.default` and `import-tree ./modules` into flake-parts. `modules/50-features/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
+`flake.nix` explicitly imports `modules/_internal/framework/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
 
 ```text
 flake.nix / import-tree
- -> framework/modules/configurations.nix
+ -> modules/_internal/framework/configurations.nix
  -> typed host seed
  -> compactNixosSeedModule (null = unspecified)
  -> NixOS module set + materializers
@@ -38,7 +38,11 @@ flake.nix / import-tree
     -> Home Manager embedded users
 ```
 
-The former `framework/` source directory now resides in `foundations/framework/`; `modules/10-fundamental/` moved to `foundations/fundamental/`. The flake input is still named `framework` for compatibility. Source links in this document's YAML frontmatter are pinned to an older commit and remain historical references.
+The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/framework/`. `modules/10-fundamental/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
+
+## Responsibility boundary
+
+The internal framework owns only configuration instantiation, feature registry/selection, typed seed compaction for editor support, and NixOS/Home Manager user projection. Package overlay definitions, helpers, and diagnostics are owned by `modules/10-fundamental/` or `tools/framework-cli/`. This keeps the native Nix module system authoritative rather than introducing a third configuration evaluator.
 
 ## Projection rules
 
@@ -59,6 +63,6 @@ Feature policy declarations are not blanket package authorization. The NixOS mat
 
 ## Verification interfaces
 
-`foundations/framework/cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `foundations/framework/modules/cli-apps.nix`. `foundations/fundamental/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
+`tools/framework-cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `modules/10-fundamental/framework-tools.nix`. `modules/10-fundamental/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).

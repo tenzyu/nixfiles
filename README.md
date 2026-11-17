@@ -1,6 +1,6 @@
 # nixfiles
 
-Personal NixOS / Home Manager configurations for three hosts, built with **flake-parts**, **import-tree**, and a separate local **feature-projection framework**. This repository is not a generic installer: hardware UUIDs, user identities and runtime dependencies are host-specific.
+Personal NixOS / Home Manager configurations for three hosts, using **flake-parts** and **import-tree**. Feature wiring is an internal repository implementation, not a separate Flake dependency. This repository is not a generic installer: hardware UUIDs, user identities and runtime dependencies are host-specific.
 
 ## Hosts
 
@@ -15,18 +15,19 @@ These are **source declarations**, not evidence of the generation currently boot
 ## Repository map
 
 ```text
-flake.nix                         inputs, flake-parts and import-tree entry
-foundations/framework/            feature registry, projection, CLI and tests (local flake)
-foundations/fundamental/          formatter, system selection, static checks
-modules/00-hosts/                 host declarations: neko5, neko6, neko7
-modules/50-features/       NixOS and Home Manager feature implementations
-assets/                    migration, GC and OpenCode resources
-scripts/osu-performance/   osu! experiments and observation scripts
-docs/index.md              LLM Wiki / OKF knowledge index
-ROADMAP.md                 unverified work and future acceptance criteria
+flake.nix                        Flake inputs and two module imports
+modules/_internal/framework/     private host/feature projection
+modules/00-hosts/                neko5, neko6, neko7 declarations
+modules/10-fundamental/          baseline, tooling and package overlays
+modules/50-features/             NixOS and Home Manager feature modules
+tools/framework-cli/             separate inspection and test CLI
+assets/                          migration, GC and OpenCode resources
+scripts/osu-performance/         osu! experiments
+docs/index.md                    LLM Wiki / OKF knowledge index
+ROADMAP.md                       unfinished acceptance work
 ```
 
-The evaluation path is `flake.nix` → `framework.flakeModules.default` + `import-tree ./foundations/fundamental` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. Embedded Home Manager uses `useGlobalPkgs = true`. The framework also supports explicit standalone `configurations.homeManager` declarations.
+The evaluation path is `flake.nix` → explicit `modules/_internal/framework/default.nix` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. The `_internal` directory is intentionally excluded from recursive auto-import. The internal framework is **not** a Flake input. Embedded Home Manager uses `useGlobalPkgs = true`. The framework also supports explicit standalone `configurations.homeManager` declarations.
 
 ## Inspect and validate
 
@@ -42,6 +43,14 @@ nix build .#nixosConfigurations.neko5.config.system.build.toplevel --no-link
 
 Evaluation, build, activation, boot, and runtime acceptance are **different gates**. No OS switch or reboot is performed by these inspection commands.
 
+## Module boundaries
+
+- **Hosts** declare *which* features/users are selected; they do not implement a new module system.
+- **Features** declare actual NixOS/Home Manager effects using native option paths and `lib.mkIf`.
+- **Internal framework** registers modules and projects host/user selections. The typed seed stays solely to preserve nixd completion and the `null`-vs-`false` semantics.
+- **Fundamentals** own formatter, systems, static checks, package overlays, and CLI app exposure.
+- **Tools** inspect and test configuration but do not mutate host state.
+
 ## How to change a feature
 
 1. Inspect `modules/00-hosts/<host>/configuration.nix` for `local.features` (system) and `local.users.<name>.features` (Home Manager).
@@ -49,7 +58,7 @@ Evaluation, build, activation, boot, and runtime acceptance are **different gate
 3. If required, declare per-feature package admission under `flake.local.featurePolicies.<feature>`, not as a global unfree exception.
 4. Validate before separately authorizing a switch, boot, service migration or data mutation.
 
-The `framework` flake input name and CLI commands remain stable while their sources reside in `foundations/framework/`; this is a source-layout refactor, not a change to NixOS feature names.
+The private framework only connects registered feature modules and typed host/user selections to NixOS and Home Manager. It is not a second package ecosystem, a reusable external Flake, or the owner of the diagnostic CLI. The existing host declaration syntax is retained until a separately tested, editor-compatible replacement exists.
 
 Framework tools are exposed as `framework-cli`, `framework-test`, `framework-invariants` and `feature-trace` flake apps. `feature-trace --feature NAME` scopes the trace; evaluated Nix option definitions take precedence over heuristic source-location hints. Use `nix run .#framework-cli -- --help` to inspect the supported interface.
 

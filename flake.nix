@@ -4,8 +4,7 @@
   outputs = inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
-        inputs.framework.flakeModules.default
-        (inputs.import-tree ./foundations/fundamental)
+        ./modules/_internal/framework/default.nix
         (inputs.import-tree ./modules)
       ];
     };
@@ -49,17 +48,6 @@
     flake-compat = {
       url = "github:NixOS/flake-compat";
       flake = false;
-    };
-
-    # -- Feature framework
-    framework = {
-      url = "path:./foundations/framework";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
-      inputs.flake-parts.follows = "flake-parts";
-      inputs.home-manager.follows = "home-manager";
-      inputs.nix-unit.follows = "nix-unit";
-      inputs.systems.follows = "systems";
     };
 
     # -- Dendritic Pattern

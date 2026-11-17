@@ -10,10 +10,9 @@
   }: let
     nixUnit = inputs.nix-unit.packages.${system}.default;
 
-    # cli-apps.nix is framework/modules/cli-apps.nix
-    frameworkModuleRoot = ./.;
-    frameworkRoot = ../.;
-    cliRoot = ../cli;
+    frameworkModuleRoot = ../_internal/framework;
+    cliRoot = ../../tools/framework-cli;
+    traceLib = ../../tools/framework-cli/feature-trace.nix;
 
     frameworkTestSuite = pkgs.writeText "framework-tests.nix" ''
       let
@@ -39,7 +38,7 @@
         nixUnit
       ];
       text = ''
-        export FRAMEWORK_ROOT="${frameworkRoot}"
+        export FEATURE_TRACE_LIB="${traceLib}"
         export FRAMEWORK_TEST_SUITE="${frameworkTestSuite}"
 
         exec bun ${cliRoot}/src/main.ts "$@"
@@ -70,6 +69,20 @@
       '';
     };
   in {
+    checks.framework-cli =
+      pkgs.runCommand "framework-cli-check" {
+        src = pkgs.lib.cleanSource cliRoot;
+        nativeBuildInputs = [pkgs.bun pkgs.typescript];
+      } ''
+        set -euo pipefail
+        cp -r "$src" ./cli
+        chmod -R u+w ./cli
+        cd ./cli
+        tsc --noEmit
+        bun test
+        touch "$out"
+      '';
+
     apps.framework-cli = {
       type = "app";
       program = lib.getExe frameworkCli;

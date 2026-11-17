@@ -11,7 +11,8 @@ This document tracks **unverified work**, not features already deployed. Host ac
 | P1 | SplitCast consumer acceptance | Separate pinned flake; capture disabled on neko5, production feature enabled on neko7 | Verify cached derivations, consumer config, service activation state and independently tested output; separately authorize capture or publication |
 | P1 | Catppuccin build-cache diagnosis | Catppuccin input and substituter configured in `flake.nix` / `nix.nix` | Compare derivation hashes, lock resolution and substitute queries before changing `follows` or pinning |
 | P2 | osu! latency studies | `neko5-osu-first`, `osu-lab`, `osu-display` provide candidate controls and telemetry | Controlled A/B, tail latency and error reporting with fixed DSO baseline; never infer input-to-photon from indirect telemetry |
-| P2 | Framework and Wiki regression tests | Framework CLI, Nix tests, static checks; new OKF bundle | Complete reproducible tests of projected host options and Wiki provenance/links |
+| P2 | Framework and Wiki regression tests | Private framework, separate tools CLI, Nix tests and OKF bundle | Complete reproducible tests of projected host options, preserved nixd completion and Wiki provenance/links |
+| P2 | Host declaration ergonomics | `configurations.nixos.<host>.module` uses typed seed compaction for nixd completion | Explore native module-shaped hosts without losing completion, tri-state null semantics or rollback; migrate only after host parity tests |
 
 ## Completion discipline
 

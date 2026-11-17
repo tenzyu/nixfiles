@@ -1,7 +1,6 @@
 {
   lib,
   homeFeatureOptionsModule,
-  nixpkgsPolicyModule,
   homeModuleList,
   enabledFeatures,
   enabledUsers,

@@ -199,9 +199,9 @@ async function repoRoot(): Promise<string> {
 }
 
 async function evalTrace(args: TraceArgs, repo: string): Promise<AnyRecord> {
-  const frameworkRoot = Bun.env.FRAMEWORK_ROOT;
-  if (!frameworkRoot) {
-    throw new Error("FRAMEWORK_ROOT is not set");
+  const traceModulePath = Bun.env.FEATURE_TRACE_LIB;
+  if (!traceModulePath) {
+    throw new Error("FEATURE_TRACE_LIB is not set");
   }
 
   const nixArgs = JSON.stringify(args);
@@ -210,7 +210,7 @@ async function evalTrace(args: TraceArgs, repo: string): Promise<AnyRecord> {
     let
       repo = ${JSON.stringify(repo)};
       flake = builtins.getFlake "path:${repo}";
-      core = import (${JSON.stringify(frameworkRoot)} + "/modules/tools/feature-trace.nix") {
+      core = import (builtins.toPath ${JSON.stringify(traceModulePath)}) {
         lib = flake.inputs.nixpkgs.lib;
       };
       args = builtins.fromJSON ${JSON.stringify(nixArgs)};

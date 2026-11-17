@@ -9,7 +9,7 @@
   modulesLib = import ./lib/modules.nix {inherit lib;};
   featuresLib = import ./lib/features.nix {inherit lib;};
   usersLib = import ./lib/users.nix {inherit lib featuresLib;};
-  policiesLib = import ./lib/policies.nix {inherit lib fpConfig;};
+  policiesLib = import ../../10-fundamental/_policy/lib.nix {inherit lib fpConfig;};
   seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib;};
 
   nixosModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.nixos or {});
@@ -27,7 +27,7 @@
     inherit lib nixosFeatureNames homeFeatureNames featuresLib;
   };
 
-  policyMaterializers = import ./materializers/policy.nix {
+  policyMaterializers = import ../../10-fundamental/_policy/materializer.nix {
     inherit lib policiesLib usersLib;
   };
 
@@ -38,28 +38,12 @@
   hmMaterializers = import ./materializers/home-manager.nix {
     inherit lib helpers homeModuleList;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
-    inherit (policyMaterializers) nixpkgsPolicyModule;
+
     inherit (featuresLib) enabledFeatures;
     inherit (usersLib) enabledUsers;
   };
 
-  unstableOverlay = final: prev: {
-    unstable = import inputs.nixpkgs-unstable {
-      system = prev.stdenv.hostPlatform.system;
-      config = prev.config;
-    };
-  };
-  llmAgentsOverlay = final: prev: {
-    # shared-nixpkgs rebuilds against the host's stable package set. Use the
-    # flake package outputs with upstream's own nixpkgs for the signed Numtide
-    # cache; versions/features still follow flake.lock.
-    llm-agents = inputs.llm-agents.packages.${prev.stdenv.hostPlatform.system};
-  };
-
-  nixosOverlays = [
-    llmAgentsOverlay
-    unstableOverlay
-  ];
+  nixosOverlays = fpConfig.flake.lib.nixfilesOverlays;
 in {
   options.configurations.nixos = lib.mkOption {
     # nixd/Zed does not reliably descend through lazyAttrsOf when resolving flake-parts debug.options.

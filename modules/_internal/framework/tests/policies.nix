@@ -11,7 +11,7 @@
       };
     };
   };
-  policiesLib = import ../lib/policies.nix {inherit lib fpConfig;};
+  policiesLib = import ../../../10-fundamental/_policy/lib.nix {inherit lib fpConfig;};
 in {
   testPolicyForFeaturesCollectsOnlyEnabled = {
     expr = policiesLib.policyForFeatures {
