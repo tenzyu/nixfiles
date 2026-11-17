@@ -38,11 +38,11 @@ flake.nix / import-tree
     -> Home Manager embedded users
 ```
 
-The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/framework/`. `modules/10-fundamental/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
+The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/framework/`. `modules/10-foundations/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
 
 ## Responsibility boundary
 
-The internal framework owns only configuration instantiation, feature registry/selection, typed seed compaction for editor support, and NixOS/Home Manager user projection. Package overlay definitions, helpers, and diagnostics are owned by `modules/10-fundamental/` or `tools/framework-cli/`. This keeps the native Nix module system authoritative rather than introducing a third configuration evaluator.
+The internal framework owns only configuration instantiation, feature registry/selection, typed seed compaction for editor support, and NixOS/Home Manager user projection. Package overlay definitions, helpers, and diagnostics are owned by `modules/10-foundations/` or `tools/framework-cli/`. This keeps the native Nix module system authoritative rather than introducing a third configuration evaluator.
 
 ## Projection rules
 
@@ -63,6 +63,6 @@ Feature policy declarations are not blanket package authorization. The NixOS mat
 
 ## Verification interfaces
 
-`tools/framework-cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `modules/10-fundamental/framework-tools.nix`. `modules/10-fundamental/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
+`tools/framework-cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `modules/10-foundations/framework-tools.nix`. `modules/10-foundations/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).
