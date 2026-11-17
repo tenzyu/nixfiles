@@ -5,7 +5,8 @@
     users.users.tenzyu.linger = true;
     # Android (nekosm1) access to neko7; preserve existing authorized keys.
     users.users.tenzyu.openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICFSHWkNf1cLdqztiXeoYTmN5eetgZLKaupqH3hk9uBL neko7 key"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICFSHWkNf1cLdqztiXeoYTmN5eetgZLKaupqH3hk9uBL neko7 key",
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDY3E3vfeka0KAjF247PPJ0xwQSaChBDAjlT//oPUENp nekosm1-termux-neko7"
     ];
 
     local.features = {
