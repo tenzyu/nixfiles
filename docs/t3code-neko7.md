@@ -1,3 +1,14 @@
+---
+type: Runbook
+title: Development and recovery on neko7
+status: stable
+source_revision: 191b6cb7daa9f98de76115c9d0efe0a159eefd23
+sources:
+  - {id: host, resource: "../modules/00-hosts/neko7/configuration.nix"}
+  - {id: serve, resource: "../modules/50-features/networking/t3code-tailnet.nix"}
+  - {id: acceptance, resource: "https://github.com/tenzyu/splitcast/pull/12"}
+---
+
 # T3 Code and Codex on neko7
 
 ## Ownership and scope
@@ -16,7 +27,7 @@ the declarative unit already owns it. The old OpenCode service and
 
 ## Preconditions — before activating
 
-- Review the PR and check that port 3773 is free:
+- On a first installation, check port 3773. On an existing installation, identify its owner:
   `ss -lntp | grep ':3773' || true`
 - Confirm Codex and T3 are available from the pinned lock:
   `nix eval --raw .#nixosConfigurations.neko7.pkgs.unstable.t3code.version`
@@ -44,31 +55,83 @@ Do not copy credentials into Nix sources or journal logs.
 
 ## Remote access
 
-The server intentionally listens on **loopback only**. Do not expose port
-3773 on LAN, Tailscale, or the public interface without an independently
-reviewed access design. Use a Tailscale Serve HTTPS route only after inspecting
-existing Serve routes, tailnet ACLs, the intended hostname and certificate
-configuration. Alternatively use an authenticated SSH tunnel to
-127.0.0.1:3773. T3's pairing and provider approvals are separate from
-Tailscale access controls.
+The Home Manager service binds to `127.0.0.1:3773`. The neko7 system feature
+`t3code-tailnet` declares the existing tailnet-only HTTPS route on port 8445.
+Tailscale persists node routes. The NixOS oneshot has no boot target. Restoring
+one missing route uses the native CLI and preserves the other Serve ports.
+The CLI's `serve set-config` manages Services and omits node-level routes in
+the installed version. T3 client pairing and provider approvals remain separate.
 
-Never enable `--lan`, Tailscale Funnel or unrestricted `Full access` merely
-to make the UI reachable. Pairing and any T3 Connect enablement are separate,
-user-approved steps. Existing OpenCode remote access remains unchanged.
+For a read-only check, run `tailscale serve status --json` locally and compare
+8445 with the feature. Keep the raw inventory private. From the intended
+tailnet client, GET the node's HTTPS root on 8445 with TLS verification enabled.
 
-## Verify the intended workflow
+If a restore is needed after approved activation, confirm the intended client
+ACLs, certificate, target and other route owners. Save a private pre-change
+Serve snapshot. With a single writer during the restore window, use
+`sudo systemctl start t3code-tailnet.service` **only with route-change approval**.
+Matching state exits successfully. A conflicting or Funnel-enabled endpoint
+fails for inspection. Review the before/after snapshots and repeat the client GET.
+For a daemon-free rehearsal run `bash scripts/test-t3code-tailnet.sh` from the
+nixfiles root.
 
-1. T3 Web UI loads, and the Codex provider is detected and authenticated.
-2. Start a harmless disposable project. Confirm permission prompts and a
-   normal command before granting broader privileges.
-3. Create a Git worktree and verify the correct default `direnv` devShell.
-   T3 does not implicitly export a repository's `.envrc` into arbitrary
-   provider processes; check the actual agent shell and Git hooks. Do not
-   substitute repeated `nix develop -c` invocations as a workaround.
-4. Test a local commit and PR creation on a disposable branch after the user
-   grants the appropriate repository permissions.
-5. Disconnect/reconnect a remote client and verify session continuity.
-6. Check that OpenCode Web and its pre-existing sessions still work.
+## Run or resume a development request
+
+1. Start at each repository's `MEMORY.md`. Inspect the selected host module or
+   product entry point, current branch, worktrees and open PRs. Use a clean
+   worktree from `origin/main` for a new slice. Resume the existing branch for
+   an interrupted one.
+2. Name one observable contract and the permitted fixture. Review the worktree's
+   `.envrc`, allow it once, and use the loaded shell. In a non-interactive agent
+   shell use `direnv exec . <command>` from that worktree. Record the base SHA,
+   focused command and failing observation under the repository's ignored
+   `artifacts/` directory when available.
+3. Apply the smallest repair. Count attempts **per failure** in the worktree
+   receipt or PR description. Record the last observation and next command
+   before switching contexts. After three unsuccessful repairs, retain the
+   failure and stop that path. Use an independent observable at the normal
+   entry point, including a positive control.
+4. Review the diff and its side effects, commit and open a PR. In its body
+   keep the source SHA, replay commands, mechanism of the failure, independent
+   result, untested gates and rollback. Add the durable conclusion to the
+   relevant Wiki evidence register. Hosted status is available from the PR.
+5. To recover with only the PR, use a clean clone, `gh pr checkout NUMBER --detach`,
+   compare `git rev-parse HEAD` with `gh pr view NUMBER --json headRefOid`, then
+   replay the first outstanding check. Before publication, use `git worktree list`,
+   `git status --short --branch`, the branch log and saved receipts to recover
+   uncommitted work and the retry count. Repeat a full verifier only when its
+   evidence or source is no longer applicable.
+
+### Executed cycle, 2026-11-18 JST
+
+[SplitCast PR #12](https://github.com/tenzyu/splitcast/pull/12) contains the
+offline CLI replay. From base `98605fb`, reversing WAV data and format chunks
+started the inert player once. The Python decoder rejected that file. One
+repair, `08449bc`, rejected it before spawning. A valid padded ancillary chunk
+still delivered all 160 PCM bytes to the player. The ordinary verifier passed
+11/11 stages. A fresh clone recovered PR head
+`764b47a0cabf202d5c176ca6c0a139ad65eb69f1` and replayed both cases from the
+published instructions. Reverting the repair in that disposable clone restored
+the base source and the unwanted start. The implementation and Wiki receipt
+are separate commits. Hosted evidence is available in the
+[SplitCast CI run](https://github.com/tenzyu/splitcast/actions/runs/44189922745).
+
+On neko7 around 07:17–07:28 JST, `t3code-neko7.service` (user) and
+`tailscaled.service` were active, `ss` showed the loopback listener, and a GET
+returned HTTP 200. The existing Serve endpoint also returned 200 locally and
+from neko5 with certificate verification (result 0). The initial batch SSH
+probe lacked the configured identity and was denied; the existing read-only
+connection with the configured identity succeeded. `/run/current-system`
+resolved to generation 58 (`ncxbc6vilxl9z7hpqaab27l1sggiw2qc` store hash);
+the system profile pointed to generation 59. The actual T3/Codex session ran
+the development cycle. An interactive paired-browser reconnect and physical
+playback remain untested.
+
+The new restore unit was evaluated and built. Its generated script reported
+the existing route matched with a read-only CLI substitute forwarding live
+status requests. Fixture cases exercised missing, matching, conflicting,
+foreground and Funnel routes. The unit itself has not been activated or
+started on the host.
 
 If a Codex sign-in or provider probe fails, inspect the local provider status
 before modifying authentication state. If `Codex app-server` probes time out
@@ -77,7 +140,15 @@ despite valid credentials, official T3 documentation describes
 
 ## Rollback
 
-Disable the new feature and `codex.enable` in
+Closing the unmerged PR leaves the running route and service in place. After an
+approved installation, reverting the nixfiles commit and activating the reviewed
+configuration removes the restore unit. Tailscale owns the route independently.
+This cycle observed 8445 **before** any change, so preserve it. If a later
+approved restore added a previously absent route, compare the saved snapshot
+and obtain approval before removing just its root with
+`tailscale serve --https=8445 off`. Leave every other route in place.
+
+For a separate rollback of the T3 application itself, disable `t3code-neko7` and `codex.enable` in
 `modules/00-hosts/neko7/configuration.nix`, then rebuild and activate the
 prior configuration with approval. Alternatively stop only this unit
 temporarily:
@@ -97,7 +168,3 @@ their state is not owned by NixOS and may be needed for recovery.
 - [T3 Codex provider](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-codex.md)
 - [nixpkgs T3 wrapper](https://github.com/NixOS/nixpkgs/blob/nixpkgs-unstable/pkgs/by-name/t3/t3code/package.nix)
 - [Existing OpenCode/direnv](opencode-devshells.md)
-
-GitHub-side changes do **not** imply that neko7 has fetched or activated them.
-Running processes, network access, Codex sign-in and full Nix evaluation require
-verification on neko7; no SSH execution was available during PR preparation.
