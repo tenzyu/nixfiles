@@ -4,11 +4,7 @@
   homeFeatureNames,
   featuresLib,
 }: rec {
-  nixosFeatureOptionsModule = {lib, ...}: {
-    options.local = {
-      features = featuresLib.actualFeatureOptions nixosFeatureNames;
-
-      users = lib.mkOption {
+  mkUserOptions = featureOptions: lib.mkOption {
         default = {};
         type = lib.types.attrsOf (
           lib.types.submodule (
@@ -39,12 +35,18 @@
                   default = "26.05";
                 };
 
-                features = featuresLib.actualFeatureOptions homeFeatureNames;
+                features = featureOptions;
               };
             }
           )
         );
       };
+
+  nixosFeatureOptionsModule = {lib, ...}: {
+    options.local = {
+      features = featuresLib.actualFeatureOptions nixosFeatureNames;
+
+      users = mkUserOptions (featuresLib.actualFeatureOptions homeFeatureNames);
 
       context = {
         flakePath = lib.mkOption {
@@ -125,43 +127,7 @@
     options.local = {
       features = featuresLib.seedFeatureOptions nixosFeatureNames;
 
-      users = lib.mkOption {
-        default = {};
-        type = lib.types.attrsOf (
-          lib.types.submodule (
-            {name, ...}: {
-              options = {
-                enable = lib.mkOption {
-                  type = lib.types.bool;
-                  default = true;
-                };
-
-                isAdmin = lib.mkOption {
-                  type = lib.types.bool;
-                  default = false;
-                };
-
-                email = lib.mkOption {
-                  type = lib.types.str;
-                  default = "";
-                };
-
-                homeDirectory = lib.mkOption {
-                  type = lib.types.str;
-                  default = "/home/${name}";
-                };
-
-                homeStateVersion = lib.mkOption {
-                  type = lib.types.str;
-                  default = "26.05";
-                };
-
-                features = featuresLib.seedFeatureOptions homeFeatureNames;
-              };
-            }
-          )
-        );
-      };
+      users = mkUserOptions (featuresLib.seedFeatureOptions homeFeatureNames);
 
       context = {
         flakePath = lib.mkOption {

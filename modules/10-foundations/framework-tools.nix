@@ -10,14 +10,14 @@
   }: let
     nixUnit = inputs.nix-unit.packages.${system}.default;
 
-    frameworkModuleRoot = ../_internal/framework;
+    configurationsModuleRoot = ../_internal/configurations;
     cliRoot = ../../tools/framework-cli;
     traceLib = ../../tools/framework-cli/feature-trace.nix;
 
     frameworkTestSuite = pkgs.writeText "framework-tests.nix" ''
       let
         lib = import ${inputs.nixpkgs}/lib;
-        root = ${frameworkModuleRoot};
+        root = ${configurationsModuleRoot};
         # This suite is evaluated from a /nix/store copy of the internal
         # framework. External tools and fundamentals must be independent
         # store inputs, not relative imports from the isolated test root.
