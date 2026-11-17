@@ -22,14 +22,15 @@
   };
 
   perSystem = {pkgs, ...}: {
-    checks.nix-store-clean = pkgs.runCommand "nix-store-clean-tests" {
-      nativeBuildInputs = [pkgs.python3];
-    } ''
-      cp ${../../assets/nix-store-clean/cli.py} cli.py
-      cp ${../../assets/nix-store-clean/test_cli.py} test_cli.py
-      export PYTHONDONTWRITEBYTECODE=1
-      python -m unittest discover -v
-      mkdir -p "$out"
-    '';
+    checks.nix-store-clean =
+      pkgs.runCommand "nix-store-clean-tests" {
+        nativeBuildInputs = [pkgs.python3];
+      } ''
+        cp ${../../assets/nix-store-clean/cli.py} cli.py
+        cp ${../../assets/nix-store-clean/test_cli.py} test_cli.py
+        export PYTHONDONTWRITEBYTECODE=1
+        python -m unittest discover -v
+        mkdir -p "$out"
+      '';
   };
 }

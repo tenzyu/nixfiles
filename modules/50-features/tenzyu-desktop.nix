@@ -16,7 +16,7 @@
         packages-desktop.enable = true;
         firefox.enable = true;
         chromium.enable = true;
-        zed-editor.enable = true;
+        zed-editor.enable = false;
       };
     };
   };

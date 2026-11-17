@@ -13,7 +13,7 @@
         eza
         fd
         glow
-        pay-respects
+        # pay-respects
         ripgrep
         tealdeer
         xclip
