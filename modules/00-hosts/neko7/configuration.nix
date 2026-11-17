@@ -7,6 +7,7 @@
     users.users.tenzyu.openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICFSHWkNf1cLdqztiXeoYTmN5eetgZLKaupqH3hk9uBL neko7 key"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDY3E3vfeka0KAjF247PPJ0xwQSaChBDAjlT//oPUENp nekosm1-termux-neko7"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEA48dVV7Lh9zkdbfeZ3tmvaG0IdKX4nspUNqedg0pTj herdr"
     ];
 
     local.features = {
