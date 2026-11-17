@@ -517,17 +517,17 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1794634119,
-        "narHash": "sha256-hVlb9nzjk+0EHyFFLSY/VjN0wYIYL+pbsDuC6o2LBwI=",
+        "lastModified": 1794915986,
+        "narHash": "sha256-hlFW9T/dhRagQOdjEDP2cfhlkVhhGGig2RqF0gghJRg=",
         "owner": "tenzyu",
         "repo": "splitcast",
-        "rev": "d2205d06b0dc695c3d9b7372fafa7facee769fa9",
+        "rev": "141c0da8447b2affd5262062cdf6f70aa5d7003e",
         "type": "github"
       },
       "original": {
         "owner": "tenzyu",
+        "ref": "main",
         "repo": "splitcast",
-        "rev": "d2205d06b0dc695c3d9b7372fafa7facee769fa9",
         "type": "github"
       }
     },

@@ -11,7 +11,7 @@
 
   inputs = {
     splitcast = {
-      url = "github:tenzyu/splitcast/d2205d06b0dc695c3d9b7372fafa7facee769fa9";
+      url = "github:tenzyu/splitcast/main";
     };
     # -- nixpkgs
     nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
