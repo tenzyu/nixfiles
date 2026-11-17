@@ -1,5 +1,8 @@
 # neko5 osu! latency lab（Input / Audio / Update / Draw）
 
+> **Historical baseline:** the "current" values below refer to the explicitly stated **2026-11-13** snapshot. Firmware, BASS settings and the currently activated generation require fresh observation before being described as present state. See [host inventory](../../docs/host-state.md).
+
+
 目的：公式osu!lazerを変更せず、1回の計測で4軸を読み取り、別条件で再計測した結果をHTMLで比較する。**設定変更や最適化効果を自動判定するプログラムではない。** 4軸の検証可能性を上げる診断キット。
 
 ## 現在の基準条件（2026-11-13）
