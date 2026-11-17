@@ -1,3 +1,18 @@
+---
+type: Playbook
+title: "opencode-neko7-migration.md"
+description: "OpenCode service migration candidate"
+status: draft
+source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+sources:
+  - id: source-1
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/opencode-neko7-service.nix
+    title: "modules/50-features/opencode-neko7-service.nix"
+  - id: source-2
+    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/00-hosts/neko7/configuration.nix
+    title: "modules/00-hosts/neko7/configuration.nix"
+---
+
 # neko7 の OpenCode user service を移行する
 
 この手順はレビュー用です。OS 適用、unit の変更、停止、起動はそれぞれ事前承認が必要です。`opencode-neko7-service` は無効のままにしてください。既存の手動管理 unit と候補は同じ名前、ポート、データを使います。両方を同時に起動しないでください。別のポートでも同じ DB に同時書込してはいけません。
@@ -29,3 +44,7 @@
 3. feature を無効にした構成を承認された手順で適用し、Home Manager 管理の unit とリンクがなくなったことを確認します。構成全体を旧 generation に戻す場合は、OpenCode 以外の変更も戻るため別途レビューします。
 4. バックアップした手動 unit と有効化状態を復元し、user manager に変更を読み込ませます。
 5. 手動 unit だけを起動し、クライアント接続とセッションを確認します。復旧できなければ新しいサーバーを追加起動せず、停止した状態で調査します。
+
+## Wiki context
+
+The candidate user service is **not enabled** in neko7's host declaration. The documented version is a package assertion, not a fresh runtime inventory. See [host state](host-state.md) and [roadmap](../ROADMAP.md).
