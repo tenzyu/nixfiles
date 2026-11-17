@@ -26,11 +26,11 @@ sources:
 
 ## Entry and registry
 
-`flake.nix` explicitly imports `modules/_internal/framework/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
+`flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
 
 ```text
 flake.nix / import-tree
- -> modules/_internal/framework/configurations.nix
+ -> modules/_internal/configurations/configurations.nix
  -> typed host seed
  -> compactNixosSeedModule (null = unspecified)
  -> NixOS module set + materializers
@@ -38,7 +38,7 @@ flake.nix / import-tree
     -> Home Manager embedded users
 ```
 
-The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/framework/`. `modules/10-foundations/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
+The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/configurations/`. `modules/10-foundations/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
 
 ## Responsibility boundary
 

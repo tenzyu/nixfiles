@@ -16,7 +16,7 @@ These are **source declarations**, not evidence of the generation currently boot
 
 ```text
 flake.nix                        Flake inputs and two module imports
-modules/_internal/framework/     private host/feature projection
+modules/_internal/configurations/     private host/feature projection
 modules/00-hosts/                neko5, neko6, neko7 declarations
 modules/10-foundations/          baseline, tooling and package overlays
 modules/50-features/             NixOS and Home Manager feature modules
@@ -27,7 +27,7 @@ docs/index.md                    LLM Wiki / OKF knowledge index
 ROADMAP.md                       unfinished acceptance work
 ```
 
-The evaluation path is `flake.nix` → explicit `modules/_internal/framework/default.nix` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. The `_internal` directory is intentionally excluded from recursive auto-import. The internal framework is **not** a Flake input. Embedded Home Manager uses `useGlobalPkgs = true`. The framework also supports explicit standalone `configurations.homeManager` declarations.
+The evaluation path is `flake.nix` → explicit `modules/_internal/configurations/default.nix` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. The `_internal` directory is intentionally excluded from recursive auto-import. The internal framework is **not** a Flake input. Embedded Home Manager uses `useGlobalPkgs = true`. The framework also supports explicit standalone `configurations.homeManager` declarations.
 
 ## Inspect and validate
 

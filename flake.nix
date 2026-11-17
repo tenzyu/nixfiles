@@ -4,7 +4,7 @@
   outputs = inputs:
     inputs.flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
-        ./modules/_internal/framework/default.nix
+        ./modules/_internal/configurations/default.nix
         (inputs.import-tree ./modules)
       ];
     };
