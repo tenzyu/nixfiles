@@ -26,7 +26,7 @@ sources:
 
 ## Entry and registry
 
-`flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
+`flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/<domain>/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
 
 ```text
 flake.nix / import-tree
@@ -66,3 +66,11 @@ Feature policy declarations are not blanket package authorization. The NixOS mat
 `tools/framework-cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `modules/10-foundations/framework-tools.nix`. `modules/10-foundations/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).
+
+## Feature source layout
+
+Feature modules remain under the numbered `50-features/` tree, grouped by domain. The directory name is an ownership and navigation aid; configuration semantics come from their explicit `flake.modules.*` declarations, not directory ordering. Conditional multi-feature contributions belong under `60-integrations/`, using the existing feature aspect rather than a separate activation switch.
+
+`feature-trace` recursively discovers `.nix` source files under `50-features/` while skipping private `_` directories. Its text-scanned source hints are not authoritative configuration provenance; evaluated Nix option definitions are authoritative.
+
+The previous `osu-lazer-hyprland` aspect was a no-op compatibility placeholder. Its removal does not modify the `neko5-osu-first` performance module or Hyprland's effective runtime settings.

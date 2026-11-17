@@ -29,4 +29,17 @@ in {
     expr = names null;
     expected = ["alpha"];
   };
+
+  testFeatureDiscoveryIsRecursiveAndSkipsPrivateDirectories = {
+    expr = map (file: file.rel) (trace.featureFiles ./fixtures/trace-repo);
+    expected = [
+      "modules/50-features/root.nix"
+      "modules/50-features/ui/bar.nix"
+    ];
+  };
+
+  testFeatureDiscoveryKeepsLeafNames = {
+    expr = map (file: file.featureName) (trace.featureFiles ./fixtures/trace-repo);
+    expected = ["root" "bar"];
+  };
 }
