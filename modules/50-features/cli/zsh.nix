@@ -30,7 +30,7 @@
         }
       ];
 
-      home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ../../assets/zshrc;
+      home.file."${config.xdg.configHome}/zsh/zshrc.d".source = ../../../assets/zshrc;
 
       programs.zsh = {
         enable = true;

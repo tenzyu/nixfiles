@@ -15,7 +15,7 @@
         (lib.filter (file: file.enable) (builtins.attrValues config.home.file));
     });
     runner = pkgs.writeShellScript "home-layout-migrate" ''
-      exec ${pkgs.python3}/bin/python3 ${../../assets/home-layout/migrate.py} \
+      exec ${pkgs.python3}/bin/python3 ${../../../assets/home-layout/migrate.py} \
         --manifest ${manifest} "$@"
     '';
   in {
@@ -88,8 +88,8 @@
         nativeBuildInputs = [pkgs.python3];
       } ''
         export PYTHONDONTWRITEBYTECODE=1
-        export MIGRATE_SOURCE=${../../assets/home-layout/migrate.py}
-        python3 ${../../assets/home-layout/test_migrate.py}
+        export MIGRATE_SOURCE=${../../../assets/home-layout/migrate.py}
+        python3 ${../../../assets/home-layout/test_migrate.py}
         touch "$out"
       '';
   };

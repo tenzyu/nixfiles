@@ -10,7 +10,7 @@
         enable = true;
         nix-direnv.enable = true;
       };
-      xdg.configFile."opencode/plugins/direnv.ts".source = pkgs.replaceVars ../../assets/opencode/direnv.ts {
+      xdg.configFile."opencode/plugins/direnv.ts".source = pkgs.replaceVars ../../../assets/opencode/direnv.ts {
         direnv = lib.getExe pkgs.direnv;
       };
     };
@@ -21,8 +21,8 @@
       pkgs.runCommand "check-opencode-direnv" {
         nativeBuildInputs = [pkgs.bun pkgs.direnv];
       } ''
-        cp ${../../assets/opencode/direnv.ts} direnv.ts
-        cp ${../../assets/opencode/direnv.test.ts} direnv.test.ts
+        cp ${../../../assets/opencode/direnv.ts} direnv.ts
+        cp ${../../../assets/opencode/direnv.test.ts} direnv.test.ts
         bun test direnv.test.ts
         touch "$out"
       '';

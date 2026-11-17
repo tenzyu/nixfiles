@@ -43,7 +43,7 @@
     osuAudioLab = pkgs.writeShellScriptBin "osu-audio-quantum-lab" ''
       export PW_METADATA="${pkgs.pipewire}/bin/pw-metadata"
       export FLOCK="${pkgs.util-linux}/bin/flock"
-      exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/audio-quantum-lab.sh} "$@"
+      exec ${pkgs.bash}/bin/bash ${../../../scripts/osu-performance/audio-quantum-lab.sh} "$@"
     '';
 
     osuLaunchers = pkgs.runCommand "osu-lazer-launchers" {} ''

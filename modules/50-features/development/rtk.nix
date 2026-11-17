@@ -32,7 +32,7 @@ in {
         export CLAUDE_CONFIG_DIR="$TMPDIR/claude"
         mkdir -p "$XDG_CONFIG_HOME/rtk"
         cp ${(pkgs.formats.toml {}).generate "rtk.toml" settings} "$XDG_CONFIG_HOME/rtk/config.toml"
-        python3 ${../../assets/rtk/test_rewrites.py}
+        python3 ${../../../assets/rtk/test_rewrites.py}
         touch "$out"
       '';
   };

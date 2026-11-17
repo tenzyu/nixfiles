@@ -12,7 +12,7 @@
         pkgs.python3
       ];
       text = ''
-        exec ${lib.getExe pkgs.python3} ${../../assets/nix-store-clean/cli.py} "$@"
+        exec ${lib.getExe pkgs.python3} ${../../../assets/nix-store-clean/cli.py} "$@"
       '';
     };
   in {
@@ -26,8 +26,8 @@
       pkgs.runCommand "nix-store-clean-tests" {
         nativeBuildInputs = [pkgs.python3];
       } ''
-        cp ${../../assets/nix-store-clean/cli.py} cli.py
-        cp ${../../assets/nix-store-clean/test_cli.py} test_cli.py
+        cp ${../../../assets/nix-store-clean/cli.py} cli.py
+        cp ${../../../assets/nix-store-clean/test_cli.py} test_cli.py
         export PYTHONDONTWRITEBYTECODE=1
         python -m unittest discover -v
         mkdir -p "$out"
