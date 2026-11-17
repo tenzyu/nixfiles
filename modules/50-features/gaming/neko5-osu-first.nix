@@ -86,22 +86,22 @@
       name = "osu-first";
       runtimeInputs = with pkgs; [bash coreutils findutils gnugrep procps systemd python3 util-linux];
       text = ''
-        export OSU_FIRST_TIMER_EXEC=${../../scripts/osu-performance/timerslack-exec.py}
-        exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/osu-first.sh} "$@"
+        export OSU_FIRST_TIMER_EXEC=${../../../scripts/osu-performance/timerslack-exec.py}
+        exec ${pkgs.bash}/bin/bash ${../../../scripts/osu-performance/osu-first.sh} "$@"
       '';
     };
     drawObserve = pkgs.writeShellApplication {
       name = "osu-draw-observe";
       runtimeInputs = with pkgs; [bash coreutils jq];
       text = ''
-        exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/draw-observe.sh} "$@"
+        exec ${pkgs.bash}/bin/bash ${../../../scripts/osu-performance/draw-observe.sh} "$@"
       '';
     };
     displayExperiment = pkgs.writeShellApplication {
       name = "osu-display";
       runtimeInputs = with pkgs; [bash coreutils jq util-linux procps];
       text = ''
-        exec ${pkgs.bash}/bin/bash ${../../scripts/osu-performance/osu-display.sh} "$@"
+        exec ${pkgs.bash}/bin/bash ${../../../scripts/osu-performance/osu-display.sh} "$@"
       '';
     };
     latencyLab = pkgs.writeShellApplication {
@@ -110,7 +110,7 @@
       # hyprctl is already supplied by the user's Hyprland session.
       runtimeInputs = with pkgs; [python3 coreutils procps pipewire util-linux];
       text = ''
-        exec ${pkgs.python3}/bin/python3 ${../../scripts/osu-performance/osu-lab.py} "$@"
+        exec ${pkgs.python3}/bin/python3 ${../../../scripts/osu-performance/osu-lab.py} "$@"
       '';
     };
   in {
