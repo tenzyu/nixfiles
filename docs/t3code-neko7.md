@@ -59,8 +59,19 @@ The Home Manager service binds to `127.0.0.1:3773`. The neko7 system feature
 `t3code-tailnet` declares the existing tailnet-only HTTPS route on port 8445.
 Tailscale persists node routes. The NixOS oneshot has no boot target. Restoring
 one missing route uses the native CLI and preserves the other Serve ports.
-The CLI's `serve set-config` manages Services and omits node-level routes in
-the installed version. T3 client pairing and provider approvals remain separate.
+T3 client pairing and provider approvals remain separate.
+
+**Why this route uses the node CLI.** The pinned NixOS option
+`services.tailscale.serve` exists. In a test evaluation,
+`services.tailscale.serve.services.t3code.endpoints."tcp:8445"` generated
+a `svc:t3code` entry and a unit running `tailscale serve set-config --all`.
+The `configFile` option feeds the same command. Tailscale 1.104.5 applies
+named Services with that command and ignores legacy node-level TCP/Web fields.
+On neko7, `tailscale serve get-config --all` returned zero named Services,
+while `tailscale serve status --json` showed the working node-level 8445
+proxy. Moving clients to a named Service would require a separately approved
+endpoint migration. [Pinned NixOS module](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/nixos/modules/services/networking/tailscale-serve.nix)
+· [Tailscale CLI implementation](https://github.com/tailscale/tailscale/blob/v1.104.5/cmd/tailscale/cli/serve_v2.go#L825-L918).
 
 For a read-only check, run `tailscale serve status --json` locally and compare
 8445 with the feature. Keep the raw inventory private. From the intended
