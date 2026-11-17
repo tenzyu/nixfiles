@@ -5,6 +5,17 @@
     inherit lib usersLib;
     nixosModules = {steam = {};};
   };
+  projectionResult = disabled:
+    projection.userSeededNixosFeaturesModule {
+      inherit lib;
+      config.local = {
+        users.alice = {
+          enable = true;
+          features.steam.enable = true;
+        };
+        features.steam.enable = !disabled;
+      };
+    };
   projectionConfig = disabled:
     (lib.evalModules {
       modules = [
@@ -112,12 +123,12 @@ in {
   };
 
   testUserFeatureSystemDisableIsRejectedByAssertion = {
-    expr = (builtins.head (projectionConfig true).assertions).assertion;
+    expr = (builtins.head (projectionResult true).config.assertions).assertion;
     expected = false;
   };
 
   testProjectedUserFeatureAssertionPasses = {
-    expr = (builtins.head (projectionConfig false).assertions).assertion;
+    expr = (builtins.head (projectionResult false).config.assertions).assertion;
     expected = true;
   };
 }

@@ -1,5 +1,5 @@
-{lib}: let
-  trace = import ../../../../tools/framework-cli/feature-trace.nix {inherit lib;};
+{lib, traceLib}: let
+  trace = traceLib {inherit lib;};
   fakeFlake = {
     nixosConfigurations.testhost = {
       config = {
