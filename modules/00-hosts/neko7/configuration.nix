@@ -12,6 +12,7 @@
       locale.enable = true;
       ssh.enable = true;
       tailscale.enable = true;
+      t3code-tailnet.enable = true;
       splitcast-production.enable = true;
       # Final shape:
       #   neko7       = admin node

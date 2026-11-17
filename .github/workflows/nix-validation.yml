@@ -41,6 +41,9 @@ jobs:
             .#checks.x86_64-linux.deprecated-patterns \
             .#checks.x86_64-linux.feature-name-shape
 
+      - name: Exercise the neko7 Serve route without a daemon
+        run: bash scripts/test-t3code-tailnet.sh
+
       - name: Test framework semantics and editor option types
         run: nix run -L .#framework-test
 
