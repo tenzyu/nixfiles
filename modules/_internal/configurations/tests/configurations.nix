@@ -351,6 +351,18 @@ in {
       expected = false;
     };
 
+    testSshAccessKeysAreScopedToTheirTargetHost = {
+      expr = lib.mapAttrs (_: host:
+        builtins.any (key: lib.hasSuffix "neko7-to-neko5" key)
+        host.config.users.users.tenzyu.openssh.authorizedKeys.keys
+      ) flake.nixosConfigurations;
+      expected = {
+        neko5 = true;
+        neko6 = false;
+        neko7 = false;
+      };
+    };
+
     testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {

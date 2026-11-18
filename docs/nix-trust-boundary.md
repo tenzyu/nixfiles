@@ -20,6 +20,13 @@ that key. **This does not make the Nix daemon RPC itself unprivileged.**
 Other pre-existing authorized keys or alternate account access are not
 audited merely by this source declaration.
 
+The generic `ssh` feature configures the daemon and tailnet firewall rule,
+not an individual's authorized keys. The `neko7-to-neko5` public key is
+now declared only by `modules/00-hosts/neko5/configuration.nix`.
+This removes that key from the *declarative* neko6/neko7 configuration.
+Before switching either host, compare the generated authorized-key files
+against active SSH sessions and verify another authorized recovery route.
+
 ## Verification before activation
 
 The PR's `Nix validation` job evaluates the effective setting for
