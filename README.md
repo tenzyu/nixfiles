@@ -30,7 +30,7 @@ ROADMAP.md                       unfinished acceptance work
 
 The evaluation path is `flake.nix` → explicit `modules/_internal/configurations/default.nix` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. The `_internal` directory is intentionally excluded from recursive auto-import. The internal configuration adapter is **not** a Flake input. Embedded Home Manager uses `useGlobalPkgs = true`. The adapter also supports explicit standalone `configurations.homeManager` declarations.
 
-The three host files list concrete Home Manager features. A user selection also enables a same-named NixOS feature when one is registered. The neko6 and neko7 declarations select Zsh directly in embedded Home Manager so their login shell stays Bash. See the [projection rules](docs/architecture.md#projection-rules).
+The three host files list concrete Home Manager features. A user selection also enables a same-named NixOS feature when one is registered. neko7 selects Zsh as its login shell through the user feature list. The per-host Zsh module configures interactive Zsh on neko6, whose WSL login shell is Bash. See the [projection rules](docs/architecture.md#projection-rules).
 
 ## Inspect and validate
 

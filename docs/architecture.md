@@ -3,31 +3,31 @@ type: Architecture
 title: "Feature projection"
 description: "NixOS and Home Manager feature resolution"
 status: stable
-source_revision: fbc49f2cb418c132e84fe562f79ba5076fd2b74d
+source_revision: bbac7a249a234542e0efe66449d13212414d8a16
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/flake.nix
     title: "flake.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/configurations.nix
     title: "modules/_internal/configurations/configurations.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/_internal/configurations/materializers/options.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/options.nix
     title: "modules/_internal/configurations/materializers/options.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/_internal/configurations/materializers/users.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/users.nix
     title: "modules/_internal/configurations/materializers/users.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/_internal/configurations/materializers/home-manager.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/home-manager.nix
     title: "modules/_internal/configurations/materializers/home-manager.nix"
   - id: src-6
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/10-foundations/_policy/materializer.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/10-foundations/_policy/materializer.nix
     title: "modules/10-foundations/_policy/materializer.nix"
   - id: src-7
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/50-features/cli/zsh.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/50-features/cli/zsh.nix
     title: "modules/50-features/cli/zsh.nix"
   - id: src-8
-    resource: https://github.com/tenzyu/nixfiles/blob/fbc49f2cb418c132e84fe562f79ba5076fd2b74d/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/50-features/gaming/steam.nix
     title: "modules/50-features/gaming/steam.nix"
 ---
 
@@ -59,7 +59,7 @@ The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users`
 
 Priorities on typed seed fields resolve against other seed definitions before projection. For example, a seed `mkForce` can win inside the seed, then a target `mkForce` can override the compacted value. Freeform target options and a literal `imports` list can pass through the seed. Target imports and registered feature modules evaluate against the native target `config`; a function evaluated as a seed sees the seed's `config`.
 
-The three hosts list concrete CLI and desktop features. neko6 and neko7 use `home-manager.users.tenzyu.local.features.zsh.enable` to enable Zsh within Home Manager and keep Bash as the login shell. The hosts set `tmux.enable = false` at the same Home Manager layer, as neko5 does for `zed-editor`, so those definitions retain native priority over `mkDefault`.
+The host feature lists include `tmux.enable = false`, and neko5 also sets `zed-editor.enable = false`. The Firefox module supplies the default web associations. The neko6 Zsh module configures interactive Zsh in Home Manager while its WSL login shell is Bash.
 
 ## Cross-scope feature invariant
 
@@ -71,7 +71,7 @@ Feature policy declarations are not blanket package authorization. The NixOS mat
 
 ## Verification interfaces
 
-`nix run -L .#framework-test` runs the existing unit tests, checks the editor-facing option types through `debug.options`, and evaluates fixture configurations through the actual adapter. The fixtures cover direct options, imports, priority, user projection, cross-scope assertions, package policy and standalone Home Manager. Host regressions check explicit feature selections, removed profile registrations, Steam projection, login shells and Home Manager disable priority. The type checks exercise the option tree consumed by nixd. Live Zed completion and host activation require separate observations.
+`nix run -L .#framework-test` runs the existing unit tests, checks the editor-facing option types through `debug.options`, and evaluates fixture configurations through the actual adapter. The fixtures cover direct options, imports, priority, user projection, cross-scope assertions, package policy and standalone Home Manager. Host regressions check explicit feature selections, removed profile registrations, Steam projection, login shells and the evaluated disabled features. The type checks exercise the option tree consumed by nixd. Live Zed completion and host activation require separate observations.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).
 
