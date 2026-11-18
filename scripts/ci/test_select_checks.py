@@ -37,6 +37,9 @@ class SelectionTests(unittest.TestCase):
     def test_nix_settings_changes_probe_cache(self):
         self.assertEqual(module.selection(["modules/50-features/nix/nix.nix"]), ([], True))
 
+    def test_cache_probe_script_change_triggers_probe(self):
+        self.assertEqual(module.selection(["scripts/ci/audit-splitcast-cache.sh"]), ([], True))
+
     def test_dedup_and_order_are_stable(self):
         self.assertEqual(
             module.selection(["assets/opencode/direnv.ts", "flake.nix", "assets/opencode/direnv.test.ts"]),
