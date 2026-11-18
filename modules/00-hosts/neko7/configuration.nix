@@ -72,6 +72,7 @@
 
         catppuccin.enable = true;
         nix-access.enable = true;
+        nh.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
         herdr.enable = true;

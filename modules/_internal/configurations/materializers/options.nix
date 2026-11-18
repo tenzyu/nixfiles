@@ -105,17 +105,10 @@ in {
     };
   };
 
-  homeFeatureOptionsModule = {config, ...}: {
-    _file = toString ./options.nix;
-    options.local = {
-      user = homeUser;
-      context = context // homeContext;
-      features = featuresLib.actualFeatureOptions homeFeatureNames;
-    };
-
-    config = lib.mkIf (config.local.context.flakePath != null) {
-      home.sessionVariables.NH_OS_FLAKE = config.local.context.flakePath;
-    };
+  homeFeatureOptionsModule.options.local = {
+    user = homeUser;
+    context = context // homeContext;
+    features = featuresLib.actualFeatureOptions homeFeatureNames;
   };
 
   nixosConfigurationModuleType = seedModuleType (nixosOptions featuresLib.seedFeatureOptions);

@@ -71,6 +71,7 @@
 
           configurations.homeManager.adapter-standalone.module = {
             local.features.adapter-check.enable = true;
+            local.features.nh.enable = true;
             local.user = {
               name = "alice";
               homeDirectory = "/fixture/alice";
@@ -257,15 +258,22 @@ in {
       };
     };
 
-    testHomeFlakePathProjectionWithoutNixTools = {
-      expr = {
-        nixToolsEnabled = embedded.local.features.nix-tools.enable;
-        withPath = embedded.home.sessionVariables.NH_OS_FLAKE;
+    testNhFlakePathFollowsUserFeature = {
+      expr = let
+        withNh =
+          (active.extendModules {
+            modules = [{local.users.alice.features.nh.enable = true;}];
+          }).config.home-manager.users.alice;
+      in {
+        nixToolsEnabled = withNh.local.features.nix-tools.enable;
+        withNh = withNh.home.sessionVariables.NH_OS_FLAKE;
+        withoutNh = embedded.home.sessionVariables ? NH_OS_FLAKE;
         withoutPath = standalone.home.sessionVariables ? NH_OS_FLAKE;
       };
       expected = {
         nixToolsEnabled = false;
-        withPath = "/fixture";
+        withNh = "/fixture";
+        withoutNh = false;
         withoutPath = false;
       };
     };
