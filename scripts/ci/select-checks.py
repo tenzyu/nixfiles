@@ -29,7 +29,10 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             checks.add("opencode-direnv")
         if path == "modules/50-features/development/rtk.nix" or path.startswith("assets/rtk/"):
             checks.add("rtk-rewrites")
-        if path.startswith("modules/50-features/media/") or path == "modules/50-features/nix/nix.nix":
+        if (path.startswith("modules/50-features/media/") or path in (
+            "modules/50-features/nix/nix.nix",
+            "scripts/ci/audit-splitcast-cache.sh",
+        )):
             cache_probe = True
     return sorted(checks), cache_probe
 
