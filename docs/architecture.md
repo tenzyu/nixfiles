@@ -3,23 +3,26 @@ type: Architecture
 title: "Feature projection"
 description: "NixOS and Home Manager feature resolution"
 status: stable
-source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+source_revision: b75d1df57f09f087619da0aadc94ae29a26f6454
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/flake.nix
     title: "flake.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/framework/modules/configurations.nix
-    title: "framework/modules/configurations.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/modules/_internal/configurations/configurations.nix
+    title: "modules/_internal/configurations/configurations.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/framework/modules/materializers/users.nix
-    title: "framework/modules/materializers/users.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/modules/_internal/configurations/materializers/options.nix
+    title: "modules/_internal/configurations/materializers/options.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/framework/modules/materializers/home-manager.nix
-    title: "framework/modules/materializers/home-manager.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/modules/_internal/configurations/materializers/users.nix
+    title: "modules/_internal/configurations/materializers/users.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/framework/modules/materializers/policy.nix
-    title: "framework/modules/materializers/policy.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/modules/_internal/configurations/materializers/home-manager.nix
+    title: "modules/_internal/configurations/materializers/home-manager.nix"
+  - id: src-6
+    resource: https://github.com/tenzyu/nixfiles/blob/b75d1df57f09f087619da0aadc94ae29a26f6454/modules/10-foundations/_policy/materializer.nix
+    title: "modules/10-foundations/_policy/materializer.nix"
 ---
 
 # Architecture
@@ -29,29 +32,26 @@ sources:
 `flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/<domain>/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
 
 ```text
-flake.nix / import-tree
- -> modules/_internal/configurations/configurations.nix
- -> typed host seed
- -> compactNixosSeedModule (null = unspecified)
- -> NixOS module set + materializers
- -> flake.nixosConfigurations.<host>
-    -> Home Manager embedded users
+import-tree -> flake-parts -> flake.modules registrations
+                            -> typed configurations.*.<name>.module
+                            -> compacted seed + registered modules
+                            -> NixOS (including embedded Home Manager) or standalone Home Manager
 ```
-
-The former `framework/` local Flake was removed; its projection implementation is private under `modules/_internal/configurations/`. `modules/10-foundations/` stays in place, and owns project-wide tooling, helpers, and package overlays. The immutable source URLs above are historical references to the previous layout, not links to current file paths.
 
 ## Responsibility boundary
 
-The internal framework owns only configuration instantiation, feature registry/selection, typed seed compaction for editor support, and NixOS/Home Manager user projection. Package overlay definitions, helpers, and diagnostics are owned by `modules/10-foundations/` or `tools/framework-cli/`. This keeps the native Nix module system authoritative rather than introducing a third configuration evaluator.
+`default.nix` imports the flake-parts registry and exposes `debug.options`. `configurations.nix` instantiates NixOS and standalone Home Manager. `materializers/options.nix` shares the common user and context declarations between the typed seed and the target modules. Feature names in both stages come from the public `flake.modules` entries.
+
+The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users` and context fields to nixd through `debug.options`. Plain `types.deferredModule` would forward definitions to the target evaluator directly. Its `getSubOptions` in the pinned Nixpkgs exposes only `_module`, so this adapter retains the typed seed.
 
 ## Projection rules
 
-- `local.features.<name>.enable`: system feature selection.
-- `local.users.<user>.features.<name>.enable`: user selection.
-- If an enabled user feature also has a NixOS module, `userSeededNixosFeaturesModule` enables its NixOS counterpart with `mkDefault true`.
-- `hmFactoryModule` projects only enabled user features, sets `local.user` and `local.context`, and uses `useGlobalPkgs = true`.
-- Seed `null` values are dropped so missing declarations do not turn into explicit disables. `false` remains an explicit disable.
-- Standalone `configurations.homeManager` is supported by the framework, but the current three host entries declare NixOS configurations.
+- `local.features.<name>.enable` selects a system feature. `local.users.<user>.features.<name>.enable` selects a user feature.
+- The seed drops nullable fields with value `null` and forwards explicit system `false` values. After NixOS evaluates a user's feature selection, embedded Home Manager receives only enabled user features.
+- Enabled users receive a system account and group, projected `local.user` and `local.context` fields, and the registered Home Manager modules through `sharedModules`. Embedded Home Manager uses `useGlobalPkgs = true` and `useUserPackages = true`.
+- Standalone `configurations.homeManager` uses the same Home Manager feature registrations. The three current host declarations are NixOS configurations.
+
+Priorities on typed seed fields resolve against other seed definitions before projection. For example, a seed `mkForce` can win inside the seed, then a target `mkForce` can override the compacted value. Freeform target options and a literal `imports` list can pass through the seed. Target imports and registered feature modules evaluate against the native target `config`; a function evaluated as a seed sees the seed's `config`.
 
 ## Cross-scope feature invariant
 
@@ -63,7 +63,7 @@ Feature policy declarations are not blanket package authorization. The NixOS mat
 
 ## Verification interfaces
 
-`tools/framework-cli/src/main.ts` exposes `test`, `unit`, `invariants`, `trace`; flake apps are registered in `modules/10-foundations/framework-tools.nix`. `modules/10-foundations/checks.nix` registers static checks. These are inspection of code paths, **not evidence that a check was executed** for this document update.
+`nix run -L .#framework-test` runs the existing unit tests, checks the editor-facing option types through `debug.options`, and evaluates fixture configurations through the actual adapter. The fixtures cover direct options, imports, priority, user projection, cross-scope assertions, package policy and standalone Home Manager. The type checks exercise the option tree consumed by nixd. Live Zed completion and host activation require separate observations.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../ROADMAP.md).
 
