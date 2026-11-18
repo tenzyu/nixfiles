@@ -40,7 +40,15 @@ in {
     expected = 0;
   };
   testIntegrationBothEnabled = {
-    expr = builtins.length (evaluate true true);
-    expected = 6;
+    # Assert rule values and order, not just the number of rules.
+    expr = evaluate true true;
+    expected = [
+      {match = {title = "^(Parsec)$"; xwayland = true;}; immediate = true;}
+      {match = {title = "^(Parsec)$"; xwayland = true;}; fullscreen = true;}
+      {match = {title = "^(Parsec)$"; xwayland = true;}; stay_focused = true;}
+      {match = {title = "^(Parsec)$"; xwayland = true;}; no_initial_focus = true;}
+      {match = {title = "^(Parsec)$"; xwayland = true;}; allows_input = true;}
+      {match = {title = "^(Parsec)$"; xwayland = true;}; focus_on_activate = true;}
+    ];
   };
 }

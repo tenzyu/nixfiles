@@ -7,7 +7,11 @@
     config,
     lib,
     ...
-  }: {
+  }: let
+    # One shared thunk for all package checks: build a name-indexed set
+    # instead of repeatedly deduplicating and scanning an allowlist.
+    allowedUnfree = lib.genAttrs config.local.nixpkgsPolicy.unfree (_: true);
+  in {
     options.local.nixpkgsPolicy = lib.mkOption {
       type = lib.types.submodule {
         options = {
@@ -27,9 +31,7 @@
 
     config.nixpkgs.config = {
       allowUnfreePredicate = pkg:
-        builtins.elem
-        (lib.getName pkg)
-        (lib.unique config.local.nixpkgsPolicy.unfree);
+        builtins.hasAttr (lib.getName pkg) allowedUnfree;
 
       permittedInsecurePackages =
         lib.unique config.local.nixpkgsPolicy.permittedInsecure;
