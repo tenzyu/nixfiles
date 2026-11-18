@@ -277,6 +277,25 @@ in {
       };
     };
 
+    testNativeHomeLayoutProjectionPreservesSessionValues = {
+      expr = let
+        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+        vars = home.home.sessionVariables;
+        exported = home.systemd.user.sessionVariables;
+      in {
+        cargo = exported.CARGO_HOME == vars.CARGO_HOME;
+        bunCache = exported.BUN_INSTALL_CACHE_DIR == vars.BUN_INSTALL_CACHE_DIR;
+        codex = exported.CODEX_HOME == vars.CODEX_HOME;
+        dotnet = exported.DOTNET_CLI_HOME == vars.DOTNET_CLI_HOME;
+      };
+      expected = {
+        cargo = true;
+        bunCache = true;
+        codex = true;
+        dotnet = true;
+      };
+    };
+
     testHomeMigrationIsPreflightOnlyForEveryHost = {
       expr = lib.mapAttrs (_: host: let
         activation = host.config.home-manager.users.tenzyu.home.activation;
@@ -452,10 +471,21 @@ in {
       in {
         ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
         inheritedRules = builtins.length emptyXwaylandRules;
+        exactRules = emptyXwaylandRules == [
+          {
+            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
+            no_focus = true;
+          }
+          {
+            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
+            no_follow_mouse = true;
+          }
+        ];
       };
       expected = {
         ghostFeature = false;
         inheritedRules = 2;
+        exactRules = true;
       };
     };
 

@@ -80,8 +80,10 @@
       home.sessionPath = ["${config.home.sessionVariables.BUN_INSTALL}/bin"];
 
       # GUI applications and user services need the same locations as shells.
-      systemd.user.sessionVariables = lib.filterAttrs (name: _:
-        builtins.elem name [
+      # Filter by names using the evaluator's native attrset intersection;
+      # the right-hand set supplies values and absent keys remain absent.
+      systemd.user.sessionVariables = builtins.intersectAttrs
+        (lib.genAttrs [
           "ANDROID_USER_HOME"
           "BUN_INSTALL"
           "BUN_INSTALL_CACHE_DIR"
@@ -90,8 +92,8 @@
           "GEMINI_CLI_HOME"
           "DOTNET_CLI_HOME"
           "NPM_CONFIG_CACHE"
-        ])
-      config.home.sessionVariables;
+        ] (_: null))
+        config.home.sessionVariables;
     };
   };
 }
