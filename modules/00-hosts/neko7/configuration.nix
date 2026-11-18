@@ -48,10 +48,12 @@
 
     local.users.tenzyu = {
       enable = true;
-      isAdmin = true;
-      homeStateVersion = "26.05";
-      email = "tenzyu.on@gmail.com";
-      homeDirectory = "/home/tenzyu";
+      context = {
+        isAdmin = true;
+        homeStateVersion = "26.05";
+        email = "tenzyu.on@gmail.com";
+        homeDirectory = "/home/tenzyu";
+      };
 
       features = {
         splitcast-production.enable = true;
@@ -70,6 +72,7 @@
 
         catppuccin.enable = true;
         nix-access.enable = true;
+        nh.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
         herdr.enable = true;

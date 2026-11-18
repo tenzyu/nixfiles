@@ -50,16 +50,19 @@
 
     local.users.tenzyu = {
       enable = true;
-      isAdmin = true;
-      homeStateVersion = "26.05";
-      email = "tenzyu.on@gmail.com";
-      homeDirectory = "/home/tenzyu";
+      context = {
+        isAdmin = true;
+        homeStateVersion = "26.05";
+        email = "tenzyu.on@gmail.com";
+        homeDirectory = "/home/tenzyu";
+      };
 
       features = {
         networkmanager-access.enable = true;
         nix-access.enable = true;
         catppuccin.enable = true;
         zsh.enable = true;
+        nh.enable = true;
         nix-tools.enable = true;
         git-tools.enable = true;
         disk-tools.enable = true;

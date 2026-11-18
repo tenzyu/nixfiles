@@ -32,9 +32,8 @@
             {
               local.user = {
                 name = userName;
-                email = user.email;
-                homeDirectory = user.homeDirectory;
-                stateVersion = user.homeStateVersion;
+                inherit (user.context) email homeDirectory;
+                stateVersion = user.context.homeStateVersion;
               };
 
               local.context = {
@@ -51,8 +50,8 @@
               xdg.enable = lib.mkDefault true;
               home.preferXdgDirectories = lib.mkDefault true;
               home.username = lib.mkDefault userName;
-              home.homeDirectory = lib.mkDefault user.homeDirectory;
-              home.stateVersion = lib.mkDefault user.homeStateVersion;
+              home.homeDirectory = lib.mkDefault user.context.homeDirectory;
+              home.stateVersion = lib.mkDefault user.context.homeStateVersion;
             }
           ];
         }

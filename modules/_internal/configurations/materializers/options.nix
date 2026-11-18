@@ -65,21 +65,23 @@
             type = types.bool;
             default = true;
           };
-          isAdmin = mkOption {
-            type = types.bool;
-            default = false;
-          };
-          email = mkOption {
-            type = types.str;
-            default = "";
-          };
-          homeDirectory = mkOption {
-            type = types.str;
-            default = "/home/${name}";
-          };
-          homeStateVersion = mkOption {
-            type = types.str;
-            default = "26.05";
+          context = {
+            isAdmin = mkOption {
+              type = types.bool;
+              default = false;
+            };
+            email = mkOption {
+              type = types.str;
+              default = "";
+            };
+            homeDirectory = mkOption {
+              type = types.str;
+              default = "/home/${name}";
+            };
+            homeStateVersion = mkOption {
+              type = types.str;
+              default = "26.05";
+            };
           };
           features = featureOptions homeFeatureNames;
         };

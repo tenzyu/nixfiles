@@ -7,11 +7,7 @@
 
   compactNixosUsers = users:
     lib.mapAttrs (name: user: {
-      enable = user.enable;
-      isAdmin = user.isAdmin;
-      email = user.email;
-      homeDirectory = user.homeDirectory;
-      homeStateVersion = user.homeStateVersion;
+      inherit (user) enable context;
       features = featuresLib.compactFeatureSet user.features;
     })
     users;
