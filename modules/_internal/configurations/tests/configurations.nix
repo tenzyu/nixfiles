@@ -247,6 +247,27 @@ in {
       };
     };
 
+    testQemuGuestCapabilityIsExplicitRatherThanHiddenInAProfile = {
+      expr = {
+        hiddenAliases = lib.intersectLists ["proxmox-guest" "qemu-guest-agent"] (lib.attrNames flake.modules.nixos);
+        selected = lib.mapAttrs (_: host: host.config.local.features.qemu-guest-profile.enable) flake.nixosConfigurations;
+        agentEnabled = flake.nixosConfigurations.neko7.config.services.qemuGuest.enable;
+        virtioAvailable = builtins.all
+          (name: builtins.elem name flake.nixosConfigurations.neko7.config.boot.initrd.availableKernelModules)
+          ["virtio_pci" "virtio_scsi" "virtio_blk" "virtio_net"];
+        virtioEarly = builtins.all
+          (name: builtins.elem name flake.nixosConfigurations.neko7.config.boot.initrd.kernelModules)
+          ["virtio_balloon" "virtio_console"];
+      };
+      expected = {
+        hiddenAliases = [];
+        selected = {neko5 = false; neko6 = false; neko7 = true;};
+        agentEnabled = true;
+        virtioAvailable = true;
+        virtioEarly = true;
+      };
+    };
+
     testGameContainersKeepTheirOwnStateVersion = {
       expr =
         lib.mapAttrs (_: container: container.config.system.stateVersion)
