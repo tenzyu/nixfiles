@@ -2,7 +2,15 @@
   features = import ./features.nix {inherit lib;};
   users = import ./users.nix {inherit lib features;};
   policies = import ./policies.nix {inherit lib features;};
+  composition = import ./composition.nix {inherit lib;};
   layout = import ./service-layout.nix {inherit lib;};
+  pipeline = composition.namedPipeline {
+    label = "test.normalization";
+    steps = [
+      {name = "increment"; run = x: x + 1;}
+      {name = "stringify"; run = x: "value-${toString x}";}
+    ];
+  };
   cfg = {
     local.users = {
       alice = {enable = true; features = {steam.enable = true; git.enable = false;};};
@@ -16,6 +24,53 @@
     gamma = {unfree = ["steam" "minecraft"]; permittedInsecure = ["legacy"];};
   };
 in {
+  testNamedPipelineNamesAndOrderedEvaluation = {
+    expr = {
+      names = pipeline.stageNames;
+      value = pipeline.run 2;
+      empty = (composition.namedPipeline {label = "identity"; steps = [];}).run {a = 1;};
+    };
+    expected = {
+      names = ["increment" "stringify"];
+      value = "value-3";
+      empty = {a = 1;};
+    };
+  };
+
+  testNamedPipelineRejectsInvalidStages = {
+    expr = {
+      duplicate = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "duplicate";
+          steps = [{name = "x"; run = x: x;} {name = "x"; run = x: x;}];
+        }).stageNames
+      )).success;
+      missingRun = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "invalid";
+          steps = [{name = "x";}];
+        }).stageNames
+      )).success;
+      blank = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "empty-name";
+          steps = [{name = ""; run = x: x;}];
+        }).stageNames
+      )).success;
+    };
+    expected = {duplicate = false; missingRun = false; blank = false;};
+  };
+
+  testNamedPipelinePreservesNativeOptionWrappers = {
+    expr = let
+      value = (composition.namedPipeline {
+        label = "definition-data";
+        steps = [{name = "select"; run = x: {config = x.config;};}];
+      }).run {config.foo = lib.mkDefault true;};
+    in value.config.foo._type;
+    expected = "override";
+  };
+
   testServiceLayoutPreservesLegacyPaths = {
     expr = layout.mkGameDirectories {
       key = "minecraft";
