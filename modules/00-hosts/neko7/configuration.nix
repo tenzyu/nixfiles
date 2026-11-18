@@ -1,5 +1,11 @@
 {...}: {
   configurations.nixos.neko7.module = {
+    # Select Zsh in Home Manager while keeping Bash as the login shell.
+    home-manager.users.tenzyu.local.features = {
+      zsh.enable = true;
+      tmux.enable = false;
+    };
+
     home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko5";
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
@@ -51,7 +57,17 @@
 
       features = {
         splitcast-production.enable = true;
-        tenzyu-cli.enable = true;
+        common.enable = true;
+        packages-common.enable = true;
+        btop.enable = true;
+        fastfetch.enable = true;
+        fzf.enable = true;
+        git.enable = true;
+        neovim.enable = true;
+        starship.enable = true;
+        yazi.enable = true;
+        zoxide.enable = true;
+
         catppuccin.enable = true;
         nix-access.enable = true;
         nix-tools.enable = true;

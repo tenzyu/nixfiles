@@ -1,5 +1,11 @@
 {...}: {
   configurations.nixos.neko6.module = {
+    # Select Zsh in Home Manager while keeping Bash as the login shell.
+    home-manager.users.tenzyu.local.features = {
+      zsh.enable = true;
+      tmux.enable = false;
+    };
+
     local.features = {
       wsl-integration.enable = true;
       nix.enable = true;
@@ -23,7 +29,17 @@
       homeDirectory = "/home/tenzyu";
 
       features = {
-        tenzyu-cli.enable = true;
+        common.enable = true;
+        packages-common.enable = true;
+        btop.enable = true;
+        fastfetch.enable = true;
+        fzf.enable = true;
+        git.enable = true;
+        neovim.enable = true;
+        starship.enable = true;
+        yazi.enable = true;
+        zoxide.enable = true;
+
         wsl-default-user.enable = true;
         docker-user-access.enable = true;
         ozone-wayland.enable = true;
