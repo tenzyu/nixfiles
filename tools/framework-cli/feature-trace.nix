@@ -5,7 +5,6 @@
     concatMap
     filterAttrs
     flatten
-    foldl'
     hasInfix
     hasPrefix
     hasSuffix
@@ -46,32 +45,10 @@
     then head m
     else s;
 
-  toRepoPath = repo: absPath: let
-    repoStr = toString repo;
-    stripped = removePrefix "${repoStr}/" absPath;
-  in
-    if stripped != absPath
-    then cleanViaOption stripped
-    else let
-      m = match "/nix/store/[^/]+-source/(.+)" absPath;
-    in
-      if m != null
-      then cleanViaOption (head m)
-      else cleanViaOption absPath;
-
-  renderLocation = location: let
-    line = location.line or null;
-  in
-    if line == null
-    then location.source
-    else "${location.source}:${toString line}";
-
-  readHostConfig = repo: host: let
-    path = toString repo + "/modules/00-hosts/${host}/configuration.nix";
-  in
-    if builtins.pathExists path
-    then builtins.readFile path
-    else "";
+  toRepoPath = repo: flake: path:
+    removePrefix "${toString repo}/" (
+      removePrefix "${toString (flake.outPath or repo)}/" (cleanViaOption path)
+    );
 
   readFileIfExists = path:
     if builtins.pathExists path
@@ -198,15 +175,12 @@
     lines;
 
   findHostSeed = {
-    repo,
-    host,
+    hostFile,
+    hostLines,
     scope,
     user ? null,
     feature,
   }: let
-    rel = "modules/00-hosts/${host}/configuration.nix";
-    text = readHostConfig repo host;
-    scanned = scanHostSeedLines text;
     wantedPath =
       if scope == "system"
       then "system"
@@ -221,7 +195,7 @@
       )
       && hasInfix "${feature}.enable" item.text
       && hasInfix "true" item.text)
-    scanned;
+    hostLines;
   in
     if hits == []
     then null
@@ -232,7 +206,7 @@
         if scope == "system"
         then "host-seed"
         else "user-seed";
-      source = rel;
+      source = hostFile;
       line = hit.line;
       value = true;
       origin = "text-scan";
@@ -261,11 +235,13 @@
         else if entry == "directory"
         then walk path rel
         else if entry == "regular" && hasSuffix ".nix" name
-        then [{
-          inherit name rel;
-          featureName = lib.removeSuffix ".nix" name;
-          text = readFileIfExists path;
-        }]
+        then [
+          {
+            inherit name rel;
+            featureName = lib.removeSuffix ".nix" name;
+            text = readFileIfExists path;
+          }
+        ]
         else [];
     in
       concatMap visit (attrNames entries);
@@ -273,12 +249,11 @@
     walk (toString repo + "/modules/50-features") "modules/50-features";
 
   findImplementation = {
-    repo,
+    files,
     moduleClass,
     feature,
   }: let
     needle = "flake.modules.${moduleClass}.${feature}";
-    files = featureFiles repo;
     hits = builtins.filter (f: hasInfix needle f.text) files;
   in
     if hits == []
@@ -295,10 +270,9 @@
     };
 
   findFeatureModuleActivations = {
-    repo,
+    files,
     feature,
   }: let
-    files = featureFiles repo;
     scanFile = f: let
       lines = linesWithNumbers f.text;
       hits = builtins.filter (item:
@@ -328,9 +302,10 @@
 
   normalizeDef = {
     repo,
+    flake,
     featureName,
   }: d: let
-    rel = toRepoPath repo d.file;
+    rel = toRepoPath repo flake d.file;
     fName =
       if hasPrefix "modules/50-features/" rel && hasSuffix ".nix" rel
       then lib.removeSuffix ".nix" (lib.last (splitString "/" rel))
@@ -354,45 +329,19 @@
     origin = "definitionsWithLocations";
   };
 
-  optionByPath = root: path:
-    foldl' (acc: p:
-      if acc == null
-      then null
-      else acc.${p} or null)
-    root (splitString "." path);
+  at = root: path: lib.attrByPath (splitString "." path) null root;
 
-  configValueByPath = root: path:
-    foldl' (acc: p:
-      if acc == null
-      then null
-      else acc.${p} or null)
-    root (splitString "." path);
-
-  optionDefinitions = {
-    repo,
-    featureName,
-    option,
-    optionsRoot,
-  }: let
-    opt = optionByPath optionsRoot option;
-    defs =
-      if opt != null && opt ? definitionsWithLocations
-      then opt.definitionsWithLocations
-      else [];
-  in
-    map (normalizeDef {inherit repo featureName;}) defs;
-
-  firstNonEmpty = lists:
-    if lists == []
-    then []
-    else if head lists != []
-    then head lists
-    else firstNonEmpty (builtins.tail lists);
+  optionDefinitions = context: options: option:
+    map (normalizeDef context) ((at options option).definitionsWithLocations or []);
 
   mkFeatureRecord = {
     flake,
     repo,
     host,
+    files,
+    hostFile,
+    hostLines,
+  }: {
     scope,
     user ? null,
     feature,
@@ -408,24 +357,13 @@
     enabled =
       if scope == "system"
       then systemEnabled
-      else if scope == "home"
-      then homeSeedEnabled || hmEnabled
-      else systemEnabled || homeSeedEnabled || hmEnabled;
+      else homeSeedEnabled || hmEnabled;
 
     enabledUserNames = enabledUsersFor cfg;
 
-    directSeedActivation =
-      if scope == "system"
-      then
-        findHostSeed {
-          inherit repo host feature;
-          scope = "system";
-        }
-      else
-        findHostSeed {
-          inherit repo host user feature;
-          scope = "home";
-        };
+    directSeedActivation = findHostSeed {
+      inherit hostFile hostLines feature scope user;
+    };
 
     userSeedActivations =
       if scope == "system"
@@ -434,7 +372,7 @@
           map (
             u: let
               hit = findHostSeed {
-                inherit repo host feature;
+                inherit hostFile hostLines feature;
                 scope = "home";
                 user = u;
               };
@@ -455,21 +393,21 @@
 
     seedActivations = optionals (directSeedActivation != null) [directSeedActivation] ++ userSeedActivations;
 
+    getDefinitions =
+      optionDefinitions {
+        inherit repo flake;
+        featureName = feature;
+      }
+      opts;
     optionDefActivations =
       if scope == "system"
-      then
-        optionDefinitions {
-          inherit repo;
-          featureName = feature;
-          option = "local.features.${feature}.enable";
-          optionsRoot = opts;
-        }
+      then getDefinitions "local.features.${feature}.enable"
       else [];
 
     scannedFeatureActivations =
       if seedActivations != [] || optionDefActivations != []
       then []
-      else findFeatureModuleActivations {inherit repo feature;};
+      else findFeatureModuleActivations {inherit files feature;};
 
     # Evaluated Nix definitions are authoritative; textual source inspection
     # remains only a separately labeled location hint.
@@ -483,31 +421,22 @@
       then "nixos"
       else "homeManager";
     impl = findImplementation {
-      inherit repo feature;
+      inherit files feature;
       moduleClass = implClass;
     };
     implFallback =
       if impl == null && scope == "system"
       then
         findImplementation {
-          inherit repo feature;
+          inherit files feature;
           moduleClass = "homeManager";
         }
       else null;
     implementations = builtins.filter (x: x != null) [impl implFallback];
 
-    effectDefs = let
-      effectOption = "programs.${feature}.enable";
-      effectOpt = optionByPath opts effectOption;
-    in
-      if scope == "system" && effectOpt != null
-      then
-        optionDefinitions {
-          inherit repo;
-          featureName = feature;
-          option = effectOption;
-          optionsRoot = opts;
-        }
+    effectDefs =
+      if scope == "system"
+      then getDefinitions "programs.${feature}.enable"
       else [];
 
     primaryKind =
@@ -533,7 +462,7 @@
     source_hints = seedActivations ++ scannedFeatureActivations;
     implementations = implementations;
     effects = effectDefs;
-    definitions = activations;
+    definitions = optionDefActivations;
   };
 
   enabledUsersFor = cfg:
@@ -549,7 +478,7 @@
     then [explicitUser]
     else enabled;
 in {
-  inherit toRepoPath renderLocation featureFiles;
+  inherit featureFiles;
 
   traceHost = {
     flake,
@@ -560,13 +489,21 @@ in {
     feature ? null,
   }: let
     cfg = flake.nixosConfigurations.${host}.config;
+    hostFile = "modules/00-hosts/${host}/configuration.nix";
+    record = mkFeatureRecord {
+      inherit flake repo host hostFile;
+      files = featureFiles repo;
+      hostLines = scanHostSeedLines (readFileIfExists (toString repo + "/" + hostFile));
+    };
     enabledSysNames = attrNames (filterAttrs (_: f: f.enable or false) (cfg.local.features or {}));
     users = homeUsersFor {
       cfg = cfg;
       explicitUser = user;
     };
     systemFeatureNames =
-      if feature == null then enabledSysNames else [feature];
+      if feature == null
+      then enabledSysNames
+      else [feature];
     homeFeatureNames = u:
       if feature == null
       then attrNames (filterAttrs (_: f: f.enable or false) (cfg.local.users.${u}.features or {}))
@@ -579,8 +516,8 @@ in {
       then []
       else
         map (feature:
-          mkFeatureRecord {
-            inherit flake repo host feature;
+          record {
+            inherit feature;
             scope = "system";
           })
         systemFeatureNames;
@@ -590,42 +527,13 @@ in {
       else
         flatten (map (u:
           map (feature:
-            mkFeatureRecord {
-              inherit flake repo host feature;
+            record {
+              inherit feature;
               scope = "home";
               user = u;
             }) (homeFeatureNames u))
         users);
   };
-
-  traceFeature = {
-    flake,
-    repo,
-    host,
-    user ? null,
-    scope ? "system",
-    feature,
-  }:
-    if scope == "all"
-    then {
-      type = "feature";
-      name = feature;
-      scope = "all";
-      system = mkFeatureRecord {
-        inherit flake repo host feature;
-        scope = "system";
-      };
-      home =
-        if user == null
-        then []
-        else [
-          (mkFeatureRecord {
-            inherit flake repo host user feature;
-            scope = "home";
-          })
-        ];
-    }
-    else mkFeatureRecord {inherit flake repo host user feature scope;};
 
   traceWhy = {
     flake,
@@ -634,12 +542,7 @@ in {
     option,
   }: let
     n = flake.nixosConfigurations.${host};
-    opt = optionByPath n.options option;
-    defs =
-      if opt != null && opt ? definitionsWithLocations
-      then opt.definitionsWithLocations
-      else [];
-    effective = configValueByPath n.config option;
+    effective = at n.config option;
     featureName = let
       m = match "local\\.features\\.([^.]+)\\..*" option;
     in
@@ -655,11 +558,6 @@ in {
     type = "why";
     path = option;
     effective = serializeValue effective;
-    definitions =
-      map (normalizeDef {
-        inherit repo;
-        featureName = featureName;
-      })
-      defs;
+    definitions = optionDefinitions {inherit repo flake featureName;} n.options option;
   };
 }
