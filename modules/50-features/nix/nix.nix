@@ -14,7 +14,10 @@
             "nix-command"
             "flakes"
           ];
-          accept-flake-config = true;
+          # Do not trust arbitrary flake nixConfig (including command-bearing
+          # trusted settings) merely because a user evaluates a repository.
+          # Required caches and public keys are declared below instead.
+          accept-flake-config = false;
           auto-optimise-store = true;
 
           # Configure Catppuccin on the system daemon, not only in Home Manager.
