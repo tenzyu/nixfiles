@@ -44,10 +44,12 @@
               local.context.flakePath = "/fixture";
               local.context.systemStateVersion = "24.05";
               local.users.alice = {
-                isAdmin = true;
-                email = "alice@example.invalid";
-                homeDirectory = "/fixture/alice";
-                homeStateVersion = "25.11";
+                context = {
+                  isAdmin = true;
+                  email = "alice@example.invalid";
+                  homeDirectory = "/fixture/alice";
+                  homeStateVersion = "25.11";
+                };
                 features = {
                   adapter-check.enable = lib.mkDefault false;
                   adapter-home-default.enable = false;
@@ -255,6 +257,34 @@ in {
       };
     };
 
+    testHomeFlakePathProjectionWithoutNixTools = {
+      expr = {
+        nixToolsEnabled = embedded.local.features.nix-tools.enable;
+        withPath = embedded.home.sessionVariables.NH_OS_FLAKE;
+        withoutPath = standalone.home.sessionVariables ? NH_OS_FLAKE;
+      };
+      expected = {
+        nixToolsEnabled = false;
+        withPath = "/fixture";
+        withoutPath = false;
+      };
+    };
+
+    testUserContextEditorOptions = {
+      expr = let
+        configuration = flake.debug.options.configurations.nixos.type.getSubOptions ["fixture"];
+        localOptions = (configuration.module.type.getSubOptions []).local;
+        userOptions = localOptions.users.type.getSubOptions ["alice"];
+      in
+        lib.mapAttrs (_: option: option.type.name) userOptions.context;
+      expected = {
+        isAdmin = "bool";
+        email = "str";
+        homeDirectory = "str";
+        homeStateVersion = "str";
+      };
+    };
+
     testConfiguredHostsAndStandaloneOutput = {
       expr = {
         nixos = builtins.attrNames flake.nixosConfigurations;
@@ -391,7 +421,8 @@ in {
         assertions = crossScopeFailures active.config;
         inherit (active.config.environment.variables) ADAPTER_SYSTEM ADAPTER_IMPORT;
         inherit (active.config.home-manager) useGlobalPkgs useUserPackages;
-        inherit (active.config.users.users.alice) linger extraGroups;
+        inherit (active.config.users.users.alice) linger home extraGroups;
+        homeDirectory = embedded.home.homeDirectory;
         authorizedKeys = active.config.users.users.alice.openssh.authorizedKeys.keys;
         inherit (embedded.home.sessionVariables) ADAPTER_HOME ADAPTER_EXTRA ADAPTER_DIRECT;
         inherit (embedded.local) user context;
@@ -406,6 +437,8 @@ in {
         useGlobalPkgs = true;
         useUserPackages = true;
         linger = true;
+        home = "/fixture/alice";
+        homeDirectory = "/fixture/alice";
         extraGroups = ["wheel"];
         authorizedKeys = ["fixture-key"];
         ADAPTER_HOME = "enabled";

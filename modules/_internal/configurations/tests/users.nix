@@ -72,10 +72,12 @@ in {
     expr = usersLib.compactNixosUsers {
       alice = {
         enable = true;
-        isAdmin = false;
-        email = "";
-        homeDirectory = "/home/alice";
-        homeStateVersion = "26.05";
+        context = {
+          isAdmin = false;
+          email = "";
+          homeDirectory = "/home/alice";
+          homeStateVersion = "26.05";
+        };
         features = {
           hyprland = {enable = true;};
           zsh = {enable = null;};
@@ -86,10 +88,12 @@ in {
     expected = {
       alice = {
         enable = true;
-        isAdmin = false;
-        email = "";
-        homeDirectory = "/home/alice";
-        homeStateVersion = "26.05";
+        context = {
+          isAdmin = false;
+          email = "";
+          homeDirectory = "/home/alice";
+          homeStateVersion = "26.05";
+        };
         features = {
           hyprland = {enable = true;};
         };
@@ -101,20 +105,24 @@ in {
     expr = usersLib.compactNixosUsers {
       alice = {
         enable = true;
-        isAdmin = false;
-        email = "alice@x";
-        homeDirectory = "/home/alice";
-        homeStateVersion = "26.05";
+        context = {
+          isAdmin = false;
+          email = "alice@x";
+          homeDirectory = "/home/alice";
+          homeStateVersion = "26.05";
+        };
         features = {};
       };
     };
     expected = {
       alice = {
         enable = true;
-        isAdmin = false;
-        email = "alice@x";
-        homeDirectory = "/home/alice";
-        homeStateVersion = "26.05";
+        context = {
+          isAdmin = false;
+          email = "alice@x";
+          homeDirectory = "/home/alice";
+          homeStateVersion = "26.05";
+        };
         features = {};
       };
     };

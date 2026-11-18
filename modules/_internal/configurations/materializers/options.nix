@@ -65,21 +65,23 @@
             type = types.bool;
             default = true;
           };
-          isAdmin = mkOption {
-            type = types.bool;
-            default = false;
-          };
-          email = mkOption {
-            type = types.str;
-            default = "";
-          };
-          homeDirectory = mkOption {
-            type = types.str;
-            default = "/home/${name}";
-          };
-          homeStateVersion = mkOption {
-            type = types.str;
-            default = "26.05";
+          context = {
+            isAdmin = mkOption {
+              type = types.bool;
+              default = false;
+            };
+            email = mkOption {
+              type = types.str;
+              default = "";
+            };
+            homeDirectory = mkOption {
+              type = types.str;
+              default = "/home/${name}";
+            };
+            homeStateVersion = mkOption {
+              type = types.str;
+              default = "26.05";
+            };
           };
           features = featureOptions homeFeatureNames;
         };
@@ -103,10 +105,17 @@ in {
     };
   };
 
-  homeFeatureOptionsModule.options.local = {
-    user = homeUser;
-    context = context // homeContext;
-    features = featuresLib.actualFeatureOptions homeFeatureNames;
+  homeFeatureOptionsModule = {config, ...}: {
+    _file = toString ./options.nix;
+    options.local = {
+      user = homeUser;
+      context = context // homeContext;
+      features = featuresLib.actualFeatureOptions homeFeatureNames;
+    };
+
+    config = lib.mkIf (config.local.context.flakePath != null) {
+      home.sessionVariables.NH_OS_FLAKE = config.local.context.flakePath;
+    };
   };
 
   nixosConfigurationModuleType = seedModuleType (nixosOptions featuresLib.seedFeatureOptions);

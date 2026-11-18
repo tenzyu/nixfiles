@@ -55,9 +55,9 @@
         lib.mapAttrs (name: user: {
           isNormalUser = lib.mkDefault true;
           group = name;
-          home = user.homeDirectory;
+          home = user.context.homeDirectory;
 
-          extraGroups = lib.mkAfter (lib.optional user.isAdmin "wheel");
+          extraGroups = lib.mkAfter (lib.optional user.context.isAdmin "wheel");
         })
         users;
     };

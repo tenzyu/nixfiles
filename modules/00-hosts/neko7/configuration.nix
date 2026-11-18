@@ -48,10 +48,12 @@
 
     local.users.tenzyu = {
       enable = true;
-      isAdmin = true;
-      homeStateVersion = "26.05";
-      email = "tenzyu.on@gmail.com";
-      homeDirectory = "/home/tenzyu";
+      context = {
+        isAdmin = true;
+        homeStateVersion = "26.05";
+        email = "tenzyu.on@gmail.com";
+        homeDirectory = "/home/tenzyu";
+      };
 
       features = {
         splitcast-production.enable = true;
