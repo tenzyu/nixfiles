@@ -40,7 +40,10 @@ in {
     expected = 0;
   };
   testIntegrationBothEnabled = {
-    expr = builtins.length (evaluate true true);
-    expected = 2;
+    expr = evaluate true true;
+    expected = [
+      {match.class = "^(steam_app_.*)$"; immediate = true;}
+      {match.class = "^(steam_app_.*)$"; fullscreen = true;}
+    ];
   };
 }

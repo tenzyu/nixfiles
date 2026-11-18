@@ -25,6 +25,7 @@
         time.enable = true;
         locale.enable = true;
         ssh.enable = true;
+        sops-nix.enable = true;
         tailscale.enable = true;
         t3code-tailnet.enable = true;
         splitcast-production.enable = true;
@@ -33,6 +34,7 @@
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
+        game-srv.enable = true;
         game-server-tools.enable = true;
         resolvconf-blacklist-gateway.enable = true;
         disable-ipv6.enable = true;

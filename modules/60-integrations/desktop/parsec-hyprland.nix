@@ -3,56 +3,31 @@
     config,
     lib,
     ...
-  }: {
+  }: let
+    match = {
+      title = "^(Parsec)$";
+      xwayland = true;
+    };
+  in {
     config =
       lib.mkIf (
         config.local.features.parsec.enable
         && config.local.features.hyprland-tenzyu.enable
       ) {
-        wayland.windowManager.hyprland.settings.window_rule = [
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            immediate = true;
-          }
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            fullscreen = true;
-          }
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            stay_focused = true;
-          }
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            no_initial_focus = true;
-          }
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            allows_input = true;
-          }
-          {
-            match = {
-              title = "^(Parsec)$";
-              xwayland = true;
-            };
-            focus_on_activate = true;
-          }
-        ];
+        # Keep independent ordered rules; one rule with six effects would
+        # change the evaluated Home Manager list and could affect precedence.
+        wayland.windowManager.hyprland.settings.window_rule =
+          map (effect: {
+            inherit match;
+            "${effect}" = true;
+          }) [
+            "immediate"
+            "fullscreen"
+            "stay_focused"
+            "no_initial_focus"
+            "allows_input"
+            "focus_on_activate"
+          ];
       };
   };
 }

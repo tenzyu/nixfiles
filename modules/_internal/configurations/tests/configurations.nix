@@ -277,6 +277,25 @@ in {
       };
     };
 
+    testNativeHomeLayoutProjectionPreservesSessionValues = {
+      expr = let
+        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+        vars = home.home.sessionVariables;
+        exported = home.systemd.user.sessionVariables;
+      in {
+        cargo = exported.CARGO_HOME == vars.CARGO_HOME;
+        bunCache = exported.BUN_INSTALL_CACHE_DIR == vars.BUN_INSTALL_CACHE_DIR;
+        codex = exported.CODEX_HOME == vars.CODEX_HOME;
+        dotnet = exported.DOTNET_CLI_HOME == vars.DOTNET_CLI_HOME;
+      };
+      expected = {
+        cargo = true;
+        bunCache = true;
+        codex = true;
+        dotnet = true;
+      };
+    };
+
     testHomeMigrationIsPreflightOnlyForEveryHost = {
       expr = lib.mapAttrs (_: host: let
         activation = host.config.home-manager.users.tenzyu.home.activation;
@@ -452,10 +471,21 @@ in {
       in {
         ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
         inheritedRules = builtins.length emptyXwaylandRules;
+        exactRules = emptyXwaylandRules == [
+          {
+            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
+            no_focus = true;
+          }
+          {
+            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
+            no_follow_mouse = true;
+          }
+        ];
       };
       expected = {
         ghostFeature = false;
         inheritedRules = 2;
+        exactRules = true;
       };
     };
 
@@ -573,6 +603,54 @@ in {
           homeConfigurationName = "alice@adapter-active";
           embeddedInNixOS = true;
         };
+      };
+    };
+
+    testSopsUsesProvisionedAgeIdentityOnNeko5AndNeko7 = {
+      expr = lib.genAttrs ["neko5" "neko7"] (host: let
+        inherit (flake.nixosConfigurations.${host}) config;
+      in {
+        enabled = config.local.features.sops-nix.enable;
+        inherit (config.sops.age) keyFile generateKey sshKeyPaths;
+        gnupgSshKeyPaths = config.sops.gnupg.sshKeyPaths;
+      });
+      expected = lib.genAttrs ["neko5" "neko7"] (_: {
+        enabled = true;
+        keyFile = "/var/lib/sops-nix/key.txt";
+        generateKey = false;
+        sshKeyPaths = [];
+        gnupgSshKeyPaths = [];
+      });
+    };
+
+    testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
+      expr = let
+        host = flake.nixosConfigurations.neko7;
+        migrated = host.config;
+        legacy = (host.extendModules {
+          modules = [
+            {local.features.game-srv.enable = lib.mkForce false;}
+          ];
+        }).config;
+      in {
+        selectedOnNeko7 = migrated.local.features.game-srv.enable;
+        legacyData = legacy.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        legacyProtectHome = legacy.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        migratedData = migrated.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        migratedHome = migrated.users.users.game-minecraft.home;
+        migratedMount = migrated.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
+        migratedIdentity = migrated.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
+        migratedProtectHome = migrated.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+      };
+      expected = {
+        selectedOnNeko7 = true;
+        legacyData = "/home/game-minecraft/minecraft";
+        legacyProtectHome = false;
+        migratedData = "/srv/minecraft";
+        migratedHome = "/var/lib/game-containers/minecraft";
+        migratedMount = "/srv/minecraft";
+        migratedIdentity = "/var/lib/game-containers/minecraft/.state/tailscale";
+        migratedProtectHome = true;
       };
     };
 
