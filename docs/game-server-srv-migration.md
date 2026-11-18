@@ -1,9 +1,9 @@
 # Minecraft service data: operator-controlled /srv cutover
 
-**neko7 status (2026-11-18):** verified offline copy and explicit host flag
-enabled. Minecraft is running under a temporary NixOS test activation.
-Player login and approval for the persistent switch are pending. Until
-the persistent switch, a reboot can start the old layout with stale data.
+**neko7 status (2026-11-18):** after an offline copy and player login,
+the approved switch made NixOS generation 68 the default boot entry.
+Minecraft is running from `/srv/minecraft` with the existing Tailscale
+identity. The boot entry was verified on the running host.
 
 The current neko7 configuration enables Minecraft only; ARK and Rust remain
 disabled. Their prospective `/srv/{ark,rust}` layouts exist in source but
