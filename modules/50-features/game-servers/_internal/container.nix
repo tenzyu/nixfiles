@@ -86,8 +86,7 @@
           };
         }
         // lib.optionalAttrs (d.gameDir != "${d.home}/${spec.key}") {
-          # TODO(srv-cutover): enable this mount only once the host's /srv
-          # data has been copied and verified with the container stopped.
+          # Data outside the bound service HOME needs its own mount.
           "${d.gameDir}" = {
             hostPath = d.gameDir;
             isReadOnly = false;

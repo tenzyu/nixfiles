@@ -1,8 +1,9 @@
 # Minecraft service data: operator-controlled /srv cutover
 
-**Status:** code prepared, **not activated**. Source baseline is /home.
-The `game-srv` feature stays `false` on neko7 until the operator
-finishes migration and commits the explicit host flag change.
+**neko7 status (2026-11-18):** after an offline copy and player login,
+the approved switch made NixOS generation 68 the default boot entry.
+Minecraft is running from `/srv/minecraft` with the existing Tailscale
+identity. The boot entry was verified on the running host.
 
 The current neko7 configuration enables Minecraft only; ARK and Rust remain
 disabled. Their prospective `/srv/{ark,rust}` layouts exist in source but
@@ -94,7 +95,6 @@ overwrite. Treat it as a manual collision/rollback case.
 In `modules/00-hosts/neko7/configuration.nix` change only:
 
 ```nix
-# TODO(srv-cutover): set true after the offline data copy has been verified.
 game-srv.enable = true;
 ```
 

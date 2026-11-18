@@ -588,34 +588,34 @@ in {
       expected = {
         enabled = false;
         nativeSopsProvider = false;
-        minecraftAuthFile = "/home/game-minecraft/secrets/tailscale-authkey";
+        minecraftAuthFile = "/var/lib/game-containers/minecraft/secrets/tailscale-authkey";
         hostGameSecretMount = false;
       };
     };
 
-    testGameSrvCutoverIsOptInWithNativeProtection = {
+    testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
       expr = let
         host = flake.nixosConfigurations.neko7;
-        original = host.config;
-        next = (host.extendModules {
+        migrated = host.config;
+        legacy = (host.extendModules {
           modules = [
-            {local.features.game-srv.enable = lib.mkForce true;}
+            {local.features.game-srv.enable = lib.mkForce false;}
           ];
         }).config;
       in {
-        defaultEnabled = original.local.features.game-srv.enable;
-        originalData = original.containers.neko7-mc.config.services.minecraft-servers.dataDir;
-        originalProtectHome = original.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
-        migratedData = next.containers.neko7-mc.config.services.minecraft-servers.dataDir;
-        migratedHome = next.users.users.game-minecraft.home;
-        migratedMount = next.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
-        migratedIdentity = next.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
-        migratedProtectHome = next.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        selectedOnNeko7 = migrated.local.features.game-srv.enable;
+        legacyData = legacy.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        legacyProtectHome = legacy.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        migratedData = migrated.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        migratedHome = migrated.users.users.game-minecraft.home;
+        migratedMount = migrated.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
+        migratedIdentity = migrated.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
+        migratedProtectHome = migrated.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
       };
       expected = {
-        defaultEnabled = false;
-        originalData = "/home/game-minecraft/minecraft";
-        originalProtectHome = false;
+        selectedOnNeko7 = true;
+        legacyData = "/home/game-minecraft/minecraft";
+        legacyProtectHome = false;
         migratedData = "/srv/minecraft";
         migratedHome = "/var/lib/game-containers/minecraft";
         migratedMount = "/srv/minecraft";

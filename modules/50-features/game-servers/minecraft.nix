@@ -39,8 +39,7 @@
     in {
       nixpkgs.overlays = [inputs.nix-minecraft.overlay];
 
-      # TODO(srv-cutover): remove the legacy /home exception once
-      # the host has completed the offline copy and enabled game-srv.
+      # The legacy layout keeps Minecraft data under /home.
       systemd.services.minecraft-server-survival.serviceConfig.ProtectHome =
         lib.mkIf (!useSrv) (lib.mkForce false);
 

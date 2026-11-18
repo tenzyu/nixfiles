@@ -33,10 +33,7 @@
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
-        # TODO(srv-cutover): change to true only after the stopped-container
-        # copy, checksum verification and rollback preparation in
-        # docs/game-server-srv-migration.md.
-        game-srv.enable = false;
+        game-srv.enable = true;
         # TODO(sops-bootstrap): enable only after adding the encrypted
         # secrets/neko7.yaml and .sops.yaml recipient policy in a commit,
         # verifying the decryption key on neko7, and approving activation.
