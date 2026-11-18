@@ -22,7 +22,7 @@
         # framework. External tools and fundamentals must be independent
         # store inputs, not relative imports from the isolated test root.
         policyLib = import (${../..} + "/modules/10-foundations/_policy/lib.nix");
-        sharedLibRoot = ../../lib;
+        sharedLibRoot = ${../../lib};
         traceLib = import ${traceLib};
       in {
         shared-lib = import (sharedLibRoot + "/tests.nix") { inherit lib; };
