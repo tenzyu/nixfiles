@@ -35,10 +35,25 @@ def inspect(root, manifest):
         rev = row.get("reviewed_revision", baseline)
         if git(root, "cat-file", "-e", rev + "^{commit}").returncode:
             raise ValueError("unavailable review commit " + rev)
-        proc = git(root, "diff", "--name-only", rev, "HEAD", "--", *sources)
-        if proc.returncode:
-            raise ValueError("git diff failed for " + page + ": " + proc.stderr)
-        changed = proc.stdout.splitlines()
+        blobs = row.get("source_blobs", {})
+        if any(path not in sources for path in blobs):
+            raise ValueError("source_blobs refers to untracked dependency: " + page)
+        changed = []
+        by_revision = [path for path in sources if path not in blobs]
+        if by_revision:
+            proc = git(root, "diff", "--name-only", rev, "HEAD", "--", *by_revision)
+            if proc.returncode:
+                raise ValueError("git diff failed for " + page + ": " + proc.stderr)
+            changed.extend(proc.stdout.splitlines())
+        for path, digest in blobs.items():
+            if len(digest) != 40 or any(c not in "0123456789abcdef" for c in digest):
+                raise ValueError("invalid blob identity: " + path)
+            actual = git(root, "hash-object", "--", path)
+            if actual.returncode:
+                raise ValueError("unable to hash " + path + ": " + actual.stderr)
+            if actual.stdout.strip() != digest:
+                changed.append(path)
+        changed = sorted(set(changed))
         results.append({"page": page, "reviewed_revision": rev,
                         "changed_sources": changed, "status": "REVIEW" if changed else "CURRENT"})
     return results

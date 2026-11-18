@@ -51,6 +51,7 @@ jobs:
       - name: Validate Markdown, OKF provenance and memory routes
         run: |
           python3 -m unittest discover -v -s scripts/ci -p 'test_docs.py'
+          python3 -m unittest discover -v -s scripts/ci -p 'test_memory.py'
           python3 scripts/ci/check_docs.py
           python3 scripts/ci/wiki_scan.py --summary
           python3 scripts/ci/retrieval_eval.py --smoke

@@ -45,7 +45,10 @@
       "sources": [
         ".github/workflows/nix-validation.yml",
         "modules/00-hosts/neko7/configuration.nix"
-      ]
+      ],
+      "source_blobs": {
+        ".github/workflows/nix-validation.yml": "0705e3a8800603bfaab590a8f84249e84345ee15"
+      }
     },
     {
       "page": "docs/memory/dreaming.md",

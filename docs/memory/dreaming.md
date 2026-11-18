@@ -35,7 +35,7 @@ For each material conflict keep `claim`, `original_source`, `new_source`, `revis
 
 ## Incremental scan and authority
 
-`docs/memory/provenance.json` maps conceptual pages to implementation paths and a reviewed Git baseline. `wiki_scan.py` uses only Git and file identities to find likely stale pages; it cannot decide semantics or whether GitHub PRs are merged or a host switched. A human/agent with current evidence performs the reconciliation. No background daemon, network service, paid API, secret access, host activation or automatic PR merge is installed by this documentation work.
+`docs/memory/provenance.json` maps conceptual pages to implementation paths and a reviewed Git baseline. Where a PR itself updates a source file, an explicitly reviewed `source_blobs` entry records the exact Git blob instead of relying on an unmerged commit SHA. The scanner compares current bytes and still reports drift after a squash merge. `wiki_scan.py` uses only Git and file identities to find likely stale pages; it cannot decide semantics or whether GitHub PRs are merged or a host switched. A human/agent with current evidence performs the reconciliation. No background daemon, network service, paid API, secret access, host activation or automatic PR merge is installed by this documentation work.
 
 ## Evaluation boundary
 
