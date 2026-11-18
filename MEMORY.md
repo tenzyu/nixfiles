@@ -3,7 +3,7 @@
 **Purpose:** NixOS/Home Manager configuration for independently deployed hosts. Treat source declarations, evaluation, builds, activation, boot, and observed runtime as **different evidence tiers**. This file is a small retrieval index, not a copy of the Nix configuration or a live-machine inventory.
 
 ## Source of truth (2026-11-18)
-- Read `flake.nix`, the relevant `modules/00-hosts/<host>/configuration.nix`, and the corresponding feature modules before changing behavior. The current feature selection uses `configurations.nixos.<host>.module`, `local.features`, `local.users` and an internal seed/materializer. This is the **existing implementation**, not an endorsement of its complexity.
+- Read `flake.nix`, the relevant `modules/00-hosts/<host>/configuration.nix`, and the corresponding feature modules before changing behavior. Host declarations list concrete features through the typed seed. Read the [projection rules](docs/architecture.md#projection-rules) before moving native Home Manager settings into a user seed.
 - `neko5`: laptop, osu!lazer, Hyprland, remote build client. SplitCast capture is disabled. Preserve the known successful 1280×720 fullscreen/Direct Scanout path until independently checked.
 - `neko7`: Proxmox VM, remote builder, NVIDIA, development services. The pinned T3 Code + Codex Home Manager service is declared on loopback port 3773; the OpenCode direnv integration is declared. A separate OpenCode service remains migration-gated; do not create a second writer to its state. SplitCast production role is declared with its Rust runtime candidate gated off.
 - `neko6`: still declared as a NixOS-WSL host; user considers retirement acceptable, but runtime use and dependent references have not been disproved.

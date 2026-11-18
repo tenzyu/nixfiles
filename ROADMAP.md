@@ -12,7 +12,7 @@ This document tracks **unverified work**, not features already deployed. Host ac
 | P1 | Catppuccin build-cache diagnosis | Catppuccin input and substituter configured in `flake.nix` / `nix.nix` | Compare derivation hashes, lock resolution and substitute queries before changing `follows` or pinning |
 | P2 | osu! latency studies | `neko5-osu-first`, `osu-lab`, `osu-display` provide candidate controls and telemetry | Controlled A/B, tail latency and error reporting with fixed DSO baseline; never infer input-to-photon from indirect telemetry |
 | P2 | Framework and Wiki regression tests | Private framework, separate tools CLI, Nix tests and OKF bundle | Complete reproducible tests of projected host options, preserved nixd completion and Wiki provenance/links |
-| P2 | Host declaration ergonomics | `configurations.nixos.<host>.module` uses typed seed compaction for nixd completion | Explore native module-shaped hosts without losing completion, tri-state null semantics or rollback; migrate only after host parity tests |
+| P2 | Host declaration ergonomics | Hosts declare concrete features using the typed seed and native Home Manager options for scoped settings | Verify live nixd/Zed completion for the host, user and embedded Home Manager option paths |
 
 ## Completion discipline
 

@@ -2,6 +2,8 @@
 
 ## 2026-11-18
 
+- [Host inventory](host-state.md) and [feature projection](architecture.md) document explicit host selections, Home Manager Zsh scope and the disabled features.
+
 - [neko7 development runbook](t3code-neko7.md) records the SplitCast regression, clean-clone replay, rollback, observed T3 access and the on-demand Serve declaration. It supersedes the earlier source-only remote-access status for this observation window.
 
 ## 2026-11-17

@@ -3,16 +3,16 @@ type: Host Inventory
 title: "Host declarations"
 description: "Configuration declarations versus running generation"
 status: stable
-source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+source_revision: 40f04e1adb2b35b0b29bbf42bc42bb85c71b6869
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/00-hosts/neko5/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/40f04e1adb2b35b0b29bbf42bc42bb85c71b6869/modules/00-hosts/neko5/configuration.nix
     title: "modules/00-hosts/neko5/configuration.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/00-hosts/neko6/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/40f04e1adb2b35b0b29bbf42bc42bb85c71b6869/modules/00-hosts/neko6/configuration.nix
     title: "modules/00-hosts/neko6/configuration.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/00-hosts/neko7/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/40f04e1adb2b35b0b29bbf42bc42bb85c71b6869/modules/00-hosts/neko7/configuration.nix
     title: "modules/00-hosts/neko7/configuration.nix"
 ---
 
@@ -22,7 +22,7 @@ sources:
 
 ## neko5
 
-The host selects laptop hardware, Intel graphics, Hyprland environment, `neko5-osu-first`, remote Nix build client, `nix-store-clean`, PipeWire and Tailscale. The user selects desktop applications, osu!lazer and `home-layout`.
+The host selects laptop hardware, Intel graphics, Hyprland environment, `neko5-osu-first`, remote Nix build client, `nix-store-clean`, PipeWire and Tailscale. The user selects concrete CLI and desktop features, osu!lazer and `home-layout`. The host explicitly disables the Home Manager tmux and Zed features.
 
 - `splitcast-capture` is explicitly **false** in both system and user scopes.
 - `home-layout` is **true**, but a host TODO says the migration scripts are buggy; safety acceptance is unresolved.
@@ -31,11 +31,11 @@ The host selects laptop hardware, Intel graphics, Hyprland environment, `neko5-o
 
 ## neko6
 
-NixOS-WSL: WSL integration, Docker rootful/on-boot, SSH and CLI/Home Manager bundles. It is a source configuration, not evidence of a running WSL instance.
+The WSL declaration selects Docker rootful/on-boot, SSH and individual Home Manager CLI features. Zsh is enabled in Home Manager and Bash remains the login shell. The Home Manager tmux feature is explicitly disabled.
 
 ## neko7
 
-Proxmox guest, CUDA/NVIDIA, Nix remote builder, game-server containers, `opencode-direnv`, `rtk` and SplitCast production-role declarations.
+The Proxmox declaration selects CUDA/NVIDIA, the Nix remote builder, game-server containers, `opencode-direnv`, `rtk`, the SplitCast production role and individual Home Manager CLI features. NixOS and Home Manager both enable Zsh. The user keeps Bash as the login shell and explicitly disables the Home Manager tmux feature.
 
 - `opencode-neko7-service` candidate source exists but is **not enabled in the host**. Whether a separately managed server is running requires runtime verification.
 - `splitcast-production` is enabled in system and user scope; the consumer defines `rustCandidate = lib.mkDefault false`. Actual process state, streaming and PoC acceptance are not established by the declaration.
