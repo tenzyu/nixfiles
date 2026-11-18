@@ -20,8 +20,8 @@ summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
   printf -- '- Locked input revision: `%s`\n' "$locked_rev"
   printf -- '- Cache URL: `%s`\n' "$cache_url"
   printf -- '- Revision hint: %s\n\n' "$revision_hint"
-  printf '| Input package | Evaluated output path | Release cache |\n'
-  printf '| --- | --- | --- |\n'
+  printf '%s\n' '| Input package | Evaluated output path | Release cache |'
+  printf '%s\n' '| --- | --- | --- |'
 } | tee -a "$summary"
 
 for name in splitcast splitcast-web splitcast-obs; do
