@@ -4,7 +4,7 @@ This document tracks **unverified work**, not features already deployed. Host ac
 
 | Priority | Work | Current implementation evidence | Acceptance criteria / failure boundary |
 | --- | --- | --- | --- |
-| P0 | XDG home migration | `neko5` has `home-layout.enable = true` and an unresolved migration TODO; activation is now fail-closed on pending moves unless `local.homeMigration.autoApply` is explicitly enabled | Verify conflict handling, backups, interruption recovery and real home state; require separate approval for auto-apply; abort on unresolved profile/credential conflicts |
+| P0 | XDG home migration | `neko5` has `home-layout.enable = true` and an unresolved migration TODO; activation is always fail-closed on pending moves; migration requires a separate `home-layout-migrate apply` invocation | Verify conflict handling, backups, interruption recovery and real home state; require separate approval for a manual apply; abort on unresolved profile/credential conflicts |
 | P0 | Nix store cleaner safety | `assets/nix-store-clean/cli.py` uses native GC and guarded pruning | VM test staged boot, mismatched current/booted/profile generations, GC and rollback; preserve boot entries and GC roots |
 | P0 | Documentation drift checks | Old README referenced non-existent `docs/cache-check.md` and `modules/10-framework/` | CI validates Markdown links, referenced features/hosts, OKF frontmatter and source revisions |
 | P1 | OpenCode user service migration | `opencode-neko7-service.nix` exists but is not enabled in neko7 host | Confirm running version, backup DB/WAL, prove single writer and restore path, obtain switch approval |

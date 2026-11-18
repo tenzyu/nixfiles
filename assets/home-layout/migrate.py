@@ -405,7 +405,7 @@ def main():
     print(json.dumps(actions, ensure_ascii=False, indent=2))
     if args.require_noop and actions:
         print("home migration pending: activation blocked before writes; "
-              "inspect the plan and explicitly authorize autoApply only after approval",
+              "inspect the plan and explicitly authorize a separate manual apply only after approval",
               file=sys.stderr)
         return 2
     return 0

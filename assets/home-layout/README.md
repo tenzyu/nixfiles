@@ -3,9 +3,9 @@
 > **2026-11-17 documentation reconciliation:** `neko5` enables `home-layout` but still contains a TODO reporting migration bugs. The procedure below describes the implementation contract; acceptance on the current real home was **not** verified here. See [safety decisions](../../docs/decisions.md).
 
 
-## 自動移行の安全ゲート
+## 移行の明示承認と activation の安全ゲート
 
-`local.homeMigration.autoApply` は **既定で false**。未移行のファイル・参照修復があるときは、Home Manager activation の `writeBoundary` より前の読み取り専用チェックが失敗する。移行は行われず、プロファイルも切り替えない。既存の移行が完了している場合は通常どおり activation を続ける。
+Home Manager activation は **常に検査のみ**を実行する。未移行のファイル・参照修復があるときは、`writeBoundary` より前の読み取り専用チェックが失敗し、移行もプロファイルの切り替えも実行されない。旧 `local.homeMigration.autoApply` オプションは廃止し、宣言だけで実データを移動できないようにした。既存の移行が完了している場合は通常どおり activation を続ける。
 
 ```sh
 generation=$(nix build --no-link --print-out-paths \
@@ -13,7 +13,7 @@ generation=$(nix build --no-link --print-out-paths \
 "$generation/home-layout-migrate" check
 ```
 
-バックアップ、停止プロセス、対象パス、衝突、ロールバックを確認して初めて、対象 Home Manager configuration の `local.homeMigration.autoApply = true` を明示できる。これは無条件の実行許可ではなく、別途の人間の承認を要する。手動の `home-layout-migrate apply` も書き込み操作なので同様に承認が必要。
+バックアップ、停止プロセス、対象パス、衝突、ロールバックを確認した後、別途の人間の承認を得て、対象ホストで `home-layout-migrate apply` を明示的に実行する。通常の `nixos-rebuild switch` や Home Manager activation ではデータを移動しない。
 
 保存先の宣言と既存データの移行は一組。`home-layout` だけでなく、保存先を変える
 `common` / `zsh` / `firefox` がそれぞれ `local.homeMigration.paths` を宣言する。
@@ -38,7 +38,7 @@ sudo nixos-rebuild switch --flake .#neko7
 `check` は読み取り専用。移動計画または衝突パスを表示する。
 初回は switch **前**に `apply` し、移行後から switch 完了までは対象アプリを起動しない。
 これにより NixOS が先に per-user profile を切り替える時間帯も避けられる。
-Home Manager activation 自体にも同じ検査・移行があり、通常の再適用は自動で処理する。
+Home Manager activation 自体にも同じ読み取り専用の事前検査があるが、移行の自動実行はない。
 ビルドだけでは実ホームは変更されない。
 
 新しいシェル・再ログイン後に環境変数、認証・履歴・プロファイル、旧パスの再生成を確認する。
@@ -88,8 +88,9 @@ Bun の `bin` も保持し、新パスを session PATH に加える。
   `.adb-wrapped` と Node 経由の CLI も含む。移行のないアプリは稼働していてもよい。
 - Codex の `config.toml` / `hooks.json` の自己ルート参照だけを、バックアップを残して更新。
   移動後の再実行でも補修できる。任意の設定・セッション履歴へ再帰的な置換はしない。
-- `DRY_RUN` 時は検査のみ。実移動は HM の `writeBoundary` 後、`linkGeneration` /
-  `installPackages` 前。移動で出現するファイルの将来の HM 衝突も事前検査する。
+- Home Manager activation は `writeBoundary` 前に `check --require-noop` のみ実行する。
+  実移動は独立した `home-layout-migrate apply` の実行時だけであり、
+  移動で出現するファイルの将来の HM 衝突も事前検査する。
 
 移行記録・生成物の退避・参照編集前のコピーは
 `$XDG_STATE_HOME/home-cleanup/bronze/activation/<run>/`。自動削除しない。

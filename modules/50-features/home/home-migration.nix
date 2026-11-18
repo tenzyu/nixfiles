@@ -21,15 +21,6 @@
   in {
     # All registry modules are imported. Rules belong to the feature that changes
     # the location, rather than to a host or a one-shot stateVersion migration.
-    options.local.homeMigration.autoApply = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        Authorize automatic migration during Home Manager activation.
-        Pending changes otherwise abort activation before writeBoundary.
-      '';
-    };
-
     options.local.homeMigration.paths = lib.mkOption {
       default = [];
       description = "Ordered, non-overwriting legacy-to-XDG moves for enabled features.";
@@ -61,23 +52,14 @@
     };
 
     config = lib.mkIf (cfg.paths != []) {
-      home.activation =
-        {
-          checkHomeMigration = lib.hm.dag.entryBefore ["writeBoundary" "checkLinkTargets"] ''
-            ${runner} check ${lib.optionalString (!cfg.autoApply) "--require-noop"}
-          '';
-        }
-        // lib.optionalAttrs cfg.autoApply {
-          migrateHomeLayout = lib.hm.dag.entryBetween ["linkGeneration" "installPackages"] ["writeBoundary"] ''
-            if [[ -v DRY_RUN ]]; then
-              ${runner} check
-            else
-              ${runner} apply
-            fi
-          '';
-        };
-      # Inspect/migrate the existing home BEFORE a NixOS switch also changes the
-      # per-user system profile. No separate executable is added to ~/.local/bin.
+      # Activation is read-only, without an auto-apply escape hatch. A NixOS
+      # switch can trigger Home Manager; it must never rename user data.
+      # Operators run the exported home-layout-migrate apply explicitly first.
+      home.activation.checkHomeMigration = lib.hm.dag.entryBefore ["writeBoundary" "checkLinkTargets"] ''
+        ${runner} check --require-noop
+      '';
+      # Export the reviewable runner for an explicitly authorized, separate
+      # operation before a NixOS/Home Manager switch.
       home.extraBuilderCommands = ''
         ln -s ${runner} "$out/home-layout-migrate"
       '';
