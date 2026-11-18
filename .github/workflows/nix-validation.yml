@@ -47,6 +47,20 @@ jobs:
       - name: Test framework semantics and editor option types
         run: nix run -L .#framework-test
 
+      # Compatibility state is not the Nixpkgs release. Keep the verified
+      # neko5 baseline and the explicitly declared neko7 baseline stable.
+      - name: Guard explicitly pinned NixOS state compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in neko5 neko7; do
+            actual="$(nix eval --raw ".#nixosConfigurations.${host}.config.system.stateVersion")"
+            if [[ "$actual" != "26.05" ]]; then
+              echo "::error::${host} system.stateVersion drifted: expected 26.05, got ${actual}" >&2
+              exit 1
+            fi
+          done
+
       - name: Evaluate all NixOS host derivations without building systems
         shell: bash
         run: |
