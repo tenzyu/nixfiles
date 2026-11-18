@@ -3,17 +3,20 @@ type: Reference
 title: "splitcast-consumer.md"
 description: "Pinned SplitCast input and consumer roles"
 status: stable
-source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+source_revision: 5b1c6f8b62534bbfa9a99c1d2075aad0b1db7756
 sources:
   - id: source-1
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/5b1c6f8b62534bbfa9a99c1d2075aad0b1db7756/flake.nix
     title: "flake.nix"
   - id: source-2
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/splitcast-capture.nix
-    title: "modules/50-features/splitcast-capture.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/5b1c6f8b62534bbfa9a99c1d2075aad0b1db7756/modules/50-features/media/splitcast-capture.nix
+    title: "modules/50-features/media/splitcast-capture.nix"
   - id: source-3
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/modules/50-features/splitcast-production.nix
-    title: "modules/50-features/splitcast-production.nix"
+    resource: https://github.com/tenzyu/nixfiles/blob/5b1c6f8b62534bbfa9a99c1d2075aad0b1db7756/modules/50-features/media/splitcast-production.nix
+    title: "modules/50-features/media/splitcast-production.nix"
+  - id: source-4
+    resource: https://github.com/tenzyu/nixfiles/blob/5b1c6f8b62534bbfa9a99c1d2075aad0b1db7756/modules/50-features/media/_internal/cache.nix
+    title: "modules/50-features/media/_internal/cache.nix"
 ---
 
 # Consume the independent SplitCast flake
@@ -28,11 +31,11 @@ deployment.
 
 SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local feature files only import those modules and map existing role-enable settings. Host files supply peer settings through `home-manager.users.<user>.services.splitcast.settings`.
 
-The input pins the verified cache candidate `d2205d06b0dc695c3d9b7372fafa7facee769fa9` from https://github.com/tenzyu/splitcast. It keeps SplitCast's own Nixpkgs lock because overriding Nixpkgs with `follows` changes store paths and prevents cache hits.
+The current `flake.lock` pins the SplitCast input at `3b2a051efc1c5f8c483d8f7f453d49f6216c7f2d`, **not** the release revision `d2205d06b0dc695c3d9b7372fafa7facee769fa9` used by the configured binary cache. The latter is an older candidate, not verified for both current Rust/Web outputs. Keep SplitCast's own Nixpkgs lock: adding a `follows` override changes derivation inputs and can invalidate store-path compatibility.
 
-`modules/50-features/nix/nix.nix` configures the candidate's GitHub Release cache and the public key from `nix/cache-public-key` at that revision. Signature checks remain enabled. The release is `nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1`. Its manifest SHA-256 is `fbc58a9d412b7a7c4e59f37c21835fc5cf464e677603f534bf355db43c688387`.
+`modules/50-features/media/_internal/cache.nix` configures that release URL and the public key from `nix/cache-public-key` at the release revision. Nix still requires signatures on substitution; the diagnostic metadata audit does not establish that the locked outputs can actually be substituted. The release is `nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1`. Its manifest SHA-256 is `fbc58a9d412b7a7c4e59f37c21835fc5cf464e677603f534bf355db43c688387`.
 
-To select a later cached candidate, update the revision in `flake.nix` and the cache URL together, verify its signing key and successful consumer job, then run `nix flake update splitcast`. A lock update does not deploy SplitCast.
+To select a later cached candidate, review the intended SplitCast source revision and update `flake.lock` with `nix flake update splitcast`, then update the explicit cache URL only after verifying release provenance, signatures and actual output-store paths. Do not change the pinned source merely to make a cache tag match. A lock update does not deploy SplitCast.
 
 The capture role remains disabled. The production integration remains configured, but `services.splitcast.rustCandidate` remains false and the user unit has no autostart target. No operating-system switch or service start is part of this extraction.
 
