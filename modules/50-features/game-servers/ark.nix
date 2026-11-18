@@ -1,5 +1,12 @@
 {...}: {
-  flake.modules.nixos.game-server-containers = {
+  flake.local.featurePolicies.game-ark.unfree = [
+    "steamcmd"
+    "steam"
+    "steam-run"
+    "steam-original"
+    "steam-unwrapped"
+  ];
+  flake.modules.nixos.game-ark = {
     config,
     lib,
     pkgs,
@@ -171,7 +178,7 @@
     };
   in {
     config =
-      lib.mkIf config.local.features.game-server-containers.enable
+      lib.mkIf config.local.features.game-ark.enable
       (mkGame spec mkArkModule);
   };
 }

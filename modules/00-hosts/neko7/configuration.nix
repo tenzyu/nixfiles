@@ -2,6 +2,11 @@
   configurations.nixos.neko7.module = {
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
+    # Host-specific uplink belongs to the host, not to a game bundle.
+    networking.nat = {
+      enable = true;
+      externalInterface = "ens18";
+    };
     # Android (nekosm1) access to neko7; preserve existing authorized keys.
     users.users.tenzyu.openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICFSHWkNf1cLdqztiXeoYTmN5eetgZLKaupqH3hk9uBL neko7 key"
@@ -27,7 +32,10 @@
         #   neko7       = admin node
         #   neko7-ark   = ARK player node
         #   neko7-rust  = Rust player node
-        game-server-containers.enable = true;
+        game-ark.enable = true;
+        game-rust.enable = true;
+        game-minecraft.enable = true;
+        game-server-tools.enable = true;
         resolvconf-blacklist-gateway.enable = true;
         disable-ipv6.enable = true;
         systemd-boot.enable = true;

@@ -578,6 +578,39 @@ in {
       };
     };
 
+    testGameServerCapabilitiesAreIndependentlySelected = {
+      expr = let
+        host = flake.nixosConfigurations.neko7.config;
+      in {
+        oldBundle = host.local.features.game-server-containers.enable;
+        ark = host.local.features.game-ark.enable;
+        rust = host.local.features.game-rust.enable;
+        minecraft = host.local.features.game-minecraft.enable;
+        tools = host.local.features.game-server-tools.enable;
+        containerNames = lib.attrNames host.containers;
+        minecraftAutoStart = host.containers.neko7-mc.autoStart;
+        natEnabled = host.networking.nat.enable;
+        externalInterface = host.networking.nat.externalInterface;
+        allVethInterfaces = lib.all (name: lib.elem name host.networking.nat.internalInterfaces) [
+          "ve-neko7-ark"
+          "ve-neko7-rust"
+          "ve-neko7-mc"
+        ];
+      };
+      expected = {
+        oldBundle = false;
+        ark = true;
+        rust = true;
+        minecraft = true;
+        tools = true;
+        containerNames = ["neko7-ark" "neko7-mc" "neko7-rust"];
+        minecraftAutoStart = true;
+        natEnabled = true;
+        externalInterface = "ens18";
+        allVethInterfaces = true;
+      };
+    };
+
     testNativeForceOverridesCompactedSeed = {
       expr =
         (active.extendModules {

@@ -1,11 +1,11 @@
 {...}: {
-  flake.modules.nixos.game-server-containers = {
+  flake.modules.nixos.game-server-tools = {
     config,
     lib,
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.game-server-containers.enable {
+    config = lib.mkIf config.local.features.game-server-tools.enable {
       environment.shellAliases.g = "game";
       environment.systemPackages = [
         (pkgs.writeShellApplication {

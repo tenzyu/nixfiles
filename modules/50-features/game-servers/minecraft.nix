@@ -1,5 +1,5 @@
 {inputs, ...}: {
-  flake.modules.nixos.game-server-containers = {
+  flake.modules.nixos.game-minecraft = {
     config,
     lib,
     pkgs,
@@ -60,7 +60,7 @@
     };
   in {
     config =
-      lib.mkIf config.local.features.game-server-containers.enable
+      lib.mkIf config.local.features.game-minecraft.enable
       (mkGame spec mkMinecraftModule);
   };
 }
