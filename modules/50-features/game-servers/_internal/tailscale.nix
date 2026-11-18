@@ -15,68 +15,25 @@
       "8.8.8.8"
     ];
 
+    # The upstream NixOS module owns authentication and service lifecycle.
+    # The key remains an existing runtime file; never materialize its value in
+    # an evaluated Nix string or in /nix/store.
     services.tailscale = {
       enable = true;
-
-      # Let NixOS firewall rules on tailscale0 remain meaningful.
-      extraSetFlags = [
-        "--netfilter-mode=nodivert"
+      authKeyFile = "${spec.home}/secrets/tailscale-authkey";
+      extraUpFlags = [
+        "--hostname=${spec.tailscaleHostname}"
+        "--accept-dns=false"
       ];
+      extraSetFlags = ["--netfilter-mode=nodivert"];
     };
 
-    systemd.services.tailscale-autoconnect = {
-      description = "Authenticate ${spec.tailscaleHostname} to Tailscale";
-
-      wants = [
-        "network-online.target"
-        "tailscaled.service"
-      ];
-
-      after = [
-        "network-online.target"
-        "tailscaled.service"
-      ];
-
-      path = with pkgs; [
-        coreutils
-        jq
-        tailscale
-      ];
-
-      unitConfig = {
-        ConditionPathExists = "${spec.home}/secrets/tailscale-authkey";
-      };
-
-      serviceConfig = {
-        Type = "oneshot";
-        TimeoutStartSec = "90s";
-      };
-
-      script = ''
-        set -euo pipefail
-
-        state="$(
-          (tailscale status -json 2>/dev/null || echo '{}') \
-            | jq -r '.BackendState // "Unknown"'
-        )"
-
-        if [ "$state" = "Running" ]; then
-          echo "${spec.tailscaleHostname} is already authenticated to Tailscale."
-          exit 0
-        fi
-
-        auth_key="$(tr -d '\r\n' < ${spec.home}/secrets/tailscale-authkey)"
-
-        if [ -z "$auth_key" ]; then
-          echo "Empty Tailscale auth key: ${spec.home}/secrets/tailscale-authkey" >&2
-          exit 1
-        fi
-
-        tailscale up \
-          --auth-key "$auth_key" \
-          --hostname "${spec.tailscaleHostname}" \
-          --accept-dns=false
-      '';
+    # Existing installations may not yet have a Tailscale auth key. Stay
+    # inert rather than failing the host boot; provision separately.
+    systemd.services.tailscaled-autoconnect = {
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      unitConfig.ConditionPathExists = "${spec.home}/secrets/tailscale-authkey";
     };
 
     networking.firewall.enable = true;
