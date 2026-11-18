@@ -31,7 +31,8 @@
         resolvconf-blacklist-gateway.enable = true;
         disable-ipv6.enable = true;
         systemd-boot.enable = true;
-        proxmox-guest.enable = true;
+        # Proxmox is a deployment context; the actual NixOS capability is QEMU guest support.
+        qemu-guest-profile.enable = true;
         nvidia-graphics.enable = true;
         kernel-latest.enable = false;
         networkmanager.enable = true;
