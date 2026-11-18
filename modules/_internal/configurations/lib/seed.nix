@@ -3,7 +3,7 @@
   featuresLib,
   usersLib,
 }: rec {
-  compactContext = context:
+  dropNullFields = context:
     lib.filterAttrs (_name: value: value != null) context;
 
   # Convert the typed flake-parts host seed back into a plain NixOS module.
@@ -20,7 +20,7 @@
           users = usersLib.compactNixosUsers (local.users or {});
         }
         // lib.optionalAttrs (local ? context) {
-          context = compactContext local.context;
+          context = dropNullFields local.context;
         };
     };
 
@@ -31,15 +31,8 @@
     local = module.local or {};
     rest = removeAttrs module ["_module" "local"];
 
-    compactUser =
-      if (local ? user)
-      then lib.filterAttrs (_n: v: v != null) local.user
-      else {};
-
-    compactCtx =
-      if (local ? context)
-      then lib.filterAttrs (_n: v: v != null) local.context
-      else {};
+    compactUser = dropNullFields (local.user or {});
+    compactCtx = dropNullFields (local.context or {});
   in
     rest
     // lib.optionalAttrs (module ? local) {

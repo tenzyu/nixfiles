@@ -4,7 +4,7 @@
   seedLib = import ../lib/seed.nix {inherit lib featuresLib usersLib;};
 in {
   testCompactContextDropsNulls = {
-    expr = seedLib.compactContext {
+    expr = seedLib.dropNullFields {
       a = "x";
       b = null;
       c = "y";

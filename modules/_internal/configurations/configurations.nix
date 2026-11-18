@@ -35,8 +35,8 @@
     inherit lib nixosModules usersLib;
   };
 
-  hmMaterializers = import ./materializers/home-manager.nix {
-    inherit lib helpers homeModuleList;
+  embeddedHome = import ./materializers/home-manager.nix {
+    inherit homeModuleList;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
 
     inherit (featuresLib) enabledFeatures;
@@ -44,47 +44,27 @@
   };
 
   nixosOverlays = fpConfig.flake.lib.nixfilesOverlays;
+  # Keep attrsOf/submodule so editor tooling can descend into concrete host and user options.
+  configurationOptions = moduleType:
+    lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          system = lib.mkOption {
+            type = lib.types.str;
+            default = "x86_64-linux";
+          };
+          module = lib.mkOption {
+            type = moduleType;
+            default = {};
+          };
+        };
+      });
+      default = {};
+    };
 in {
-  options.configurations.nixos = lib.mkOption {
-    # nixd/Zed does not reliably descend through lazyAttrsOf when resolving flake-parts debug.options.
-    # Keep this as attrsOf so concrete paths like configurations.nixos.neko5.module expose nested seed options.
-    type = lib.types.attrsOf (
-      lib.types.submodule {
-        options = {
-          system = lib.mkOption {
-            type = lib.types.str;
-            default = "x86_64-linux";
-          };
-
-          module = lib.mkOption {
-            type = optionsMaterializers.nixosConfigurationModuleType;
-            default = {};
-          };
-        };
-      }
-    );
-    default = {};
-  };
-
-  options.configurations.homeManager = lib.mkOption {
-    # Same editor constraint as configurations.nixos: lazyAttrsOf hides nested seed declarations from nixd.
-    # attrsOf keeps host/user paths concrete enough for flake-parts debug.options completion.
-    type = lib.types.attrsOf (
-      lib.types.submodule {
-        options = {
-          system = lib.mkOption {
-            type = lib.types.str;
-            default = "x86_64-linux";
-          };
-
-          module = lib.mkOption {
-            type = optionsMaterializers.homeConfigurationModuleType;
-            default = {};
-          };
-        };
-      }
-    );
-    default = {};
+  options.configurations = {
+    nixos = configurationOptions optionsMaterializers.nixosConfigurationModuleType;
+    homeManager = configurationOptions optionsMaterializers.homeConfigurationModuleType;
   };
 
   config.flake.nixosConfigurations =
@@ -109,7 +89,7 @@ in {
               {
                 nixpkgs.overlays = nixosOverlays;
               }
-              hmMaterializers.hmFactoryModule
+              embeddedHome
               {
                 networking.hostName = lib.mkDefault name;
               }
@@ -122,8 +102,6 @@ in {
             ]
             ++ nixosModuleList
             ++ [
-              # cfg.module is a typed flake-parts seed, not the final NixOS module surface.
-              # Compact it first so only explicitly specified seed values enter the real module system.
               (seedLib.compactNixosSeedModule cfg.module)
             ];
         }
@@ -157,8 +135,6 @@ in {
             ]
             ++ homeModuleList
             ++ [
-              # cfg.module is a typed flake-parts Home Manager seed, not the final Home Manager module surface.
-              # Compact it first so only explicitly specified seed values enter the real module system.
               (seedLib.compactHomeSeedModule cfg.module)
             ];
         }
