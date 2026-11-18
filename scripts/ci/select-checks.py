@@ -31,7 +31,11 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
         path = PurePosixPath(raw).as_posix()
         if (
             path in ("flake.lock", "flake.nix", "modules/10-foundations/overlays.nix")
-            or path.startswith(("modules/00-hosts/", "modules/_internal/configurations/", "lib/"))
+            or path.startswith("modules/00-hosts/")
+            or (
+                path.startswith("modules/_internal/configurations/")
+                and not path.startswith("modules/_internal/configurations/tests/")
+            )
         ):
             # Shared inputs and host selections can affect any feature check.
             checks.update(OPTIONAL_CHECKS)
