@@ -2,7 +2,14 @@
   features = import ./features.nix {inherit lib;};
   users = import ./users.nix {inherit lib features;};
   policies = import ./policies.nix {inherit lib features;};
-  layout = import ./service-layout.nix {inherit lib;};
+  composition = import ./composition.nix {inherit lib;};
+  pipeline = composition.namedPipeline {
+    label = "test.normalization";
+    steps = [
+      {name = "increment"; run = x: x + 1;}
+      {name = "stringify"; run = x: "value-${toString x}";}
+    ];
+  };
   cfg = {
     local.users = {
       alice = {enable = true; features = {steam.enable = true; git.enable = false;};};
@@ -16,71 +23,51 @@
     gamma = {unfree = ["steam" "minecraft"]; permittedInsecure = ["legacy"];};
   };
 in {
-  testServiceLayoutPreservesLegacyPaths = {
-    expr = layout.mkGameDirectories {
-      key = "minecraft";
-      home = "/home/game-minecraft";
-    };
-    expected = {
-      home = "/home/game-minecraft";
-      gameDir = "/home/game-minecraft/minecraft";
-      serverDir = "/home/game-minecraft/minecraft/server";
-      backupsDir = "/home/game-minecraft/minecraft/backups";
-      secretsDir = "/home/game-minecraft/secrets";
-      stateDir = "/home/game-minecraft/.state";
-      tailscaleDir = "/home/game-minecraft/.state/tailscale";
-    };
-  };
-
-  testServiceLayoutAllowsIndependentDataRoot = {
-    expr = (layout.mkGameDirectories {
-      key = "minecraft";
-      home = "/var/lib/game-containers/minecraft";
-      gameDir = "/srv/minecraft";
-    }).gameDir;
-    expected = "/srv/minecraft";
-  };
-
-  testServiceLayoutRejectsTraversalAndStorePaths = {
+  testNamedPipelineNamesAndOrderedEvaluation = {
     expr = {
-      badKey = (builtins.tryEval (layout.mkGameDirectories {
-        key = "../minecraft";
-        home = "/home/service";
-      }).gameDir).success;
-      badRoot = (builtins.tryEval (layout.mkGameDirectories {
-        key = "minecraft";
-        home = "/srv/../tmp";
-      }).gameDir).success;
-      storeRoot = (builtins.tryEval (layout.mkGameDirectories {
-        key = "minecraft";
-        home = "/nix/store/example";
-      }).gameDir).success;
-    };
-    expected = {badKey = false; badRoot = false; storeRoot = false;};
-  };
-
-  testStaticServiceAccountsAgreeAcrossScopes = {
-    expr = let
-      account = layout.mkStaticServiceAccount {bashInteractive = "/bin/bash";} {
-        key = "minecraft";
-        user = "game-minecraft";
-        uid = 27009;
-        gid = 27009;
-        home = "/var/lib/game-containers/minecraft";
-        containerName = "neko7-mc";
-      };
-    in {
-      uid = account.users.users.game-minecraft.uid;
-      gid = account.users.groups.game-minecraft.gid;
-      home = account.users.users.game-minecraft.home;
-      isNormalUser = account.users.users.game-minecraft.isNormalUser;
+      names = pipeline.stageNames;
+      value = pipeline.run 2;
+      empty = (composition.namedPipeline {label = "identity"; steps = [];}).run {a = 1;};
     };
     expected = {
-      uid = 27009;
-      gid = 27009;
-      home = "/var/lib/game-containers/minecraft";
-      isNormalUser = true;
+      names = ["increment" "stringify"];
+      value = "value-3";
+      empty = {a = 1;};
     };
+  };
+
+  testNamedPipelineRejectsInvalidStages = {
+    expr = {
+      duplicate = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "duplicate";
+          steps = [{name = "x"; run = x: x;} {name = "x"; run = x: x;}];
+        }).stageNames
+      )).success;
+      missingRun = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "invalid";
+          steps = [{name = "x";}];
+        }).stageNames
+      )).success;
+      blank = (builtins.tryEval (
+        (composition.namedPipeline {
+          label = "empty-name";
+          steps = [{name = ""; run = x: x;}];
+        }).stageNames
+      )).success;
+    };
+    expected = {duplicate = false; missingRun = false; blank = false;};
+  };
+
+  testNamedPipelinePreservesNativeOptionWrappers = {
+    expr = let
+      value = (composition.namedPipeline {
+        label = "definition-data";
+        steps = [{name = "select"; run = x: {config = x.config;};}];
+      }).run {config.foo = lib.mkDefault true;};
+    in value.config.foo._type;
+    expected = "override";
   };
 
   testMissingAndExplicitlyDisabledFeatures = {
