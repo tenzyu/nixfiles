@@ -5,6 +5,13 @@ the approved switch made NixOS generation 68 the default boot entry.
 Minecraft is running from `/srv/minecraft` with the existing Tailscale
 identity. The boot entry was verified on the running host.
 
+**Historical procedure warning:** the commands further below document the *initial*
+migration and require absent destination directories. The current repository
+already selects `game-srv.enable = true`; on an already migrated neko7,
+**do not re-run the mkdir/rsync/cutover sequence**. To inspect current state,
+check the live host and backup policy separately. A Git rollback does not
+roll back world writes.
+
 The current neko7 configuration enables Minecraft only; ARK and Rust remain
 disabled. Their prospective `/srv/{ark,rust}` layouts exist in source but
 **must not** be activated against historical data without their own inventory.
@@ -31,7 +38,7 @@ without introducing `privateUsers` remapping. The host's `/srv` must be
 mounted before container startup. No activation hook, tmpfiles cleanup, or
 program in this PR moves or deletes legacy data.
 
-## Preconditions — inspect, do not migrate yet
+## Historical first-migration preflight (unmigrated hosts only)
 
 From a trusted local/proxmox console or a session with rollback access on neko7:
 
@@ -54,7 +61,7 @@ with `sudo find /home/game-minecraft -type l -ls`. Check that there is no
 second Minecraft instance writing to the world. Save an independent
 backup or VM snapshot before running the copy.
 
-## TODO(srv-cutover): shortest host operation (requires explicit approval)
+## Historical first-cutover procedure — do not rerun on an already migrated host
 
 Requires `rsync` available on neko7 (install/provide temporarily if absent).
 Work from the checked-out PR version; **do not** enable the flag until after
@@ -82,7 +89,7 @@ sudo rsync -aHAXcni --numeric-ids /home/game-minecraft/.state/ /var/lib/game-con
 sudo rsync -aHAXcni --numeric-ids /home/game-minecraft/secrets/ /var/lib/game-containers/minecraft/secrets/
 ```
 
-The backup/identity copy might require the Tailscale daemon itself to stop
+The historical backup/identity copy might require the Tailscale daemon itself to stop
 in the guest before copying; stopping the container should guarantee no
 guest process is writing its bind mounts. Do **not** run the command against
 live files.
@@ -90,7 +97,7 @@ live files.
 If the destination already exists, do not use `--delete`, `mv`, or force
 overwrite. Treat it as a manual collision/rollback case.
 
-### Commit the final enablement
+### Historical final enablement (already selected in current source)
 
 In `modules/00-hosts/neko7/configuration.nix` change only:
 
@@ -109,13 +116,6 @@ sudo nixos-rebuild test --flake .#neko7
 sudo systemctl status container@neko7-mc.service
 game status minecraft
 game ip minecraft
-```
-
-Nix attr paths with slashes require quoted selectors; the **canonical**
-Nix command is:
-
-```bash
-nix eval --raw '.#nixosConfigurations.neko7.config.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath'
 ```
 
 Check `journalctl -u container@neko7-mc.service` and the guest

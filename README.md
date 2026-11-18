@@ -1,85 +1,112 @@
 # nixfiles
 
-Personal NixOS / Home Manager configurations for three hosts, using **flake-parts** and **import-tree**. Feature wiring is an internal repository implementation, not a separate Flake dependency. This repository is not a generic installer: hardware UUIDs, user identities and runtime dependencies are host-specific.
+**Nix-first, multi-host NixOS and Home Manager configuration**, built with [flakes](https://nix.dev/concepts/flakes), [flake-parts](https://flake.parts/), and [import-tree](https://github.com/vic/import-tree).
+
+This is a **personal infrastructure repository, not an installer or reusable NixOS distribution**. Hosts, hardware assumptions, users, SSH trust, persistent state and deployment permissions are specific to the machines below. The goal is to keep host declarations obvious while using native NixOS/Home Manager options for their actual effects.
 
 ## Hosts
 
-| NixOS configuration | Intended role |
-| --- | --- |
-| `neko5` | Laptop; Hyprland desktop, osu!lazer, remote build client |
-| `neko6` | NixOS-WSL; CLI and Docker |
-| `neko7` | Proxmox guest; CUDA, remote builder, development services, SplitCast consumer |
+| Flake output | Source role | Notable declared capabilities |
+| --- | --- | --- |
+| `nixosConfigurations.neko5` | Laptop / graphical workstation | Hyprland, osu!lazer, PipeWire, remote Nix build client, Home Manager |
+| `nixosConfigurations.neko6` | NixOS-WSL configuration | CLI environment, Docker, standalone host-specific WSL integration |
+| `nixosConfigurations.neko7` | Proxmox NixOS guest | CUDA, remote builder, T3 Code, SplitCast production consumer, Minecraft container |
 
-These are **source declarations**, not evidence of the generation currently booted or services currently running. See [host inventory](docs/host-state.md).
+These are **Git declarations**, not a claim about which NixOS generation is booted or which services are currently running. The current neko7 source selects Minecraft with `game-srv.enable = true` (`/srv/minecraft`); ARK and Rust are disabled. Both neko5 and neko7 select the `sops-nix` provider, but that selection alone does **not** establish that a particular secret has been provisioned or decrypted. See [host declarations and evidence](docs/host-state.md).
 
-## Repository map
+## Design
 
-```text
-flake.nix                        Flake inputs and two module imports
-modules/_internal/configurations/ private typed configuration adapter
-modules/00-hosts/                neko5, neko6, neko7 declarations
-modules/10-foundations/          baseline, tooling and package overlays
-modules/50-features/<domain>/    NixOS and Home Manager feature modules
-modules/60-integrations/         conditional cross-feature contributions
-tools/framework-cli/             separate inspection and test CLI
-assets/                          migration, GC and OpenCode resources
-scripts/osu-performance/         osu! experiments
-docs/index.md                    LLM Wiki / OKF knowledge index
-ROADMAP.md                       unfinished acceptance work
+The host interface is intentionally explicit. A host names the features it wants; feature implementations use native NixOS and Home Manager options.
+
+```nix
+# Excerpt of the host authoring style; see the actual file for all selections.
+configurations.nixos.neko7.module = {
+  local.features.game-minecraft.enable = true;
+  local.features.game-ark.enable = false;
+  local.features.game-rust.enable = false;
+  local.features.game-srv.enable = true;
+
+  local.users.tenzyu.features.t3code-neko7.enable = true;
+};
 ```
 
-The evaluation path is `flake.nix` → explicit `modules/_internal/configurations/default.nix` + `import-tree ./modules` → `configurations.nixos.<host>.module` → `nixosConfigurations.<host>`. The `_internal` directory is intentionally excluded from recursive auto-import. The internal configuration adapter is **not** a Flake input. Embedded Home Manager uses `useGlobalPkgs = true`. The adapter also supports explicit standalone `configurations.homeManager` declarations.
+- **Selection vs effect:** `local.features.<name>.enable` selects a registered `flake.modules.nixos` or `flake.modules.homeManager` feature. Each feature owns its own `lib.mkIf` and native option assignments.
+- **Typed projection:** the private configuration adapter turns the editor-visible, nullable seed into NixOS/Home Manager definitions without replacing the native module merge/override system. A selected user feature can imply a same-named NixOS capability via `mkDefault`, with a conflict assertion.
+- **Meaningful composition:** `lib/composition.nix` names ordered value transformations and checks disjoint/intentional attribute composition. It does **not** redefine `mkMerge`, overlay fixed points, or NixOS priority semantics.
+- **Boundaries:** hosts select; foundations provide shared infrastructure; features implement independently selectable behavior; integrations contribute conditional cross-feature rules. Per-feature unfree allowances are collected only from selected features.
 
-The three host files list concrete Home Manager features. A user selection also enables a same-named NixOS feature when one is registered. neko7 selects Zsh as its login shell through the user feature list. The per-host Zsh module configures interactive Zsh on neko6, whose WSL login shell is Bash. See the [projection rules](docs/architecture.md#projection-rules).
+Read [architecture](docs/architecture.md), [feature-option ownership](docs/feature-options.md), and [composition contracts](docs/composition.md) for precise semantics.
 
-## Inspect and validate
+## Repository layout
 
-From the repository root:
+```text
+flake.nix                       inputs and flake-parts entrypoint
+flake.lock                      pinned dependency graph
+modules/
+  _internal/configurations/    typed seed, projection and materialization (not auto-imported)
+  00-hosts/                    explicit neko5 / neko6 / neko7 declarations
+  10-foundations/              checks, policies, overlays and CLI apps
+  50-features/<domain>/        opt-in NixOS / Home Manager capabilities
+  60-integrations/             cross-feature contributions
+lib/                            pure, tested composition and selection utilities
+tools/framework-cli/            feature tracing, tests and invariant inspection
+assets/                          deployed assets and operational helpers
+docs/index.md                    source-grounded Wiki / documentation index
+MEMORY.md                        short agent retrieval index
+ROADMAP.md                       unverified work and acceptance gates
+```
+
+Most behavior is declared in Nix; some bundled CLI, migration, testing and agent integration assets are TypeScript, Python or shell. **“Nix-first” does not mean 100% Nix source or zero mutable runtime state.**
+
+## Inspect without changing a machine
+
+From a checkout with a working Nix installation and flakes enabled:
 
 ```sh
 nix flake show
 nix eval .#nixosConfigurations --apply builtins.attrNames --json
-# PR-equivalent focused checks (avoid rebuilding all flake checks):
-nix build --no-link .#checks.x86_64-linux.framework-cli \
-  .#checks.x86_64-linux.deprecated-patterns \
-  .#checks.x86_64-linux.feature-name-shape
+
+# Focused repository test suite; no OS activation:
 nix run -L .#framework-test
-# Optional, builds a closure without activating the host:
-nix build .#nixosConfigurations.neko5.config.system.build.toplevel --no-link
+
+# Evaluate one system derivation path, without building or activating it:
+nix eval --raw .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
+
+# Discover supported inspection commands:
+nix run .#framework-cli -- --help
 ```
 
-Evaluation, build, activation, boot, and runtime acceptance are **different gates**. No OS switch or reboot is performed by these inspection commands.
+For the CI-equivalent, targeted check set, use [PR validation](docs/ci-validation.md). Avoid casually running full `nix flake check`: it can select expensive, unrelated builds. Building a system closure is also distinct from evaluating its derivation.
 
-## Module boundaries
+`feature-trace` can inspect a selected feature, and `framework-cli --why OPTION_PATH` exposes evaluated NixOS option values and definition locations. Textual source hints are **navigation aids**, not proof that a definition was selected.
 
-- **Hosts** declare *which* features/users are selected; they do not implement a new module system.
-- **Features** declare actual NixOS/Home Manager effects using native option paths and `lib.mkIf`.
-- **Configuration adapter** exposes typed host and user selections to nixd and projects them into NixOS and Home Manager. A shared schema defines user and context options. The seed keeps nullable feature selections so omitted flags can use native defaults.
-- **Foundations** own formatter, systems, static checks, package overlays, and CLI app exposure.
-- **Tools** inspect and test configuration but do not mutate host state.
+## Change a host or feature
 
-## How to change a feature
+1. Locate the relevant `modules/00-hosts/<host>/configuration.nix`. Preserve its `configurations.nixos.<host>.module` and `local.users.<name>.features` authoring API; keep feature selections explicit.
+2. For new behavior, register the corresponding `flake.modules.nixos.<name>` and/or `flake.modules.homeManager.<name>` under `modules/50-features/<domain>/`. Use native target options and a feature guard; cross-feature effects belong under `60-integrations/`.
+3. Keep package admission under `flake.local.featurePolicies.<name>`, not a host-wide unfree bypass. Check the locked nixpkgs/Home Manager options before inventing glue.
+4. Run focused tests, evaluate affected hosts, compare the resulting options and derivations, and review any state migration or restart. **A successful CI check is not permission to activate.**
 
-1. Inspect `modules/00-hosts/<host>/configuration.nix` for `local.features` (system) and `local.users.<name>.features` (Home Manager).
-2. Add or update `modules/50-features/<domain>/<feature>.nix`, registering `flake.modules.nixos.<feature>` or `flake.modules.homeManager.<feature>`, then enable it in the intended host. Feature names use kebab-case.
-3. If required, declare per-feature package admission under `flake.local.featurePolicies.<feature>`, not as a global unfree exception.
-4. Validate before separately authorizing a switch, boot, service migration or data mutation.
+**Operator-only activation:** after independent review and explicit approval on the intended host, use the relevant `nixos-rebuild test --flake .#<host>` or `switch` workflow. `test` already activates units; neither is read-only. A NixOS generation rollback does not undo writes to world data, user files, or external services.
 
-The adapter derives feature option names from `flake.modules`. Adding a feature takes a module registration and a host selection. See the [architecture](docs/architecture.md) for how the typed seed passes those selections to NixOS and Home Manager.
+## Operational boundaries
 
-Framework tools are exposed as `framework-cli`, `framework-test`, `framework-invariants` and `feature-trace` flake apps. Use `--feature NAME` with `--scope` and `--user` to select features. `--why OPTION_PATH` reports the effective NixOS value and its evaluated definitions. Feature JSON includes evaluated Nix definitions in `definitions` and scanned source locations in `source_hints`. Use `nix run .#framework-cli -- --help` to inspect the supported interface.
+| Concern | Where to start |
+| --- | --- |
+| Current source declarations vs historical runtime observations | [Host inventory](docs/host-state.md) |
+| NixOS validation and which checks CI actually runs | [CI validation](docs/ci-validation.md) |
+| Secrets, age bootstrap and Tailscale identity | [Secrets and Tailscale](docs/secrets-and-tailscale.md) |
+| Minecraft `/srv` cutover and historical migration steps | [Game server storage runbook](docs/game-server-srv-migration.md) |
+| Home Manager XDG relocation (check-only activation) | [Home migration](assets/home-layout/README.md) |
+| Nix store GC and generation rollback safety | [Nix store cleanup](docs/nix-store-clean.md) |
+| T3 Code/remote development on neko7 | [T3 Code runbook](docs/t3code-neko7.md) |
+| SplitCast as an external flake consumer | [SplitCast integration](docs/splitcast-consumer.md) |
+| Known risks and open acceptance work | [Decisions](docs/decisions.md) · [Roadmap](ROADMAP.md) |
 
-## Safety boundaries
+## Documentation
 
-- Home Migration activation is **check-only**: pending migration work aborts before `writeBoundary`. Automatic file moves during activation are not supported; `home-layout-migrate apply` is a separate, explicitly authorized operator action.
-- `neko5` enables `home-layout`, but its host file explicitly notes buggy migration scripts. **Do not treat XDG data migration as accepted.** See [migration runbook](assets/home-layout/README.md).
-- `nix-store-clean-current-system` respects Nix GC liveness; optional generation pruning still needs VM lifecycle acceptance. See [GC runbook](docs/nix-store-clean.md).
-- `neko7` enables the OpenCode direnv integration, **not** the candidate Home Manager-managed OpenCode server unit. See [devShell](docs/opencode-devshells.md) and [migration](docs/opencode-neko7-migration.md).
-- SplitCast is a separate pinned flake. `neko5` capture is disabled while `neko7` production role is declared; neither implies live broadcasting or deployment acceptance. See [consumer contract](docs/splitcast-consumer.md).
-- osu! performance adjustments are experimental, not proven physical latency improvements. See [display](scripts/osu-performance/README-display.md) and [lab](scripts/osu-performance/README-lab.md).
+The [Wiki index](docs/index.md) is a **pull-oriented map** of architecture, decisions, source-derived facts and focused runbooks. [MEMORY.md](MEMORY.md) and [AGENTS.md](AGENTS.md) provide a small agent entrypoint, not a second source of truth. Dreaming reconciles those documents against implementation and evidence rather than adding an append-only history.
 
-## Documentation and design
+### Inspirations and upstream references
 
-The [OKF v0.2 Wiki](docs/index.md) is the agent-readable knowledge layer: architecture, host declarations, evidence, decisions, operations. The separate [roadmap](ROADMAP.md) contains future work and unverified gates. Source code wins over stale prose, but Git declarations alone never prove runtime state.
-
-README organization was informed by the discoverability and host/module separation used in [Misterio77/nix-starter-configs](https://github.com/Misterio77/nix-starter-configs), [ryoppippi/dotfiles](https://github.com/ryoppippi/dotfiles), and [NixOS system configuration guidance](https://wiki.nixos.org/wiki/NixOS_system_configuration). These are structural references rather than implementation dependencies.
+The documentation layout was informed by the host/workflow emphasis in [mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), the explicit non-installer boundary in [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), the module map in [kclejeune/system](https://github.com/kclejeune/system), the verification guidance in [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), and the concise flake-output descriptions in [fufexan/dotfiles](https://github.com/fufexan/dotfiles). They are references, **not** flake dependencies.

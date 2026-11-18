@@ -1,46 +1,50 @@
 ---
 type: Reference
-title: "Knowledge maintenance"
-description: "LLM Wiki Dreaming using OKF v0.2"
+title: "Dreaming and knowledge maintenance"
+description: "Correcting the OKF v0.2 Wiki against the repository"
 status: stable
-source_revision: 22191670806242933bc156e4a5e0cd9ad3ea14f1
+source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
 sources:
-  - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/flake.nix
-    title: "flake.nix"
-  - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/22191670806242933bc156e4a5e0cd9ad3ea14f1/framework/modules/configurations.nix
-    title: "framework/modules/configurations.nix"
+  - id: flake
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/flake.nix
+    title: "Flake entrypoint"
+  - id: adapter
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/configurations.nix
+    title: "Typed configuration adapter"
 ---
 
-# LLM Wiki / OKF v0.2 maintenance
+# Dreaming: maintain a small, accurate knowledge map
 
-## Purpose and boundaries
+## Distinct responsibilities
 
-`README.md` is the first-visit interface; `ROADMAP.md` is not-yet-done work. `docs/index.md` is the progressive-disclosure entrypoint for this **source-derived knowledge bundle**. Each concept has YAML frontmatter with at least `type`, and preferably `title`, `description`, provenance `sources`, `status` and `source_revision`. `index.md` and `log.md` are reserved OKF names.
+| Layer | Audience | Content |
+| --- | --- | --- |
+| [README](../README.md) | First-time reader | Purpose, host overview, design, navigation, safe validation |
+| [AGENTS](../AGENTS.md) | Assistant at task entry | Fixed constraints, retrieval order, nonnegotiable safety |
+| [MEMORY](../MEMORY.md) | Assistant during work | Small current-source index and durable decisions |
+| [Wiki](index.md) | Pull-based reference | Conceptual architecture, invariants, operational runbooks and provenance |
+| [Roadmap](../ROADMAP.md) | Future work | Unverified acceptance and open migration work |
+| [Log](log.md) | History | Dated knowledge corrections, not instructions or runtime proof |
 
-Existing operational manuals stay close to the executable assets where appropriate. Link to them instead of duplicating dangerous or long procedures.
+**Do not copy all documents into an agent's initial context.** Retrieve the narrowest topic through the index. The Wiki is not a replacement for code search or current source inspection.
 
-## Evidence model
+## Source and evidence protocol
 
-- **Declaration:** exact Nix/TypeScript/Python code and feature condition.
-- **Test observed:** executed command, environment, result and date.
-- **Runtime observed:** host, generation, time, process or metric.
-- **Hypothesis:** unverified inference or optimization.
-- **Blocked:** missing authorization, compatibility, reproducible test or telemetry.
+1. Identify the task's **What/Why** and locate all relevant code paths in the current Git tree. Use `flake.nix`, `modules/00-hosts/<host>/configuration.nix`, the selected feature, and tests as the first evidence.
+2. For each claim, classify it as **declared**, **evaluated**, **tested**, **built**, **observed at host + generation + time**, **hypothesized**, or **blocked**. Do not promote a lower evidence tier to a higher one.
+3. Reconcile the old Wiki against implementation. Correct broken paths, outdated feature flags, inaccurate defaults, and duplicate concepts. Where observations disagree with source, preserve them as *dated* observations instead of declaring the current host healthy or broken.
+4. Keep one canonical explanation per concept. Link to it from the README/index and leave operational details in runbooks. Preserve rejection reasons and failed acceptance so another agent will not repeat an unsafe experiment.
+5. Update navigation and [knowledge log](log.md); validate Markdown relative links, code path existence and source provenance. Stage a documentation-only change unless a separately requested code fix is needed.
+6. Store secrets, credentials and host decryption keys **nowhere** in the Wiki or examples. Do not synthesize host output, successful CI, hardware acceptance, or a human approval.
 
-`source_revision` records the Git commit used to derive a concept, not a runtime validation. The optional OKF `verified` property must only be added for a real review or deterministic comparison; never assign `human:` review without human approval. `status: stable` means the article is a usable reference, not a guarantee of live deployment.
+## OKF and provenance
 
-## Dreaming workflow
+This repository follows the [Open Knowledge Format v0.2 specification](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md): `index.md` and `log.md` are reserved navigation/history pages, and concept pages can carry `type`, `title`, `description`, `status`, `source_revision` and `sources` metadata.
 
-1. From [index](index.md), locate concepts relevant to the changed Nix modules, scripts and host declarations.
-2. Compare their immutable source references with changed implementations. **Implementation has priority** for declared behavior. A runtime observation needs its own host/generation evidence.
-3. Merge duplicate or contradictory facts into one concept; preserve durable Why/What and causal mechanisms, not an append-only transcript. Keep runbooks for risky How.
-4. Mark legacy observations with date and environment. Move uncompleted acceptance work to [ROADMAP](../ROADMAP.md), not the README.
-5. Update provenance, crosslinks, index and [log](log.md). Verify Markdown links, YAML frontmatter, feature names and commands before merging.
-6. Do not claim Nix builds, VM exercises, reboots or deployment acceptance unless those checks were actually executed.
+A `source_revision` is the immutable commit **used for source comparison**, not a claim that the machine ran that revision. Each `sources[].resource` must point to an actual file at that revision. Avoid a misleading synthetic `verified: human` field. Update the revision only after reading the corresponding source.
 
-## References
+## Why dreaming is useful, and where to stop
 
-- [Open Knowledge Format v0.2 specification](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md)
-- [LLM Wiki concept](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+[Anthropic's agent memory research](https://www.anthropic.com/research/components-of-agent-memory) describes correcting notes against original evidence, consolidating redundancies and using a Wiki with search for cross-document synthesis. It also reports failure when a Wiki becomes larger than the underlying source material, or when a long always-injected note displaces useful context.
+
+**Convergence rule:** add or change a page only when it reduces lookup cost, fixes a material error, or captures a non-obvious invariant/failed path. Prefer fewer correct links to duplicative pages. Use one targeted source-and-link reconciliation pass rather than regenerating every document after each source commit.

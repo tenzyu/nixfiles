@@ -1,6 +1,14 @@
 # Knowledge update log
 
-## 2026-11-18
+## 2026-11-18 — Dreaming reconciliation (`438aa02b426d`)
+
+- **First-visit experience:** rebuilt [README](../README.md) around explicit host selections, evaluation vs activation, and operational boundaries after comparing more than twenty Nix-heavy dotfiles/NixOS README files.
+- **Source correction:** aligned [host inventory](host-state.md) and [game-server features](game-server-features.md) to `neko7`'s selected `game-srv.enable = true` and `/srv/minecraft`; retained the completed generation-68 story as a dated observation instead of calling a historical cutover still pending.
+- **Provenance repair:** replaced historical non-existent module source links in [decisions](decisions.md) and [Wiki protocol](schema.md) with immutable references to current implementation paths.
+- **Retrieval hygiene:** reduced [MEMORY](../MEMORY.md) to a small source index and expanded [Wiki navigation](index.md). Source is authoritative for declarations, while recorded host observations remain time-scoped.
+- **Documentation-only:** no NixOS activation, credential migration, service restart, OS build or runtime verification was carried out as part of this reconciliation.
+
+## 2026-11-18 — Earlier entries
 
 - [Host inventory](host-state.md) and [feature projection](architecture.md) document explicit host selections, Home Manager Zsh scope and the disabled features.
 

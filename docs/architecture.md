@@ -3,31 +3,31 @@ type: Architecture
 title: "Feature projection"
 description: "NixOS and Home Manager feature resolution"
 status: stable
-source_revision: bbac7a249a234542e0efe66449d13212414d8a16
+source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/flake.nix
     title: "flake.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/configurations.nix
     title: "modules/_internal/configurations/configurations.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/options.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/options.nix
     title: "modules/_internal/configurations/materializers/options.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/users.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/users.nix
     title: "modules/_internal/configurations/materializers/users.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/_internal/configurations/materializers/home-manager.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/home-manager.nix
     title: "modules/_internal/configurations/materializers/home-manager.nix"
   - id: src-6
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/10-foundations/_policy/materializer.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/10-foundations/_policy/materializer.nix
     title: "modules/10-foundations/_policy/materializer.nix"
   - id: src-7
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/50-features/cli/zsh.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/cli/zsh.nix
     title: "modules/50-features/cli/zsh.nix"
   - id: src-8
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/gaming/steam.nix
     title: "modules/50-features/gaming/steam.nix"
 ---
 
@@ -71,7 +71,13 @@ A feature selected through `local.users.<user>.features` implies the same-named 
 
 ## Package policy
 
-Feature policy declarations are not blanket package authorization. The NixOS materializer aggregates enabled system and user feature policy into `local.nixpkgsPolicy`, then maps to `nixpkgs.config.allowUnfreePredicate` and `permittedInsecurePackages`. Standalone Home Manager has a separate materializer.
+Feature policy declarations are not blanket package authorization. The NixOS materializer aggregates enabled system and user feature policy into `local.nixpkgsPolicy`, then maps to `nixpkgs.config.allowUnfreePredicate` and `permittedInsecurePackages`. The unfree predicate uses a name-indexed `lib.genAttrs` set and `builtins.hasAttr`; the original scoped policy semantics remain unchanged. Standalone Home Manager has a separate materializer.
+
+## Semantic value composition
+
+The shared [composition library](composition.md) supplies `namedPipeline`, `namedDisjoint` and `overrideExisting` **for ordinary Nix values**. The adapter uses named stages when projecting typed seeds and explicitly checks disjoint or intentionally replaced fields when composing its input data. These functions do not introduce an alternate NixOS module evaluator.
+
+Value transformations (`lib.pipe`), overlay fixed points (`lib.composeManyExtensions`) and option definitions (`imports`, `lib.mkMerge`, type/priority merging) have different semantics. For actual NixOS/Home Manager settings, retain native module definitions and inspect `options.<path>.definitionsWithLocations` when source provenance matters.
 
 ## Verification interfaces
 

@@ -2,34 +2,43 @@
 okf_version: "0.2"
 ---
 
-# nixfiles — LLM Wiki
+# nixfiles — documentation map
 
-This OKF v0.2 bundle is a **compiled, source-grounded understanding** of the repository, not a duplicate of its Nix modules.
+**Start here only when a task needs more detail than [README](../README.md).** This is a source-grounded, pull-oriented Wiki, not a copy of the Nix files or an agent's event transcript. Source declarations, evaluated output, and live host state are separate evidence levels.
 
-## Concepts
+## Understand the system
 
-- [Architecture](architecture.md) — feature registry, seed compaction, materializers and Home Manager projection
-- [Feature options](feature-options.md) — native NixOS/Home Manager option ownership and lookup
-- [Host state](host-state.md) — configuration declarations, disabled features and runtime uncertainty
-- [Decisions](decisions.md) — safety, ownership boundaries and validation gates
-- [Knowledge maintenance](schema.md) — provenance, evidence labels, Dreaming reconciliation
+| Question | Read |
+| --- | --- |
+| What gets imported, projected and materialized? | [Architecture](architecture.md) |
+| Why does an option live in NixOS, Home Manager or an integration? | [Native feature options](feature-options.md) |
+| What do the named value/attrset composition helpers guarantee? | [Composition](composition.md) |
+| What do the three hosts **declare**, not necessarily run? | [Host inventory](host-state.md) |
+| Why are changes gated or deliberately not automated? | [Decisions](decisions.md) |
+| How is this Wiki corrected and kept small? | [Dreaming and evidence protocol](schema.md) |
 
-## Runbooks and references
+## Operate specific components
 
-- [Nix store cleanup](nix-store-clean.md)
-- [neko7 development cycle, Serve recovery and PR resumption](t3code-neko7.md)
-- [OpenCode devShell / direnv integration](opencode-devshells.md)
-- [OpenCode service migration](opencode-neko7-migration.md)
-- [SplitCast consumer](splitcast-consumer.md)
-- [XDG home migration](../assets/home-layout/README.md)
-- [osu! display experiments](../scripts/osu-performance/README-display.md)
-- [osu! latency lab](../scripts/osu-performance/README-lab.md)
+| Concern | Runbook or source |
+| --- | --- |
+| Focused PR checks and CI | [Validation](ci-validation.md) |
+| `sops-nix`, age keys, secret handoff and Tailscale | [Secrets and Tailscale](secrets-and-tailscale.md) |
+| Selected Minecraft container, disabled ARK/Rust | [Game-server features](game-server-features.md) |
+| Historical Minecraft `/srv` migration and rollback | [Storage migration](game-server-srv-migration.md) |
+| Persistent game directory / service account invariants | [Service layout](service-layout.md) |
+| Nix generation cleanup and GC roots | [Store cleanup](nix-store-clean.md) |
+| T3 Code + Tailnet Serve on neko7 | [Development service](t3code-neko7.md) |
+| OpenCode / direnv shell context | [OpenCode devShells](opencode-devshells.md) |
+| Candidate OpenCode server cutover | [OpenCode migration](opencode-neko7-migration.md) |
+| SplitCast consumer vs upstream product ownership | [SplitCast](splitcast-consumer.md) |
+| QEMU guest configuration | [QEMU guest](qemu-guest.md) |
+| Home Manager user-data moves | [Home migration](../assets/home-layout/README.md) |
+| osu! display and timing research | [Display](../scripts/osu-performance/README-display.md) · [Experiments](../scripts/osu-performance/README-lab.md) |
 
-## Separate planning and history
+## What's unfinished / what changed?
 
-- [Roadmap](../ROADMAP.md) — proposed and unverified work
-- [Update log](log.md) — Wiki edit history
+- [Roadmap](../ROADMAP.md) — unverified acceptance work. Do not confuse it with enabled features.
+- [Knowledge update log](log.md) — dated documentation corrections, not evidence of a successful host switch.
+- [Agent retrieval index](../MEMORY.md) — small, stable constraints and directions.
 
-## Truth ordering
-
-Exact implementation and its conditions establish what is declared; reproducible tests establish what was tested; host + generation + time establish what actually ran. Previous documentation and conversation claims are context rather than stronger evidence. **Implementation wins over contradictory prose, but code cannot establish current runtime state.**
+**Truth ordering:** check the current `flake.nix`, host feature selection and corresponding native option definitions. Tests establish only what they test. A live claim requires host + generation + timestamp + direct observation. Record failed attempts and historical operator evidence without promoting either into timeless current state.

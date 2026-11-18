@@ -1,6 +1,6 @@
 # Feature option ownership and upstream option lookup
 
-Scope: source declarations for `nixfiles` at `1e3a88b6007db2ac804a9a9b73fe805249ef4b06`, not observed
+Scope: source declarations for `nixfiles` at `438aa02b426db0a5962dd0102f0cbb04a5191c06`, not observed
 host generations. **Source names and direct host selections remain stable.**
 
 ## Select the narrowest existing NixOS / Home Manager option
@@ -13,7 +13,9 @@ host generations. **Source names and direct host selections remain stable.**
 | Home configuration files | HM `xdg.configFile.<name>.source` | `zsh` owns `zsh/zshrc.d` relative to `xdg.configHome`, rather than using an absolute target via `home.file` |
 | Application settings | HM `programs.<name>.*` | Prefer typed options over additional hand-written JSON or shell glue |
 | Package exception | `flake.local.featurePolicies.<feature>` | Scope unfree / insecure exceptions to active features, not global user defaults |
-| Host identity or credential | `modules/00-hosts/<host>/` | Feature enablement must not silently copy a personal SSH key to every host |
+| Host identity or credential | NixOS `sops.*` options and `services.tailscale.authKeyFile` | Host `sops-nix.enable` imports the provider; it does not mean a particular secret is provisioned |
+| Minecraft data and systemd hardening | `services.minecraft-servers.dataDir`, `systemd.services.*.serviceConfig`, `containers.*.bindMounts` | neko7 explicitly selects `game-srv` and places its world under `/srv/minecraft`; see migration evidence |
+| Host SSH identity | `modules/00-hosts/<host>/` | Feature enablement must not silently copy a personal public key to every host |
 
 ## Upstream documentation checked
 
@@ -33,10 +35,7 @@ turning that guard into a new bespoke option system. Cross-feature
 contributions belong in `60-integrations`.
 
 `otd-access` and `networkmanager-access` are **moved unchanged** to files
-matching their feature names. The udev rule name/order and the group membership
-are unchanged. Zsh now declares its existing XDG target through HM's native
-`xdg.configFile`. No new daemon, credentials, session settings, or host
-selection is introduced by this refactor.
+matching their feature names. The udev rule name/order and group membership are intentional ownership boundaries. Zsh's XDG target uses HM's native `xdg.configFile`; the NixOS account selection reuses `helpers.mapUsersWithFeature` instead of filtering users twice. These are existing source declarations, not a request for more abstraction.
 
 ## Validation and rollback
 
@@ -54,3 +53,10 @@ feature toggle misleading. Its two existing XWayland rules are now a
 `60-integrations/desktop` contribution to `hyprland-tenzyu`, with no rule
 content changes. A host regression asserts both rules remain evaluated and
 the unreachable feature name is no longer advertised by the typed registry.
+
+## Native Nix operators vs the composition helpers
+
+- Prefer `builtins.intersectAttrs` to pick **existing** names from an attrset without mapping/filtering an entire set with `builtins.elem`. Values are supplied by the second attrset.
+- Use `lib.genAttrs names (_: true)` with `builtins.hasAttr` for repeated name membership checks, where building one lazy lookup set is simpler than scanning and deduplicating a list per check.
+- `namedPipeline` and `namedDisjoint` from [composition](composition.md) label plain-value transforms and reject accidental shallow collisions; they are not substitutes for `lib.mkIf`, `mkMerge` or Home Manager option definitions.
+- Keep host `local.features.<name>.enable` assignments explicit: using a generator to hide declarations makes editor navigation and intent less clear. Avoid helpers that are aliases of native Nixpkgs functions without a distinct contract.

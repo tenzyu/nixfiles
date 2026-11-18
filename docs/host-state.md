@@ -1,63 +1,66 @@
 ---
 type: Host Inventory
-title: "Host declarations"
-description: "Configuration declarations versus running generation"
+title: "Host declarations and evidence"
+description: "Source selection, recorded host observations, and unresolved state"
 status: stable
-source_revision: e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d
+source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
 sources:
-  - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko5/configuration.nix
-    title: "modules/00-hosts/neko5/configuration.nix"
-  - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko6/configuration.nix
-    title: "modules/00-hosts/neko6/configuration.nix"
-  - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko7/configuration.nix
-    title: "modules/00-hosts/neko7/configuration.nix"
-  - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko6/zsh.nix
-    title: "modules/00-hosts/neko6/zsh.nix"
-  - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/50-features/desktop/firefox.nix
-    title: "modules/50-features/desktop/firefox.nix"
+  - id: neko5
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko5/configuration.nix
+    title: "neko5 host declaration"
+  - id: neko6
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko6/configuration.nix
+    title: "neko6 host declaration"
+  - id: neko7
+    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko7/configuration.nix
+    title: "neko7 host declaration"
 ---
 
-# Host declarations versus runtime
+# Host declarations, not live inventory
 
-**Scope:** the repository's Git declarations at the source revision; not a live SSH or systemd inspection.
+**Source reference:** `438aa02b426d` on 2026-11-18. Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
 
-## NixOS state compatibility
+| Host | Intended platform | Declared capabilities | State-version caveat |
+| --- | --- | --- | --- |
+| `neko5` | Laptop / Hyprland desktop | Intel graphics, osu!lazer, remote Nix builds, PipeWire, Tailscale, XDG Home Manager | `local.context.systemStateVersion = "26.05"`; source setting corroborated by a prior operator correction, not an ongoing live measurement |
+| `neko6` | NixOS-WSL | Docker (rootful), CLI programs, SSH, Home Manager | Host has no explicit `local.context.systemStateVersion`; original WSL install lineage is **unknown** |
+| `neko7` | Proxmox NixOS guest | NVIDIA/CUDA, distributed Nix builder, T3 Code, SplitCast production consumer, Minecraft, Tailscale | Explicit `local.context.systemStateVersion = "26.05"`; active generation must be checked separately |
 
-| Host | Declaration | Evidence |
-| --- | --- | --- |
-| neko5 | **`26.05` (operator-confirmed)** | The live host declaration was explicitly changed from `24.11` to `26.05` in [commit 52ebacf](https://github.com/tenzyu/nixfiles/commit/52ebacf8e3e29e5764d6452c00773c5d6a015f03). The operator confirmed `26.05` as the correct baseline on 2026-11-18; the [initial historical configuration](https://github.com/tenzyu/nixfiles/blob/7303643/profiles/neko5/configuration.nix) is not today's declaration. |
-| neko6 | UNKNOWN, using the pinned Nixpkgs default of `26.05` | The first named WSL profile used `24.11`. SSH lookup failed, so the original imported distribution's state remains unverified. [First named WSL host](https://github.com/tenzyu/nixfiles/tree/b1c3ec0) |
-| neko7 | **`26.05` (explicit source declaration)** | `local.context.systemStateVersion = "26.05"` is set in the current [host configuration](https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko7/configuration.nix). Historical records mention `25.05` and `24.11` on earlier installations, but the current filesystem's installation lineage is not independently established here; do not conflate provenance with the evaluated value. |
+Each host's `local.users.tenzyu.context.homeStateVersion` is declared as `26.05`. This is a Home Manager compatibility choice, distinct from the OS's `system.stateVersion`. Do not mechanically upgrade compatibility versions to match `nixpkgs`.
 
-The evaluated NixOS state compatibility value is `26.05` on neko5 and neko7 by explicit host declaration; neko6 currently inherits the pinned Nixpkgs default, with its original WSL installation compatibility still unresolved. The user-confirmed neko5 baseline must not be silently reverted to the historical Git value. Home Manager separately declares `homeStateVersion = "26.05"` for each host's user. These are source declarations, not evidence of active generations or completed data migrations.
+## neko5: desktop and latency work
 
-## neko5
+The host selects Hyprland, Firefox, osu!lazer, `neko5-osu-first`, `nix-remote-client` and `nix-store-clean`. Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../assets/home-layout/README.md).
 
-The host selects laptop hardware, Intel graphics, Hyprland environment, `neko5-osu-first`, remote Nix build client, `nix-store-clean`, PipeWire and Tailscale. The user selects concrete CLI and desktop features, osu!lazer and `home-layout`. Firefox is the default browser for web links and HTML files.
+`sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The reported 1280×720 fullscreen/Direct Scanout baseline is an experimental constraint, not a measured end-to-end latency result.
 
-- `splitcast-capture` is set to **false** in both system and user scopes.
-- `home-layout` is **true**, but a host TODO says the migration scripts are buggy; safety acceptance is unresolved.
-- Some features such as `waydroid`, `bluetooth`, and `docker-rootless` are set to false.
-- Performance configuration does not prove physical display latency or present DSO state.
+## neko6: WSL
 
-## neko6
+The source still declares `neko6` and its NixOS-WSL integration. Its Home Manager Zsh feature configures interactive Zsh, but its system login-shell selection differs from neko5/neko7. Retiring this host or fixing its initial state-version baseline is separate work; do not infer that a source file is unused.
 
-The WSL declaration selects Docker rootful/on-boot, SSH and individual Home Manager CLI features. Zsh is enabled in Home Manager and Bash remains the login shell.
+## neko7: server, games and agents
 
-## neko7
+The current host explicitly selects:
 
-The Proxmox declaration selects CUDA/NVIDIA, the Nix remote builder, game-server containers, `opencode-direnv`, `rtk`, the SplitCast production role and individual Home Manager CLI features. The Zsh user feature enables Zsh in NixOS and Home Manager and sets it as the login shell.
+```nix
+game-ark.enable = false;
+game-rust.enable = false;
+game-minecraft.enable = true;
+game-srv.enable = true;
+game-server-tools.enable = true;
+sops-nix.enable = true;
+t3code-tailnet.enable = true;
+splitcast-production.enable = true;
+```
 
-- `opencode-neko7-service` candidate source exists but is **not enabled in the host**. Whether a separately managed server is running requires runtime verification.
-- `splitcast-production` is enabled in system and user scope; the consumer defines `rustCandidate = lib.mkDefault false`. Actual process state, streaming and PoC acceptance are not established by the declaration.
-- `kernel-latest` is set to false.
-- The [T3 runbook](t3code-neko7.md) records the later 2026-11-18 runtime observation and the separately tested on-demand Serve restore.
+Thus `neko7-mc` is the only **declared** game container, with the Minecraft world root at `/srv/minecraft` and the service HOME / Tailscale identity state at `/var/lib/game-containers/minecraft`. The old `game-server-containers` aspect remains a compatibility shim, **not** a selected host feature. ARK/Rust code remains available for a later explicit choice. See [game features](game-server-features.md) and [storage migration](game-server-srv-migration.md).
 
-## Runtime acceptance
+The [storage migration runbook](game-server-srv-migration.md) records a **dated 2026-11-18 operator report** of an offline copy, player login, and generation 68 becoming the default boot entry. That is historical evidence, not continuous confirmation of current Minecraft uptime. Its destructive/copy commands must **not** be rerun against an existing `/srv` destination.
 
-Record host, Git revision, NixOS generation, relevant `/run/current-system` store path, generated unit, process state and observation time before asserting deployment. [Architecture](architecture.md) explains why a registered feature differs from an enabled or running feature. See [OpenCode migration](opencode-neko7-migration.md) and [SplitCast consumer](splitcast-consumer.md).
+`sops-nix` is selected on neko7. [Secret provisioning](secrets-and-tailscale.md) requires a host decryption identity and an actual `sops.secrets` declaration; the feature toggle alone is not evidence that a Tailscale auth key was moved into SOPS. The `t3code-tailnet` systemd service is a controlled, on-demand Serve restore, not proof that the public/Tailnet route exists now. `opencode-neko7-service` remains a candidate aspect rather than a selected host feature. SplitCast `production` is a **consumer role**, not automatic broadcast acceptance.
+
+## Obtaining live acceptance evidence
+
+Record the host, UTC/JST timestamp, source revision, running `/run/current-system` identity, current system profile/boot entries, service status and direct functional result. Then compare with the desired configuration. Git revision, successful `nix eval`, closure build, `nixos-rebuild test`, `switch`, boot and application-level acceptance are distinct gates.
+
+See [architecture](architecture.md), [T3 Code runbook](t3code-neko7.md), [decisions](decisions.md) and [roadmap](../ROADMAP.md).

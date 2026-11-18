@@ -1,31 +1,26 @@
-# nixfiles — agent memory index
+# nixfiles — retrieval index
 
-**Purpose:** NixOS/Home Manager configuration for independently deployed hosts. Treat source declarations, evaluation, builds, activation, boot, and observed runtime as **different evidence tiers**. This file is a small retrieval index, not a copy of the Nix configuration or a live-machine inventory.
+**Purpose:** a compact map for agents working on this personal NixOS / Home Manager repository. This file is **not** host telemetry, a changelog, or a duplicate of feature modules. Review [AGENTS.md](AGENTS.md) for execution limits.
 
-## Source of truth (2026-11-18)
-- Read `flake.nix`, the relevant `modules/00-hosts/<host>/configuration.nix`, and the corresponding feature modules before changing behavior. Host declarations list concrete features through the typed seed. Read the [projection rules](docs/architecture.md#projection-rules) before moving native Home Manager settings into a user seed.
-- `neko5`: laptop, osu!lazer, Hyprland, remote build client. SplitCast capture is disabled. Preserve the known successful 1280×720 fullscreen/Direct Scanout path until independently checked.
-- `neko7`: Proxmox VM, remote builder, NVIDIA, development services. The pinned T3 Code + Codex Home Manager service is declared on loopback port 3773; the OpenCode direnv integration is declared. A separate OpenCode service remains migration-gated; do not create a second writer to its state. SplitCast production role is declared with its Rust runtime candidate gated off.
-- `neko6`: still declared as a NixOS-WSL host; user considers retirement acceptable, but runtime use and dependent references have not been disproved.
-- Imported `splitcast` is a separate Flake. Its product code and packaging belong in its own repository; this repository owns only host integration and pinned consumer options.
+## Read the right source
 
-## Retrieval — read only what this task needs
-- [Wiki index](docs/index.md) → architecture, host status, decisions, targeted runbooks.
-- [NixOS activation/rollback and outstanding gates](ROADMAP.md).
-- [T3 Code deployment boundary](docs/t3code-neko7.md) and [OpenCode devShell integration](docs/opencode-devshells.md).
-- [SplitCast consumer](docs/splitcast-consumer.md).
-- [Dangerous operations](docs/decisions.md): filesystem migration, Nix-store pruning, privileged helpers, service switch and credentials.
+- **Host change:** `flake.nix` → `modules/00-hosts/<host>/configuration.nix` → selected `modules/50-features/<domain>/` or `modules/60-integrations/`. See [architecture](docs/architecture.md).
+- **Nix options / compose helpers:** [native option ownership](docs/feature-options.md), [composition contracts](docs/composition.md), and `lib/`. Do not conflate shallow `//` updates with native module merge priorities.
+- **Runtime, migration or secret question:** [host inventory](docs/host-state.md), [decisions](docs/decisions.md), then the exact [Wiki runbook](docs/index.md).
+- **What remains blocked:** [roadmap](ROADMAP.md). Past `docs/log.md` entries do not authorize pending work.
 
-## Non-negotiable host configuration interface
-- **Do not change the writing experience of `modules/00-hosts/<host>/configuration.nix`.** Preserve `configurations.nixos.<host>.module`, `local.features.<feature>.enable`, and `local.users.<user>.features.<feature>.enable`. Explicit module `imports` or feature lists in host files are rejected.
-- Preserve type-safe feature names, editor completion, native `mkIf` semantics, tri-state/override behavior and current NixOS↔Home Manager projection behavior. Internal implementation can be simplified only after source/evaluation parity tests.
-- **Avoid opaque bundle/profile indirection.** A host declares concrete features itself; a feature does not silently enable an unrelated catalog of features. Personal `tenzyu` configuration and reusable features remain separately owned, without changing this host API.
-- Numbered directory categories remain. Automatic discovery may exist internally, but the evaluated provenance of each selected feature must be traceable from host selection to effective options.
+## Source snapshot (2026-11-18; Git `438aa02b426d`)
 
-## Execution contract
-- Minimal source change → relevant `nix eval` / focused checks → comparison of affected host options and derivations → build when required. Record exact revision, command, result, limitations, and rollback.
-- Do not use `nix flake check` as an unconditional PR gate: it can build unrelated heavyweight derivations. Do not claim a GitHub CI pass proves a service booted or worked on physical hardware.
-- An approved `.envrc` with nix-direnv selects project tools for normal shell commands; avoid redundant per-command `nix develop -c` in an already initialized environment.
-- Never automatically switch/boot/reboot hosts, open network listeners, enable capture, publish, merge, modify credentials, prune live Nix store roots, or migrate user data. These cross explicit operator approval boundaries.
-- Keep personal host preferences and UI settings distinguishable from portable Nix modules. Prefer native NixOS/Home Manager option semantics behind the existing host-facing feature API; never impose host-side imports. Preserve the numbered top-level organization while simplifying internal registration and materialization.
-- Documentation or Dreaming updates must verify against code, preserve decisions and failed evidence, mark runtime uncertainty, avoid secrets, and change only genuinely stale or redundant claims.
+- `neko5`: laptop, Hyprland, osu!lazer, remote build client. `splitcast-capture` disabled. Preserve known Direct Scanout success conditions; do not assert measured input-to-photon gains.
+- `neko6`: declared NixOS-WSL CLI host. Original installation `system.stateVersion` lineage remains unverified; do not silently retire it.
+- `neko7`: Proxmox guest, remote builder, T3 Code, SplitCast **consumer**. `game-minecraft = true`, `game-ark = false`, `game-rust = false`, `game-srv = true`; Minecraft's declared data root is `/srv/minecraft`. A dated acceptance record exists in the [storage runbook](docs/game-server-srv-migration.md); fresh state requires fresh observation.
+- `sops-nix.enable = true` is declared on neko5 and neko7. This is provider selection, **not** proof of a specific secret, key file, decryption, or successful tailnet enrollment.
+- SplitCast sources/tests/PR acceptance are owned by `tenzyu/splitcast`. Nixfiles only pins/consumes its flake.
+
+## Fixed authoring and execution boundaries
+
+- Keep `configurations.nixos.<host>.module`, `local.features.<name>.enable`, `local.users.<user>.features.<name>.enable`, typed editor completion and explicit per-host choices. Do **not** replace these with host-side import arrays or opaque bundles.
+- Prefer native NixOS/Home Manager options and Nixpkgs `lib`; `lib/composition.nix` names value stages and detects accidental attrset overwrites but is **not** another module system.
+- When direnv has entered the dev shell, run ordinary commands directly. Do not waste tokens on repeated `nix develop -c`, redundant research or unbounded agent loops.
+- Work from the current main revision. Run targeted tests/evaluations first; CI green is not host activation. Do not independently switch/boot/reboot, rotate secrets, prune roots, migrate live data, publish services, merge PRs or assume that the current VM matches the source.
+- Dreaming means **reconcile, correct, merge and link**, never just append new prose. Source → tests → dated runtime evidence; see [schema](docs/schema.md).
