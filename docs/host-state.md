@@ -3,22 +3,22 @@ type: Host Inventory
 title: "Host declarations"
 description: "Configuration declarations versus running generation"
 status: stable
-source_revision: bbac7a249a234542e0efe66449d13212414d8a16
+source_revision: e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/00-hosts/neko5/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko5/configuration.nix
     title: "modules/00-hosts/neko5/configuration.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/00-hosts/neko6/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko6/configuration.nix
     title: "modules/00-hosts/neko6/configuration.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/00-hosts/neko7/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko7/configuration.nix
     title: "modules/00-hosts/neko7/configuration.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/00-hosts/neko6/zsh.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko6/zsh.nix
     title: "modules/00-hosts/neko6/zsh.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/bbac7a249a234542e0efe66449d13212414d8a16/modules/50-features/desktop/firefox.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/50-features/desktop/firefox.nix
     title: "modules/50-features/desktop/firefox.nix"
 ---
 
@@ -30,11 +30,11 @@ sources:
 
 | Host | Declaration | Evidence |
 | --- | --- | --- |
-| neko5 | `24.11` | The first NixOS commit sets this value. Its root, boot and swap identifiers match the current hardware declaration. [Initial configuration](https://github.com/tenzyu/nixfiles/blob/7303643/profiles/neko5/configuration.nix) |
+| neko5 | **`26.05` (operator-confirmed)** | The live host declaration was explicitly changed from `24.11` to `26.05` in [commit 52ebacf](https://github.com/tenzyu/nixfiles/commit/52ebacf8e3e29e5764d6452c00773c5d6a015f03). The operator confirmed `26.05` as the correct baseline on 2026-11-18; the [initial historical configuration](https://github.com/tenzyu/nixfiles/blob/7303643/profiles/neko5/configuration.nix) is not today's declaration. |
 | neko6 | UNKNOWN, using the pinned Nixpkgs default of `26.05` | The first named WSL profile used `24.11`. SSH lookup failed, so the original imported distribution's state remains unverified. [First named WSL host](https://github.com/tenzyu/nixfiles/tree/b1c3ec0) |
-| neko7 | UNKNOWN, using the pinned Nixpkgs default of `26.05` | The installer-era local configuration has `25.05` for the old root disk. Its first Git profile had `24.11`. The current root filesystem has a different UUID, and its installation history is unresolved. [First server profile](https://github.com/tenzyu/nixfiles/blob/2c88848/profiles/server.nix), [disk change](https://github.com/tenzyu/nixfiles/commit/8257b92) |
+| neko7 | **`26.05` (explicit source declaration)** | `local.context.systemStateVersion = "26.05"` is set in the current [host configuration](https://github.com/tenzyu/nixfiles/blob/e96b8ed98dc13c9f21e76919aefdf4503f3d6c7d/modules/00-hosts/neko7/configuration.nix). Historical records mention `25.05` and `24.11` on earlier installations, but the current filesystem's installation lineage is not independently established here; do not conflate provenance with the evaluated value. |
 
-The neko5 declaration replaces the evaluated fallback of `26.05`. All three hosts evaluate to the same system derivations as before this change. Home Manager continues to evaluate to `26.05` for each user. This evidence is from evaluation.
+The evaluated NixOS state compatibility value is `26.05` on neko5 and neko7 by explicit host declaration; neko6 currently inherits the pinned Nixpkgs default, with its original WSL installation compatibility still unresolved. The user-confirmed neko5 baseline must not be silently reverted to the historical Git value. Home Manager separately declares `homeStateVersion = "26.05"` for each host's user. These are source declarations, not evidence of active generations or completed data migrations.
 
 ## neko5
 
