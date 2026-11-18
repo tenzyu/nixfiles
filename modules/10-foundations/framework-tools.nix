@@ -24,6 +24,7 @@
         policyLib = import ${./_policy/lib.nix};
         traceLib = import ${traceLib};
       in {
+        shared-lib = import ${../../lib/tests.nix} { inherit lib; };
         framework-features = import (root + "/tests/features.nix") { inherit lib; };
         framework-users = import (root + "/tests/users.nix") { inherit lib; };
         framework-policies = import (root + "/tests/policies.nix") { inherit lib policyLib; };

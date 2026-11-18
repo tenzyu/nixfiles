@@ -21,7 +21,7 @@
     });
 
   enabledFeatures = features:
-    lib.mapAttrs (_name: _feature: {enable = true;}) (lib.filterAttrs (_name: feature: feature.enable or false) features);
+    lib.genAttrs ((import ../../../../lib/features.nix {inherit lib;}).enabledFeatureNames features) (_: {enable = true;});
 
   # Remove null seed values before handing the module to NixOS/Home Manager.
   # This preserves "unspecified" semantics and avoids seed defaults overriding real module defaults.
