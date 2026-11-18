@@ -47,7 +47,7 @@
         "modules/00-hosts/neko7/configuration.nix"
       ],
       "source_blobs": {
-        ".github/workflows/nix-validation.yml": "0705e3a8800603bfaab590a8f84249e84345ee15"
+        ".github/workflows/nix-validation.yml": "5e843eee587619028e445430b1694040d654f2c6"
       }
     },
     {

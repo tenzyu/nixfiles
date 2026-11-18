@@ -57,6 +57,7 @@ jobs:
           python3 scripts/ci/retrieval_eval.py --smoke
           python3 scripts/ci/retrieval_eval.py --rank > /tmp/nixfiles-retrieval-route-report.json
           python3 -m json.tool /tmp/nixfiles-retrieval-route-report.json > /dev/null
+          python3 -c 'import json; r=json.load(open("/tmp/nixfiles-retrieval-route-report.json")); print("Lexical path recall@{} (NOT answer accuracy): {}".format(r["k"], r["route_hits"]))'
 
       - name: Test selective-check mapping
         run: python3 -m unittest discover -v -s scripts/ci -p 'test_select_checks.py'
