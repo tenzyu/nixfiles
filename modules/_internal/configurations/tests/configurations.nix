@@ -273,8 +273,6 @@ in {
         lib.mapAttrs (_: container: container.config.system.stateVersion)
         flake.nixosConfigurations.neko7.config.containers;
       expected = {
-        neko7-ark = "26.05";
-        neko7-rust = "26.05";
         neko7-mc = "26.05";
       };
     };
@@ -591,23 +589,24 @@ in {
         minecraftAutoStart = host.containers.neko7-mc.autoStart;
         natEnabled = host.networking.nat.enable;
         externalInterface = host.networking.nat.externalInterface;
-        allVethInterfaces = lib.all (name: lib.elem name host.networking.nat.internalInterfaces) [
+        minecraftVethPresent = lib.elem "ve-neko7-mc" host.networking.nat.internalInterfaces;
+        disabledVethsAbsent = lib.all (name: !(lib.elem name host.networking.nat.internalInterfaces)) [
           "ve-neko7-ark"
           "ve-neko7-rust"
-          "ve-neko7-mc"
         ];
       };
       expected = {
         oldBundle = false;
-        ark = true;
-        rust = true;
+        ark = false;
+        rust = false;
         minecraft = true;
         tools = true;
-        containerNames = ["neko7-ark" "neko7-mc" "neko7-rust"];
+        containerNames = ["neko7-mc"];
         minecraftAutoStart = true;
         natEnabled = true;
         externalInterface = "ens18";
-        allVethInterfaces = true;
+        minecraftVethPresent = true;
+        disabledVethsAbsent = true;
       };
     };
 

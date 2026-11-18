@@ -28,12 +28,10 @@
         tailscale.enable = true;
         t3code-tailnet.enable = true;
         splitcast-production.enable = true;
-        # Final shape:
-        #   neko7       = admin node
-        #   neko7-ark   = ARK player node
-        #   neko7-rust  = Rust player node
-        game-ark.enable = true;
-        game-rust.enable = true;
+        # Keep ARK and Rust definitions available without deploying them.
+        # Minecraft is the only selected game container on neko7.
+        game-ark.enable = false;
+        game-rust.enable = false;
         game-minecraft.enable = true;
         game-server-tools.enable = true;
         resolvconf-blacklist-gateway.enable = true;
