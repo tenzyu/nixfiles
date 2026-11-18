@@ -30,6 +30,7 @@
 
         networkmanager.enable = true;
         ssh.enable = true;
+        sops-nix.enable = true;
         tailscale.enable = true;
 
         pipewire.enable = true;

@@ -25,6 +25,7 @@
         time.enable = true;
         locale.enable = true;
         ssh.enable = true;
+        sops-nix.enable = true;
         tailscale.enable = true;
         t3code-tailnet.enable = true;
         splitcast-production.enable = true;
