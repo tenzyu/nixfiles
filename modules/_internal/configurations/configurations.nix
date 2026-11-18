@@ -10,7 +10,8 @@
   featuresLib = import ./lib/features.nix {inherit lib;};
   usersLib = import ./lib/users.nix {inherit lib featuresLib;};
   policiesLib = import ../../10-foundations/_policy/lib.nix {inherit lib fpConfig;};
-  seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib;};
+  composition = import ../../../lib/composition.nix {inherit lib;};
+  seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib composition;};
 
   nixosModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.nixos or {});
   homeModules = modulesLib.publicModuleAttrs (fpConfig.flake.modules.homeManager or {});

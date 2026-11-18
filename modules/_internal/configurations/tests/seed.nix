@@ -1,7 +1,7 @@
-{lib}: let
+{lib, composition}: let
   featuresLib = import ../lib/features.nix {inherit lib;};
   usersLib = import ../lib/users.nix {inherit lib featuresLib;};
-  seedLib = import ../lib/seed.nix {inherit lib featuresLib usersLib;};
+  seedLib = import ../lib/seed.nix {inherit lib featuresLib usersLib composition;};
 in {
   testCompactContextDropsNulls = {
     expr = seedLib.dropNullFields {
