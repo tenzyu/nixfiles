@@ -1,27 +1,31 @@
-{lib, integrationModule}: let
-  evaluate = parsec: hyprland: (lib.evalModules {
-    modules = [
-      ({lib, ...}: {
-        options.local.features.parsec.enable = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
-        };
-        options.local.features.hyprland-tenzyu.enable = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
-        };
-        options.wayland.windowManager.hyprland.settings.window_rule = lib.mkOption {
-          type = lib.types.listOf lib.types.anything;
-          default = [];
-        };
-        config.local.features = {
-          parsec.enable = parsec;
-          hyprland-tenzyu.enable = hyprland;
-        };
-      })
-      integrationModule
-    ];
-  }).config.wayland.windowManager.hyprland.settings.window_rule;
+{
+  lib,
+  integrationModule,
+}: let
+  evaluate = parsec: hyprland:
+    (lib.evalModules {
+      modules = [
+        ({lib, ...}: {
+          options.local.features.parsec.enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+          };
+          options.local.features.hyprland-tenzyu.enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+          };
+          options.wayland.windowManager.hyprland.settings.window_rule = lib.mkOption {
+            type = lib.types.listOf lib.types.anything;
+            default = [];
+          };
+          config.local.features = {
+            parsec.enable = parsec;
+            hyprland-tenzyu.enable = hyprland;
+          };
+        })
+        integrationModule
+      ];
+    }).config.wayland.windowManager.hyprland.settings.window_rule;
 in {
   testIntegrationNeitherEnabled = {
     expr = builtins.length (evaluate false false);

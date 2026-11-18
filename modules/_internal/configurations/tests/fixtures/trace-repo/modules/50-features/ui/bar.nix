@@ -1,1 +1,1 @@
-{ flake.modules.homeManager.bar = _: {}; }
+{flake.modules.homeManager.bar = _: {};}

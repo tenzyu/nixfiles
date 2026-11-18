@@ -1,48 +1,51 @@
 {
   configurations.nixos.neko5.module = {
-    local.context.flakePath = "/home/tenzyu/.nixfiles";
-    local.context.systemStateVersion = "24.11";
+    local = {
+      context = {
+        flakePath = "/home/tenzyu/.nixfiles";
+        systemStateVersion = "26.05";
+      };
+      features = {
+        neko5-hardware.enable = true;
+        laptop-input.enable = true;
 
-    local.features = {
-      neko5-hardware.enable = true;
-      laptop-input.enable = true;
+        kernel-latest.enable = true;
+        systemd-boot.enable = true;
+        zsh.enable = true;
 
-      kernel-latest.enable = true;
-      systemd-boot.enable = true;
-      zsh.enable = true;
+        time.enable = true;
+        locale.enable = true;
+        fonts.enable = true;
 
-      time.enable = true;
-      locale.enable = true;
-      fonts.enable = true;
+        nix.enable = true;
+        nix-store-clean.enable = true;
+        nix-remote-client.enable = true;
+        stub-ld.enable = true;
 
-      nix.enable = true;
-      nix-store-clean.enable = true;
-      nix-remote-client.enable = true;
-      stub-ld.enable = true;
+        networkmanager.enable = true;
+        ssh.enable = true;
+        tailscale.enable = true;
 
-      networkmanager.enable = true;
-      ssh.enable = true;
-      tailscale.enable = true;
+        pipewire.enable = true;
+        udiskie.enable = true;
+        fcitx5.enable = true;
 
-      pipewire.enable = true;
-      udiskie.enable = true;
-      fcitx5.enable = true;
+        intel-graphics.enable = true;
+        wayland-session.enable = true;
+        desktop-performance.enable = true;
+        gaming-mouse.enable = true;
+        open-tablet-driver.enable = true;
+        otd-access.enable = true; # for flash custom firmware
+        neko5-osu-first.enable = true;
 
-      intel-graphics.enable = true;
-      wayland-session.enable = true;
-      desktop-performance.enable = true;
-      gaming-mouse.enable = true;
-      open-tablet-driver.enable = true;
-      otd-access.enable = true; # for flash custom firmware
-      neko5-osu-first.enable = true;
+        # NOTE: Under configuration.
+        splitcast-capture.enable = false;
 
-      # NOTE: Under configuration.
-      splitcast-capture.enable = false;
-
-      docker-rootless.enable = false;
-      hyprlock.enable = false;
-      waydroid.enable = false;
-      bluetooth.enable = false;
+        docker-rootless.enable = false;
+        hyprlock.enable = false;
+        waydroid.enable = false;
+        bluetooth.enable = false;
+      };
     };
 
     local.users.tenzyu = {

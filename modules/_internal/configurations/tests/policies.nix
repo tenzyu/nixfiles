@@ -1,4 +1,7 @@
-{lib, policyLib}: let
+{
+  lib,
+  policyLib,
+}: let
   fpConfig = {
     flake.local.featurePolicies = {
       alpha = {

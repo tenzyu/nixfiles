@@ -1,1 +1,1 @@
-{ flake.modules.homeManager.hidden = _: {}; }
+{flake.modules.homeManager.hidden = _: {};}

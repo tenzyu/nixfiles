@@ -1,1 +1,1 @@
-{ flake.modules.homeManager.root = _: {}; }
+{flake.modules.homeManager.root = _: {};}

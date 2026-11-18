@@ -61,19 +61,21 @@
     };
 
     config = lib.mkIf (cfg.paths != []) {
-      home.activation = {
-        checkHomeMigration = lib.hm.dag.entryBefore ["writeBoundary" "checkLinkTargets"] ''
-          ${runner} check ${lib.optionalString (!cfg.autoApply) "--require-noop"}
-        '';
-      } // lib.optionalAttrs cfg.autoApply {
-        migrateHomeLayout = lib.hm.dag.entryBetween ["linkGeneration" "installPackages"] ["writeBoundary"] ''
-          if [[ -v DRY_RUN ]]; then
-            ${runner} check
-          else
-            ${runner} apply
-          fi
-        '';
-      };
+      home.activation =
+        {
+          checkHomeMigration = lib.hm.dag.entryBefore ["writeBoundary" "checkLinkTargets"] ''
+            ${runner} check ${lib.optionalString (!cfg.autoApply) "--require-noop"}
+          '';
+        }
+        // lib.optionalAttrs cfg.autoApply {
+          migrateHomeLayout = lib.hm.dag.entryBetween ["linkGeneration" "installPackages"] ["writeBoundary"] ''
+            if [[ -v DRY_RUN ]]; then
+              ${runner} check
+            else
+              ${runner} apply
+            fi
+          '';
+        };
       # Inspect/migrate the existing home BEFORE a NixOS switch also changes the
       # per-user system profile. No separate executable is added to ~/.local/bin.
       home.extraBuilderCommands = ''

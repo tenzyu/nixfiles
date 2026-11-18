@@ -32,14 +32,16 @@
             type = lib.types.listOf lib.types.anything;
             default = [];
           };
-          config = {
-            local.users.alice = {
-              enable = true;
-              features.steam.enable = true;
+          config =
+            {
+              local.users.alice = {
+                enable = true;
+                features.steam.enable = true;
+              };
+            }
+            // lib.optionalAttrs disabled {
+              local.features.steam.enable = false;
             };
-          } // lib.optionalAttrs disabled {
-            local.features.steam.enable = false;
-          };
         })
         projection.userSeededNixosFeaturesModule
       ];
