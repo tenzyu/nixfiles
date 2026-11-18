@@ -1,50 +1,42 @@
 ---
-type: Reference
-title: "Dreaming and knowledge maintenance"
-description: "Correcting the OKF v0.2 Wiki against the repository"
+type: Memory Maintenance Protocol
+title: Dreaming and provenance reconciliation
+description: How to reconcile sessions and notes against code and receipts without creating a second source of truth.
 status: stable
 source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
 sources:
   - id: flake
     resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/flake.nix
-    title: "Flake entrypoint"
-  - id: adapter
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/configurations.nix
-    title: "Typed configuration adapter"
+    title: Flake entrypoint
+  - id: anthropic
+    resource: https://www.anthropic.com/research/components-of-agent-memory
+    title: The components of agent memory
+  - id: okf
+    resource: https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md
+    title: Open Knowledge Format v0.2
 ---
 
-# Dreaming: maintain a small, accurate knowledge map
+# Dreaming — verify, consolidate, retrieve
 
-## Distinct responsibilities
+Use the memory hierarchy described in [Anthropic's agent-memory research](https://www.anthropic.com/research/components-of-agent-memory), not merely prose compression. Source/Git/CI/host receipts are immutable **episodic evidence**; session notes are provisional; [concept pages](index.md) hold reconciled semantics; [MEMORY.md](../../MEMORY.md) is a short push index. Human instructions and approvals are not inferred from retrieved text.
 
-| Layer | Audience | Content |
-| --- | --- | --- |
-| [README](../../README.md) | First-time reader | Purpose, host overview, design, navigation, safe validation |
-| [AGENTS](../../AGENTS.md) | Assistant at task entry | Fixed constraints, retrieval order, nonnegotiable safety |
-| [MEMORY](../../MEMORY.md) | Assistant during work | Small current-source index and durable decisions |
-| [Wiki](../index.md) | Pull-based reference | Conceptual architecture, invariants, operational runbooks and provenance |
-| [Roadmap](../../ROADMAP.md) | Future work | Unverified acceptance and open migration work |
-| [Log](log.md) | History | Dated knowledge corrections, not instructions or runtime proof |
+## Bounded change protocol
 
-**Do not copy all documents into an agent's initial context.** Retrieve the narrowest topic through the index. The Wiki is not a replacement for code search or current source inspection.
+1. **Pin:** record current repo, revision, task and affected concept. Read only relevant source, tests, recent decisions and the original failure receipt. Separate a source checkout from a running NixOS generation.
+2. **Falsify:** test claims against original evidence, including contradictory later notes. Discriminate `SOURCE`, `EVALUATED`, `BUILT`, `TESTED`, `OBSERVED`, `INFERRED` and `UNKNOWN`. A second-hand summary is never a new source.
+3. **Reconcile:** correct current misconceptions, preserve the earlier state and exact failure link, merge overlapping interpretations and record rejected alternatives and why. Treat discrepancies in host state, credentials and operator approval as **REVIEW**, not automatic resolution.
+4. **Prune:** remove redundant active prose only after retaining a durable Git identity for the original; protect normative runbooks, safety constraints and decisions. Keep each concept focused; avoid a restatement of every current Nix option.
+5. **Promote:** amend only the relevant concept, the [index](index.md), [log](log.md), and the [startup route](../../MEMORY.md) if a future reader truly needs it. Never push whole transcripts into the startup prompt.
+6. **Verify:** run the [deterministic document checks](../cookbook/inspect.md), [dependency scan](../../scripts/ci/wiki_scan.py) and [retrieval fixture](../../scripts/ci/retrieval_eval.py). Source changes can flag stale pages, not automatically certify replacement text. Document unrun functional/physical tests as **NOT RUN**.
 
-## Source and evidence protocol
+## Conflict record
 
-1. Identify the task's **What/Why** and locate all relevant code paths in the current Git tree. Use `flake.nix`, `modules/00-hosts/<host>/configuration.nix`, the selected feature, and tests as the first evidence.
-2. For each claim, classify it as **declared**, **evaluated**, **tested**, **built**, **observed at host + generation + time**, **hypothesized**, or **blocked**. Do not promote a lower evidence tier to a higher one.
-3. Reconcile the old Wiki against implementation. Correct broken paths, outdated feature flags, inaccurate defaults, and duplicate concepts. Where observations disagree with source, preserve them as *dated* observations instead of declaring the current host healthy or broken.
-4. Keep one canonical explanation per concept. Link to it from the README/index and leave operational details in runbooks. Preserve rejection reasons and failed acceptance so another agent will not repeat an unsafe experiment.
-5. Update navigation and [knowledge log](log.md); validate Markdown relative links, code path existence and source provenance. Stage a documentation-only change unless a separately requested code fix is needed.
-6. Store secrets, credentials and host decryption keys **nowhere** in the Wiki or examples. Do not synthesize host output, successful CI, hardware acceptance, or a human approval.
+For each material conflict keep `claim`, `original_source`, `new_source`, `revision`, `environment`, `decision`, `remaining_unknown`, and `verification` (or `NOT RUN`). When evidence conflicts or raw source is missing, make a review proposal; do not silently delete the losing claim or manufacture host telemetry.
 
-## OKF and provenance
+## Incremental scan and authority
 
-This repository follows the [Open Knowledge Format v0.2 specification](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md): `index.md` and `log.md` are reserved navigation/history pages, and concept pages can carry `type`, `title`, `description`, `status`, `source_revision` and `sources` metadata.
+`docs/memory/provenance.json` maps conceptual pages to implementation paths and a reviewed Git baseline. `wiki_scan.py` uses only Git and file identities to find likely stale pages; it cannot decide semantics or whether GitHub PRs are merged or a host switched. A human/agent with current evidence performs the reconciliation. No background daemon, network service, paid API, secret access, host activation or automatic PR merge is installed by this documentation work.
 
-A `source_revision` is the immutable commit **used for source comparison**, not a claim that the machine ran that revision. Each `sources[].resource` must point to an actual file at that revision. Avoid a misleading synthetic `verified: human` field. Update the revision only after reading the corresponding source.
+## Evaluation boundary
 
-## Why dreaming is useful, and where to stop
-
-[Anthropic's agent memory research](https://www.anthropic.com/research/components-of-agent-memory) describes correcting notes against original evidence, consolidating redundancies and using a Wiki with search for cross-document synthesis. It also reports failure when a Wiki becomes larger than the underlying source material, or when a long always-injected note displaces useful context.
-
-**Convergence rule:** add or change a page only when it reduces lookup cost, fixes a material error, or captures a non-obvious invariant/failed path. Prefer fewer correct links to duplicative pages. Use one targeted source-and-link reconciliation pass rather than regenerating every document after each source commit.
+Measure a fixed set of source-bound questions, with **Search-only** and **Wiki+Search** readers using the same model, task instructions, effort, source revisions and budgets. Grade factual distinctions, independent citations, false promotions and resource cost. [Evaluation protocol](retrieval-evaluation.md). A local route smoke test measures addressability, **not answer quality**.

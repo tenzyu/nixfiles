@@ -1,112 +1,66 @@
 # nixfiles
 
-**Nix-first, multi-host NixOS and Home Manager configuration**, built with [flakes](https://nix.dev/concepts/flakes), [flake-parts](https://flake.parts/), and [import-tree](https://github.com/vic/import-tree).
+**One flake, three NixOS environments, explicit choices.** This is my personal, Nix-first configuration for a latency-sensitive Linux laptop, a WSL workstation and a remote Proxmox guest. It is a real infrastructure repository, not a one-command installer for somebody else's machine.
 
-This is a **personal infrastructure repository, not an installer or reusable NixOS distribution**. Hosts, hardware assumptions, users, SSH trust, persistent state and deployment permissions are specific to the machines below. The goal is to keep host declarations obvious while using native NixOS/Home Manager options for their actual effects.
+The aim is to make the important decisions visible where they belong: **hosts choose capabilities; features implement them using native NixOS and Home Manager options; integrations connect them only when needed.** A small typed configuration layer makes those choices discoverable in an editor without trading away NixOS's merge, priority or override semantics.
 
-## Hosts
+## Environments
 
-| Flake output | Source role | Notable declared capabilities |
+| Host | Purpose | Source-selected examples |
 | --- | --- | --- |
-| `nixosConfigurations.neko5` | Laptop / graphical workstation | Hyprland, osu!lazer, PipeWire, remote Nix build client, Home Manager |
-| `nixosConfigurations.neko6` | NixOS-WSL configuration | CLI environment, Docker, standalone host-specific WSL integration |
-| `nixosConfigurations.neko7` | Proxmox NixOS guest | CUDA, remote builder, T3 Code, SplitCast production consumer, Minecraft container |
+| **neko5** | Wayland laptop and low-latency osu!lazer environment | Hyprland, tablet tooling, PipeWire, remote build client |
+| **neko6** | NixOS-WSL command-line environment | Home Manager, Docker and WSL integration |
+| **neko7** | Proxmox guest for remote development and workloads | Remote builder, T3 Code, CUDA, SplitCast production consumer, Minecraft |
 
-These are **Git declarations**, not a claim about which NixOS generation is booted or which services are currently running. The current neko7 source selects Minecraft with `game-srv.enable = true` (`/srv/minecraft`); ARK and Rust are disabled. Both neko5 and neko7 select the `sops-nix` provider, but that selection alone does **not** establish that a particular secret has been provisioned or decrypted. See [host declarations and evidence](docs/host-state.md).
+These are **declarations**, not claims about currently running services. Minecraft is selected on neko7; SplitCast capture is disabled on neko5. Live state, secret provisioning and the booted NixOS generation require independent evidence. [Host boundaries](docs/memory/host-state.md).
 
-## Design
+## What makes the configuration work
 
-The host interface is intentionally explicit. A host names the features it wants; feature implementations use native NixOS and Home Manager options.
+- **A legible host boundary.** Each `modules/00-hosts/<host>/configuration.nix` lists concrete system and user features. It does not hide them behind an opaque bundle.
+- **Native behavior, centralized wiring.** `flake-parts` and `import-tree` discover module registrations; the typed adapter maps host choices to the NixOS/Home Manager module systems. The modules still own the actual options.
+- **Capabilities stay independently owned.** `10-foundations` supplies shared policy, `50-features` supplies opt-in implementations, and `60-integrations` holds conditional cross-feature effects. `lib/` composes ordinary values without reinventing the module system.
+- **Reproducibility with operational boundaries.** `flake.lock` pins inputs; PR checks test semantics and evaluate configurations. Rebuilds, secret changes, data migrations and publication are separate operator decisions.
 
-```nix
-# Excerpt of the host authoring style; see the actual file for all selections.
-configurations.nixos.neko7.module = {
-  local.features.game-minecraft.enable = true;
-  local.features.game-ark.enable = false;
-  local.features.game-rust.enable = false;
-  local.features.game-srv.enable = true;
+[Architecture and decisions](docs/memory/index.md) · [Practical recipes](docs/cookbook/index.md)
 
-  local.users.tenzyu.features.t3code-neko7.enable = true;
-};
-```
+## Explore without activating anything
 
-- **Selection vs effect:** `local.features.<name>.enable` selects a registered `flake.modules.nixos` or `flake.modules.homeManager` feature. Each feature owns its own `lib.mkIf` and native option assignments.
-- **Typed projection:** the private configuration adapter turns the editor-visible, nullable seed into NixOS/Home Manager definitions without replacing the native module merge/override system. A selected user feature can imply a same-named NixOS capability via `mkDefault`, with a conflict assertion.
-- **Meaningful composition:** `lib/composition.nix` names ordered value transformations and checks disjoint/intentional attribute composition. It does **not** redefine `mkMerge`, overlay fixed points, or NixOS priority semantics.
-- **Boundaries:** hosts select; foundations provide shared infrastructure; features implement independently selectable behavior; integrations contribute conditional cross-feature rules. Per-feature unfree allowances are collected only from selected features.
-
-Read [architecture](docs/architecture.md), [feature-option ownership](docs/feature-options.md), and [composition contracts](docs/composition.md) for precise semantics.
-
-## Repository layout
-
-```text
-flake.nix                       inputs and flake-parts entrypoint
-flake.lock                      pinned dependency graph
-modules/
-  _internal/configurations/    typed seed, projection and materialization (not auto-imported)
-  00-hosts/                    explicit neko5 / neko6 / neko7 declarations
-  10-foundations/              checks, policies, overlays and CLI apps
-  50-features/<domain>/        opt-in NixOS / Home Manager capabilities
-  60-integrations/             cross-feature contributions
-lib/                            pure, tested composition and selection utilities
-tools/framework-cli/            feature tracing, tests and invariant inspection
-assets/                          deployed assets and operational helpers
-docs/index.md                    source-grounded Wiki / documentation index
-MEMORY.md                        short agent retrieval index
-ROADMAP.md                       unverified work and acceptance gates
-```
-
-Most behavior is declared in Nix; some bundled CLI, migration, testing and agent integration assets are TypeScript, Python or shell. **“Nix-first” does not mean 100% Nix source or zero mutable runtime state.**
-
-## Inspect without changing a machine
-
-From a checkout with a working Nix installation and flakes enabled:
+With Nix and flakes available, from a checkout:
 
 ```sh
 nix flake show
 nix eval .#nixosConfigurations --apply builtins.attrNames --json
-
-# Focused repository test suite; no OS activation:
-nix run -L .#framework-test
-
-# Evaluate one system derivation path, without building or activating it:
 nix eval --raw .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
-
-# Discover supported inspection commands:
-nix run .#framework-cli -- --help
 ```
 
-For the CI-equivalent, targeted check set, use [PR validation](docs/ci-validation.md). Avoid casually running full `nix flake check`: it can select expensive, unrelated builds. Building a system closure is also distinct from evaluating its derivation.
+The final command **evaluates** a derivation path; it neither builds a system nor switches a machine. To run focused repository tests: `nix run -L .#framework-test`. See the [inspection cookbook](docs/cookbook/inspect.md) for expected results, CI checks and troubleshooting.
 
-`feature-trace` can inspect a selected feature, and `framework-cli --why OPTION_PATH` exposes evaluated NixOS option values and definition locations. Textual source hints are **navigation aids**, not proof that a definition was selected.
+## Find the right part
 
-## Change a host or feature
+```text
+flake.nix                 flake-parts entrypoint and pinned inputs
+modules/
+  _internal/             typed host-to-module projection, explicitly imported
+  00-hosts/              selections for neko5, neko6 and neko7
+  10-foundations/        shared policy and checks
+  50-features/           independently selectable NixOS/Home Manager features
+  60-integrations/       conditional cross-feature behavior
+lib/                      pure Nix composition primitives
+tools/framework-cli/      developer-facing inspection and regression tooling
+docs/cookbook/            inspection, change and recovery procedures for humans
+docs/memory/              OKF knowledge for agents: why, evidence, risks, retrieval
+```
 
-1. Locate the relevant `modules/00-hosts/<host>/configuration.nix`. Preserve its `configurations.nixos.<host>.module` and `local.users.<name>.features` authoring API; keep feature selections explicit.
-2. For new behavior, register the corresponding `flake.modules.nixos.<name>` and/or `flake.modules.homeManager.<name>` under `modules/50-features/<domain>/`. Use native target options and a feature guard; cross-feature effects belong under `60-integrations/`.
-3. Keep package admission under `flake.local.featurePolicies.<name>`, not a host-wide unfree bypass. Check the locked nixpkgs/Home Manager options before inventing glue.
-4. Run focused tests, evaluate affected hosts, compare the resulting options and derivations, and review any state migration or restart. **A successful CI check is not permission to activate.**
+Some support assets are written in Python, TypeScript or shell; **Nix-first does not mean 100% Nix source or immutable application data**. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
 
-**Operator-only activation:** after independent review and explicit approval on the intended host, use the relevant `nixos-rebuild test --flake .#<host>` or `switch` workflow. `test` already activates units; neither is read-only. A NixOS generation rollback does not undo writes to world data, user files, or external services.
+## Change safely
 
-## Operational boundaries
+Start at the relevant [host declaration](modules/00-hosts/). Follow a selected capability to its implementation and its native option effects. Run focused checks and inspect the evaluation diff before requesting any activation. For the complete workflow, use [Change a host](docs/cookbook/change-host.md), [CI validation](docs/cookbook/ci-validation.md), and the [operational runbooks](docs/cookbook/index.md).
 
-| Concern | Where to start |
-| --- | --- |
-| Current source declarations vs historical runtime observations | [Host inventory](docs/host-state.md) |
-| NixOS validation and which checks CI actually runs | [CI validation](docs/ci-validation.md) |
-| Secrets, age bootstrap and Tailscale identity | [Secrets and Tailscale](docs/secrets-and-tailscale.md) |
-| Minecraft `/srv` cutover and historical migration steps | [Game server storage runbook](docs/game-server-srv-migration.md) |
-| Home Manager XDG relocation (check-only activation) | [Home migration](assets/home-layout/README.md) |
-| Nix store GC and generation rollback safety | [Nix store cleanup](docs/nix-store-clean.md) |
-| T3 Code/remote development on neko7 | [T3 Code runbook](docs/t3code-neko7.md) |
-| SplitCast as an external flake consumer | [SplitCast integration](docs/splitcast-consumer.md) |
-| Known risks and open acceptance work | [Decisions](docs/decisions.md) · [Roadmap](ROADMAP.md) |
+**No README command deploys anything.** `nixos-rebuild test` is not read-only; it activates units. A system rollback does not revert world files, secrets or user data. Human approval is required for host actions.
 
 ## Documentation
 
-The [Wiki index](docs/index.md) is a **pull-oriented map** of architecture, decisions, source-derived facts and focused runbooks. [MEMORY.md](MEMORY.md) and [AGENTS.md](AGENTS.md) provide a small agent entrypoint, not a second source of truth. Dreaming reconciles those documents against implementation and evidence rather than adding an append-only history.
+[Cookbook](docs/cookbook/index.md) is for operating this infrastructure. The [LLM Wiki](docs/memory/index.md) is a compact, source-linked map of why choices exist, what has been verified and where to look next. [MEMORY.md](MEMORY.md) is a small retrieval entrypoint, not a copy of either collection; [ROADMAP.md](ROADMAP.md) tracks unresolved acceptance.
 
-### Inspirations and upstream references
-
-The documentation layout was informed by the host/workflow emphasis in [mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), the explicit non-installer boundary in [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), the module map in [kclejeune/system](https://github.com/kclejeune/system), the verification guidance in [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), and the concise flake-output descriptions in [fufexan/dotfiles](https://github.com/fufexan/dotfiles). They are references, **not** flake dependencies.
+The writing follows a few strong precedents in the Nix ecosystem—[mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), and [kclejeune/system](https://github.com/kclejeune/system)—without presenting this personal environment as a generic Nix starter.

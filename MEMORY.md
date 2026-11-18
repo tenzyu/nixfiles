@@ -1,26 +1,15 @@
-# nixfiles — retrieval index
+# nixfiles — agent retrieval
 
-**Purpose:** a compact map for agents working on this personal NixOS / Home Manager repository. This file is **not** host telemetry, a changelog, or a duplicate of feature modules. Review [AGENTS.md](AGENTS.md) for execution limits.
+**Route, don't preload.** Source code is authoritative for declarations, tests for their tested contracts, and dated host receipts for runtime claims. An old note or PR cannot prove current activation.
 
-## Read the right source
+| Task | First read | Then verify |
+| --- | --- | --- |
+| Host or user feature | [Host contracts](docs/memory/host-state.md) | `modules/00-hosts/<host>/configuration.nix` → selected `modules/50-features/` |
+| Projection, composition or option conflict | [Architecture](docs/memory/architecture.md) · [Composition](docs/memory/composition.md) | `modules/_internal/configurations/` and `lib/`, evaluated native options |
+| State, secrets, data migration, rollback | [Decisions](docs/memory/decisions.md) · [Evidence classes](docs/memory/evidence.md) | [Cookbook](docs/cookbook/index.md), exact host/generation/time receipt |
+| Prior failure, hypothesis or repeated task | [Memory index](docs/memory/index.md) · [Dreaming](docs/memory/dreaming.md) | Pinned commit/test/job and surviving counterexample |
+| Unfinished work | [ROADMAP](ROADMAP.md) | Current head, acceptance gates and approval owner |
 
-- **Host change:** `flake.nix` → `modules/00-hosts/<host>/configuration.nix` → selected `modules/50-features/<domain>/` or `modules/60-integrations/`. See [architecture](docs/architecture.md).
-- **Nix options / compose helpers:** [native option ownership](docs/feature-options.md), [composition contracts](docs/composition.md), and `lib/`. Do not conflate shallow `//` updates with native module merge priorities.
-- **Runtime, migration or secret question:** [host inventory](docs/host-state.md), [decisions](docs/decisions.md), then the exact [Wiki runbook](docs/index.md).
-- **What remains blocked:** [roadmap](ROADMAP.md). Past `docs/log.md` entries do not authorize pending work.
+**Fixed boundaries:** Keep `configurations.nixos.<host>.module`, `local.features.<name>.enable` and `local.users.<name>.features.<name>.enable`; prefer native Nix semantics. Preserve Direct Scanout success on neko5; SplitCast product implementation is upstream. Don't infer secrets, deployment, performance or authorization from Git. Use ordinary commands inside an active direnv shell. Never activate hosts, migrate live state, rotate credentials, expose services or merge without explicit approval.
 
-## Source snapshot (2026-11-18; Git `438aa02b426d`)
-
-- `neko5`: laptop, Hyprland, osu!lazer, remote build client. `splitcast-capture` disabled. Preserve known Direct Scanout success conditions; do not assert measured input-to-photon gains.
-- `neko6`: declared NixOS-WSL CLI host. Original installation `system.stateVersion` lineage remains unverified; do not silently retire it.
-- `neko7`: Proxmox guest, remote builder, T3 Code, SplitCast **consumer**. `game-minecraft = true`, `game-ark = false`, `game-rust = false`, `game-srv = true`; Minecraft's declared data root is `/srv/minecraft`. A dated acceptance record exists in the [storage runbook](docs/game-server-srv-migration.md); fresh state requires fresh observation.
-- `sops-nix.enable = true` is declared on neko5 and neko7. This is provider selection, **not** proof of a specific secret, key file, decryption, or successful tailnet enrollment.
-- SplitCast sources/tests/PR acceptance are owned by `tenzyu/splitcast`. Nixfiles only pins/consumes its flake.
-
-## Fixed authoring and execution boundaries
-
-- Keep `configurations.nixos.<host>.module`, `local.features.<name>.enable`, `local.users.<user>.features.<name>.enable`, typed editor completion and explicit per-host choices. Do **not** replace these with host-side import arrays or opaque bundles.
-- Prefer native NixOS/Home Manager options and Nixpkgs `lib`; `lib/composition.nix` names value stages and detects accidental attrset overwrites but is **not** another module system.
-- When direnv has entered the dev shell, run ordinary commands directly. Do not waste tokens on repeated `nix develop -c`, redundant research or unbounded agent loops.
-- Work from the current main revision. Run targeted tests/evaluations first; CI green is not host activation. Do not independently switch/boot/reboot, rotate secrets, prune roots, migrate live data, publish services, merge PRs or assume that the current VM matches the source.
-- Dreaming means **reconcile, correct, merge and link**, never just append new prose. Source → tests → dated runtime evidence; see [schema](docs/schema.md).
+After a material decision or falsified assumption, reconcile only the affected memory concept against primary evidence; retain historical failures. [Memory update contract](docs/memory/dreaming.md).

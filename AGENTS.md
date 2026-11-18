@@ -1,11 +1,7 @@
 # Agent entrypoint
 
-Read [MEMORY.md](MEMORY.md) first. Follow its links into [the Wiki](docs/index.md) **only when relevant**. Inspect the real Nix module and exact host selection before assuming feature state. Do not preload all docs or histories.
+Use [MEMORY.md](MEMORY.md) to select a task-specific route into the [LLM Wiki](docs/memory/index.md); verify claims against current source and dated evidence. Do not preload the entire documentation tree.
 
-The user values a comprehensible, minimal native-Nix configuration, remote development on neko7 and consumer-only usage on neko5. Preserve the numbered folder categories, known osu! Direct Scanout success, explicit approval boundaries, and existing runtime until migration checks prove parity. Treat neko6 as a removable candidate, not a license to erase unreviewed state.
+Preserve the typed host `configuration.nix` authoring interface, explicit feature lists, native NixOS/Home Manager semantics and existing successful behavior. [Decisions](docs/memory/decisions.md).
 
-**Non-negotiable configuration UX:** Preserve the existing host `configuration.nix` syntax: `configurations.nixos.<host>.module`, `local.features.<name>.enable`, and `local.users.<name>.features.<name>.enable`. Do **not** replace it with explicit `imports` or a host-side module list. Preserve nixd/editor completion, option typing, override semantics and user/system feature behavior. List concrete features in each host and keep feature dependencies local to their purpose. Put feature flags in the host lists and program settings in the corresponding Nix modules. Keep personal `tenzyu` implementations separately owned without changing the host authoring experience.
-
-For a code change: define the required observed behavior and non-goals, prune unnecessary work, implement the smallest compatible diff, run the narrowest meaningful validation, document failures, and deliver a PR with exact evidence. A green CI check is not proof of activation or physical acceptance. Do not invent machine observations, credential availability, test results or cache hits.
-
-When the development shell is already loaded via direnv, invoke its normal commands directly rather than wrapping every command in `nix develop -c`. Avoid unsolicited additions of tools, daemons, repositories, abstractions or documentation.
+Run focused tests in the **already active** direnv environment. A green CI result is not host acceptance. Never switch/boot/reboot hosts, migrate or delete data, alter secrets, publish services, or merge PRs without explicit approval.
