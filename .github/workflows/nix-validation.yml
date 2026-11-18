@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
           # PR checkouts use the synthetic merge commit. Its first parent
           # is the target base; push checkouts use the previous commit.
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: cachix/install-nix-action@v31
         with:
@@ -47,6 +47,15 @@ jobs:
             .#checks.x86_64-linux.framework-cli \
             .#checks.x86_64-linux.deprecated-patterns \
             .#checks.x86_64-linux.feature-name-shape
+
+      - name: Validate Markdown, OKF provenance and memory routes
+        run: |
+          python3 -m unittest discover -v -s scripts/ci -p 'test_docs.py'
+          python3 scripts/ci/check_docs.py
+          python3 scripts/ci/wiki_scan.py --summary
+          python3 scripts/ci/retrieval_eval.py --smoke
+          python3 scripts/ci/retrieval_eval.py --rank > /tmp/nixfiles-retrieval-route-report.json
+          python3 -m json.tool /tmp/nixfiles-retrieval-route-report.json > /dev/null
 
       - name: Test selective-check mapping
         run: python3 -m unittest discover -v -s scripts/ci -p 'test_select_checks.py'
