@@ -52,7 +52,7 @@ Evaluation, build, activation, boot, and runtime acceptance are **different gate
 
 - **Hosts** declare *which* features/users are selected; they do not implement a new module system.
 - **Features** declare actual NixOS/Home Manager effects using native option paths and `lib.mkIf`.
-- **Configuration adapter** registers modules and projects host/user selections. The typed seed stays solely to preserve nixd completion and the `null`-vs-`false` semantics.
+- **Configuration adapter** exposes typed host and user selections to nixd and projects them into NixOS and Home Manager. A shared schema defines user and context options. The seed keeps nullable feature selections so omitted flags can use native defaults.
 - **Foundations** own formatter, systems, static checks, package overlays, and CLI app exposure.
 - **Tools** inspect and test configuration but do not mutate host state.
 
@@ -63,7 +63,7 @@ Evaluation, build, activation, boot, and runtime acceptance are **different gate
 3. If required, declare per-feature package admission under `flake.local.featurePolicies.<feature>`, not as a global unfree exception.
 4. Validate before separately authorizing a switch, boot, service migration or data mutation.
 
-The private configuration adapter only connects registered feature modules and typed host/user selections to NixOS and Home Manager. It is not a second package ecosystem, a reusable external Flake, or the owner of the diagnostic CLI. The existing host declaration syntax is retained until a separately tested, editor-compatible replacement exists.
+The adapter derives feature option names from `flake.modules`. Adding a feature takes a module registration and a host selection. See the [architecture](docs/architecture.md) for how the typed seed passes those selections to NixOS and Home Manager.
 
 Framework tools are exposed as `framework-cli`, `framework-test`, `framework-invariants` and `feature-trace` flake apps. `feature-trace --feature NAME` scopes the trace; evaluated Nix option definitions take precedence over heuristic source-location hints. Use `nix run .#framework-cli -- --help` to inspect the supported interface.
 
