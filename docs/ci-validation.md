@@ -16,7 +16,8 @@ first parent for pull requests; on push to main it uses the event's
 history to make that base reachable. If Git cannot resolve the base, the
 selector fails closed: it chooses all five focused optional checks and
 the SplitCast cache probe rather than silently skipping checks.
-Selection is deterministic, deduplicated and tested.
+Test fixtures and pure library unit tests alone do not force unrelated
+optional feature checks. Selection is deterministic, deduplicated and tested.
 
 | Changed source | Additional check |
 | --- | --- |
@@ -24,7 +25,7 @@ Selection is deterministic, deduplicated and tested.
 | `nix-store-clean.nix` or `assets/nix-store-clean/` | `nix-store-clean` |
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
-| `flake.nix`, `flake.lock`, shared overlays, host declarations, internal adapter, or shared `lib/` | All five focused optional checks and cache probe |
+| `flake.nix`, `flake.lock`, shared overlays, host declarations, or internal adapter implementation | All five focused optional checks and cache probe |
 | Zsh, Firefox or common feature (owners of home migration rules) | `home-migration` |
 | SplitCast media features (including cache settings) or `nix.nix` | SplitCast cache probe only |
 
