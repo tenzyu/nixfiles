@@ -23,55 +23,28 @@
       );
   };
 
-  mkHostUser = _name: spec: {
-    users.groups.${spec.user}.gid = spec.gid;
+  serviceLayout = import ../../../../lib/service-layout.nix {inherit lib;};
 
-    users.users.${spec.user} = {
-      isNormalUser = true;
-      uid = spec.uid;
-      group = spec.user;
-      home = spec.home;
-      createHome = true;
-      shell = pkgs.bashInteractive;
-      hashedPassword = "!";
-      description = "${spec.containerName} service account";
-    };
-  };
+  mkHostUser = _name: spec: serviceLayout.mkStaticServiceAccount pkgs spec;
 
-  mkHostTmpfiles = _name: spec: [
-    "d ${spec.home} 0750 ${spec.user} ${spec.user} - -"
+  mkHostTmpfiles = _name: spec: let
+    d = serviceLayout.mkGameDirectories spec;
+  in [
+    "d ${d.home} 0750 ${spec.user} ${spec.user} - -"
 
-    # Human-maintained runtime root.
-    "d ${spec.home}/${spec.key} 0750 ${spec.user} ${spec.user} - -"
-    "d ${spec.home}/${spec.key}/server 0750 ${spec.user} ${spec.user} - -"
-    "d ${spec.home}/${spec.key}/backups 0750 ${spec.user} ${spec.user} - -"
+    # Service-owned data and backups, whether under /home or /srv.
+    "d ${d.gameDir} 0750 ${spec.user} ${spec.user} - -"
+    "d ${d.serverDir} 0750 ${spec.user} ${spec.user} - -"
+    "d ${d.backupsDir} 0750 ${spec.user} ${spec.user} - -"
 
-    # Root-owned secrets. Game processes should not be able to read auth keys.
-    "d ${spec.home}/secrets 0700 root root - -"
-
-    # Tailscale node identity. Persist this, or the container becomes a new node.
-    "d ${spec.home}/.state 0750 root root - -"
-    "d ${spec.home}/.state/tailscale 0700 root root - -"
+    # Authentication and Tailscale node identity remain host root-owned.
+    "d ${d.secretsDir} 0700 root root - -"
+    "d ${d.stateDir} 0750 root root - -"
+    "d ${d.tailscaleDir} 0700 root root - -"
   ];
 
-  mkContainerUserModule = spec: {
-    lib,
-    pkgs,
-    ...
-  }: {
-    users.groups.${spec.user}.gid = spec.gid;
-
-    users.users.${spec.user} = {
-      isNormalUser = true;
-      uid = spec.uid;
-      group = spec.user;
-      home = spec.home;
-      createHome = true;
-      shell = pkgs.bashInteractive;
-      hashedPassword = "!";
-      description = "${spec.containerName} service account";
-    };
-  };
+  mkContainerUserModule = spec: {pkgs, ...}:
+    serviceLayout.mkStaticServiceAccount pkgs spec;
 
   mkTailscaleNodeModule = import ./tailscale.nix {inherit lib pkgs;};
 
@@ -90,7 +63,9 @@
       (mkTailscaleNodeModule spec args)
     ];
 
-  mkContainer = spec: gameModule: {
+  mkContainer = spec: gameModule: let
+    d = serviceLayout.mkGameDirectories spec;
+  in {
     containers.${spec.containerName} = {
       autoStart = spec.autoStart or false;
       privateNetwork = true;
@@ -99,17 +74,24 @@
       hostAddress = spec.hostAddress;
       localAddress = spec.localAddress;
 
-      bindMounts = {
-        "${spec.home}" = {
-          hostPath = spec.home;
-          isReadOnly = false;
+      bindMounts =
+        {
+          "${d.home}" = {
+            hostPath = d.home;
+            isReadOnly = false;
+          };
+          "/var/lib/tailscale" = {
+            hostPath = d.tailscaleDir;
+            isReadOnly = false;
+          };
+        }
+        // lib.optionalAttrs (d.gameDir != "${d.home}/${spec.key}") {
+          # Data outside the bound service HOME needs its own mount.
+          "${d.gameDir}" = {
+            hostPath = d.gameDir;
+            isReadOnly = false;
+          };
         };
-
-        "/var/lib/tailscale" = {
-          hostPath = "${spec.home}/.state/tailscale";
-          isReadOnly = false;
-        };
-      };
 
       config = containerArgs @ {
         lib,

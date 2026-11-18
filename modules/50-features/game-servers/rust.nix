@@ -12,12 +12,15 @@
     pkgs,
     ...
   }: let
+    useSrv = config.local.features.game-srv.enable;
+    layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "rust";
       user = "game-rust";
       uid = 27008;
       gid = 27008;
-      home = "/home/game-rust";
+      home = if useSrv then "/var/lib/game-containers/rust" else "/home/game-rust";
+      gameDir = if useSrv then "/srv/rust" else "/home/game-rust/rust";
       containerName = "neko7-rust";
       hostAddress = "10.77.20.1";
       localAddress = "10.77.20.2";
@@ -42,11 +45,12 @@
       pkgs,
       ...
     }: let
-      home = spec.home;
-      installDir = "${home}/rust/server";
-      backupDir = "${home}/rust/backups";
-      envFile = "${home}/secrets/rust.env";
-      steamIdentityEnvFile = "${home}/secrets/rust-steam-identity.env";
+      d = layout.mkGameDirectories spec;
+      home = d.home;
+      installDir = d.serverDir;
+      backupDir = d.backupsDir;
+      envFile = "${d.secretsDir}/rust.env";
+      steamIdentityEnvFile = "${d.secretsDir}/rust-steam-identity.env";
       serverBinary = "${installDir}/RustDedicated";
     in {
       environment.systemPackages = with pkgs; [
@@ -261,7 +265,7 @@
           set -euo pipefail
 
           mkdir -p ${installDir} ${backupDir}
-          chmod 0750 ${home} ${home}/rust ${installDir} ${backupDir}
+          chmod 0750 ${home} ${d.gameDir} ${installDir} ${backupDir}
 
           mkdir -p ${home}/.steam/sdk64
           if [ -e ${home}/.local/share/Steam/steamcmd/linux64/steamclient.so ]; then
@@ -312,7 +316,7 @@
             +rcon.port "''${RUST_RCON_PORT}" \
             +rcon.password "''${RUST_RCON_PASSWORD}" \
             +rcon.web "''${RUST_RCON_WEB}" \
-            -logfile "${home}/rust/rust-dedicated.log" \
+            -logfile "${d.gameDir}/rust-dedicated.log" \
             ''${RUST_EXTRA_ARGS}
         '';
 
@@ -354,7 +358,7 @@
           set -euo pipefail
 
           mkdir -p ${installDir} ${backupDir}
-          chmod 0750 ${home} ${home}/rust ${installDir} ${backupDir}
+          chmod 0750 ${home} ${d.gameDir} ${installDir} ${backupDir}
 
           identity="neko7-rust"
           if [ -f ${envFile} ]; then

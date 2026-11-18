@@ -576,6 +576,37 @@ in {
       };
     };
 
+    testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
+      expr = let
+        host = flake.nixosConfigurations.neko7;
+        migrated = host.config;
+        legacy = (host.extendModules {
+          modules = [
+            {local.features.game-srv.enable = lib.mkForce false;}
+          ];
+        }).config;
+      in {
+        selectedOnNeko7 = migrated.local.features.game-srv.enable;
+        legacyData = legacy.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        legacyProtectHome = legacy.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        migratedData = migrated.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        migratedHome = migrated.users.users.game-minecraft.home;
+        migratedMount = migrated.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
+        migratedIdentity = migrated.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
+        migratedProtectHome = migrated.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+      };
+      expected = {
+        selectedOnNeko7 = true;
+        legacyData = "/home/game-minecraft/minecraft";
+        legacyProtectHome = false;
+        migratedData = "/srv/minecraft";
+        migratedHome = "/var/lib/game-containers/minecraft";
+        migratedMount = "/srv/minecraft";
+        migratedIdentity = "/var/lib/game-containers/minecraft/.state/tailscale";
+        migratedProtectHome = true;
+      };
+    };
+
     testGameServerCapabilitiesAreIndependentlySelected = {
       expr = let
         host = flake.nixosConfigurations.neko7.config;

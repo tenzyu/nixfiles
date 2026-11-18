@@ -6,6 +6,9 @@
     "steam-original"
     "steam-unwrapped"
   ];
+  # Typed, opt-in cutover switch; actual service implementation remains native.
+  flake.modules.nixos.game-srv = {};
+
   flake.modules.nixos.game-server-containers = {
     config,
     lib,

@@ -33,6 +33,7 @@
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
+        game-srv.enable = true;
         game-server-tools.enable = true;
         resolvconf-blacklist-gateway.enable = true;
         disable-ipv6.enable = true;

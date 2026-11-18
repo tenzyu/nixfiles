@@ -25,15 +25,16 @@ declare -A update_service=(
   [ark]=ark-survival-evolved-update
   [rust]=rust-dedicated-update
 )
+# Paths are injected from the evaluated Nix game-layout contract at build time.
 declare -A data=(
-  [ark]=/home/game-ark/ark/server/ShooterGame/Saved
-  [rust]=/home/game-rust/rust/server/server
-  [minecraft]=/home/game-minecraft/minecraft/survival
+  [ark]="$GAME_ARK_DATA"
+  [rust]="$GAME_RUST_DATA"
+  [minecraft]="$GAME_MINECRAFT_DATA"
 )
 declare -A backups=(
-  [ark]=/home/game-ark/ark/backups
-  [rust]=/home/game-rust/rust/backups
-  [minecraft]=/home/game-minecraft/minecraft/backups
+  [ark]="$GAME_ARK_BACKUPS"
+  [rust]="$GAME_RUST_BACKUPS"
+  [minecraft]="$GAME_MINECRAFT_BACKUPS"
 )
 
 container() {
