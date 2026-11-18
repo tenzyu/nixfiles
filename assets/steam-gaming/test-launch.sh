@@ -19,6 +19,15 @@ cat >"$sandbox/bin/hypr-gaming-mode" <<'EOF'
 printf 'mode:%s\n' "$1" >> "$TEST_LOG"
 if [[ "$1" == "on" && "$ON_FAIL" == 1 ]]; then exit 12; fi
 EOF
+# Nix build sandboxes do not provide /usr/bin/env or /bin/sh.
+# Replace fixture shebangs with the Bash executable in this derivation.
+for mock in "$sandbox/bin/"*; do
+  {
+    printf '#!%s\n' "$(command -v bash)"
+    tail -n +2 "$mock"
+  } > "$mock.fixed"
+  mv "$mock.fixed" "$mock"
+done
 chmod +x "$sandbox/bin/"*
 export PATH="$sandbox/bin:$PATH"
 export TEST_LOG="$sandbox/log"
