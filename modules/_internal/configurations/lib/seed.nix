@@ -2,49 +2,67 @@
   lib,
   featuresLib,
   usersLib,
+  composition,
 }: rec {
   dropNullFields = context:
-    lib.filterAttrs (_name: value: value != null) context;
+    lib.filterAttrs (_: value: value != null) context;
 
-  # Convert the typed flake-parts host seed back into a plain NixOS module.
-  # This keeps editor-visible seed options while preventing null/default seed state from leaking downstream.
-  compactNixosSeedModule = module: let
-    local = module.local or {};
-    rest = removeAttrs module ["_module" "local"];
-  in
-    rest
-    // {
-      local =
-        {
-          features = featuresLib.compactFeatureSet (local.features or {});
-          users = usersLib.compactNixosUsers (local.users or {});
-        }
-        // lib.optionalAttrs (local ? context) {
-          context = dropNullFields local.context;
+  compactNixosSeedModule = (composition.namedPipeline {
+    label = "nixos-seed-projection";
+    steps = [
+      {
+        name = "read-typed-host-seed";
+        run = module: {original = module; local = module.local or {};};
+      }
+      {
+        name = "compact-feature-user-context";
+        run = state: state // {
+          projectedLocal = {
+            features = featuresLib.compactFeatureSet (state.local.features or {});
+            users = usersLib.compactNixosUsers (state.local.users or {});
+          } // lib.optionalAttrs (state.local ? context) {
+            context = dropNullFields state.local.context;
+          };
         };
-    };
+      }
+      {
+        name = "emit-native-nixos-module";
+        run = state:
+          (removeAttrs state.original ["_module" "local"])
+          // {local = state.projectedLocal;};
+      }
+    ];
+  }).run;
 
-  # Convert the typed flake-parts Home Manager seed back into a plain HM module.
-  # Filter null fields inside local.user / local.context and skip the wrapper when the filtered value is empty,
-  # so that "unspecified" semantics are preserved and default-null seed values do not leak downstream.
-  compactHomeSeedModule = module: let
-    local = module.local or {};
-    rest = removeAttrs module ["_module" "local"];
-
-    compactUser = dropNullFields (local.user or {});
-    compactCtx = dropNullFields (local.context or {});
-  in
-    rest
-    // lib.optionalAttrs (module ? local) {
-      local =
-        lib.optionalAttrs (local ? features) {
-          features = featuresLib.compactFeatureSet local.features;
-        }
-        // lib.optionalAttrs (compactCtx != {}) {
-          context = compactCtx;
-        }
-        // lib.optionalAttrs (compactUser != {}) {
-          user = compactUser;
+  compactHomeSeedModule = (composition.namedPipeline {
+    label = "home-manager-seed-projection";
+    steps = [
+      {
+        name = "read-typed-home-seed";
+        run = module: {original = module; local = module.local or {};};
+      }
+      {
+        name = "compact-nullable-user-and-context";
+        run = state: let
+          compactUser = dropNullFields (state.local.user or {});
+          compactCtx = dropNullFields (state.local.context or {});
+        in state // {
+          projectedLocal =
+            lib.optionalAttrs (state.local ? features) {
+              features = featuresLib.compactFeatureSet state.local.features;
+            }
+            // lib.optionalAttrs (compactCtx != {}) {context = compactCtx;}
+            // lib.optionalAttrs (compactUser != {}) {user = compactUser;};
         };
-    };
+      }
+      {
+        name = "emit-native-home-manager-module";
+        run = state:
+          (removeAttrs state.original ["_module" "local"])
+          // lib.optionalAttrs (state.original ? local) {
+            local = state.projectedLocal;
+          };
+      }
+    ];
+  }).run;
 }

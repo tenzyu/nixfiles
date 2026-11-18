@@ -29,7 +29,10 @@
         framework-features = import (root + "/tests/features.nix") { inherit lib; };
         framework-users = import (root + "/tests/users.nix") { inherit lib; };
         framework-policies = import (root + "/tests/policies.nix") { inherit lib policyLib; };
-        framework-seed = import (root + "/tests/seed.nix") { inherit lib; };
+        framework-seed = import (root + "/tests/seed.nix") {
+          inherit lib;
+          composition = import (sharedLibRoot + "/composition.nix") {inherit lib;};
+        };
         framework-modules = import (root + "/tests/modules.nix") { inherit lib; };
         framework-trace = import (root + "/tests/trace.nix") { inherit lib traceLib; };
         integration-steam-hyprland = import (root + "/tests/integrations-steam.nix") {
