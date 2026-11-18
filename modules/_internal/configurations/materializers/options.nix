@@ -3,6 +3,7 @@
   nixosFeatureNames,
   homeFeatureNames,
   featuresLib,
+  composition,
 }: let
   inherit (lib) mkOption types;
 
@@ -46,15 +47,18 @@
   };
 
   nixosOptions = featureOptions: {
-    context =
-      context
-      // {
-        systemStateVersion =
-          (nullable types.str)
-          // {
+    context = (composition.namedDisjoint {
+      label = "nixos-context-options";
+      layers = [
+        {name = "shared-context"; attrs = context;}
+        {
+          name = "system-state-context";
+          attrs.systemStateVersion = (nullable types.str) // {
             description = "Initial NixOS state compatibility version for this host.";
           };
-      };
+        }
+      ];
+    }).merged;
     features = featureOptions nixosFeatureNames;
 
     users = mkOption {
@@ -107,25 +111,39 @@ in {
 
   homeFeatureOptionsModule.options.local = {
     user = homeUser;
-    context = context // homeContext;
+    context = (composition.namedDisjoint {
+      label = "embedded-home-context-options";
+      layers = [
+        {name = "shared-context"; attrs = context;}
+        {name = "home-manager-context"; attrs = homeContext;}
+      ];
+    }).merged;
     features = featuresLib.actualFeatureOptions homeFeatureNames;
   };
 
   nixosConfigurationModuleType = seedModuleType (nixosOptions featuresLib.seedFeatureOptions);
 
   homeConfigurationModuleType = seedModuleType {
-    user =
-      homeUser
-      // {
+    user = composition.overrideExisting {
+      label = "standalone-home-user-optional-fields";
+      base = homeUser;
+      replacements = {
         name = nullable homeUser.name.type;
         homeDirectory = nullable homeUser.homeDirectory.type;
       };
-    context =
-      context
-      // homeContext
-      // {
-        homeConfigurationName = nullable homeContext.homeConfigurationName.type;
-      };
+    };
+    context = composition.overrideExisting {
+      label = "standalone-home-context-optional-name";
+      base = (composition.namedDisjoint {
+        label = "standalone-home-context-options";
+        layers = [
+          {name = "shared-context"; attrs = context;}
+          {name = "home-manager-context"; attrs = homeContext;}
+        ];
+      }).merged;
+      replacements.homeConfigurationName =
+        nullable homeContext.homeConfigurationName.type;
+    };
     features = featuresLib.seedFeatureOptions homeFeatureNames;
   };
 }

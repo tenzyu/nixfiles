@@ -17,12 +17,24 @@
       {
         name = "compact-feature-user-context";
         run = state: state // {
-          projectedLocal = {
-            features = featuresLib.compactFeatureSet (state.local.features or {});
-            users = usersLib.compactNixosUsers (state.local.users or {});
-          } // lib.optionalAttrs (state.local ? context) {
-            context = dropNullFields state.local.context;
-          };
+          projectedLocal = (composition.namedDisjoint {
+            label = "nixos-seed.local";
+            layers = [
+              {
+                name = "feature-and-user-selection";
+                attrs = {
+                  features = featuresLib.compactFeatureSet (state.local.features or {});
+                  users = usersLib.compactNixosUsers (state.local.users or {});
+                };
+              }
+              {
+                name = "optional-host-context";
+                attrs = lib.optionalAttrs (state.local ? context) {
+                  context = dropNullFields state.local.context;
+                };
+              }
+            ];
+          }).merged;
         };
       }
       {
@@ -47,12 +59,25 @@
           compactUser = dropNullFields (state.local.user or {});
           compactCtx = dropNullFields (state.local.context or {});
         in state // {
-          projectedLocal =
-            lib.optionalAttrs (state.local ? features) {
-              features = featuresLib.compactFeatureSet state.local.features;
-            }
-            // lib.optionalAttrs (compactCtx != {}) {context = compactCtx;}
-            // lib.optionalAttrs (compactUser != {}) {user = compactUser;};
+          projectedLocal = (composition.namedDisjoint {
+            label = "home-manager-seed.local";
+            layers = [
+              {
+                name = "feature-selection";
+                attrs = lib.optionalAttrs (state.local ? features) {
+                  features = featuresLib.compactFeatureSet state.local.features;
+                };
+              }
+              {
+                name = "optional-context";
+                attrs = lib.optionalAttrs (compactCtx != {}) {context = compactCtx;};
+              }
+              {
+                name = "optional-user";
+                attrs = lib.optionalAttrs (compactUser != {}) {user = compactUser;};
+              }
+            ];
+          }).merged;
         };
       }
       {
