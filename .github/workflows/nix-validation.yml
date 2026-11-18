@@ -10,6 +10,10 @@ on:
         description: "Build every declared flake check (expensive)"
         type: boolean
         default: false
+      cache_strict:
+        description: "Verify signed SplitCast cache copies in isolated store (expensive)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,6 +64,15 @@ jobs:
             mapfile -t attrs <<< "$selected"
             printf 'Selected additional checks: %s\n' "${attrs[*]}"
             nix build -L --no-link "${attrs[@]}"
+          fi
+
+      - name: Validate SplitCast cache audit CLI
+        run: |
+          bash -n scripts/ci/audit-splitcast-cache.sh
+          bash scripts/ci/audit-splitcast-cache.sh --help
+          if bash scripts/ci/audit-splitcast-cache.sh --unknown-option; then
+            echo "cache audit accepted an invalid option" >&2
+            exit 1
           fi
 
       - name: Audit SplitCast cache paths when inputs or consumers change
@@ -133,3 +146,17 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - run: nix flake check -L --show-trace
+
+  cache-audit:
+    name: On-demand signed SplitCast cache verification
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.cache_strict }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash scripts/ci/audit-splitcast-cache.sh --strict

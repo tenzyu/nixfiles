@@ -4,9 +4,11 @@
 
 The NixOS `nix` feature sets `nix.settings.accept-flake-config = false`.
 This prevents the machine from silently trusting `nixConfig` supplied by
-an arbitrary Flake. Approved substituters and signing keys are managed in
-`modules/50-features/nix/nix.nix`; do not re-enable global auto-accept
-to repair a cache miss.
+an arbitrary Flake. Shared substituters and signing keys are managed in
+`modules/50-features/nix/nix.nix`. The SplitCast-specific release
+substituter and key are projected only by enabled capture/production
+roles from `modules/50-features/media/_internal/cache.nix`.
+Do not re-enable global auto-accept to repair a cache miss.
 
 The `nix-access` feature intentionally grants the enabled human account
 Nix daemon `trusted-users` privileges. This is *not* a sandbox or an

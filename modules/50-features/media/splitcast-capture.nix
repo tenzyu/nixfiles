@@ -5,9 +5,12 @@
     ...
   }: {
     imports = [inputs.splitcast.nixosModules.default];
-    services.splitcast = lib.mkIf config.local.features.splitcast-capture.enable {
-      enable = true;
-      role = "capture";
+    config = lib.mkIf config.local.features.splitcast-capture.enable {
+      services.splitcast = {
+        enable = true;
+        role = "capture";
+      };
+      nix.settings = import ./_internal/cache.nix;
     };
   };
   flake.modules.homeManager.splitcast-capture = {

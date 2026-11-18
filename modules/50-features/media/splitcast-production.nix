@@ -5,9 +5,12 @@
     ...
   }: {
     imports = [inputs.splitcast.nixosModules.default];
-    services.splitcast = lib.mkIf config.local.features.splitcast-production.enable {
-      enable = true;
-      role = "production";
+    config = lib.mkIf config.local.features.splitcast-production.enable {
+      services.splitcast = {
+        enable = true;
+        role = "production";
+      };
+      nix.settings = import ./_internal/cache.nix;
     };
   };
   flake.modules.homeManager.splitcast-production = {

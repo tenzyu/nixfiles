@@ -21,7 +21,7 @@ main commit). Its selection is deterministic, deduplicated and tested.
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
 | `flake.nix` or `flake.lock` | All four |
-| SplitCast media features or `nix.nix` | SplitCast cache probe only |
+| SplitCast media features (including cache settings) or `nix.nix` | SplitCast cache probe only |
 
 These selected check derivations actually build. The SplitCast `configs`
 check currently depends on the Rust package; it is intentionally *not*
@@ -46,6 +46,21 @@ download/signature/build verification. Failed queries can mean missing
 objects, network errors, inaccessible releases or timeouts.
 Neither result proves neko7's current daemon is substituting from
 this cache. Use real host-side store substitution logs for that claim.
+
+The default CI probe remains diagnostic. At the reviewed baseline, SplitCast
+and SplitCast Web NAR-info were **not confirmed**, while SplitCast OBS
+metadata was reachable. That is not signed cache availability.
+
+On demand, workflow_dispatch input `cache_strict=true` executes
+`audit-splitcast-cache.sh --strict`. It copies each pinned package output
+and its dependency closure into an isolated temporary local store. Nix must
+accept it under `require-sigs=true` with the configured SplitCast key;
+otherwise this separate job fails. Large closures are intentionally not
+downloaded for every PR. Neither result proves real neko7 daemon substitution.
+
+The consumer-specific URL and signing key live in
+`modules/50-features/media/_internal/cache.nix`, projected only by
+enabled SplitCast capture/production roles, not the common Nix feature.
 
 ## Validation and rollback
 

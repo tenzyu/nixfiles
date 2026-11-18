@@ -334,6 +334,23 @@ in {
         expectedEnabled;
     };
 
+    testSplitcastCacheIsScopedToEnabledConsumerRoles = {
+      expr = lib.mapAttrs (_: host: let
+        settings = host.config.nix.settings;
+      in {
+        urls = builtins.filter (url: lib.hasInfix "/tenzyu/splitcast/releases/download/nix-cache-" url) settings.extra-substituters;
+        keys = builtins.filter (key: lib.hasPrefix "splitcast-1:" key) settings.extra-trusted-public-keys;
+      }) flake.nixosConfigurations;
+      expected = {
+        neko5 = {urls = []; keys = [];};
+        neko6 = {urls = []; keys = [];};
+        neko7 = {
+          urls = ["https://github.com/tenzyu/splitcast/releases/download/nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1"];
+          keys = ["splitcast-1:vTbhAaBTWjRfVHQekUUYwSb9GBftwHNgBUhXGk0jGwM="];
+        };
+      };
+    };
+
     testNeko5SteamProjectsFromUserSelection = {
       expr = let
         seed = hostSeeds.neko5.module.local;
