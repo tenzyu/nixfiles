@@ -81,7 +81,7 @@ in {
           modules =
             [
               inputs.home-manager.nixosModules.home-manager
-              optionsMaterializers.nixosFeatureOptionsModule
+              optionsMaterializers.nixosOptionsModule
               userMaterializers.userSeededNixosFeaturesModule
               policyMaterializers.nixosPolicyMaterializerModule
               policyMaterializers.nixpkgsPolicyModule

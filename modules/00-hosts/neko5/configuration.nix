@@ -1,6 +1,7 @@
 {
   configurations.nixos.neko5.module = {
     local.context.flakePath = "/home/tenzyu/.nixfiles";
+    local.context.systemStateVersion = "24.11";
 
     local.features = {
       neko5-hardware.enable = true;

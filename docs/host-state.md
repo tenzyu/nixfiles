@@ -26,6 +26,16 @@ sources:
 
 **Scope:** the repository's Git declarations at the source revision; not a live SSH or systemd inspection.
 
+## NixOS state compatibility
+
+| Host | Declaration | Evidence |
+| --- | --- | --- |
+| neko5 | `24.11` | The first NixOS commit sets this value. Its root, boot and swap identifiers match the current hardware declaration. [Initial configuration](https://github.com/tenzyu/nixfiles/blob/7303643/profiles/neko5/configuration.nix) |
+| neko6 | UNKNOWN, using the pinned Nixpkgs default of `26.05` | The first named WSL profile used `24.11`. SSH lookup failed, so the original imported distribution's state remains unverified. [First named WSL host](https://github.com/tenzyu/nixfiles/tree/b1c3ec0) |
+| neko7 | UNKNOWN, using the pinned Nixpkgs default of `26.05` | The installer-era local configuration has `25.05` for the old root disk. Its first Git profile had `24.11`. The current root filesystem has a different UUID, and its installation history is unresolved. [First server profile](https://github.com/tenzyu/nixfiles/blob/2c88848/profiles/server.nix), [disk change](https://github.com/tenzyu/nixfiles/commit/8257b92) |
+
+The neko5 declaration replaces the evaluated fallback of `26.05`. All three hosts evaluate to the same system derivations as before this change. Home Manager continues to evaluate to `26.05` for each user. This evidence is from evaluation.
+
 ## neko5
 
 The host selects laptop hardware, Intel graphics, Hyprland environment, `neko5-osu-first`, remote Nix build client, `nix-store-clean`, PipeWire and Tailscale. The user selects concrete CLI and desktop features, osu!lazer and `home-layout`. Firefox is the default browser for web links and HTML files.

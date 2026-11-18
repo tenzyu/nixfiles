@@ -42,6 +42,7 @@
               };
               home-manager.users.alice.home.sessionVariables.ADAPTER_DIRECT = "direct";
               local.context.flakePath = "/fixture";
+              local.context.systemStateVersion = "24.05";
               local.users.alice = {
                 isAdmin = true;
                 email = "alice@example.invalid";
@@ -57,9 +58,12 @@
               local.features.adapter-check.enable = false;
               local.users.alice.features.adapter-check.enable = true;
             };
-            adapter-disabled.module.local.users.alice = {
-              enable = false;
-              features.adapter-check.enable = true;
+            adapter-disabled.module.local = {
+              context.systemStateVersion = null;
+              users.alice = {
+                enable = false;
+                features.adapter-check.enable = true;
+              };
             };
           };
 
@@ -86,14 +90,21 @@
           };
           configurations.nixos.adapter-active.module.local.users.alice.features.adapter-check.enable =
             lib.mkForce true;
+          configurations.nixos.adapter-active.module.local.context.systemStateVersion =
+            lib.mkDefault "23.11";
         }
       ];
     }).config.flake;
   active = outputs.nixosConfigurations.adapter-active;
   conflict = outputs.nixosConfigurations.adapter-conflict.config;
-  disabled = outputs.nixosConfigurations.adapter-disabled.config;
+  disabledHost = outputs.nixosConfigurations.adapter-disabled;
+  disabled = disabledHost.config;
   embedded = active.config.home-manager.users.alice;
   standalone = outputs.homeConfigurations.adapter-standalone.config;
+  nativeStateVersion = definition:
+    (active.extendModules {
+      modules = [{system.stateVersion = definition;}];
+    }).config.system.stateVersion;
   crossScopeFailures = config:
     builtins.filter
     (entry:
@@ -154,6 +165,96 @@
   };
 in {
   failures = lib.runTests {
+    testSystemStateVersionProjection = {
+      expr = {
+        native = active.config.system.stateVersion;
+        home = embedded.home.stateVersion;
+        definitions =
+          map (definition: {
+            inherit (definition) value;
+            projected = lib.hasSuffix "/materializers/options.nix" definition.file;
+          })
+          active.options.system.stateVersion.definitionsWithLocations;
+      };
+      expected = {
+        native = "24.05";
+        home = "25.11";
+        definitions = [
+          {
+            value = "24.05";
+            projected = true;
+          }
+        ];
+      };
+    };
+
+    testUnsetSystemStateVersionUsesNixpkgsDefault = {
+      expr = {
+        inherit (disabled.system) stateVersion;
+        priority = disabledHost.options.system.stateVersion.highestPrio;
+        absent = conflict.system.stateVersion;
+      };
+      expected = {
+        stateVersion = disabledHost.options.system.stateVersion.default;
+        priority = (lib.mkOptionDefault null).priority;
+        absent = outputs.nixosConfigurations.adapter-conflict.options.system.stateVersion.default;
+      };
+    };
+
+    testSystemStateVersionNativePriorities = {
+      expr = {
+        default = nativeStateVersion (lib.mkDefault "23.11");
+        same = nativeStateVersion "24.05";
+        conflict = (builtins.tryEval (nativeStateVersion "23.11")).success;
+        force = nativeStateVersion (lib.mkForce "23.11");
+      };
+      expected = {
+        default = "24.05";
+        same = "24.05";
+        conflict = false;
+        force = "23.11";
+      };
+    };
+
+    testSystemStateVersionEditorOptions = {
+      expr = let
+        seedContext = kind: let
+          configuration = flake.debug.options.configurations.${kind}.type.getSubOptions ["fixture"];
+        in
+          (configuration.module.type.getSubOptions []).local.context;
+        seedOption = (seedContext "nixos").systemStateVersion;
+        targetOption = active.options.local.context.systemStateVersion;
+      in {
+        seedType = seedOption.type.name;
+        targetType = targetOption.type.name;
+        acceptsString = seedOption.type.check "24.05";
+        acceptsNull = seedOption.type.check null;
+        acceptsNumber = seedOption.type.check 2411;
+        homeSeed = (seedContext "homeManager") ? systemStateVersion;
+        homeTarget = standalone.local.context ? systemStateVersion;
+      };
+      expected = {
+        seedType = "nullOr";
+        targetType = "nullOr";
+        acceptsString = true;
+        acceptsNull = true;
+        acceptsNumber = false;
+        homeSeed = false;
+        homeTarget = false;
+      };
+    };
+
+    testGameContainersKeepTheirOwnStateVersion = {
+      expr =
+        lib.mapAttrs (_: container: container.config.system.stateVersion)
+        flake.nixosConfigurations.neko7.config.containers;
+      expected = {
+        neko7-ark = "26.05";
+        neko7-rust = "26.05";
+        neko7-mc = "26.05";
+      };
+    };
+
     testConfiguredHostsAndStandaloneOutput = {
       expr = {
         nixos = builtins.attrNames flake.nixosConfigurations;

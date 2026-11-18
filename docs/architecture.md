@@ -54,10 +54,13 @@ The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users`
 
 - `local.features.<name>.enable` selects a system feature. `local.users.<user>.features.<name>.enable` selects a user feature.
 - The seed drops nullable fields with value `null` and forwards explicit system `false` values. After NixOS evaluates a user's feature selection, embedded Home Manager receives only enabled user features.
+- `local.context.systemStateVersion` accepts the host's verified initial NixOS compatibility version. The adapter projects it as a regular `system.stateVersion` definition. It wins over native `mkDefault`, conflicts with a different regular definition, and yields to native `mkForce`. Leaving it unset uses the Nixpkgs definition.
 - Enabled users receive a system account and group, projected `local.user` and `local.context` fields, and the registered Home Manager modules through `sharedModules`. Embedded Home Manager uses `useGlobalPkgs = true` and `useUserPackages = true`.
 - Standalone `configurations.homeManager` uses the same Home Manager feature registrations. The three current host declarations are NixOS configurations.
 
 Priorities on typed seed fields resolve against other seed definitions before projection. For example, a seed `mkForce` can win inside the seed, then a target `mkForce` can override the compacted value. Freeform target options and a literal `imports` list can pass through the seed. Target imports and registered feature modules evaluate against the native target `config`; a function evaluated as a seed sees the seed's `config`.
+
+The NixOS state compatibility version controls defaults for persistent state. Nixpkgs selection controls OS upgrades. Home Manager uses each user's independent `homeStateVersion`. [NixOS option reference](https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion)
 
 The host feature lists include `tmux.enable = false`, and neko5 also sets `zed-editor.enable = false`. The Firefox module supplies the default web associations. The neko6 Zsh module configures interactive Zsh in Home Manager while its WSL login shell is Bash.
 

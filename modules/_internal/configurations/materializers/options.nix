@@ -46,7 +46,15 @@
   };
 
   nixosOptions = featureOptions: {
-    inherit context;
+    context =
+      context
+      // {
+        systemStateVersion =
+          (nullable types.str)
+          // {
+            description = "Initial NixOS state compatibility version for this host.";
+          };
+      };
     features = featureOptions nixosFeatureNames;
 
     users = mkOption {
@@ -86,7 +94,14 @@
       options.local = localOptions;
     };
 in {
-  nixosFeatureOptionsModule.options.local = nixosOptions featuresLib.actualFeatureOptions;
+  nixosOptionsModule = {config, ...}: {
+    _file = toString ./options.nix;
+    options.local = nixosOptions featuresLib.actualFeatureOptions;
+
+    config = lib.mkIf (config.local.context.systemStateVersion != null) {
+      system.stateVersion = config.local.context.systemStateVersion;
+    };
+  };
 
   homeFeatureOptionsModule.options.local = {
     user = homeUser;
