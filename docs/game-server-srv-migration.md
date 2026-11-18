@@ -1,8 +1,9 @@
 # Minecraft service data: operator-controlled /srv cutover
 
-**Status:** code prepared, **not activated**. Source baseline is /home.
-The `game-srv` feature stays `false` on neko7 until the operator
-finishes migration and commits the explicit host flag change.
+**neko7 status (2026-11-18):** verified offline copy and explicit host flag
+enabled. Minecraft is running under a temporary NixOS test activation.
+Player login and approval for the persistent switch are pending. Until
+the persistent switch, a reboot can start the old layout with stale data.
 
 The current neko7 configuration enables Minecraft only; ARK and Rust remain
 disabled. Their prospective `/srv/{ark,rust}` layouts exist in source but
@@ -94,7 +95,6 @@ overwrite. Treat it as a manual collision/rollback case.
 In `modules/00-hosts/neko7/configuration.nix` change only:
 
 ```nix
-# TODO(srv-cutover): set true after the offline data copy has been verified.
 game-srv.enable = true;
 ```
 
