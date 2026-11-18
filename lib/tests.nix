@@ -2,6 +2,7 @@
   features = import ./features.nix {inherit lib;};
   users = import ./users.nix {inherit lib features;};
   policies = import ./policies.nix {inherit lib features;};
+  layout = import ./service-layout.nix {inherit lib;};
   cfg = {
     local.users = {
       alice = {enable = true; features = {steam.enable = true; git.enable = false;};};
