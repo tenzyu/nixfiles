@@ -1,10 +1,22 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko7";
-    # Keep these disables explicit in the Home Manager module.
-    home-manager.users.tenzyu.local.features = {
-      tmux.enable = false;
-      zed-editor.enable = false;
+    home-manager.users.tenzyu = {
+      local.features = {
+        tmux.enable = false;
+        zed-editor.enable = false;
+      };
+
+      services.splitcast.settings.peer.ssh_host = "neko7";
+
+      xdg.mimeApps = {
+        enable = true;
+        defaultApplications = {
+          "application/xhtml+xml" = ["firefox.desktop"];
+          "text/html" = ["firefox.desktop"];
+          "x-scheme-handler/http" = ["firefox.desktop"];
+          "x-scheme-handler/https" = ["firefox.desktop"];
+        };
+      };
     };
 
     local.context.flakePath = "/home/tenzyu/.nixfiles";

@@ -1,9 +1,11 @@
 {...}: {
   configurations.nixos.neko6.module = {
-    # Select Zsh in Home Manager while keeping Bash as the login shell.
-    home-manager.users.tenzyu.local.features = {
-      zsh.enable = true;
-      tmux.enable = false;
+    home-manager.users.tenzyu = {
+      # Keep Bash as the login shell.
+      local.features = {
+        zsh.enable = true;
+        tmux.enable = false;
+      };
     };
 
     local.features = {

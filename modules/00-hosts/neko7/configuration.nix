@@ -1,12 +1,15 @@
 {...}: {
   configurations.nixos.neko7.module = {
-    # Select Zsh in Home Manager while keeping Bash as the login shell.
-    home-manager.users.tenzyu.local.features = {
-      zsh.enable = true;
-      tmux.enable = false;
+    home-manager.users.tenzyu = {
+      # Keep Bash as the login shell.
+      local.features = {
+        zsh.enable = true;
+        tmux.enable = false;
+      };
+
+      services.splitcast.settings.peer.ssh_host = "neko5";
     };
 
-    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko5";
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
     # Android (nekosm1) access to neko7; preserve existing authorized keys.

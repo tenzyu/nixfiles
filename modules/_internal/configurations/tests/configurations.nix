@@ -182,6 +182,26 @@ in {
         expectedEnabled;
     };
 
+    testNeko5SteamProjectsFromUserSelection = {
+      expr = let
+        seed = hostSeeds.neko5.module.local;
+        os = flake.nixosConfigurations.neko5.config;
+      in {
+        systemSeed = seed.features.steam.enable;
+        userSeed = seed.users.tenzyu.features.steam.enable;
+        systemFeature = os.local.features.steam.enable;
+        systemProgram = os.programs.steam.enable;
+        homeFeature = os.home-manager.users.tenzyu.local.features.steam.enable;
+      };
+      expected = {
+        systemSeed = null;
+        userSeed = true;
+        systemFeature = true;
+        systemProgram = true;
+        homeFeature = true;
+      };
+    };
+
     testRemovedProfilesAreNotRegistered = {
       expr = lib.intersectLists ["tenzyu-cli" "tenzyu-desktop"] (lib.attrNames flake.modules.homeManager);
       expected = [];
