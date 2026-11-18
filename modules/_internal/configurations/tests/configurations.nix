@@ -606,6 +606,23 @@ in {
       };
     };
 
+    testSopsUsesProvisionedAgeIdentityOnNeko5AndNeko7 = {
+      expr = lib.genAttrs ["neko5" "neko7"] (host: let
+        inherit (flake.nixosConfigurations.${host}) config;
+      in {
+        enabled = config.local.features.sops-nix.enable;
+        inherit (config.sops.age) keyFile generateKey sshKeyPaths;
+        gnupgSshKeyPaths = config.sops.gnupg.sshKeyPaths;
+      });
+      expected = lib.genAttrs ["neko5" "neko7"] (_: {
+        enabled = true;
+        keyFile = "/var/lib/sops-nix/key.txt";
+        generateKey = false;
+        sshKeyPaths = [];
+        gnupgSshKeyPaths = [];
+      });
+    };
+
     testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
       expr = let
         host = flake.nixosConfigurations.neko7;

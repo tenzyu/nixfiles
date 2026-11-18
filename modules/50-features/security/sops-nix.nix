@@ -9,9 +9,10 @@
     imports = [inputs.sops-nix.nixosModules.sops];
 
     config = lib.mkIf config.local.features.sops-nix.enable {
-      # An existing, persisted host SSH key is the default age identity.
-      # Do not auto-generate or rotate the decryption key during a rebuild.
-      sops.age.sshKeyPaths = lib.mkDefault ["/etc/ssh/ssh_host_ed25519_key"];
+      # Provision a distinct, backed-up identity on each host before adding secrets.
+      sops.age.keyFile = lib.mkDefault "/var/lib/sops-nix/key.txt";
+      sops.age.sshKeyPaths = lib.mkDefault [];
+      sops.gnupg.sshKeyPaths = lib.mkDefault [];
     };
   };
 }
