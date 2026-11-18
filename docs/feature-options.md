@@ -47,3 +47,10 @@ prove a device was opened or an SSH/Wayland session was started.
 On the affected host after separate activation approval, inspect the generated
 `70-wacom-browser.rules` and confirm Firefox/terminal/USB behavior.
 A Git revert restores the original source layout and HM declaration.
+
+`hyprland-empty-xwayland` was also registered as a standalone feature but
+guarded by `hyprland-tenzyu.enable` instead of its own selection, making the
+feature toggle misleading. Its two existing XWayland rules are now a
+`60-integrations/desktop` contribution to `hyprland-tenzyu`, with no rule
+content changes. A host regression asserts both rules remain evaluated and
+the unreachable feature name is no longer advertised by the typed registry.

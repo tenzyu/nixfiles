@@ -422,6 +422,24 @@ in {
       };
     };
 
+    testUnselectableHyprlandRulesRemainAttachedToTheirRealFeature = {
+      expr = let
+        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+        rules = home.wayland.windowManager.hyprland.settings.window_rule;
+        emptyXwaylandRules = builtins.filter (rule:
+          (rule.match.class or null) == "^$"
+          && (rule.match.xwayland or false)
+        ) rules;
+      in {
+        ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
+        inheritedRules = builtins.length emptyXwaylandRules;
+      };
+      expected = {
+        ghostFeature = false;
+        inheritedRules = 2;
+      };
+    };
+
     testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {
