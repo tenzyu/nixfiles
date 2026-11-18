@@ -6,6 +6,11 @@
     "steam-original"
     "steam-unwrapped"
   ];
+  # Typed, opt-in cutover switch; actual service implementation remains native.
+  flake.modules.nixos.game-srv = {
+    # TODO(srv-cutover): enable via host only after offline data migration.
+  };
+
   flake.modules.nixos.game-server-containers = {
     config,
     lib,

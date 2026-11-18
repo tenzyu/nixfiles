@@ -63,7 +63,9 @@
       (mkTailscaleNodeModule spec args)
     ];
 
-  mkContainer = spec: gameModule: {
+  mkContainer = spec: gameModule: let
+    d = serviceLayout.mkGameDirectories spec;
+  in {
     containers.${spec.containerName} = {
       autoStart = spec.autoStart or false;
       privateNetwork = true;
@@ -72,17 +74,25 @@
       hostAddress = spec.hostAddress;
       localAddress = spec.localAddress;
 
-      bindMounts = {
-        "${spec.home}" = {
-          hostPath = spec.home;
-          isReadOnly = false;
+      bindMounts =
+        {
+          "${d.home}" = {
+            hostPath = d.home;
+            isReadOnly = false;
+          };
+          "/var/lib/tailscale" = {
+            hostPath = d.tailscaleDir;
+            isReadOnly = false;
+          };
+        }
+        // lib.optionalAttrs (d.gameDir != "${d.home}/${spec.key}") {
+          # TODO(srv-cutover): enable this mount only once the host's /srv
+          # data has been copied and verified with the container stopped.
+          "${d.gameDir}" = {
+            hostPath = d.gameDir;
+            isReadOnly = false;
+          };
         };
-
-        "/var/lib/tailscale" = {
-          hostPath = "${spec.home}/.state/tailscale";
-          isReadOnly = false;
-        };
-      };
 
       config = containerArgs @ {
         lib,

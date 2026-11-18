@@ -12,12 +12,15 @@
     pkgs,
     ...
   }: let
+    useSrv = config.local.features.game-srv.enable;
+    layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "ark";
       user = "game-ark";
       uid = 27007;
       gid = 27007;
-      home = "/home/game-ark";
+      home = if useSrv then "/var/lib/game-containers/ark" else "/home/game-ark";
+      gameDir = if useSrv then "/srv/ark" else "/home/game-ark/ark";
       containerName = "neko7-ark";
       hostAddress = "10.77.10.1";
       localAddress = "10.77.10.2";
@@ -43,10 +46,11 @@
       pkgs,
       ...
     }: let
-      home = spec.home;
-      installDir = "${home}/ark/server";
-      backupDir = "${home}/ark/backups";
-      envFile = "${home}/secrets/ark.env";
+      d = layout.mkGameDirectories spec;
+      home = d.home;
+      installDir = d.serverDir;
+      backupDir = d.backupsDir;
+      envFile = "${d.secretsDir}/ark.env";
       serverBinary = "${installDir}/ShooterGame/Binaries/Linux/ShooterGameServer";
     in {
       environment.systemPackages = with pkgs; [
@@ -91,7 +95,7 @@
           set -euo pipefail
 
           mkdir -p ${installDir} ${backupDir}
-          chmod 0750 ${home} ${home}/ark ${installDir} ${backupDir}
+          chmod 0750 ${home} ${d.gameDir} ${installDir} ${backupDir}
         '';
 
         script = ''
@@ -152,7 +156,7 @@
           set -euo pipefail
 
           mkdir -p ${installDir} ${backupDir}
-          chmod 0750 ${home} ${home}/ark ${installDir} ${backupDir}
+          chmod 0750 ${home} ${d.gameDir} ${installDir} ${backupDir}
 
           if [ -d ${installDir}/ShooterGame/Saved ]; then
             backup="${backupDir}/saved-$(date +%Y%m%d-%H%M%S).tar.gz"

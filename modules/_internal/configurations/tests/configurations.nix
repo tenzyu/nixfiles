@@ -576,6 +576,37 @@ in {
       };
     };
 
+    testGameSrvCutoverIsOptInWithNativeProtection = {
+      expr = let
+        host = flake.nixosConfigurations.neko7;
+        original = host.config;
+        next = (host.extendModules {
+          modules = [
+            {local.features.game-srv.enable = lib.mkForce true;}
+          ];
+        }).config;
+      in {
+        defaultEnabled = original.local.features.game-srv.enable;
+        originalData = original.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        originalProtectHome = original.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        migratedData = next.containers.neko7-mc.config.services.minecraft-servers.dataDir;
+        migratedHome = next.users.users.game-minecraft.home;
+        migratedMount = next.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
+        migratedIdentity = next.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
+        migratedProtectHome = next.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+      };
+      expected = {
+        defaultEnabled = false;
+        originalData = "/home/game-minecraft/minecraft";
+        originalProtectHome = false;
+        migratedData = "/srv/minecraft";
+        migratedHome = "/var/lib/game-containers/minecraft";
+        migratedMount = "/srv/minecraft";
+        migratedIdentity = "/var/lib/game-containers/minecraft/.state/tailscale";
+        migratedProtectHome = true;
+      };
+    };
+
     testGameServerCapabilitiesAreIndependentlySelected = {
       expr = let
         host = flake.nixosConfigurations.neko7.config;

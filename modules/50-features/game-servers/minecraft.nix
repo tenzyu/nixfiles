@@ -5,12 +5,15 @@
     pkgs,
     ...
   }: let
+    useSrv = config.local.features.game-srv.enable;
+    layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "minecraft";
       user = "game-minecraft";
       uid = 27009;
       gid = 27009;
-      home = "/home/game-minecraft";
+      home = if useSrv then "/var/lib/game-containers/minecraft" else "/home/game-minecraft";
+      gameDir = if useSrv then "/srv/minecraft" else "/home/game-minecraft/minecraft";
       containerName = "neko7-mc";
       hostAddress = "10.77.30.1";
       localAddress = "10.77.30.2";
@@ -25,12 +28,15 @@
       pkgs,
       lib,
       ...
-    }: {
+    }: let
+      d = layout.mkGameDirectories spec;
+    in {
       nixpkgs.overlays = [inputs.nix-minecraft.overlay];
 
-      # これで Minecraft サービスから /home/game-minecraft/minecraft を利用できるようになる。ただし /home 全体へのアクセス制限を緩めるため、将来的にはデータを /srv/minecraft に bind mount して ProtectHome = true を維持する設計が望ましい。
+      # TODO(srv-cutover): remove the legacy /home exception once
+      # the host has completed the offline copy and enabled game-srv.
       systemd.services.minecraft-server-survival.serviceConfig.ProtectHome =
-        lib.mkForce false;
+        lib.mkIf (!useSrv) (lib.mkForce false);
 
       users.users.minecraft.uid = spec.uid;
       users.groups.minecraft.gid = spec.gid;
@@ -38,7 +44,7 @@
       services.minecraft-servers = {
         enable = true;
         eula = true; # Only if you have accepted Mojang's EULA.
-        dataDir = "${spec.home}/minecraft";
+        dataDir = d.gameDir;
         servers.survival = {
           enable = true;
           package = pkgs.fabricServers.fabric-26_3.override {
