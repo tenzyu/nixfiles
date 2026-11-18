@@ -67,7 +67,7 @@ Evaluation, build, activation, boot, and runtime acceptance are **different gate
 
 The adapter derives feature option names from `flake.modules`. Adding a feature takes a module registration and a host selection. See the [architecture](docs/architecture.md) for how the typed seed passes those selections to NixOS and Home Manager.
 
-Framework tools are exposed as `framework-cli`, `framework-test`, `framework-invariants` and `feature-trace` flake apps. `feature-trace --feature NAME` scopes the trace; evaluated Nix option definitions take precedence over heuristic source-location hints. Use `nix run .#framework-cli -- --help` to inspect the supported interface.
+Framework tools are exposed as `framework-cli`, `framework-test`, `framework-invariants` and `feature-trace` flake apps. Use `--feature NAME` with `--scope` and `--user` to select features. `--why OPTION_PATH` reports the effective NixOS value and its evaluated definitions. Feature JSON includes evaluated Nix definitions in `definitions` and scanned source locations in `source_hints`. Use `nix run .#framework-cli -- --help` to inspect the supported interface.
 
 ## Safety boundaries
 

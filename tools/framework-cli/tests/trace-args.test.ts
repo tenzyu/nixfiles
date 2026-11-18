@@ -18,4 +18,20 @@ describe("feature trace CLI arguments", () => {
     expect(parsed.scope).toBe("home");
     expect(parsed.feature).toBe("steam");
   });
+
+  test("retains an absent host for command validation", () => {
+    expect(parseTraceArgs(["--feature", "zsh"]).host).toBe("");
+  });
+
+  test("selects the documented implementation edit target", () => {
+    const parsed = parseTraceArgs(["--host", "neko5", "--edit-implementation"]);
+    expect(parsed.edit).toBe(true);
+    expect(parsed.editTarget).toBe("implementation");
+  });
+
+  test("rejects missing values, bad scopes and unknown flags", () => {
+    expect(() => parseTraceArgs(["--host", "--json"])).toThrow("--host requires a value");
+    expect(() => parseTraceArgs(["--scope", "wrong"])).toThrow("--scope must be one of");
+    expect(() => parseTraceArgs(["--unknown"])).toThrow("unknown argument: --unknown");
+  });
 });
