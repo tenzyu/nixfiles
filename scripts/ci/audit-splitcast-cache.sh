@@ -31,10 +31,10 @@ for name in splitcast splitcast-web splitcast-obs; do
   store_path="$(nix eval --impure --raw --expr "$expr")"
   outcome="NOT-CONFIRMED"
   if timeout 20s nix path-info --store "$cache_url" "$store_path" >/dev/null 2>&1; then
-    outcome="AVAILABLE"
+    outcome="NARINFO-QUERY-OK"
   fi
   printf '%s: %s [%s]\n' "$name" "$store_path" "$outcome"
   printf '| `%s` | `%s` | %s |\n' "$name" "$store_path" "$outcome" >> "$summary"
 done
 
-printf '\nNOT-CONFIRMED includes missing paths, network errors and timeouts; it is not evidence that the package cannot build. Nothing is copied or activated.\n' | tee -a "$summary"
+printf '\nNARINFO-QUERY-OK is metadata reachability, not a downloaded, signature-verified store path. NOT-CONFIRMED includes missing paths, network errors and timeouts; it is not evidence that the package cannot build. Nothing is copied or activated.\n' | tee -a "$summary"
