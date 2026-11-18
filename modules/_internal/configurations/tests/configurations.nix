@@ -212,7 +212,7 @@ in {
       expected = false;
     };
 
-    testHostZshKeepsLoginShells = {
+    testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {
           seed = hostSeeds.${name}.module.local.users.tenzyu.features.zsh.enable;
@@ -241,49 +241,45 @@ in {
           shell = "bash-interactive";
         };
         neko7 = {
-          seed = null;
-          native = true;
+          seed = true;
+          native = null;
           systemFeature = true;
           systemProgram = true;
           home = true;
-          shell = "bash-interactive";
+          shell = "zsh";
         };
       };
     };
 
-    testHostHomeDisablesOverrideDefaults = {
+    testHostUserFeatureDisables = {
       expr =
-        lib.mapAttrs (_: host: let
-          forcedDefaults =
-            (host.extendModules {
-              modules = [
-                {
-                  home-manager.users.tenzyu.local.features = {
-                    tmux.enable = lib.mkDefault true;
-                    zed-editor.enable = lib.mkDefault true;
-                  };
-                }
-              ];
-            }).config.home-manager.users.tenzyu.local.features;
+        lib.mapAttrs (name: host: let
+          seed = hostSeeds.${name}.module.local.users.tenzyu.features;
+          home = host.config.home-manager.users.tenzyu.local.features;
         in {
-          tmux = forcedDefaults.tmux.enable;
-          zed = forcedDefaults.zed-editor.enable;
+          tmux = {
+            seed = seed.tmux.enable;
+            inherit (home.tmux) enable;
+          };
+          zed = {
+            seed = seed.zed-editor.enable;
+            inherit (home.zed-editor) enable;
+          };
         })
         flake.nixosConfigurations;
-      expected = {
-        neko5 = {
-          tmux = false;
-          zed = false;
+      expected = lib.genAttrs ["neko5" "neko6" "neko7"] (name: {
+        tmux = {
+          seed = false;
+          enable = false;
         };
-        neko6 = {
-          tmux = false;
-          zed = true;
+        zed = {
+          seed =
+            if name == "neko5"
+            then false
+            else null;
+          enable = false;
         };
-        neko7 = {
-          tmux = false;
-          zed = true;
-        };
-      };
+      });
     };
 
     testUserFeatureProjectsAndKeepsDirectOptions = {

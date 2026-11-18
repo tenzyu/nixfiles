@@ -1,13 +1,5 @@
 {...}: {
   configurations.nixos.neko6.module = {
-    home-manager.users.tenzyu = {
-      # Keep Bash as the login shell.
-      local.features = {
-        zsh.enable = true;
-        tmux.enable = false;
-      };
-    };
-
     local.features = {
       wsl-integration.enable = true;
       nix.enable = true;
@@ -39,6 +31,7 @@
         git.enable = true;
         neovim.enable = true;
         starship.enable = true;
+        tmux.enable = false;
         yazi.enable = true;
         zoxide.enable = true;
 

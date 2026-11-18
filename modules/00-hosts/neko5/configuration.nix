@@ -1,24 +1,5 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu = {
-      local.features = {
-        tmux.enable = false;
-        zed-editor.enable = false;
-      };
-
-      services.splitcast.settings.peer.ssh_host = "neko7";
-
-      xdg.mimeApps = {
-        enable = true;
-        defaultApplications = {
-          "application/xhtml+xml" = ["firefox.desktop"];
-          "text/html" = ["firefox.desktop"];
-          "x-scheme-handler/http" = ["firefox.desktop"];
-          "x-scheme-handler/https" = ["firefox.desktop"];
-        };
-      };
-    };
-
     local.context.flakePath = "/home/tenzyu/.nixfiles";
 
     local.features = {
@@ -88,6 +69,7 @@
         git.enable = true;
         neovim.enable = true;
         starship.enable = true;
+        tmux.enable = false;
         yazi.enable = true;
         zoxide.enable = true;
 
@@ -100,6 +82,7 @@
         packages-desktop.enable = true;
         firefox.enable = true;
         chromium.enable = true;
+        zed-editor.enable = false;
         hyprland-tenzyu.enable = true;
         obsidian.enable = true;
         osu-lazer.enable = true;
