@@ -1,8 +1,19 @@
-{lib, ...}: {
+{lib, ...}: let
+  fs = lib.fileset;
+  # Keep the source of each check limited to what it actually inspects.
+  deprecatedSource = fs.toSource {
+    root = ../..;
+    fileset = fs.unions [../. ../../README.md];
+  };
+  featureShapeSource = fs.toSource {
+    root = ../..;
+    fileset = fs.fileFilter (file: file.hasExt "nix") ../.;
+  };
+in {
   perSystem = {pkgs, ...}: {
     checks.deprecated-patterns =
       pkgs.runCommand "check-deprecated-patterns" {
-        src = lib.cleanSource ../..;
+        src = deprecatedSource;
         nativeBuildInputs = [pkgs.ripgrep];
       } ''
         set -euo pipefail
@@ -41,7 +52,7 @@
 
     checks.feature-name-shape =
       pkgs.runCommand "check-feature-name-shape" {
-        src = lib.cleanSource ../..;
+        src = featureShapeSource;
       } ''
         set -euo pipefail
         cd "$src"

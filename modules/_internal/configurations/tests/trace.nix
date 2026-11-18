@@ -97,6 +97,27 @@ in {
     };
   };
 
+  testNestedHostFeatureSeedHint = {
+    expr = let
+      nestedFlake = fakeFlake // {
+        nixosConfigurations = fakeFlake.nixosConfigurations // {
+          nestedhost = fakeFlake.nixosConfigurations.testhost;
+        };
+      };
+      found = builtins.head (trace.traceHost (base // {
+        flake = nestedFlake;
+        host = "nestedhost";
+        scope = "system";
+        feature = "beta";
+      })).system;
+    in map (hint: {inherit (hint) source line origin;}) found.source_hints;
+    expected = [{
+      source = "modules/00-hosts/nestedhost/configuration.nix";
+      line = 8;
+      origin = "text-scan";
+    }];
+  };
+
   testFilteredTraceIncludesExplicitlyDisabledFeature = {
     expr = names "beta";
     expected = ["beta"];

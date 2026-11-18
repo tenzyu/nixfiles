@@ -96,7 +96,10 @@
         line = item.text;
         delta = braceDelta line;
 
-        startsSystem = hasInfix "local.features" line && hasInfix "{" line && !hasInfix "local.users." line;
+        startsLocal = hasInfix "local = {" line && !hasInfix "local.features" line;
+        startsSystem =
+          (hasInfix "local.features" line && hasInfix "{" line && !hasInfix "local.users." line)
+          || (state.mode == "local" && hasInfix "features = {" line);
         startsUser = hasInfix "local.users." line && hasInfix "{" line && !hasInfix ".features" line;
         userFromLine = userNameFromLine line;
         startsUserFeatures = state.user != null && state.mode == "user" && hasInfix "features" line && hasInfix "{" line;
@@ -118,6 +121,14 @@
             user = null;
             baseDepth = state.depth;
             path = "system";
+            resumeLocal = state.mode == "local";
+          }
+          else if startsLocal
+          then {
+            mode = "local";
+            user = null;
+            baseDepth = state.depth;
+            path = null;
           }
           else if startsUser && userFromLine != null
           then {
@@ -138,6 +149,14 @@
         newDepth = state.depth + delta;
         stateAfterClose =
           if stateAfterEnter.mode == "system-features" && newDepth <= stateAfterEnter.baseDepth
+          then {
+            mode = if stateAfterEnter.resumeLocal or false then "local" else null;
+            user = null;
+            baseDepth = if stateAfterEnter.resumeLocal or false then stateAfterEnter.baseDepth - 1 else 0;
+            path = null;
+            depth = newDepth;
+          }
+          else if stateAfterEnter.mode == "local" && newDepth <= stateAfterEnter.baseDepth
           then {
             mode = null;
             user = null;
