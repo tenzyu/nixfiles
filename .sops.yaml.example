@@ -1,0 +1,6 @@
+# TODO: replace the public recipient with the output of:
+#   sudo cat /etc/ssh/ssh_host_ed25519_key.pub | ssh-to-age
+# Template only; copy to .sops.yaml and fill the real verified recipient.
+creation_rules:
+  - path_regex: '^secrets/neko7\.yaml$'
+    age: age1REPLACE_WITH_VERIFIED_NEKO7_AGE_RECIPIENT

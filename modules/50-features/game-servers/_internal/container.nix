@@ -92,6 +92,15 @@
             hostPath = d.gameDir;
             isReadOnly = false;
           };
+        }
+        // lib.optionalAttrs (spec ? hostAuthKeyFile) {
+          # TODO(sops-bootstrap): runtime secret exists only after the
+          # operator commits an encrypted SOPS manifest and enables the host
+          # feature. Keep it read-only and remount on secret rotation.
+          "${spec.authKeyFile}" = {
+            hostPath = spec.hostAuthKeyFile;
+            isReadOnly = true;
+          };
         };
 
       config = containerArgs @ {
