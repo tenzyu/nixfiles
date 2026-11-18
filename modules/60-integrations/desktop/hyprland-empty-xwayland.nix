@@ -1,5 +1,5 @@
 {
-  flake.modules.homeManager.hyprland-empty-xwayland = {
+  flake.modules.homeManager.hyprland-tenzyu = {
     config,
     lib,
     ...

@@ -393,6 +393,53 @@ in {
       };
     };
 
+    testNativeOptionOwnershipAndAccessBoundaries = {
+      expr = lib.mapAttrs (_: host: let
+        hm = host.config.home-manager.users.tenzyu;
+      in {
+        zshXdgConfig = hm.xdg.configFile ? "zsh/zshrc.d";
+        networkmanagerGroup = builtins.elem "networkmanager" host.config.users.users.tenzyu.extraGroups;
+        tabletRules = builtins.any
+          (pkg: lib.hasInfix "wacom-browser-udev-rules" (toString pkg))
+          host.config.services.udev.packages;
+      }) flake.nixosConfigurations;
+      expected = {
+        neko5 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = true;
+          tabletRules = true;
+        };
+        neko6 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = false;
+          tabletRules = false;
+        };
+        neko7 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = false;
+          tabletRules = false;
+        };
+      };
+    };
+
+    testUnselectableHyprlandRulesRemainAttachedToTheirRealFeature = {
+      expr = let
+        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+        rules = home.wayland.windowManager.hyprland.settings.window_rule;
+        emptyXwaylandRules = builtins.filter (rule:
+          (rule.match.class or null) == "^$"
+          && (rule.match.xwayland or false)
+        ) rules;
+      in {
+        ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
+        inheritedRules = builtins.length emptyXwaylandRules;
+      };
+      expected = {
+        ghostFeature = false;
+        inheritedRules = 2;
+      };
+    };
+
     testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {
