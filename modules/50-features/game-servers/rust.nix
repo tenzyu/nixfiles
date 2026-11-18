@@ -1,5 +1,12 @@
 {...}: {
-  flake.modules.nixos.game-server-containers = {
+  flake.local.featurePolicies.game-rust.unfree = [
+    "steamcmd"
+    "steam"
+    "steam-run"
+    "steam-original"
+    "steam-unwrapped"
+  ];
+  flake.modules.nixos.game-rust = {
     config,
     lib,
     pkgs,
@@ -385,7 +392,7 @@
     };
   in {
     config =
-      lib.mkIf config.local.features.game-server-containers.enable
+      lib.mkIf config.local.features.game-rust.enable
       (mkGame spec mkRustModule);
   };
 }
