@@ -33,10 +33,7 @@
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
-        # TODO(srv-cutover): change to true only after the stopped-container
-        # copy, checksum verification and rollback preparation in
-        # docs/game-server-srv-migration.md.
-        game-srv.enable = false;
+        game-srv.enable = true;
         game-server-tools.enable = true;
         resolvconf-blacklist-gateway.enable = true;
         disable-ipv6.enable = true;
