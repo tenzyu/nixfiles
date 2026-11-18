@@ -25,7 +25,7 @@
   homeModuleList = lib.mapAttrsToList modulesLib.tagHomeModule homeModules;
 
   optionsMaterializers = import ./materializers/options.nix {
-    inherit lib nixosFeatureNames homeFeatureNames featuresLib;
+    inherit lib nixosFeatureNames homeFeatureNames featuresLib composition;
   };
 
   policyMaterializers = import ../../10-foundations/_policy/materializer.nix {

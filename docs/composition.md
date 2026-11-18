@@ -56,3 +56,38 @@ the real projection contract.
 Sources: [Nixpkgs lib](https://nixos.org/manual/nixpkgs/stable/),
 [Nix builtins](https://nix.dev/manual/nix/2.35/language/builtins.html),
 [NixOS modules](https://nixos.org/manual/nixos/stable/).
+
+## Named disjoint layers and deliberate replacement
+
+The existing `lib.unionOfDisjoint` fails on overlapping *accessed* keys,
+but does not record which source supplied each key. `namedDisjoint` adds
+a cheap structural ownership check with layer attribution, fail-fast when
+the merged attrset is demanded, without forcing the layer's values.
+
+```nix
+let
+  result = composition.namedDisjoint {
+    label = "home-context";
+    layers = [
+      {name = "shared"; attrs = {flakePath = "/repo";};}
+      {name = "home"; attrs = {homeStateVersion = "26.05";};}
+    ];
+  };
+in {
+  values = result.merged;
+  provenance = result.owners; # {flakePath = "shared"; homeStateVersion = "home";}
+}
+```
+
+`overrideExisting {label; base; replacements;}` is an explicitly named,
+shallow replacement. Unlike `lib.overrideExisting`, it **rejects keys
+absent from the original attrset** instead of silently ignoring them. It
+is intended for schema-shape adjustments in ordinary Nix data, such as
+changing existing required seed options to nullable ones.
+
+Neither helper operates on native NixOS option-definition wrappers such as
+`lib.mkIf` or `lib.mkMerge`; those always belong in `lib.evalModules`.
+`namedDisjoint` validates top-level keys only, never recursively merges
+paths, and does not force nested attribute values. Use native
+`lib.mergeAttrsList` for thousands of known-compatible layers where
+its optimized large-input complexity is more appropriate.
