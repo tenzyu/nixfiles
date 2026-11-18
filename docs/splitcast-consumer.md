@@ -18,6 +18,14 @@ sources:
 
 # Consume the independent SplitCast flake
 
+The cache URL and public signing key are enabled only when a host selects
+`splitcast-production` or `splitcast-capture`. The common Nix module no
+longer grants SplitCast's signing key to hosts with no SplitCast consumer.
+Cache tag/revision equality is not a validity proof: inspect actual store
+paths and use the CI workflow_dispatch `cache_strict` signed-copy audit
+before asserting cache completeness. A cache audit does not assert runtime
+deployment.
+
 SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local feature files only import those modules and map existing role-enable settings. Host files supply peer settings through `home-manager.users.<user>.services.splitcast.settings`.
 
 The input pins the verified cache candidate `d2205d06b0dc695c3d9b7372fafa7facee769fa9` from https://github.com/tenzyu/splitcast. It keeps SplitCast's own Nixpkgs lock because overriding Nixpkgs with `follows` changes store paths and prevents cache hits.

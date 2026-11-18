@@ -31,6 +31,12 @@ class SelectionTests(unittest.TestCase):
     def test_lock_update_checks_dependency_sensitive_modules(self):
         self.assertEqual(module.selection(["flake.lock"]), (sorted(module.OPTIONAL_CHECKS), True))
 
+    def test_splitcast_private_cache_policy_triggers_audit(self):
+        self.assertEqual(
+            module.selection(["modules/50-features/media/_internal/cache.nix"]),
+            ([], True),
+        )
+
     def test_splitcast_only_runs_cache_probe(self):
         self.assertEqual(module.selection(["modules/50-features/media/splitcast-production.nix"]), ([], True))
 
