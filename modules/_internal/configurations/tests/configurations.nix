@@ -258,6 +258,19 @@ in {
       };
     };
 
+    testHomeMigrationIsPreflightOnlyForEveryHost = {
+      expr = lib.mapAttrs (_: host: let
+        activation = host.config.home-manager.users.tenzyu.home.activation;
+      in {
+        hasCheck = activation ? checkHomeMigration;
+        hasAutomaticMigration = activation ? migrateHomeLayout;
+      }) flake.nixosConfigurations;
+      expected = lib.genAttrs ["neko5" "neko6" "neko7"] (_: {
+        hasCheck = true;
+        hasAutomaticMigration = false;
+      });
+    };
+
     testNhFlakePathFollowsUserFeature = {
       expr = let
         withNh =

@@ -71,7 +71,7 @@ Framework tools are exposed as `framework-cli`, `framework-test`, `framework-inv
 
 ## Safety boundaries
 
-- Home Migration defaults to **check-only**: pending migration work aborts Home Manager activation before `writeBoundary`. Explicit `local.homeMigration.autoApply = true` at the Home Manager configuration layer is required for automatic file moves; the plan must be separately approved.
+- Home Migration activation is **check-only**: pending migration work aborts before `writeBoundary`. Automatic file moves during activation are not supported; `home-layout-migrate apply` is a separate, explicitly authorized operator action.
 - `neko5` enables `home-layout`, but its host file explicitly notes buggy migration scripts. **Do not treat XDG data migration as accepted.** See [migration runbook](assets/home-layout/README.md).
 - `nix-store-clean-current-system` respects Nix GC liveness; optional generation pruning still needs VM lifecycle acceptance. See [GC runbook](docs/nix-store-clean.md).
 - `neko7` enables the OpenCode direnv integration, **not** the candidate Home Manager-managed OpenCode server unit. See [devShell](docs/opencode-devshells.md) and [migration](docs/opencode-neko7-migration.md).

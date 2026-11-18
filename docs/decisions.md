@@ -30,7 +30,7 @@ Nix module implementation and exact host configuration supersede old README asse
 
 ## D2 — Data and rollback safety
 
-The XDG migration includes data movement, collision checks and journals. NixOS generation rollback **does not reverse renames of user data**. `neko5` contains an unresolved migration TODO. See [home migration runbook](../assets/home-layout/README.md).
+The XDG migration includes data movement, collision checks and journals. Home Manager activation is strictly check-only; data moves require a separate, explicitly approved `home-layout-migrate apply`. NixOS generation rollback **does not reverse renames of user data**. `neko5` contains an unresolved migration TODO. See [home migration runbook](../assets/home-layout/README.md).
 
 The Nix store cleaner does not ignore GC roots; `prune-system` needs explicit confirmation and full staged-boot/rollback VM acceptance. Reclaiming a large amount of space is not evidence of safe deletion. See [Nix store cleanup](nix-store-clean.md).
 
