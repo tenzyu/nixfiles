@@ -1,6 +1,5 @@
 {...}: {
   configurations.nixos.neko7.module = {
-    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko5";
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
     # Android (nekosm1) access to neko7; preserve existing authorized keys.
@@ -13,7 +12,6 @@
     local.features = {
       neko7-hardware.enable = true;
       nix.enable = true;
-      zsh.enable = true;
       time.enable = true;
       locale.enable = true;
       ssh.enable = true;
@@ -51,7 +49,19 @@
 
       features = {
         splitcast-production.enable = true;
-        tenzyu-cli.enable = true;
+        zsh.enable = true;
+        common.enable = true;
+        packages-common.enable = true;
+        btop.enable = true;
+        fastfetch.enable = true;
+        fzf.enable = true;
+        git.enable = true;
+        neovim.enable = true;
+        starship.enable = true;
+        tmux.enable = false;
+        yazi.enable = true;
+        zoxide.enable = true;
+
         catppuccin.enable = true;
         nix-access.enable = true;
         nix-tools.enable = true;

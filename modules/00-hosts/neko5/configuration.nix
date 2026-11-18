@@ -1,7 +1,5 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu.services.splitcast.settings.peer.ssh_host = "neko7";
-
     local.context.flakePath = "/home/tenzyu/.nixfiles";
 
     local.features = {
@@ -63,7 +61,28 @@
         disk-tools.enable = true;
         herdr.enable = true;
 
-        tenzyu-desktop.enable = true;
+        common.enable = true;
+        packages-common.enable = true;
+        btop.enable = true;
+        fastfetch.enable = true;
+        fzf.enable = true;
+        git.enable = true;
+        neovim.enable = true;
+        starship.enable = true;
+        tmux.enable = false;
+        yazi.enable = true;
+        zoxide.enable = true;
+
+        kitty.enable = true;
+        rofi.enable = true;
+        waybar.enable = true;
+        mako.enable = true;
+        wlogout.enable = true;
+        hyprpaper.enable = true;
+        packages-desktop.enable = true;
+        firefox.enable = true;
+        chromium.enable = true;
+        zed-editor.enable = false;
         hyprland-tenzyu.enable = true;
         obsidian.enable = true;
         osu-lazer.enable = true;

@@ -23,7 +23,18 @@
       homeDirectory = "/home/tenzyu";
 
       features = {
-        tenzyu-cli.enable = true;
+        common.enable = true;
+        packages-common.enable = true;
+        btop.enable = true;
+        fastfetch.enable = true;
+        fzf.enable = true;
+        git.enable = true;
+        neovim.enable = true;
+        starship.enable = true;
+        tmux.enable = false;
+        yazi.enable = true;
+        zoxide.enable = true;
+
         wsl-default-user.enable = true;
         docker-user-access.enable = true;
         ozone-wayland.enable = true;

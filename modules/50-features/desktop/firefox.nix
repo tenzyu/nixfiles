@@ -24,6 +24,16 @@
         )
         false;
 
+      xdg.mimeApps = {
+        enable = lib.mkDefault true;
+        defaultApplications = lib.genAttrs [
+          "application/xhtml+xml"
+          "text/html"
+          "x-scheme-handler/http"
+          "x-scheme-handler/https"
+        ] (_: lib.mkDefault ["firefox.desktop"]);
+      };
+
       programs.firefox = {
         enable = true;
         package = pkgs.unstable.firefox;

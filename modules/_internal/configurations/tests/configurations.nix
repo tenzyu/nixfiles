@@ -105,6 +105,48 @@
     allowed = config.nixpkgs.config.allowUnfreePredicate {pname = "adapter-unfree";};
     unrelatedAllowed = config.nixpkgs.config.allowUnfreePredicate {pname = "unrelated";};
   };
+  hostSeeds = flake.debug.config.configurations.nixos;
+  cliFeatures = [
+    "btop"
+    "common"
+    "fastfetch"
+    "fzf"
+    "git"
+    "neovim"
+    "packages-common"
+    "starship"
+    "yazi"
+    "zoxide"
+  ];
+  desktopFeatures = [
+    "chromium"
+    "firefox"
+    "hyprpaper"
+    "kitty"
+    "mako"
+    "packages-desktop"
+    "rofi"
+    "waybar"
+    "wlogout"
+  ];
+  trackedFeatures = cliFeatures ++ desktopFeatures;
+  expectedEnabled = {
+    neko5 = lib.sort builtins.lessThan trackedFeatures;
+    neko6 = cliFeatures;
+    neko7 = cliFeatures;
+  };
+  enabledFeatures = features:
+    lib.attrNames (lib.filterAttrs (name: feature:
+      builtins.elem name trackedFeatures && feature.enable == true)
+    features);
+  unknownUserFeatures =
+    (flake.debug.extendModules {
+      modules = [
+        {
+          configurations.nixos.adapter-unknown.module.local.users.alice.features.adapter-unregistered.enable = true;
+        }
+      ];
+    }).config.configurations.nixos.adapter-unknown.module.local.users.alice.features;
   activePolicy = {
     permittedInsecurePackages = ["adapter-insecure-1"];
     allowed = true;
@@ -123,6 +165,121 @@ in {
         home = [];
         standalone = ["adapter-standalone"];
       };
+    };
+
+    testHostsSelectConcreteHomeFeatures = {
+      expr =
+        lib.mapAttrs (name: host: {
+          declared = enabledFeatures hostSeeds.${name}.module.local.users.tenzyu.features;
+          effective = enabledFeatures host.config.home-manager.users.tenzyu.local.features;
+        })
+        flake.nixosConfigurations;
+      expected =
+        lib.mapAttrs (_: names: {
+          declared = names;
+          effective = names;
+        })
+        expectedEnabled;
+    };
+
+    testNeko5SteamProjectsFromUserSelection = {
+      expr = let
+        seed = hostSeeds.neko5.module.local;
+        os = flake.nixosConfigurations.neko5.config;
+      in {
+        systemSeed = seed.features.steam.enable;
+        userSeed = seed.users.tenzyu.features.steam.enable;
+        systemFeature = os.local.features.steam.enable;
+        systemProgram = os.programs.steam.enable;
+        homeFeature = os.home-manager.users.tenzyu.local.features.steam.enable;
+      };
+      expected = {
+        systemSeed = null;
+        userSeed = true;
+        systemFeature = true;
+        systemProgram = true;
+        homeFeature = true;
+      };
+    };
+
+    testRemovedProfilesAreNotRegistered = {
+      expr = lib.intersectLists ["tenzyu-cli" "tenzyu-desktop"] (lib.attrNames flake.modules.homeManager);
+      expected = [];
+    };
+
+    testUnregisteredUserFeatureIsRejected = {
+      expr = (builtins.tryEval (builtins.deepSeq unknownUserFeatures true)).success;
+      expected = false;
+    };
+
+    testHostZshLoginShells = {
+      expr =
+        lib.mapAttrs (name: host: {
+          seed = hostSeeds.${name}.module.local.users.tenzyu.features.zsh.enable;
+          native = hostSeeds.${name}.module.home-manager.users.tenzyu.local.features.zsh.enable or null;
+          systemFeature = host.config.local.features.zsh.enable;
+          systemProgram = host.config.programs.zsh.enable;
+          home = host.config.home-manager.users.tenzyu.programs.zsh.enable;
+          shell = lib.getName host.config.users.users.tenzyu.shell;
+        })
+        flake.nixosConfigurations;
+      expected = {
+        neko5 = {
+          seed = true;
+          native = null;
+          systemFeature = true;
+          systemProgram = true;
+          home = true;
+          shell = "zsh";
+        };
+        neko6 = {
+          seed = null;
+          native = true;
+          systemFeature = false;
+          systemProgram = false;
+          home = true;
+          shell = "bash-interactive";
+        };
+        neko7 = {
+          seed = true;
+          native = null;
+          systemFeature = true;
+          systemProgram = true;
+          home = true;
+          shell = "zsh";
+        };
+      };
+    };
+
+    testHostUserFeatureDisables = {
+      expr =
+        lib.mapAttrs (name: host: let
+          seed = hostSeeds.${name}.module.local.users.tenzyu.features;
+          home = host.config.home-manager.users.tenzyu.local.features;
+        in {
+          tmux = {
+            seed = seed.tmux.enable;
+            inherit (home.tmux) enable;
+          };
+          zed = {
+            seed = seed.zed-editor.enable;
+            inherit (home.zed-editor) enable;
+          };
+        })
+        flake.nixosConfigurations;
+      expected = lib.genAttrs ["neko5" "neko6" "neko7"] (name: {
+        tmux = {
+          seed = false;
+          enable = false;
+        };
+        zed = {
+          seed =
+            if name == "neko5"
+            then false
+            else null;
+          enable = false;
+        };
+      });
     };
 
     testUserFeatureProjectsAndKeepsDirectOptions = {
