@@ -100,7 +100,7 @@ in {
           {name = "first"; attrs = {a = 1; b = throw "not forced";};}
           {name = "second"; attrs = {a = 2;};}
         ];
-      }).merged.b)).success;
+      }).merged.a)).success;
       duplicateLayerName = (builtins.tryEval ((composition.namedDisjoint {
         label = "duplicate";
         layers = [{name = "same"; attrs = {};} {name = "same"; attrs = {};}];
