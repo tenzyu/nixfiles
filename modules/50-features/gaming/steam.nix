@@ -85,22 +85,7 @@ in {
               gamescope
             ];
             text = ''
-              set -euo pipefail
-
-              if command -v hypr-gaming-mode >/dev/null 2>&1; then
-                hypr-gaming-mode on || true
-                trap 'hypr-gaming-mode off || true' EXIT INT TERM
-              fi
-
-              exec gamemoderun gamescope \
-                --backend "''${GAMESCOPE_BACKEND:-sdl}" \
-                --steam \
-                --rt \
-                -f \
-                -W "''${GAMESCOPE_WIDTH:-1366}" \
-                -H "''${GAMESCOPE_HEIGHT:-768}" \
-                -r "''${GAMESCOPE_REFRESH:-60}" \
-                -- steam "$@"
+              exec ${lib.getExe pkgs.bash} ${../../../assets/steam-gaming/launch.sh} "$@"
             '';
           })
         ]
@@ -114,5 +99,14 @@ in {
         categories = ["Game"];
       };
     };
+  };
+  perSystem = {pkgs, ...}: {
+    checks.steam-gaming =
+      pkgs.runCommand "steam-gaming-lifecycle-tests" {
+        nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.gnugrep];
+      } ''
+        ${pkgs.bash}/bin/bash ${../../../assets/steam-gaming/test-launch.sh} ${../../../assets/steam-gaming/launch.sh}
+        touch "$out"
+      '';
   };
 }

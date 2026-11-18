@@ -10,6 +10,7 @@ OPTIONAL_CHECKS = (
     "nix-store-clean",
     "opencode-direnv",
     "rtk-rewrites",
+    "steam-gaming",
 )
 
 
@@ -29,6 +30,8 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             checks.add("opencode-direnv")
         if path == "modules/50-features/development/rtk.nix" or path.startswith("assets/rtk/"):
             checks.add("rtk-rewrites")
+        if path == "modules/50-features/gaming/steam.nix" or path.startswith("assets/steam-gaming/"):
+            checks.add("steam-gaming")
         if (path.startswith("modules/50-features/media/") or path in (
             "modules/50-features/nix/nix.nix",
             "scripts/ci/audit-splitcast-cache.sh",

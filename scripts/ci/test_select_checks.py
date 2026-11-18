@@ -28,6 +28,10 @@ class SelectionTests(unittest.TestCase):
     def test_rtk_is_scoped(self):
         self.assertEqual(module.selection(["modules/50-features/development/rtk.nix"]), (["rtk-rewrites"], False))
 
+    def test_steam_lifecycle_checks_are_change_scoped(self):
+        self.assertEqual(module.selection(["modules/50-features/gaming/steam.nix"]), (["steam-gaming"], False))
+        self.assertEqual(module.selection(["assets/steam-gaming/test-launch.sh"]), (["steam-gaming"], False))
+
     def test_lock_update_checks_dependency_sensitive_modules(self):
         self.assertEqual(module.selection(["flake.lock"]), (sorted(module.OPTIONAL_CHECKS), True))
 
