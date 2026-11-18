@@ -393,6 +393,35 @@ in {
       };
     };
 
+    testNativeOptionOwnershipAndAccessBoundaries = {
+      expr = lib.mapAttrs (_: host: let
+        hm = host.config.home-manager.users.tenzyu;
+      in {
+        zshXdgConfig = hm.xdg.configFile ? "zsh/zshrc.d";
+        networkmanagerGroup = builtins.elem "networkmanager" host.config.users.users.tenzyu.extraGroups;
+        tabletRules = builtins.any
+          (pkg: lib.hasInfix "wacom-browser-udev-rules" (toString pkg))
+          host.config.services.udev.packages;
+      }) flake.nixosConfigurations;
+      expected = {
+        neko5 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = true;
+          tabletRules = true;
+        };
+        neko6 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = false;
+          tabletRules = false;
+        };
+        neko7 = {
+          zshXdgConfig = true;
+          networkmanagerGroup = false;
+          tabletRules = false;
+        };
+      };
+    };
+
     testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {

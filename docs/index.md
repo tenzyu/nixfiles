@@ -9,6 +9,7 @@ This OKF v0.2 bundle is a **compiled, source-grounded understanding** of the rep
 ## Concepts
 
 - [Architecture](architecture.md) — feature registry, seed compaction, materializers and Home Manager projection
+- [Feature options](feature-options.md) — native NixOS/Home Manager option ownership and lookup
 - [Host state](host-state.md) — configuration declarations, disabled features and runtime uncertainty
 - [Decisions](decisions.md) — safety, ownership boundaries and validation gates
 - [Knowledge maintenance](schema.md) — provenance, evidence labels, Dreaming reconciliation
