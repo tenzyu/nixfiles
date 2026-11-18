@@ -9,35 +9,41 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEA48dVV7Lh9zkdbfeZ3tmvaG0IdKX4nspUNqedg0pTj herdr"
     ];
 
-    local.features = {
-      neko7-hardware.enable = true;
-      nix.enable = true;
-      time.enable = true;
-      locale.enable = true;
-      ssh.enable = true;
-      tailscale.enable = true;
-      t3code-tailnet.enable = true;
-      splitcast-production.enable = true;
-      # Final shape:
-      #   neko7       = admin node
-      #   neko7-ark   = ARK player node
-      #   neko7-rust  = Rust player node
-      game-server-containers.enable = true;
-      resolvconf-blacklist-gateway.enable = true;
-      disable-ipv6.enable = true;
-      systemd-boot.enable = true;
-      proxmox-guest.enable = true;
-      nvidia-graphics.enable = true;
-      kernel-latest.enable = false;
-      networkmanager.enable = true;
-      ja-extra-locales.enable = true;
-      us-xserver-keyboard.enable = true;
-      fonts.enable = true;
-      stub-ld.enable = true;
-      nix-ld.enable = true;
-      docker-rootless.enable = true;
-      llama-cpp-cuda.enable = true;
-      nix-remote-builder.enable = true;
+    local = {
+      context = {
+        flakePath = "/home/tenzyu/.nixfiles";
+        systemStateVersion = "26.05";
+      };
+      features = {
+        neko7-hardware.enable = true;
+        nix.enable = true;
+        time.enable = true;
+        locale.enable = true;
+        ssh.enable = true;
+        tailscale.enable = true;
+        t3code-tailnet.enable = true;
+        splitcast-production.enable = true;
+        # Final shape:
+        #   neko7       = admin node
+        #   neko7-ark   = ARK player node
+        #   neko7-rust  = Rust player node
+        game-server-containers.enable = true;
+        resolvconf-blacklist-gateway.enable = true;
+        disable-ipv6.enable = true;
+        systemd-boot.enable = true;
+        proxmox-guest.enable = true;
+        nvidia-graphics.enable = true;
+        kernel-latest.enable = false;
+        networkmanager.enable = true;
+        ja-extra-locales.enable = true;
+        us-xserver-keyboard.enable = true;
+        fonts.enable = true;
+        stub-ld.enable = true;
+        nix-ld.enable = true;
+        docker-rootless.enable = true;
+        llama-cpp-cuda.enable = true;
+        nix-remote-builder.enable = true;
+      };
     };
 
     local.users.tenzyu = {
