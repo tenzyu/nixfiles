@@ -21,9 +21,11 @@
         # This suite is evaluated from a /nix/store copy of the internal
         # framework. External tools and fundamentals must be independent
         # store inputs, not relative imports from the isolated test root.
-        policyLib = import ${./_policy/lib.nix};
+        policyLib = import (${../..} + "/modules/10-foundations/_policy/lib.nix");
+        sharedLibRoot = ${../../lib};
         traceLib = import ${traceLib};
       in {
+        shared-lib = import (sharedLibRoot + "/tests.nix") { inherit lib; };
         framework-features = import (root + "/tests/features.nix") { inherit lib; };
         framework-users = import (root + "/tests/users.nix") { inherit lib; };
         framework-policies = import (root + "/tests/policies.nix") { inherit lib policyLib; };
