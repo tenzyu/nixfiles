@@ -576,23 +576,6 @@ in {
       };
     };
 
-    testGameSopsIsDisabledUntilExplicitHostProvisioning = {
-      expr = let
-        host = flake.nixosConfigurations.neko7.config;
-      in {
-        enabled = host.local.features.game-secrets-sops.enable;
-        nativeSopsProvider = host.local.features.sops-nix.enable;
-        minecraftAuthFile = host.containers.neko7-mc.config.services.tailscale.authKeyFile;
-        hostGameSecretMount = host.containers.neko7-mc.bindMounts ? "/run/host-game-secrets/minecraft-tailscale-authkey";
-      };
-      expected = {
-        enabled = false;
-        nativeSopsProvider = false;
-        minecraftAuthFile = "/var/lib/game-containers/minecraft/secrets/tailscale-authkey";
-        hostGameSecretMount = false;
-      };
-    };
-
     testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
       expr = let
         host = flake.nixosConfigurations.neko7;

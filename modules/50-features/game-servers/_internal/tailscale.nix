@@ -20,7 +20,7 @@
     # an evaluated Nix string or in /nix/store.
     services.tailscale = {
       enable = true;
-      authKeyFile = spec.authKeyFile or "${spec.home}/secrets/tailscale-authkey";
+      authKeyFile = "${spec.home}/secrets/tailscale-authkey";
       extraUpFlags = [
         "--hostname=${spec.tailscaleHostname}"
         "--accept-dns=false"
@@ -33,8 +33,7 @@
     systemd.services.tailscaled-autoconnect = {
       after = ["network-online.target"];
       wants = ["network-online.target"];
-      unitConfig.ConditionPathExists =
-        spec.authKeyFile or "${spec.home}/secrets/tailscale-authkey";
+      unitConfig.ConditionPathExists = "${spec.home}/secrets/tailscale-authkey";
     };
 
     networking.firewall.enable = true;

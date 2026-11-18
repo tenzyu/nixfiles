@@ -6,7 +6,6 @@
     ...
   }: let
     useSrv = config.local.features.game-srv.enable;
-    useSops = config.local.features.game-secrets-sops.enable;
     layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "minecraft";
@@ -23,11 +22,6 @@
       udpPorts = [];
       tcpPorts = [25565];
       extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
-    } // lib.optionalAttrs useSops {
-      # TODO(sops-bootstrap): the encrypted manifest must be committed first.
-      # NixOS host decrypts this file, and nspawn mounts it read-only.
-      authKeyFile = "/run/host-game-secrets/minecraft-tailscale-authkey";
-      hostAuthKeyFile = config.sops.secrets."game-minecraft-tailscale-authkey".path;
     };
     inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
     mkMinecraftModule = spec: {
