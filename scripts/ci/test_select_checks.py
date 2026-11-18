@@ -66,10 +66,15 @@ class SelectionTests(unittest.TestCase):
             "modules/10-foundations/overlays.nix",
             "modules/00-hosts/neko5/configuration.nix",
             "modules/_internal/configurations/lib/seed.nix",
-            "lib/composition.nix",
         ):
             with self.subTest(path=path):
                 self.assertEqual(module.selection([path]), (sorted(module.OPTIONAL_CHECKS), True))
+
+    def test_test_sources_do_not_force_unrelated_feature_checks(self):
+        self.assertEqual(module.selection([
+            "modules/_internal/configurations/tests/trace.nix",
+            "lib/tests.nix",
+        ]), ([], False))
 
     def test_migration_rule_owners_are_mapped(self):
         for path in pathlib.Path("modules").rglob("*.nix"):
