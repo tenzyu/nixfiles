@@ -3,19 +3,19 @@ type: Reference
 title: Native feature options
 description: Native NixOS and Home Manager ownership and upstream option lookup.
 status: stable
-source_revision: 7b0ee333c2d312a9e5c1e769675eea6df5e35bdf
+source_revision: 0daacae75f19dc2b01712c26471b42b2c6bc9ca3
 sources:
   - id: adapter
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/_internal/configurations/configurations.nix
     title: Typed feature adapter
   - id: steam
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/50-features/gaming/steam.nix
     title: Feature-specific package policy example
 ---
 
 # Feature option ownership and upstream option lookup
 
-Scope: source declarations for `nixfiles` at `7b0ee333c2d312a9e5c1e769675eea6df5e35bdf`, not observed
+Scope: source declarations for `nixfiles` at `0daacae75f19dc2b01712c26471b42b2c6bc9ca3`, not observed
 host generations. **Source names and direct host selections remain stable.**
 
 ## Select the narrowest existing NixOS / Home Manager option
