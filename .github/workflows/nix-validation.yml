@@ -27,12 +27,15 @@ jobs:
     name: Nix evaluation and focused regression tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # For multi-commit pushes use the event's before SHA; PRs use merge-parent.
+      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^' }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          # PR checkouts use the synthetic merge commit. Its first parent
-          # is the target base; push checkouts use the previous commit.
+          # Fetch full history: push 'before' may span multiple commits.
+          # For pull requests, HEAD^ is the synthetic merge's base parent.
           fetch-depth: 0
 
       - uses: cachix/install-nix-action@v31

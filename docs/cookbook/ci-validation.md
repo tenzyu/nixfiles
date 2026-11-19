@@ -11,8 +11,13 @@ build, boot, service activation, or runtime acceptance test.
 ## Additional checks driven by the diff
 
 `scripts/ci/select-checks.py` compares the checked-out HEAD with its
-first parent (the PR merge commit's target-base parent, or the previous
-main commit). Its selection is deterministic, deduplicated and tested.
+first parent for pull requests; on push to main it uses the event's
+`before` SHA, including multi-commit pushes. The checkout fetches full
+history to make that base reachable. If Git cannot resolve the base, the
+selector fails closed: it chooses all five focused optional checks and
+the SplitCast cache probe rather than silently skipping checks.
+Test fixtures and pure library unit tests alone do not force unrelated
+optional feature checks. Selection is deterministic, deduplicated and tested.
 
 | Changed source | Additional check |
 | --- | --- |
@@ -20,10 +25,15 @@ main commit). Its selection is deterministic, deduplicated and tested.
 | `nix-store-clean.nix` or `assets/nix-store-clean/` | `nix-store-clean` |
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
-| `flake.nix` or `flake.lock` | All four |
+| `flake.nix`, `flake.lock`, shared overlays, host declarations, or internal adapter implementation | All five focused optional checks and cache probe |
+| Zsh, Firefox or common feature (owners of home migration rules) | `home-migration` |
 | SplitCast media features (including cache settings) or `nix.nix` | SplitCast cache probe only |
 
-These selected check derivations actually build. The SplitCast `configs`
+These selected check derivations actually build. The always-on
+`deprecated-patterns` and `feature-name-shape` derivations use
+`lib.fileset.toSource` to include only their inspected Nix modules
+(and `README.md` for deprecated patterns), so unrelated files do not
+enter their static check source closures. The SplitCast `configs`
 check currently depends on the Rust package; it is intentionally *not*
 always built for an unrelated PR. It remains available as
 `nix build --no-link .#checks.x86_64-linux.splitcast-configs`.
@@ -73,5 +83,5 @@ bash -n scripts/ci/audit-splitcast-cache.sh
 
 CI configuration changes do not activate hosts or change their closures.
 Rollback is a Git revert of the CI-only commit(s). On a `flake.lock`
-change, the four optional checks may take longer than the baseline;
+change, the five optional checks may take longer than the baseline;
 a timeout is a failed verification, never an accepted build.
