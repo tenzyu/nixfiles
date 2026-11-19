@@ -1,0 +1,20 @@
+{
+  perSystem = {
+    lib,
+    pkgs,
+    ...
+  }: {
+    checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+      safety-python = pkgs.runCommand "check-safety-python" {
+        nativeBuildInputs = [pkgs.python3];
+        SAFETY_TEST_BASH = "${pkgs.bash}/bin/bash";
+        SAFETY_TEST_LN = "${pkgs.coreutils}/bin/ln";
+        PYTHONPATH = pkgs.callPackage ../../assets/safety/python {};
+        PYTHONDONTWRITEBYTECODE = "1";
+      } ''
+        python3 ${../../assets/safety/python/test_operations.py} -v
+        touch "$out"
+      '';
+    };
+  };
+}
