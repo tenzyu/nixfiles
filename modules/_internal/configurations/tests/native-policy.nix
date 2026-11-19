@@ -149,7 +149,7 @@ in {
         enabled = true;
         policy = {
           directory = ".parsec";
-          configFile = "config.txt";
+          configFile = "config.json";
           mappingFile = "gpmap.txt";
           mappingId = "06cb,83d7";
           mode = "0600";

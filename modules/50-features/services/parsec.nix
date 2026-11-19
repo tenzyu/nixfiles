@@ -25,17 +25,16 @@
       };
     });
 
-    # Parsec imports this legacy seed at startup. Existing config.json is app-owned.
-    parsecConfig = ''
-      decoder_software=0
-      client_decoder_h265=1
-      client_vsync=0
-      client_overlay_warnings=1
-    '';
+    parsecSettings = {
+      decoder_software = 0;
+      client_decoder_h265 = 1;
+      client_vsync = 0;
+      client_overlay_warnings = 1;
+    };
 
     policy = {
       directory = ".parsec";
-      configFile = "config.txt";
+      configFile = "config.json";
       mappingFile = "gpmap.txt";
       mappingId = "06cb,83d7";
       mode = "0600";
@@ -44,7 +43,7 @@
     parsecTouchpadGpmapLine = "${policy.mappingId} a:_00 b:_00 x:_00 y:_00 bk:_00 g:_00 s:_00 sl:_00 sr:_00 l:_00 r:_00 du:_00 dr:_00 dd:_00 dl:_00 lyu:_00 lxr:_00 lyd:_00 lxl:_00 ryu:_00 rxr:_00 ryd:_00 rxl:_00 tl:_00 tr:_00";
     activationData = pkgs.writeText "parsec-activation.json" (builtins.toJSON {
       inherit (config.local.parsecActivation) directory configFile mappingFile mappingId mode;
-      configText = parsecConfig;
+      configSettings = parsecSettings;
       mappingRow = parsecTouchpadGpmapLine;
     });
     activate = ''${pkgs.python3}/bin/python3 -I ${../../../assets/parsec-activation/activate.py} ${../../../assets/safety/shell/native.py} ${activationData}'';

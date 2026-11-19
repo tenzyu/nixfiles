@@ -34,20 +34,21 @@ The original module records an `EROFS` error when a Home Manager store
 symlink served as `config.txt`. Parsec documents that, since `150-89`, it
 imports legacy assignments into `~/.parsec/config.json` on restart and clears
 the imported settings from `config.txt`. The committed Linux package version
-is `150_104a`. The client owns the saved configuration after import.
+is `150_104a`. Parsec documents editing `config.json` directly with settings
+stored in `{"value": …}` objects, then restarting the app. The first-run seed
+uses that native format. First-launch behavior remains a host acceptance check.
 [Original write rationale](https://github.com/tenzyu/nixfiles/blob/c64bff27a0ee472f9c3fa508452d9dadc0154818/modules/50-features/parsec.nix#L71-L87)
 · [Current package and seed](../../modules/50-features/services/parsec.nix)
 · [Parsec configuration and migration](https://support.parsec.app/hc/en-us/articles/32381346632596-Accessing-Your-Advanced-Settings)
 
 ## Compatibility review gate
 
-[#55](https://github.com/tenzyu/nixfiles/pull/55) changed both hooks to seed
-only missing files. An existing `config.txt` with different bytes, an existing
-`gpmap.txt` without exactly one matching `06cb,83d7` row, and wrong modes can
-all produce warnings while Home Manager proceeds. Any entry at `config.json`
-also suppresses the legacy config seed, even if `config.txt` is missing. This
-avoids inserting legacy input that Parsec could import into its saved settings
-on its next restart. The `gpmap.txt` seed still runs independently.
+[#55](https://github.com/tenzyu/nixfiles/pull/55) switched activation to
+missing-file seeding. The config hook now seeds only `config.json`, with four
+numeric settings at mode `0600`. Existing `config.json` remains app-owned.
+Any observed `config.txt` entry suppresses the JSON seed. That includes empty
+files, symlinks, and special files. Parsec retains control of legacy imports.
+The `gpmap.txt` seed runs independently when its destination is absent.
 
 ## Review an existing installation
 
@@ -102,12 +103,14 @@ still refer to a moved directory. A move detected before link aborts the seed;
 a move or failed confirmation detected after link reports `OutcomeUnknown`.
 An undetected concurrent rename can put the new file in the originally opened
 directory at its new location. The no-replace guarantee is for that directory
-inode. The legacy seed checks for `config.json` before inspection and again
-immediately before publishing `config.txt`. Parsec can still create
-`config.json` between the last check and the link. Linux can publish one
-name without replacement here. It cannot condition that link on the absence
-of a second name. Review reports observations of individual files, which may
-change independently while Parsec is running.
+inode. If Parsec creates `config.json` first, activation's link to the same
+name fails and the app's file wins. If activation publishes first, Parsec can
+edit the seed as it would any saved configuration. The adapter checks for
+`config.txt` before staging and again just before the link. A legacy entry
+that arrives after the last check remains the user's input for Parsec to
+import. Activation only publishes JSON and the controller mapping. Review
+reports observations of individual files that can change independently while
+the app is running.
 
 After `OutcomeUnknown` or process interruption, inspect both final leaves
 before retrying. A final file may already be visible. Do not delete it to
@@ -124,6 +127,9 @@ packaged review command in isolated `HOME` directories. The fixtures check
 `INTENT-01` dry-run, `BOUNDARY-01` symlink and parent
 refusal, `PUBLISH-01` new files and concurrent collision, `PUBLISH-02` failures
 before and after link, `OWNED-01` preservation of existing and app-modified
-files, and `RECOVERY-01` repeat behavior. Review fixtures check diagnostics,
-exit status, and unchanged bytes and metadata. The injected flush errors
-simulate publication faults. Real-host Parsec acceptance is **NOT RUN**.
+files, and `RECOVERY-01` repeat behavior. A separate process creates app-owned
+JSON just before the kernel link. The fixture checks that the winner's bytes
+and mode survive and no `config.txt` is created. Legacy entries are tested
+before and at publication. Review fixtures check diagnostics, exit status,
+and unchanged bytes and metadata. The injected flush errors simulate
+publication faults. Real-host Parsec acceptance is **NOT RUN**.
