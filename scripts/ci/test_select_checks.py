@@ -86,7 +86,10 @@ class SelectionTests(unittest.TestCase):
             "modules/10-foundations/safety-shell-check.nix",
         ):
             with self.subTest(path=path):
-                self.assertEqual(module.selection([path]), (["safety-shell"], False))
+                expected = ["safety-shell"]
+                if path.startswith("assets/safety/shell/"):
+                    expected.insert(0, "game-backup-minecraft")
+                self.assertEqual(module.selection([path]), (expected, False))
         self.assertEqual(module.selection(["docs/adr/0002-invariant-safety.md"]), ([], False))
 
     def test_migration_rule_owners_are_mapped(self):
@@ -94,6 +97,25 @@ class SelectionTests(unittest.TestCase):
             if "local.homeMigration.paths" in path.read_text():
                 with self.subTest(path=str(path)):
                     self.assertIn("home-migration", module.selection([str(path)])[0])
+
+    def test_minecraft_backup_check_follows_consumer_and_policy(self):
+        for path in (
+            "lib/service-layout.nix",
+            "modules/10-foundations/game-backup-minecraft-check.nix",
+            "modules/50-features/game-servers/_internal/container.nix",
+            "modules/50-features/game-servers/_internal/game.sh",
+            "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh",
+            "modules/50-features/game-servers/commands.nix",
+            "modules/50-features/game-servers/minecraft.nix",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([path]), (["game-backup-minecraft"], False))
+        for path in (
+            "modules/50-features/game-servers/ark.nix",
+            "modules/50-features/game-servers/rust.nix",
+            "modules/50-features/services/parsec.nix",
+        ):
+            self.assertNotIn("game-backup-minecraft", module.selection([path])[0])
 
     def test_unresolvable_base_is_fail_closed(self):
         with (

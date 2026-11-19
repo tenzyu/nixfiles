@@ -29,12 +29,10 @@ declare -A update_service=(
 declare -A data=(
   [ark]="$GAME_ARK_DATA"
   [rust]="$GAME_RUST_DATA"
-  [minecraft]="$GAME_MINECRAFT_DATA"
 )
 declare -A backups=(
   [ark]="$GAME_ARK_BACKUPS"
   [rust]="$GAME_RUST_BACKUPS"
-  [minecraft]="$GAME_MINECRAFT_BACKUPS"
 )
 
 container() {
@@ -58,9 +56,23 @@ inside() { sudo nixos-container run "$node" -- "$@"; }
 running() { up && inside systemctl is-active --quiet "$unit"; }
 ensure_container() { sudo systemctl start "container@${node}.service"; }
 
+minecraft_operation() {
+  if [[ -z $minecraft_operator ]]; then
+    echo 'Denied: Minecraft operator policy is disabled' >&2
+    return 64
+  fi
+  if ((EUID == 0)); then
+    "$minecraft_operator" "$@"
+  else
+    "$operator_sudo" -- "$minecraft_operator" "$@"
+  fi
+}
+
 status_one() {
   require_game "$1"
-  if ! up; then
+  if [[ $game == minecraft && -n $minecraft_operator ]]; then
+    minecraft_operation status
+  elif ! up; then
     printf '%-12s %s\n' "$game" 'container stopped'
   elif running; then
     printf '%-12s %s\n' "$game" 'running'
@@ -74,7 +86,9 @@ case "$action" in
   list|status)
     target=${1:-all}
     if [[ $target == all ]]; then
-      for target in ark rust minecraft; do status_one "$target"; done
+      status=0
+      for target in ark rust minecraft; do status_one "$target" || status=$?; done
+      exit "$status"
     else
       require_game "$target"
       status_one "$game"
@@ -83,6 +97,14 @@ case "$action" in
   *)
     require_game "${1:-}"
     shift || true
+    if [[ $game == minecraft ]]; then
+      case "$action" in
+        start|stop|restart|send|console|exec|update|backup)
+          minecraft_operation "$action" "$@"
+          exit "$?"
+          ;;
+      esac
+    fi
     case "$action" in
       start)
         ensure_container
@@ -104,20 +126,11 @@ case "$action" in
         inside tailscale ip -4
         ;;
       console)
-        if [[ $game != minecraft ]]; then
-          echo 'Interactive console currently supported only for Minecraft; use game exec / logs for other games.' >&2
-          exit 2
-        fi
-        if ! running; then echo 'Minecraft server is not running' >&2; exit 1; fi
-        inside tmux -S /run/minecraft/survival.sock attach
+        echo 'Interactive console currently supported only for Minecraft; use game exec / logs for other games.' >&2
+        exit 2
         ;;
       send)
-        if [[ $game != minecraft || $# != 1 ]]; then
-          echo "Usage: game send minecraft 'COMMAND'" >&2; exit 2
-        fi
-        if ! running; then echo 'Minecraft server is not running' >&2; exit 1; fi
-        inside tmux -S /run/minecraft/survival.sock send-keys -l -- "$1"
-        inside tmux -S /run/minecraft/survival.sock send-keys Enter
+        echo "Usage: game send minecraft 'COMMAND'" >&2; exit 2
         ;;
       exec)
         if (($# == 0)); then echo 'Usage: game exec GAME COMMAND [ARGS...]' >&2; exit 2; fi

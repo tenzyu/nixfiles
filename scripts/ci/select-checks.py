@@ -14,6 +14,7 @@ OPTIONAL_CHECKS = (
     "rtk-rewrites",
     "safety-shell",
     "steam-gaming",
+    "game-backup-minecraft",
 )
 
 
@@ -61,6 +62,18 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             "scripts/ci/audit-splitcast-cache.sh",
         )):
             cache_probe = True
+        if path.startswith((
+            "assets/safety/shell/",
+            "modules/50-features/game-servers/_internal/minecraft-backup/",
+        )) or path in (
+            "lib/service-layout.nix",
+            "modules/10-foundations/game-backup-minecraft-check.nix",
+            "modules/50-features/game-servers/_internal/container.nix",
+            "modules/50-features/game-servers/_internal/game.sh",
+            "modules/50-features/game-servers/commands.nix",
+            "modules/50-features/game-servers/minecraft.nix",
+        ):
+            checks.add("game-backup-minecraft")
     return sorted(checks), cache_probe
 
 
