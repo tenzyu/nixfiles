@@ -24,6 +24,7 @@
       nss
       systemd
     ];
+
     # Host-specific uplink belongs to the host, not to a game bundle.
     networking.nat = {
       enable = true;
