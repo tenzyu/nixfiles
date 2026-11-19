@@ -1,9 +1,9 @@
 {
   homeFeatureOptionsModule,
   homeModuleList,
-  enabledFeatures,
+  embeddedHomeFeatures,
   enabledUsers,
-}: {
+}: selectedUsers: {
   config,
   lib,
   helpers,
@@ -44,7 +44,12 @@
                 embeddedInNixOS = true;
               };
 
-              local.features = enabledFeatures user.features;
+              # Respect host explicit false without converting implicit native false into
+               # an HM false definition.
+               local.features =
+                 embeddedHomeFeatures
+                   (selectedUsers.${userName}.features or {})
+                   user.features;
 
               programs.home-manager.enable = lib.mkDefault true;
               xdg.enable = lib.mkDefault true;

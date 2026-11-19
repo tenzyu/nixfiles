@@ -40,7 +40,7 @@
     inherit homeModuleList;
     inherit (optionsMaterializers) homeFeatureOptionsModule;
 
-    inherit (featuresLib) enabledFeatures;
+    inherit (featuresLib) embeddedHomeFeatures;
     inherit (usersLib) enabledUsers;
   };
 
@@ -90,7 +90,7 @@ in {
               {
                 nixpkgs.overlays = nixosOverlays;
               }
-              embeddedHome
+              (embeddedHome (cfg.module.local.users or {}))
               {
                 networking.hostName = lib.mkDefault name;
               }
