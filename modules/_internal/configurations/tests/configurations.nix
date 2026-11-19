@@ -315,17 +315,49 @@ in {
       };
     };
 
-    testHomeMigrationIsPreflightOnlyForEveryHost = {
+    testHomeMigrationIsReadOnlyBeforeNativeChecks = {
       expr = lib.mapAttrs (_: host: let
-        activation = host.config.home-manager.users.tenzyu.home.activation;
+        user = host.config.home-manager.users.tenzyu;
+        activation = user.home.activation;
+        names = map (entry: entry.name) (user.lib.dag.topoSort activation).result;
+        relevant = ["checkHomeMigration" "checkLinkTargets" "writeBoundary" "linkGeneration"];
       in {
-        hasCheck = activation ? checkHomeMigration;
+        order = builtins.filter (name: builtins.elem name relevant) names;
+        usesActivationCheck = lib.hasInfix " check --activation" activation.checkHomeMigration.data;
         hasAutomaticMigration = activation ? migrateHomeLayout;
       }) flake.nixosConfigurations;
       expected = lib.genAttrs ["neko5" "neko6" "neko7"] (_: {
-        hasCheck = true;
+        order = ["checkHomeMigration" "checkLinkTargets" "writeBoundary" "linkGeneration"];
+        usesActivationCheck = true;
         hasAutomaticMigration = false;
       });
+    };
+
+    testMigrationRulesFollowFeatureOwners = {
+      expr = let
+        projection = selections: let
+          user =
+            (active.extendModules {
+              modules = [{local.users.alice.features = selections;}];
+            }).config.home-manager.users.alice;
+        in {
+          owners = lib.unique (map (rule: rule.owner) user.local.homeMigration.paths);
+          hasCheck = user.home.activation ? checkHomeMigration;
+          androidHome = user.home.sessionVariables ? ANDROID_USER_HOME;
+        };
+      in {
+        disabled = projection {firefox.enable = false;};
+        layout = projection {home-layout.enable = true;};
+        android = projection {
+          home-layout.enable = true;
+          android-mic.enable = true;
+        };
+      };
+      expected = {
+        disabled = {owners = []; hasCheck = false; androidHome = false;};
+        layout = {owners = ["home-layout"]; hasCheck = true; androidHome = false;};
+        android = {owners = ["home-layout" "android-mic"]; hasCheck = true; androidHome = true;};
+      };
     };
 
     testNhFlakePathFollowsUserFeature = {

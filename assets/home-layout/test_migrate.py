@@ -50,7 +50,8 @@ class MigrationTest(unittest.TestCase):
         return path
 
     def rule(self, source, target, **extra):
-        rule = {"source": str(self.home / source), "target": str(self.home / target), **extra}
+        rule = {"owner": "fixture", "source": str(self.home / source),
+                "target": str(self.home / target), **extra}
         self.manifest["rules"].append(rule)
         return rule
 
@@ -293,7 +294,7 @@ class MigrationTest(unittest.TestCase):
         target.mkdir()
         with patch.object(migrate.os, "scandir", side_effect=PermissionError("unreadable")):
             with self.assertRaises(PermissionError):
-                migrate.generated_tree(target)
+                migrate.generated_tree(target, [target / "managed"])
 
     def test_internal_relative_link_to_store_link_is_preserved(self):
         self.file(".cargo/bin/other")
@@ -316,72 +317,201 @@ class MigrationTest(unittest.TestCase):
         self.assertTrue((self.home / ".first/key").exists())
         self.assertFalse((self.home / "state").exists())
 
-    def test_bun_link_blocks_batch_then_remediated_bun_and_npm_back_up(self):
-        package = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package.json', 'legacy')
-        alias = self.home / '.bun/install/cache/cli-width/4.1.0@@@1'
+    def test_bun_link_requires_manual_review_before_a_move(self):
+        package = self.file(".bun/install/cache/cli-width@4/package.json", "legacy")
+        alias = self.home / ".bun/install/cache/cli-width/4"
         alias.parent.mkdir(parents=True)
         alias.symlink_to(package.parent)
         inode = package.stat().st_ino
-        bun_cache = self.file('.cache/bun/install/new-cache', 'new')
-        bun_inode = bun_cache.stat().st_ino
-        npm_legacy = self.file('.npm/old-npm', 'legacy npm')
-        npm_cache = self.file('.cache/npm/new-npm', 'npm')
-        npm_inode = npm_cache.stat().st_ino
-        self.file('.bun/bin/bun', 'binary')
-        self.rule('.npm', '.cache/npm', onConflict='backup')
-        self.rule('.bun/install/cache', '.cache/bun/install', onConflict='backup', repairAbsoluteLinks=True)
-        self.rule('.bun', '.local/share/bun', repairAbsoluteLinks=True)
+        self.file(".bun/bin/bun", "binary")
+        self.rule(".bun/install/cache", ".cache/bun/install", owner="home-layout", repairAbsoluteLinks=True)
+        self.rule(".bun", ".local/share/bun", owner="home-layout", repairAbsoluteLinks=True)
+
         before = migrate.plan(self.manifest)
-        self.assertTrue(any(a['action'] == 'symlink' for a in before))
-        self.assertEqual(os.readlink(alias), str(package.parent))  # check must not mutate
-        self.assertEqual((self.home / '.cache/bun/install/new-cache').read_text(), 'new')
+        self.assertTrue(any(a["action"] == "symlink" for a in before))
+        self.assertEqual(os.readlink(alias), str(package.parent))
+        activation = self.invoke("check", "--activation")
+        self.assertEqual(activation.returncode, 0, activation.stderr)
+        self.assertIn("[home-layout] symlink", activation.stderr)
+        self.assertIn("manual repair", activation.stderr)
         with self.assertRaises(migrate.Unsupported):
             migrate.apply(self.manifest)
-        self.assertEqual(npm_legacy.read_text(), 'legacy npm')
-        self.assertEqual(npm_cache.stat().st_ino, npm_inode)
-        self.assertEqual(bun_cache.stat().st_ino, bun_inode)
-        self.assertEqual(package.stat().st_ino, inode)
-        self.assertFalse((self.home / 'state').exists())
-        # Fixture-only operator remediation. The final absolute destination
-        # can be named before the cache is moved to it.
-        alias.unlink()
-        repaired = self.home / '.cache/bun/install/cli-width@4.1.0@@@1'
+        self.assertFalse((self.home / "state").exists())
+
+        # Simulate an operator who preserved the original link and reviewed the
+        # final absolute target while both cache locations were offline.
+        alias.rename(self.home / "saved-bun-alias")
+        repaired = self.home / ".cache/bun/install/cli-width@4"
         alias.symlink_to(repaired)
         migrate.apply(self.manifest)
-        new_alias = self.home / '.cache/bun/install/cli-width/4.1.0@@@1'
-        self.assertEqual(os.readlink(new_alias), str(repaired))
-        self.assertEqual((new_alias / 'package.json').read_text(), 'legacy')
-        self.assertEqual((self.home / '.cache/bun/install/cli-width@4.1.0@@@1/package.json').stat().st_ino, inode)
-        backups = list((self.home / 'state').glob('*/conflicts/1/new-cache'))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual(backups[0].read_text(), 'new')
-        self.assertEqual(backups[0].stat().st_ino, bun_inode)
-        saved_npm, = (self.home / 'state').glob('*/conflicts/0/new-npm')
-        self.assertEqual(saved_npm.read_text(), 'npm')
-        self.assertEqual(saved_npm.stat().st_ino, npm_inode)
-        self.assertEqual((self.home / '.cache/npm/old-npm').read_text(), 'legacy npm')
+        new_alias = self.home / ".cache/bun/install/cli-width/4"
+        self.assertEqual(new_alias.readlink(), repaired)
+        self.assertEqual((new_alias / "package.json").stat().st_ino, inode)
         self.assertEqual(migrate.plan(self.manifest), [])
 
-    def test_backup_optin_only(self):
-        self.file('.old/a', 'old')
-        self.file('.new/b', 'new')
-        self.rule('.old', '.new')
-        with self.assertRaisesRegex(migrate.Conflict, 'Both paths contain data'):
-            migrate.apply(self.manifest)
-        self.assertFalse((self.home / 'state').exists())
+    def test_cache_collisions_preserve_both_even_for_old_backup_flag(self):
+        for source, target, owner in [
+            (".bun/install/cache", ".cache/bun/install", "home-layout"),
+            (".npm", ".cache/npm", "common"),
+        ]:
+            with self.subTest(owner=owner):
+                old = self.file(f"{source}/entry", "old")
+                new = self.file(f"{target}/entry", "new")
+                before = [path.stat().st_ino for path in (old, new)]
+                self.rule(source, target, owner=owner, onConflict="backup")
+                result = self.invoke("check", "--activation")
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(f"Both paths contain data ({owner})", result.stderr)
+                with self.assertRaises(migrate.Conflict):
+                    migrate.apply(self.manifest)
+                self.assertEqual([path.stat().st_ino for path in (old, new)], before)
+                self.assertEqual([path.read_text() for path in (old, new)], ["old", "new"])
+                self.assertFalse((self.home / "state").exists())
+                self.manifest["rules"].clear()
 
-    def test_no_moves_if_another_rule_conflicts_after_backup_policy(self):
-        self.file('.bun/install/cache/a')
-        self.file('.cache/bun/install/b')
-        self.file('.claude/key')
-        self.file('.config/claude/other')
-        self.rule('.bun/install/cache', '.cache/bun/install', onConflict='backup', repairAbsoluteLinks=True)
-        self.rule('.claude', '.config/claude')
+    def test_apparent_match_remains_a_conflict_even_with_corrupt_history(self):
+        old = self.file(".old/key", "private data")
+        new = self.file(".new/key", "private data")
+        for path in (old, new, old.parent, new.parent):
+            os.utime(path, (100, 100))
+        before = [path.stat() for path in (old, new)]
+        self.rule(".old", ".new")
+        journal = self.file("state/old-run/operations.jsonl", '{"action": "move"\n')
+        journal.parent.parent.chmod(0o700)
+        result = self.invoke("check")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Apparent match (no writer exclusion)", result.stderr)
+        self.assertNotIn("private data", result.stderr)
         with self.assertRaises(migrate.Conflict):
             migrate.apply(self.manifest)
-        self.assertTrue((self.home / '.bun/install/cache/a').exists())
-        self.assertTrue((self.home / '.cache/bun/install/b').exists())
-        self.assertFalse((self.home / 'state').exists())
+        self.assertEqual([path.stat() for path in (old, new)], before)
+        self.assertEqual(journal.read_text(), '{"action": "move"\n')
+        self.assertEqual(list(journal.parent.parent.iterdir()), [journal.parent])
+
+    def test_comparison_detects_equal_size_content_and_mode_differences(self):
+        old = self.file(".old", "abcdef")
+        new = self.file(".new", "ABCDEF")
+        self.rule(".old", ".new")
+
+        def differs():
+            for path in (old, new):
+                os.utime(path, (100, 100))
+            result = self.invoke("check")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("Both paths contain data and differ", result.stderr)
+            self.assertNotIn("ABCDEF", result.stderr)
+        differs()
+        new.write_text(old.read_text())
+        new.chmod(0o640)
+        differs()
+        self.assertFalse((self.home / "state").exists())
+
+    def test_comparison_checks_xattrs_when_supported(self):
+        old = self.file(".old", "same")
+        new = self.file(".new", "same")
+        self.rule(".old", ".new")
+        try:
+            os.setxattr(new, "user.fixture", b"private metadata")
+        except OSError as error:
+            if error.errno != errno.ENOTSUP:
+                raise
+            self.skipTest("fixture filesystem does not support user xattrs")
+        for path in (old, new):
+            os.utime(path, (100, 100))
+        result = self.invoke("check")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Both paths contain data and differ", result.stderr)
+        self.assertNotIn("private metadata", result.stderr)
+
+    def test_comparison_refuses_link_identity_and_special_entries(self):
+        self.rule(".old", ".new")
+        old = self.file(".old/key", "same")
+        new = self.file(".new/key", "same")
+
+        def cannot_establish():
+            for path in (old.parent, new.parent, old, new):
+                os.utime(path, (100, 100), follow_symlinks=False)
+            result = self.invoke("check")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("comparison could not establish a match", result.stderr)
+        os.link(old, self.home / "another-hardlink")
+        cannot_establish()
+        for path in (old, new):
+            path.unlink()
+            path.symlink_to(path.parent)
+        cannot_establish()
+        for path in (old, new):
+            path.unlink()
+            os.mkfifo(path)
+        cannot_establish()
+        self.assertFalse((self.home / "state").exists())
+
+    def test_comparison_refuses_live_nonparticipating_writer(self):
+        old = self.file(".old", "first")
+        self.file(".new", "first")
+        self.rule(".old", ".new")
+        for name in (".old", ".new"):
+            os.utime(self.home / name, (100, 100))
+        read = os.read
+        changed = False
+
+        def race(fd, size):
+            nonlocal changed
+            chunk = read(fd, size)
+            if not changed:
+                changed = True
+                subprocess.run([sys.executable, "-c",
+                                "from pathlib import Path; import sys; Path(sys.argv[1]).write_text('other')",
+                                str(old)], check=True)
+                os.utime(old, (100, 100))
+            return chunk
+
+        with patch.object(migrate.os, "read", side_effect=race):
+            with self.assertRaisesRegex(migrate.Conflict, "comparison could not establish a match"):
+                migrate.plan(self.manifest, compare_collisions=True)
+        self.assertTrue(changed)
+        self.assertEqual(old.read_text(), "other")
+        self.assertEqual((self.home / ".new").read_text(), "first")
+        self.assertFalse((self.home / "state").exists())
+
+    def test_comparison_refuses_unreadable_subtree(self):
+        old = self.file(".old/sub/key")
+        new = self.file(".new/sub/key")
+        self.rule(".old", ".new")
+        for path in (old.parent, new.parent):
+            path.chmod(0)
+            self.addCleanup(path.chmod, 0o700)
+        for path in (old.parent, new.parent, old.parent.parent, new.parent.parent):
+            os.utime(path, (100, 100))
+        result = self.invoke("check")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("comparison could not establish a match (PermissionError)", result.stderr)
+
+    def test_activation_warns_for_pending_move_without_reading_a_busy_process(self):
+        old = self.file(".old/key", "private fixture")
+        before = old.stat()
+        self.rule(".old", ".new", owner="firefox", processes=["*"])
+        activation = self.invoke("check", "--activation")
+        self.assertEqual(activation.returncode, 0, activation.stderr)
+        self.assertIn("[firefox] move", activation.stderr)
+        self.assertIn(str(old.parent), activation.stderr)
+        self.assertIn(str(self.home / ".new"), activation.stderr)
+        self.assertIn("home-layout-migrate check", activation.stderr)
+        self.assertNotIn("private fixture", activation.stderr + activation.stdout)
+        self.assertEqual(old.stat().st_ino, before.st_ino)
+        self.assertEqual(old.stat().st_mode, before.st_mode)
+        self.assertFalse((self.home / ".new").exists())
+        self.assertFalse((self.home / "state").exists())
+
+    def test_activation_retains_a_specific_managed_link_blocker(self):
+        body = self.file(".old/profile.js", "private profile")
+        self.rule(".old", ".new", owner="firefox")
+        self.manifest["managed"] = [str(self.home / ".new/profile.js")]
+        result = self.invoke("check", "--activation")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Legacy file would collide with a managed file (firefox)", result.stderr)
+        self.assertIn(str(body), result.stderr)
+        self.assertNotIn("private profile", result.stderr)
 
     def test_cross_rule_absolute_link_proposal_uses_specific_target(self):
         cache = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package', 'legacy')
@@ -433,7 +563,7 @@ class MigrationTest(unittest.TestCase):
         migrate.apply(self.manifest)
         self.assertEqual(os.readlink(self.home / '.new/link'), '/nix/store/not-present/file')
 
-    def test_backup_rejects_symlink_or_file_destination(self):
+    def test_collision_rejects_symlink_or_file_destination(self):
         self.file('.old/key')
         self.file('other/key')
         target = self.home / '.new'
@@ -601,6 +731,19 @@ class MigrationTest(unittest.TestCase):
         self.assertTrue(old.exists())
         self.assertFalse((self.home / "state").exists())
 
+    def test_full_journal_filesystem_cannot_commit_a_move(self):
+        old = self.file(".old/key")
+        before = old.stat()
+        self.rule(".old", ".new")
+        with (patch.object(migrate, "write_journal", side_effect=OSError(errno.ENOSPC, "journal full")),
+              patch.object(migrate.safety, "execute_move") as execute,
+              self.assertRaises(OSError) as failure):
+            migrate.apply(self.manifest)
+        self.assertEqual(failure.exception.errno, errno.ENOSPC)
+        execute.assert_not_called()
+        self.assertEqual(old.stat().st_ino, before.st_ino)
+        self.assertFalse((self.home / ".new").exists())
+
     def test_intent_flush_failure_can_leave_a_record_but_does_not_rename(self):
         original = self.file(".old")
         self.rule(".old", "xdg/new")
@@ -622,9 +765,13 @@ class MigrationTest(unittest.TestCase):
 
     def test_backup_parent_flush_failure_leaves_visible_archive_and_legacy(self):
         old = self.file(".old/key", "legacy")
-        target = self.file("xdg/new/key", "earlier cache")
-        legacy_inode, cache_inode = old.stat().st_ino, target.stat().st_ino
-        self.rule(".old", "xdg/new", onConflict="backup")
+        target = self.home / "xdg/new/user.js"
+        target.parent.mkdir(parents=True)
+        link = "/nix/store/nonexistent-home-manager-files/user.js"
+        target.symlink_to(link)
+        legacy_inode, cache_inode = old.stat().st_ino, target.lstat().st_ino
+        self.rule(".old", "xdg/new")
+        self.manifest["managed"] = [str(target)]
         execute = migrate.safety.execute_move
         flushes = []
 
@@ -643,16 +790,16 @@ class MigrationTest(unittest.TestCase):
             with self.assertRaisesRegex(migrate.safety.OutcomeUnknown, "parent flush failed"):
                 migrate.apply(self.manifest)
         event, = self.journal()
-        self.assertEqual((event["action"], event["kind"]), ("move-intent", "conflicts"))
-        self.assertFalse(target.exists())
-        backup = Path(event["target"]) / "key"
-        self.assertEqual(backup.stat().st_ino, cache_inode)
-        self.assertEqual(backup.read_text(), "earlier cache")
+        self.assertEqual((event["action"], event["kind"]), ("move-intent", "scaffolding"))
+        self.assertFalse(target.is_symlink())
+        backup = Path(event["target"]) / "user.js"
+        self.assertEqual(backup.lstat().st_ino, cache_inode)
+        self.assertEqual(str(backup.readlink()), link)
         self.assertEqual(old.stat().st_ino, legacy_inode)
         # Retry follows the observed entries after an operator reconciles them.
         migrate.apply(self.manifest)
-        self.assertEqual(target.stat().st_ino, legacy_inode)
-        self.assertEqual(backup.stat().st_ino, cache_inode)
+        self.assertEqual(target.with_name("key").stat().st_ino, legacy_inode)
+        self.assertEqual(backup.lstat().st_ino, cache_inode)
 
     def test_completion_failure_follows_both_parent_flushes(self):
         old = self.file(".old", "data")

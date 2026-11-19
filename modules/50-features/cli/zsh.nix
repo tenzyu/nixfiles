@@ -26,6 +26,7 @@
     config = lib.mkIf config.local.features.zsh.enable {
       local.homeMigration.paths = [
         {
+          owner = "zsh";
           source = "${config.home.homeDirectory}/.zsh_history";
           target = config.programs.zsh.history.path;
         }

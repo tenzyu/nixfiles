@@ -11,7 +11,7 @@
       state = "${config.xdg.stateHome}/home-cleanup/bronze/activation";
       rules = cfg.paths;
       managed =
-        map (file: "${config.home.homeDirectory}/${file.target}")
+        map (file: if lib.hasPrefix "/" file.target then file.target else "${config.home.homeDirectory}/${file.target}")
         (lib.filter (file: file.enable) (builtins.attrValues config.home.file));
     });
     migration = pkgs.callPackage ../../../assets/home-layout {};
@@ -24,6 +24,7 @@
       description = "Ordered, non-overwriting legacy-to-XDG moves for enabled features.";
       type = lib.types.listOf (lib.types.submodule {
         options = {
+          owner = lib.mkOption {type = lib.types.str;};
           source = lib.mkOption {type = lib.types.str;};
           target = lib.mkOption {type = lib.types.str;};
           processes = lib.mkOption {
@@ -34,11 +35,6 @@
             type = lib.types.listOf lib.types.str;
             default = [];
             description = "JSON/TOML files containing references to this application's old root.";
-          };
-          onConflict = lib.mkOption {
-            type = lib.types.enum ["reject" "backup"];
-            default = "reject";
-            description = "Save an existing directory under migration state before moving; never merge.";
           };
           repairAbsoluteLinks = lib.mkOption {
             type = lib.types.bool;
@@ -52,9 +48,9 @@
     config = lib.mkIf (cfg.paths != []) {
       # Activation is read-only, without an auto-apply escape hatch. A NixOS
       # switch can trigger Home Manager; it must never rename user data.
-      # Operators run the exported home-layout-migrate apply explicitly first.
+      # Pending work is advisory; an unsafe plan or native link collision still fails.
       home.activation.checkHomeMigration = lib.hm.dag.entryBefore ["writeBoundary" "checkLinkTargets"] ''
-        ${runner} check --require-noop
+        ${runner} check --activation
       '';
       # Export the reviewable runner for an explicitly authorized, separate
       # operation before a NixOS/Home Manager switch.

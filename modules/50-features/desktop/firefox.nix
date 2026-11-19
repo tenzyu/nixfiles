@@ -8,6 +8,7 @@
     config = lib.mkIf config.local.features.firefox.enable {
       local.homeMigration.paths = [
         {
+          owner = "firefox";
           source = "${config.home.homeDirectory}/.mozilla/firefox";
           target = config.programs.firefox.configPath;
           processes = ["*firefox*"];
