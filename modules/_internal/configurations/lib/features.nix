@@ -23,6 +23,16 @@
   enabledFeatures = features:
     lib.mapAttrs (_name: _feature: {enable = true;}) (lib.filterAttrs (_name: feature: feature.enable or false) features);
 
+  # A typed host seed is tri-state; the evaluated NixOS user option is bool.
+  # Only an explicit seed choice OR a native effective true emits an HM definition.
+  # In particular, a native false alone must not suppress HM mkDefault true.
+  embeddedHomeFeatures = selectedFeatures: evaluatedFeatures:
+    lib.mapAttrs (_name: feature: {inherit (feature) enable;}) (
+      lib.filterAttrs
+        (name: feature: (selectedFeatures.${name}.enable or null) != null || feature.enable)
+        evaluatedFeatures
+    );
+
   # Remove null seed values before handing the module to NixOS/Home Manager.
   # This preserves "unspecified" semantics and avoids seed defaults overriding real module defaults.
   compactFeatureSet = features:

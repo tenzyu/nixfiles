@@ -3,19 +3,19 @@ type: Reference
 title: Native feature options
 description: Native NixOS and Home Manager ownership and upstream option lookup.
 status: stable
-source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
+source_revision: 7b0ee333c2d312a9e5c1e769675eea6df5e35bdf
 sources:
   - id: adapter
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/configurations.nix
     title: Typed feature adapter
   - id: steam
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/gaming/steam.nix
     title: Feature-specific package policy example
 ---
 
 # Feature option ownership and upstream option lookup
 
-Scope: source declarations for `nixfiles` at `438aa02b426db0a5962dd0102f0cbb04a5191c06`, not observed
+Scope: source declarations for `nixfiles` at `7b0ee333c2d312a9e5c1e769675eea6df5e35bdf`, not observed
 host generations. **Source names and direct host selections remain stable.**
 
 ## Select the narrowest existing NixOS / Home Manager option
@@ -51,6 +51,12 @@ contributions belong in `60-integrations`.
 
 `otd-access` and `networkmanager-access` are **moved unchanged** to files
 matching their feature names. The udev rule name/order and group membership are intentional ownership boundaries. Zsh's XDG target uses HM's native `xdg.configFile`; the NixOS account selection reuses `helpers.mapUsersWithFeature` instead of filtering users twice. These are existing source declarations, not a request for more abstraction.
+
+## Canonical feature selection
+
+The typed host seed accepts `null | false | true` for each feature. `null` emits no target definition; explicit `false` and `true` emit a regular-priority definition. This rule applies to NixOS, standalone Home Manager and embedded Home Manager. In embedded HM, the adapter also preserves other positive NixOS user-feature contributions without mistaking a default `false` for an explicit selection. The target NixOS/HM evaluator, not the adapter, resolves `mkDefault`, regular definitions, `mkForce` and conflicts.
+
+For example, `steam` contributes `gaming-core.enable = lib.mkDefault true` in both system and HM modules. It is a **soft default**: `gaming-core = null` allows that default, whereas explicit `false` defeats it at regular priority. A `mkDefault true` contribution alone does not establish a hard requirement. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
 
 ## Validation and rollback
 

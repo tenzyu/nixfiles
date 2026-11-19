@@ -31,6 +31,7 @@ type TraceSource = Location & {
 type Definition = TraceSource & {
   renderedValue: string;
   value: unknown;
+  winning_priority: number | null;
 };
 
 export type Feature = {
@@ -39,6 +40,7 @@ export type Feature = {
   user: string | null;
   status: "enabled" | "disabled";
   kind: string;
+  winning_priority: number | null;
   activations: TraceSource[];
   source_hints: TraceSource[];
   implementations: TraceSource[];
@@ -47,7 +49,7 @@ export type Feature = {
 
 export type TraceResult =
   | { type: "host"; host: string; system: Feature[]; home: Feature[] }
-  | { type: "why"; path: string; effective: string; definitions: Definition[] };
+  | { type: "why"; path: string; effective: string; definitions: Definition[]; winning_priority: number | null };
 
 export async function traceCommand(argv: string[]): Promise<void> {
   const args = parseTraceArgs(argv);

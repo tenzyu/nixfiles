@@ -77,4 +77,38 @@ in {
       typeName = "nullOr";
     };
   };
+
+  testEmbeddedHomePreservesExplicitSelectionsAndNativeTrue = {
+    expr = featuresLib.embeddedHomeFeatures {
+      alpha.enable = null;
+      beta.enable = false;
+      gamma.enable = true;
+      delta.enable = null;
+      epsilon.enable = false;
+      zeta.enable = true;
+    } {
+      alpha.enable = false;
+      beta.enable = false;
+      gamma.enable = true;
+      delta.enable = true;
+      epsilon.enable = true;
+      zeta.enable = false;
+      eta.enable = false;
+    };
+    expected = {
+      beta.enable = false;
+      gamma.enable = true;
+      delta.enable = true;
+      epsilon.enable = true;
+      zeta.enable = false;
+    };
+  };
+
+  testEmbeddedHomeDoesNotForwardImplicitFalse = {
+    expr = featuresLib.embeddedHomeFeatures {} {
+      implicit.enable = false;
+      nativeDefault.enable = true;
+    };
+    expected = {nativeDefault.enable = true;};
+  };
 }

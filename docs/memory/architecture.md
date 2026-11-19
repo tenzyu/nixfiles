@@ -3,31 +3,31 @@ type: Architecture
 title: "Feature projection"
 description: "NixOS and Home Manager feature resolution"
 status: stable
-source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
+source_revision: 7b0ee333c2d312a9e5c1e769675eea6df5e35bdf
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/flake.nix
     title: "flake.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/configurations.nix
     title: "modules/_internal/configurations/configurations.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/options.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/options.nix
     title: "modules/_internal/configurations/materializers/options.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/users.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/users.nix
     title: "modules/_internal/configurations/materializers/users.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/_internal/configurations/materializers/home-manager.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/home-manager.nix
     title: "modules/_internal/configurations/materializers/home-manager.nix"
   - id: src-6
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/10-foundations/_policy/materializer.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/10-foundations/_policy/materializer.nix
     title: "modules/10-foundations/_policy/materializer.nix"
   - id: src-7
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/cli/zsh.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/cli/zsh.nix
     title: "modules/50-features/cli/zsh.nix"
   - id: src-8
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/gaming/steam.nix
     title: "modules/50-features/gaming/steam.nix"
 ---
 
@@ -53,7 +53,7 @@ The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users`
 ## Projection rules
 
 - `local.features.<name>.enable` selects a system feature. `local.users.<user>.features.<name>.enable` selects a user feature.
-- The seed drops nullable fields with value `null` and forwards explicit system `false` values. After NixOS evaluates a user's feature selection, embedded Home Manager receives only enabled user features.
+- The seed drops nullable `null` definitions and forwards explicit `false` / `true` into NixOS and standalone Home Manager at regular priority. The typed host seed's user selection is retained separately from the evaluated NixOS user feature value. Embedded Home Manager emits a definition when the host selection is non-null **or** the native NixOS user feature is effectively true. The emitted value is the native-effective bool. Native-effective false with no host selection emits nothing, leaving HM defaults in control.
 - `local.context.systemStateVersion` accepts the host's verified initial NixOS compatibility version. The adapter projects it as a regular `system.stateVersion` definition. It wins over native `mkDefault`, conflicts with a different regular definition, and yields to native `mkForce`. Leaving it unset uses the Nixpkgs definition.
 - For enabled users, `local.users.<user>.context` supplies the account home directory, wheel membership, and Home Manager's `local.user` fields. It also supplies the defaults for `home.homeDirectory` and `home.stateVersion`. Embedded Home Manager uses `useGlobalPkgs = true` and `useUserPackages = true` and loads the registered Home Manager modules through `sharedModules`.
 - The Home Manager `nh` feature installs `nh` and sets its `NH_OS_FLAKE` session variable when `local.context.flakePath` is set.
@@ -64,6 +64,10 @@ Priorities on typed seed fields resolve against other seed definitions before pr
 The NixOS state compatibility version controls defaults for persistent state. Nixpkgs selection controls OS upgrades. Home Manager uses each user's independent `homeStateVersion`. [NixOS option reference](https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion)
 
 The host feature lists include `tmux.enable = false`, and neko5 also sets `zed-editor.enable = false`. The Firefox module supplies the default web associations. The neko6 Zsh module configures interactive Zsh in Home Manager while its WSL login shell is Bash.
+
+## Selection vs. effective feature state
+
+There are three distinct levels: typed host `null | false | true` (authoring decision), NixOS `local.users.<name>.features` effective `bool`, and Home Manager `local.features` effective `bool`. The two module systems merge independently. A host explicit `false` defeats an HM `mkDefault true`, while host `null` allows that soft default. NixOS user-level `mkForce` can change the value emitted into HM, but does not transport its priority wrapper into HM. Existing external positive user-feature contributions continue to project into HM. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
 
 ## Cross-scope feature invariant
 
@@ -89,6 +93,6 @@ See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](..
 
 Feature modules remain under the numbered `50-features/` tree, grouped by domain. The directory name is an ownership and navigation aid; configuration semantics come from their explicit `flake.modules.*` declarations, not directory ordering. The `50-features/bundles/` category holds the shared defaults and package collections. Conditional multi-feature contributions belong under `60-integrations/`, using the existing feature aspect rather than a separate activation switch.
 
-`feature-trace` reads the Git flake working tree and recursively discovers `.nix` source files under `50-features/` while skipping private `_` directories. Nix evaluates tracked files, including local edits. For feature traces, `definitions` contains evaluated option definitions where available, and `source_hints` contains textual matches that can guide editor navigation. Home Manager feature status comes from evaluated settings. The locations in its feature rows are source hints. `--why` reports the effective NixOS option value and reads provenance from `definitionsWithLocations`.
+`feature-trace` reads the Git flake working tree and recursively discovers `.nix` source files under `50-features/` while skipping private `_` directories. Nix evaluates tracked files, including local edits. For feature traces, `definitions` contains evaluated option definitions where available, and `source_hints` contains textual matches that can guide editor navigation. Home Manager feature status comes from evaluated settings. The locations in its feature rows are source hints. `--why` reports the effective NixOS option value and surviving provenance from `definitionsWithLocations`, together with `highestPrio` as `winning_priority`. The priority applies to the **surviving group**; discarded definitions and original override wrappers cannot be reconstructed. Home rows have `winning_priority = null` because nested HM option metadata is not yet exposed through a stable path.
 
 The previous `osu-lazer-hyprland` aspect was a no-op compatibility placeholder. Its removal does not modify the `neko5-osu-first` performance module or Hyprland's effective runtime settings.

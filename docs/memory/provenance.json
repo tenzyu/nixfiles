@@ -7,15 +7,21 @@
       "sources": [
         "flake.nix",
         "modules/_internal/configurations/configurations.nix",
-        "modules/_internal/configurations/materializers/options.nix"
-      ]
+        "modules/_internal/configurations/materializers/options.nix",
+        "modules/_internal/configurations/materializers/home-manager.nix",
+        "tools/framework-cli/feature-trace.nix"
+      ],
+      "reviewed_revision": "7b0ee333c2d312a9e5c1e769675eea6df5e35bdf"
     },
     {
       "page": "docs/memory/feature-options.md",
       "sources": [
         "modules/_internal/configurations/configurations.nix",
-        "modules/50-features/gaming/steam.nix"
-      ]
+        "modules/50-features/gaming/steam.nix",
+        "modules/_internal/configurations/lib/features.nix",
+        "modules/_internal/configurations/materializers/home-manager.nix"
+      ],
+      "reviewed_revision": "7b0ee333c2d312a9e5c1e769675eea6df5e35bdf"
     },
     {
       "page": "docs/memory/composition.md",

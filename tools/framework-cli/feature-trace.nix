@@ -35,8 +35,7 @@
     then "{${toString (builtins.length (builtins.attrNames v))} keys}"
     else "<value>";
 
-  isMkDefault = v:
-    isAttrs v && v._type or null == "override" && v.priority or null == 1000;
+  mkDefaultPriority = (lib.mkDefault true).priority;
 
   cleanViaOption = s: let
     m = match "(.+), via option .*" s;
@@ -323,6 +322,7 @@
     repo,
     flake,
     featureName,
+    winningPriority,
   }: d: let
     rel = toRepoPath repo flake d.file;
     fName =
@@ -333,10 +333,10 @@
     kind =
       if hasPrefix "modules/50-features/" rel
       then
-        if fName != null && fName != featureName
+        if winningPriority == mkDefaultPriority
+        then "default"
+        else if fName != null && fName != featureName
         then "bundle"
-        else if isMkDefault d.value
-        then "implied"
         else "direct"
       else if hasPrefix "modules/10-foundations" rel
       then "materialized"
@@ -346,12 +346,18 @@
     value = d.value;
     renderedValue = serializeValue d.value;
     origin = "definitionsWithLocations";
+    # Nixpkgs has stripped mkOverride and excluded losing definitions.
+    winning_priority = winningPriority;
   };
 
   at = root: path: lib.attrByPath (splitString "." path) null root;
 
-  optionDefinitions = context: options: option:
-    map (normalizeDef context) ((at options option).definitionsWithLocations or []);
+  optionDefinitions = context: options: option: let
+    target = at options option;
+    winningPriority = target.highestPrio or null;
+  in
+    map (normalizeDef (context // {inherit winningPriority;}))
+    (target.definitionsWithLocations or []);
 
   mkFeatureRecord = {
     flake,
@@ -482,6 +488,11 @@
     implementations = implementations;
     effects = effectDefs;
     definitions = optionDefActivations;
+    # Nested NixOS user/HM submodule option metadata has no stable access path.
+    winning_priority =
+      if scope == "system"
+      then (at opts "local.features.${feature}.enable").highestPrio or null
+      else null;
   };
 
   enabledUsersFor = cfg:
@@ -578,5 +589,6 @@ in {
     path = option;
     effective = serializeValue effective;
     definitions = optionDefinitions {inherit repo flake featureName;} n.options option;
+    winning_priority = (at n.options option).highestPrio or null;
   };
 }

@@ -45,7 +45,7 @@ SplitCast source, package tests and PoC acceptance belong to its independent rep
 
 ## D6 — Native semantics over a private configuration language
 
-The host remains an explicit list of `local.features` and `local.users.*.features`. The adapter exists to preserve typed editor completion and project host selections into native NixOS/Home Manager modules. Prefer Nix builtins and nixpkgs `lib` where semantics match. Named composition functions distinguish **ordered values**, **disjoint fields**, and **deliberate shallow replacement**; do not generalize them into another `mkMerge` or hide priority/provenance.
+The host remains an explicit list of `local.features` and `local.users.*.features`. The adapter exists to preserve typed editor completion and project host selections into native NixOS/Home Manager modules. Prefer Nix builtins and nixpkgs `lib` where semantics match. Named composition functions distinguish **ordered values**, **disjoint fields**, and **deliberate shallow replacement**; do not generalize them into another `mkMerge` or hide priority/provenance. [ADR-0001](../adr/0001-canonical-feature-semantics.md) specifies the canonical `null | false | true` contract: an unspecified selection produces no target definition, while an explicit boolean is resolved by native NixOS/Home Manager precedence.
 
 ## D7 — Persistent service data needs independent migration acceptance
 
