@@ -101,9 +101,9 @@ exec 9<"$lock" || exit 1
   settled, run `rmdir -- "$guard"` in the same root shell, then `exit` to
   release the flock. `rmdir` refuses a nonempty guard. Leave the lifecycle
   inode in place. This only reopens admission. Archive verification and any
-  decision to start the game are separate. After a failed or interrupted
-  backup, keep the guest stopped pending that decision and preserve both
-  existing finals and any retained stage while checking publication.
+  decision to start the game are separate. If a failed or interrupted
+  backup left the guest stopped, leave it stopped pending that decision.
+  Preserve existing finals and any retained stage while checking publication.
 
 For an unconfirmed archive, use the exact path printed by `game backup`.
 Inspect the final and any retained stage under the archive account with
