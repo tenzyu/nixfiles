@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "reviewed_revision": "438aa02b426db0a5962dd0102f0cbb04a5191c06",
+  "pages": [
+    {
+      "page": "docs/memory/architecture.md",
+      "sources": [
+        "flake.nix",
+        "modules/_internal/configurations/configurations.nix",
+        "modules/_internal/configurations/materializers/options.nix"
+      ]
+    },
+    {
+      "page": "docs/memory/feature-options.md",
+      "sources": [
+        "modules/_internal/configurations/configurations.nix",
+        "modules/50-features/gaming/steam.nix"
+      ]
+    },
+    {
+      "page": "docs/memory/composition.md",
+      "sources": [
+        "lib/composition.nix"
+      ]
+    },
+    {
+      "page": "docs/memory/host-state.md",
+      "sources": [
+        "modules/00-hosts/neko5/configuration.nix",
+        "modules/00-hosts/neko6/configuration.nix",
+        "modules/00-hosts/neko7/configuration.nix"
+      ]
+    },
+    {
+      "page": "docs/memory/decisions.md",
+      "sources": [
+        "modules/50-features/nix/nix-store-clean.nix",
+        "modules/50-features/home/home-migration.nix",
+        "modules/50-features/game-servers/minecraft.nix",
+        "modules/50-features/security/sops-nix.nix"
+      ]
+    },
+    {
+      "page": "docs/memory/evidence.md",
+      "sources": [
+        ".github/workflows/nix-validation.yml",
+        "modules/00-hosts/neko7/configuration.nix"
+      ],
+      "source_blobs": {
+        ".github/workflows/nix-validation.yml": "5e843eee587619028e445430b1694040d654f2c6"
+      }
+    },
+    {
+      "page": "docs/memory/dreaming.md",
+      "sources": [
+        "flake.nix"
+      ]
+    }
+  ]
+}
