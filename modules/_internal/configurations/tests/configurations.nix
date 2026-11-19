@@ -1,8 +1,7 @@
 {flakeRef}: let
   flake = builtins.getFlake flakeRef;
   inherit (flake.inputs.nixpkgs) lib;
-  outputs =
-    (flake.debug.extendModules {
+  fixture = flake.debug.extendModules {
       modules = [
         {
           flake.modules.nixos.adapter-check = {config, ...}: {
@@ -103,7 +102,8 @@
             lib.mkDefault "23.11";
         }
       ];
-    }).config.flake;
+    };
+  outputs = fixture.config.flake;
   active = outputs.nixosConfigurations.adapter-active;
   conflict = outputs.nixosConfigurations.adapter-conflict.config;
   disabledHost = outputs.nixosConfigurations.adapter-disabled;
@@ -619,8 +619,8 @@ in {
         unselectedEmpty = embedded.local.features.adapter-unselected-empty.enable;
         explicitFalse = embedded.local.features.adapter-home-default.enable;
         explicitTrue = embedded.local.features.adapter-check.enable;
-        selectedNull = hostSeeds.adapter-active.module.local.users.alice.features.adapter-unselected-on.enable;
-        selectedFalse = hostSeeds.adapter-active.module.local.users.alice.features.adapter-home-default.enable;
+        selectedNull = fixture.config.configurations.nixos.adapter-active.module.local.users.alice.features.adapter-unselected-on.enable;
+        selectedFalse = fixture.config.configurations.nixos.adapter-active.module.local.users.alice.features.adapter-home-default.enable;
       };
       expected = {
         unselectedOn = true;
