@@ -25,6 +25,7 @@ MIGRATION_RULE_OWNERS = {
     "modules/50-features/bundles/common.nix",
     "modules/50-features/cli/zsh.nix",
     "modules/50-features/desktop/firefox.nix",
+    "modules/50-features/hardware/android-mic.nix",
 }
 
 SHELL_CORE = {

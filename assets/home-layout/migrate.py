@@ -1,6 +1,7 @@
 """Home Manager's Linux XDG migration. Check is read-only; apply never merges data."""
 
 import argparse
+from contextlib import contextmanager
 import datetime
 import fcntl
 import fnmatch
@@ -43,19 +44,101 @@ def tree(path, excluded=()):
                 yield from tree(child, excluded)
 
 
-def generated_tree(path):
-    """Only directories and store links, never regular files or external links."""
-    if path.is_symlink() or not path.is_dir():
+def generated_tree(path, managed):
+    """Recognize the directory skeleton of enabled Home Manager links."""
+    members = {leaf for leaf in managed if leaf != path and leaf.is_relative_to(path)}
+    ancestors = {parent for leaf in members for parent in leaf.parents if parent.is_relative_to(path)}
+    if not members or path.is_symlink() or not path.is_dir():
         return False
-    uid = os.geteuid()
 
     def trusted_directory(directory):
         info = directory.lstat()
-        return (stat.S_ISDIR(info.st_mode) and info.st_uid in (0, uid)
-                and not info.st_mode & 0o022)
+        return (stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid()
+                and stat.S_IMODE(info.st_mode) in (0o700, 0o755)
+                and not os.listxattr(directory, follow_symlinks=False))
 
-    return trusted_directory(path) and all(
-        store_link(p) if p.is_symlink() else trusted_directory(p) for p in tree(path))
+    links = 0
+    if not trusted_directory(path):
+        return False
+    for child in tree(path):
+        if child.is_symlink():
+            if child not in members or not store_link(child):
+                return False
+            target = Path(os.readlink(child))
+            if len(target.parts) < 5 or not target.parts[3].endswith("-home-manager-files"):
+                return False
+            if os.listxattr(child, follow_symlinks=False):
+                return False
+            links += 1
+        elif child not in ancestors or not trusted_directory(child):
+            return False
+    return links > 0
+
+
+@contextmanager
+def comparison_entry(parent_fd, name):
+    # Pin and inspect before opening for reads. A raced replacement with a
+    # symlink, FIFO or device must not be followed or opened for I/O.
+    entry = os.open(name, os.O_PATH | os.O_NOFOLLOW, dir_fd=parent_fd)
+    try:
+        info = os.fstat(entry)
+        if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+            raise Unsupported("comparison does not follow symlinks or read special entries")
+        if stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
+            raise Unsupported("comparison cannot establish hard-link identity")
+        readable = os.open(f"/proc/self/fd/{entry}", os.O_RDONLY | os.O_NOATIME)
+        try:
+            yield readable, info
+            current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if current != info or current.st_ctime_ns != info.st_ctime_ns:
+                raise Conflict("an entry changed during comparison")
+        finally:
+            os.close(readable)
+    finally:
+        os.close(entry)
+
+
+def compare_entries(boundary, mount, left_parent, right_parent, left, right):
+    with (comparison_entry(left_parent, left) as (left_fd, a),
+          comparison_entry(right_parent, right) as (right_fd, b)):
+        if boundary.mount(left_fd, left) != mount or boundary.mount(right_fd, right) != mount:
+            raise Unsupported("comparison crossed a mount boundary")
+        if (a.st_mode, a.st_uid, a.st_gid, a.st_mtime_ns) != (b.st_mode, b.st_uid, b.st_gid, b.st_mtime_ns):
+            return False
+        attrs = sorted(os.listxattr(left_fd))
+        if attrs != sorted(os.listxattr(right_fd)) or any(
+            os.getxattr(left_fd, key) != os.getxattr(right_fd, key) for key in attrs
+        ):
+            return False
+        if stat.S_ISDIR(a.st_mode):
+            names = sorted(os.listdir(left_fd))
+            return names == sorted(os.listdir(right_fd)) and all(
+                compare_entries(boundary, mount, left_fd, right_fd, name, name) for name in names
+            )
+        if a.st_size != b.st_size:
+            return False
+        while True:
+            chunk = os.read(left_fd, 65536)
+            if chunk != os.read(right_fd, 65536):
+                return False
+            if not chunk:
+                return True
+
+
+def describe_collision(boundary, source, target, *, compare):
+    if not compare:
+        return "Both paths contain data"
+    try:
+        with (boundary.directory(source.parent) as left,
+              boundary.directory(target.parent) as right):
+            mount = boundary.mount(left, source.parent)
+            if compare_entries(boundary, mount, left, right, source.name, target.name):
+                return "Apparent match (no writer exclusion); both paths contain data and are preserved"
+    except (Conflict, OSError, RecursionError) as error:
+        # Do not print tree members, attribute names, contents or exception text.
+        # That information may be sensitive and is unnecessary for remediation.
+        return f"Both paths contain data; comparison could not establish a match ({type(error).__name__})"
+    return "Both paths contain data and differ"
 
 
 def virtual(path, moves):
@@ -217,12 +300,16 @@ def check_reference(actual, dest, source, target, home):
     return True
 
 
-def plan(manifest, boundary=None):
+def plan(manifest, boundary=None, *, activation=False, compare_collisions=False):
     home, state = manifest_paths(manifest)
     boundary = boundary or MoveBoundary()
     moves, actions, patterns = [], [], []
+    managed_paths = [absolute(path) for path in manifest.get("managed", [])]
     for rule in manifest["rules"]:
         source, target = Path(rule["source"]), Path(rule["target"])
+        owner = rule["owner"]
+        if not isinstance(owner, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", owner):
+            raise Unsupported("Migration rule requires a valid feature owner")
         if not source.is_relative_to(home) or source == home:
             raise Conflict(f"Source must be below HOME: {source}")
         if source == target:
@@ -241,16 +328,14 @@ def plan(manifest, boundary=None):
             if present(actual_target):
                 boundary.reject_mounts(actual_target)
                 backup_entry = identity(actual_target.lstat())
-                if source_entry[2] != stat.S_IFDIR or backup_entry[2] != stat.S_IFDIR:
-                    raise Conflict(f"Both paths contain data: {source} -> {target}")
-                if generated_tree(actual_target):
-                    kind = "scaffolding"
-                elif rule.get("onConflict", "reject") == "backup":
-                    kind = "conflicts"
-                else:
-                    raise Conflict(f"Both paths contain data: {source} -> {target}")
+                if (source_entry[2] != stat.S_IFDIR or backup_entry[2] != stat.S_IFDIR
+                        or not generated_tree(actual_target, managed_paths)):
+                    detail = describe_collision(boundary, actual_source, actual_target,
+                                                compare=compare_collisions)
+                    raise Conflict(f"{detail} ({owner}): {source} -> {target}. "
+                                   "Preserve both trees and review the collision in the migration runbook.")
                 boundary.same_mount(actual_target.parent, state, backup_entry[0])
-                backup = {"kind": kind, "entry": backup_entry}
+                backup = backup_entry
             if source_entry[2] == stat.S_IFDIR:
                 for link in tree(actual_source, [old for old, _ in moves]):
                     if not link.is_symlink():
@@ -272,20 +357,21 @@ def plan(manifest, boundary=None):
                             raise Conflict(f"Relative symlink would change meaning: {link}")
             # HM checks the current layout before writeBoundary. Check files that
             # will appear there after moving, so linkGeneration cannot clobber them.
-            for name in manifest.get("managed", []):
-                managed = Path(name)
+            for managed in managed_paths:
                 if managed.is_relative_to(target):
                     old = actual_source / managed.relative_to(target)
                     if exists(old) and not store_link(old):
-                        raise Conflict(f"Legacy file would collide with a managed file: {old}")
+                        raise Conflict(f"Legacy file would collide with a managed file ({owner}): "
+                                       f"{old} -> {managed}. Review the Home Manager declaration and "
+                                       "preserve the legacy file before applying.")
             actions.append({"action": "move", "source": str(source), "target": str(target),
-                            "onConflict": rule.get("onConflict", "reject"),
-                            "entry": source_entry, "backup": backup})
+                            "owner": owner, "entry": source_entry, "backup": backup})
             moves.append((source, target))
             patterns.extend(rule.get("processes", []))
             if rule.get("repairAbsoluteLinks", False) and source_entry[2] == stat.S_IFDIR:
-                actions.extend(link_repairs(actual_source, target, manifest,
-                                            [old for old, _ in moves[:-1]]))
+                actions.extend({**repair, "owner": owner, "legacy": str(source), "root": str(target)}
+                               for repair in link_repairs(actual_source, target, manifest,
+                                                          [old for old, _ in moves[:-1]]))
         elif (rule.get("repairAbsoluteLinks", False) and present(actual_target)
               and actual_target.is_dir() and not actual_target.is_symlink()):
             # Diagnose legacy links even if an earlier version already moved the tree.
@@ -293,7 +379,8 @@ def plan(manifest, boundary=None):
                 pass
             boundary.reject_mounts(actual_target)
             repairs = link_repairs(actual_target, target, manifest)
-            actions.extend(repairs)
+            actions.extend({**repair, "owner": owner, "legacy": str(source), "root": str(target)}
+                           for repair in repairs)
             if repairs:
                 patterns.extend(rule.get("processes", []))
 
@@ -306,12 +393,12 @@ def plan(manifest, boundary=None):
             with boundary.directory(actual.parent):
                 if check_reference(actual, dest, source, target, home):
                     actions.append({"action": "rewrite", "current": str(actual), "target": str(dest),
-                                    "source": str(source), "root": str(target)})
+                                    "legacy": str(source), "root": str(target), "owner": owner})
                     patterns.extend(rule.get("processes", []))
     if moves:
         check_state(boundary, state)
     paths = [Path(rule[key]) for rule in manifest["rules"] for key in ("source", "target")]
-    pids = busy(patterns, paths) if patterns else []
+    pids = busy(patterns, paths) if patterns and not activation else []
     if pids:
         raise Conflict(f"Close applications before migration (PIDs: {', '.join(pids)})")
     return actions
@@ -323,7 +410,7 @@ def write_journal(log, event):
     os.fsync(log.fileno())
 
 
-def commit_move(boundary, log, source, target, entry, kind):
+def commit_move(boundary, log, source, target, entry, kind, *, managed=()):
     with (boundary.directory(source.parent) as source_fd,
           boundary.directory(target.parent, create=True) as target_fd):
         if not boundary.matches(source_fd, source.parent, target_fd, target.parent, entry[0]):
@@ -331,7 +418,7 @@ def commit_move(boundary, log, source, target, entry, kind):
         current = os.stat(source.name, dir_fd=source_fd, follow_symlinks=False)
         if identity(current) != entry:
             raise Conflict(f"Move source changed after planning: {source}")
-        if kind == "scaffolding" and not generated_tree(source):
+        if kind == "scaffolding" and not generated_tree(source, managed):
             raise Conflict(f"Destination scaffolding changed after planning: {source}")
         intent = safety.MoveNew(boundary.uid, safety.Leaf(source_fd, source.name),
                                 safety.Leaf(target_fd, target.name), entry[2])
@@ -346,7 +433,7 @@ def commit_move(boundary, log, source, target, entry, kind):
                                         f"Rename and parent flushes returned success, but completion logging failed: {target}") from error
 
 
-def commit_batch(boundary, state, actions):
+def commit_batch(boundary, state, actions, managed):
     name = datetime.datetime.now().strftime("%Y%m%dT%H%M%S-") + uuid.uuid4().hex
     run = state / name
     with boundary.directory(state, create=True) as state_fd:
@@ -361,8 +448,8 @@ def commit_batch(boundary, state, actions):
                     for index, action in enumerate(actions):
                         target = Path(action["target"])
                         if backup := action["backup"]:
-                            archive = run / backup["kind"] / str(index)
-                            commit_move(boundary, log, target, archive, backup["entry"], backup["kind"])
+                            archive = run / "scaffolding" / str(index)
+                            commit_move(boundary, log, target, archive, backup, "scaffolding", managed=managed)
                         commit_move(boundary, log, Path(action["source"]), target, action["entry"], "legacy")
         except (OSError, Conflict, ValueError, KeyboardInterrupt):
             print(f"Inspect source, destination, and backups before retrying. Migration journal: {run}",
@@ -391,7 +478,7 @@ def apply(manifest):
             raise Unsupported(f"Replacement requires exclusive ownership; batch refused: {paths}. "
                               "Run check for the repair proposal and see the Home migration runbook.")
         if actions:
-            commit_batch(boundary, state, actions)
+            commit_batch(boundary, state, actions, [Path(path) for path in manifest.get("managed", [])])
     return actions
 
 
@@ -401,7 +488,7 @@ def display_actions(actions):
             backup = action["backup"]
             action = {key: value for key, value in action.items() if key not in ("entry", "backup")}
             if backup:
-                action["backup"] = backup["kind"]
+                action["backup"] = "scaffolding"
         yield action
 
 
@@ -409,20 +496,40 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("mode", choices=["check", "apply"], nargs="?", default="check")
-    parser.add_argument("--require-noop", action="store_true",
+    checks = parser.add_mutually_exclusive_group()
+    checks.add_argument("--require-noop", action="store_true",
                         help="fail read-only check when any migration action is pending")
+    checks.add_argument("--activation", action="store_true",
+                        help="warn about pending actions; fail on unsafe plans")
     args = parser.parse_args()
-    if args.require_noop and args.mode != "check":
-        parser.error("--require-noop is only valid with check")
+    if (args.require_noop or args.activation) and args.mode != "check":
+        parser.error("--require-noop and --activation are only valid with check")
     try:
         manifest = json.loads(args.manifest.read_text())
-        actions = apply(manifest) if args.mode == "apply" else plan(manifest)
+        actions = (apply(manifest) if args.mode == "apply" else
+                   plan(manifest, activation=args.activation, compare_collisions=not args.activation))
     except (Conflict, OSError, ValueError, KeyError, TypeError) as error:
         print(f"home migration stopped ({type(error).__name__}): {error}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print("home migration interrupted", file=sys.stderr)
         return 130
+    if args.activation:
+        for action in actions:
+            operation = action["action"]
+            current = action.get("current", action.get("source"))
+            source = json.dumps(current)
+            target = json.dumps(action["target"])
+            advice = ("review home-layout-migrate check, back up data and stop its writers before manual apply"
+                      if operation == "move" else
+                      "run home-layout-migrate check and review the manual repair in the migration runbook")
+            if action.get("backup"):
+                operation += " (preserves generated scaffolding in migration state)"
+            if operation in ("symlink", "rewrite"):
+                advice += f" (migration {json.dumps(action['legacy'])} -> {json.dumps(action['root'])})"
+            print(f"Warning: home migration pending [{action['owner']}] {operation}: "
+                  f"{source} -> {target}; {advice}.", file=sys.stderr)
+        return 0
     print(json.dumps(list(display_actions(actions)), ensure_ascii=False, indent=2))
     replacements = any(action["action"] != "move" for action in actions)
     if replacements:

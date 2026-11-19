@@ -18,56 +18,47 @@
         templates = null;
       };
 
-      local.homeMigration.paths =
-        [
-          {
-            source = "${config.home.homeDirectory}/.codex";
-            target = config.home.sessionVariables.CODEX_HOME;
-            processes = ["*codex*"];
-            references = ["config.toml" "hooks.json"];
-          }
-          {
-            source = "${config.home.homeDirectory}/.gemini";
-            target = "${config.home.sessionVariables.GEMINI_CLI_HOME}/.gemini";
-            processes = ["*gemini*"];
-          }
-          {
-            source = "${config.home.homeDirectory}/.bun/install/cache";
-            target = config.home.sessionVariables.BUN_INSTALL_CACHE_DIR;
-            processes = ["bun" ".bun-wrapped"];
-            # Cache is regenerable; preserve any existing target as a journaled backup.
-            onConflict = "backup";
-            repairAbsoluteLinks = true;
-          }
-          {
-            source = "${config.home.homeDirectory}/.bun";
-            target = config.home.sessionVariables.BUN_INSTALL;
-            processes = ["bun" ".bun-wrapped"];
-            repairAbsoluteLinks = true;
-          }
-          {
-            source = "${config.home.homeDirectory}/.bash_history";
-            target = config.home.sessionVariables.HISTFILE;
-          }
-          {
-            source = "${config.home.homeDirectory}/.claude";
-            target = config.home.sessionVariables.CLAUDE_CONFIG_DIR;
-            processes = ["*claude*"];
-          }
-          {
-            source = "${config.home.homeDirectory}/.claude.json";
-            target = "${config.home.sessionVariables.CLAUDE_CONFIG_DIR}/.claude.json";
-            processes = ["*claude*"];
-          }
-        ]
-        ++ lib.optional config.local.features.android-mic.enable {
-          source = "${config.home.homeDirectory}/.android";
-          target = "${config.home.sessionVariables.ANDROID_USER_HOME}/.android";
-          processes = ["adb" ".adb-wrapped" "*android-mic*"];
-        };
+      local.homeMigration.paths = map (rule: rule // {owner = "home-layout";}) [
+        {
+          source = "${config.home.homeDirectory}/.codex";
+          target = config.home.sessionVariables.CODEX_HOME;
+          processes = ["*codex*"];
+          references = ["config.toml" "hooks.json"];
+        }
+        {
+          source = "${config.home.homeDirectory}/.gemini";
+          target = "${config.home.sessionVariables.GEMINI_CLI_HOME}/.gemini";
+          processes = ["*gemini*"];
+        }
+        {
+          source = "${config.home.homeDirectory}/.bun/install/cache";
+          target = config.home.sessionVariables.BUN_INSTALL_CACHE_DIR;
+          processes = ["bun" ".bun-wrapped"];
+          repairAbsoluteLinks = true;
+        }
+        {
+          source = "${config.home.homeDirectory}/.bun";
+          target = config.home.sessionVariables.BUN_INSTALL;
+          processes = ["bun" ".bun-wrapped"];
+          repairAbsoluteLinks = true;
+        }
+        {
+          source = "${config.home.homeDirectory}/.bash_history";
+          target = config.home.sessionVariables.HISTFILE;
+        }
+        {
+          source = "${config.home.homeDirectory}/.claude";
+          target = config.home.sessionVariables.CLAUDE_CONFIG_DIR;
+          processes = ["*claude*"];
+        }
+        {
+          source = "${config.home.homeDirectory}/.claude.json";
+          target = "${config.home.sessionVariables.CLAUDE_CONFIG_DIR}/.claude.json";
+          processes = ["*claude*"];
+        }
+      ];
 
       home.sessionVariables = {
-        ANDROID_USER_HOME = "${config.xdg.dataHome}/android";
         BUN_INSTALL = "${config.xdg.dataHome}/bun";
         BUN_INSTALL_CACHE_DIR = "${config.xdg.cacheHome}/bun/install";
         CLAUDE_CONFIG_DIR = "${config.xdg.configHome}/claude";
@@ -84,14 +75,11 @@
       # the right-hand set supplies values and absent keys remain absent.
       systemd.user.sessionVariables = builtins.intersectAttrs
         (lib.genAttrs [
-          "ANDROID_USER_HOME"
           "BUN_INSTALL"
           "BUN_INSTALL_CACHE_DIR"
           "CLAUDE_CONFIG_DIR"
           "CODEX_HOME"
           "GEMINI_CLI_HOME"
-          "DOTNET_CLI_HOME"
-          "NPM_CONFIG_CACHE"
         ] (_: null))
         config.home.sessionVariables;
     };
