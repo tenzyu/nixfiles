@@ -1,29 +1,7 @@
 {...}: {
-  configurations.nixos.neko7.module = {pkgs, ...}: {
+  configurations.nixos.neko7.module = {
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
-
-    # T3's downloaded Chromium Headless Shell needs libraries visible to nix-ld.
-    # Keep these host-specific rather than expanding the shared nix-ld feature.
-    programs.nix-ld.libraries = with pkgs; [
-      alsa-lib
-      at-spi2-core
-      dbus
-      expat
-      glib
-      libgbm
-      libx11
-      libxcb
-      libxcomposite
-      libxdamage
-      libxext
-      libxfixes
-      libxkbcommon
-      libxrandr
-      nspr
-      nss
-      systemd
-    ];
 
     # Host-specific uplink belongs to the host, not to a game bundle.
     networking.nat = {
@@ -72,6 +50,7 @@
         fonts.enable = true;
         stub-ld.enable = true;
         nix-ld.enable = true;
+        t3code-browser.enable = true;
         docker-rootless.enable = true;
         llama-cpp-cuda.enable = true;
         nix-remote-builder.enable = true;
