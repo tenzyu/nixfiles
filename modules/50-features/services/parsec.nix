@@ -40,6 +40,12 @@
       mode = "0600";
     };
     parsecTouchpadGpmapLine = "${policy.mappingId} a:_00 b:_00 x:_00 y:_00 bk:_00 g:_00 s:_00 sl:_00 sr:_00 l:_00 r:_00 du:_00 dr:_00 dd:_00 dl:_00 lyu:_00 lxr:_00 lyd:_00 lxl:_00 ryu:_00 rxr:_00 ryd:_00 rxl:_00 tl:_00 tr:_00";
+    activationData = pkgs.writeText "parsec-activation.json" (builtins.toJSON {
+      inherit (config.local.parsecActivation) directory configFile mappingFile mappingId mode;
+      configText = parsecConfig;
+      mappingRow = parsecTouchpadGpmapLine;
+    });
+    activate = ''${pkgs.python3}/bin/python3 -I ${../../../assets/parsec-activation/activate.py} ${../../../assets/safety/shell/native.py} ${activationData}'';
   in {
     options.local.parsecActivation = lib.mkOption {
       internal = true;
@@ -92,39 +98,11 @@
       ];
 
       home.activation.parsecConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        parsec_dir="$HOME/${policy.directory}"
-        parsec_config="$parsec_dir/${policy.configFile}"
-
-        mkdir -p "$parsec_dir"
-
-        if [ -L "$parsec_config" ]; then
-          rm -f "$parsec_config"
-        fi
-
-        printf '%s' ${lib.escapeShellArg parsecConfig} > "$parsec_config"
-        chmod ${policy.mode} "$parsec_config"
+        run ${activate} config
       '';
 
       home.activation.parsecTouchpadGpmap = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        parsec_dir="$HOME/${policy.directory}"
-        gpmap="$parsec_dir/${policy.mappingFile}"
-        tmp="$gpmap.tmp"
-
-        mkdir -p "$parsec_dir"
-
-        if [ -L "$gpmap" ]; then
-          rm -f "$gpmap"
-        fi
-
-        if [ -f "$gpmap" ]; then
-          grep -v '^${policy.mappingId} ' "$gpmap" > "$tmp" || true
-        else
-          : > "$tmp"
-        fi
-
-        printf '%s\n' ${lib.escapeShellArg parsecTouchpadGpmapLine} >> "$tmp"
-        mv "$tmp" "$gpmap"
-        chmod ${policy.mode} "$gpmap"
+        run ${activate} mapping
       '';
 
       xdg.desktopEntries.parsec-xwayland = {

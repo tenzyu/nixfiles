@@ -89,7 +89,6 @@ class SelectionTests(unittest.TestCase):
     def test_safety_shell_check_is_change_scoped(self):
         for path in (
             "assets/safety/shell/operations.sh",
-            "assets/safety/shell/native.py",
             "assets/safety/shell/default.nix",
             "assets/safety/shell/test-operations.sh",
             "fixtures/contracts/safety-shell.md",
@@ -101,6 +100,19 @@ class SelectionTests(unittest.TestCase):
                     expected.insert(0, "game-backup-minecraft")
                 self.assertEqual(module.selection([path]), (expected, False))
         self.assertEqual(module.selection(["docs/adr/0002-invariant-safety.md"]), ([], False))
+
+    def test_parsec_check_is_scoped_and_follows_its_core_dependency(self):
+        for path in (
+            "assets/parsec-activation/activate.py",
+            "assets/parsec-activation/test_activation.py",
+            "modules/50-features/services/parsec.nix",
+            "modules/10-foundations/parsec-activation-check.nix",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([path]), (["parsec-activation"], False))
+        checks, cache_probe = module.selection(["assets/safety/shell/native.py"])
+        self.assertTrue({"parsec-activation", "safety-shell"}.issubset(checks))
+        self.assertFalse(cache_probe)
 
     def test_migration_rule_owners_are_mapped(self):
         for path in pathlib.Path("modules").rglob("*.nix"):
