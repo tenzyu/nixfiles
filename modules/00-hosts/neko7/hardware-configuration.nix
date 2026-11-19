@@ -10,6 +10,13 @@
       boot.kernelModules = ["kvm-amd"];
       boot.extraModulePackages = [];
 
+      # Keep boot/shutdown output available on the Proxmox serial console.
+      # The VM must expose serial0; kernel parameters do not create that device.
+      boot.kernelParams = [
+        "console=tty0"
+        "console=ttyS0,115200n8"
+      ];
+
       fileSystems."/" = {
         device = "/dev/disk/by-label/NEKO7_ROOT";
         fsType = "ext4";
