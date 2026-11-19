@@ -11,7 +11,7 @@ import sys
 
 DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 UNSUPPORTED = (errno.ENOSYS, errno.EOPNOTSUPP, errno.EXDEV)
-APP_CONFIG = "config.json"
+LEGACY_CONFIG = "config.txt"
 
 
 class Refusal(Exception):
@@ -94,13 +94,13 @@ def flush(native, fd):
     subprocess.run([sys.executable, "-I", native, "fsync", str(fd)], pass_fds=(fd,), check=True)
 
 
-def guard_legacy_import(parent, operation):
+def guard_legacy_config(parent, operation):
     if operation == "config":
         try:
-            os.stat(APP_CONFIG, dir_fd=parent, follow_symlinks=False)
+            os.stat(LEGACY_CONFIG, dir_fd=parent, follow_symlinks=False)
         except FileNotFoundError:
             return
-        raise Refusal("AppOwned", f"{APP_CONFIG} exists; skipped the legacy config seed")
+        raise Refusal("AppOwned", f"{LEGACY_CONFIG} exists; skipped the native config seed")
 
 
 def publish(native, home, parent, path, operation, leaf, expected, mode):
@@ -123,7 +123,7 @@ def publish(native, home, parent, path, operation, leaf, expected, mode):
         # both dirfds makes this linkat. It fails on ANY existing final leaf.
         proc = os.open("/proc/self/fd", DIR)
         try:
-            guard_legacy_import(parent, operation)
+            guard_legacy_config(parent, operation)
             try:
                 os.link(str(stage), leaf, src_dir_fd=proc, dst_dir_fd=parent, follow_symlinks=True)
             except FileExistsError:
@@ -186,17 +186,20 @@ def activate(native, data, operation, leaf):
 
         difference = "existing mapping does not contain exactly one declared controller row"
     else:
-        expected = data["configText"].encode()
+        settings = data["configSettings"]
+        document = {key: {"value": value} for key, value in settings.items()}
+        expected = (json.dumps(document, indent=2) + "\n").encode()
 
         def matches(stream):
-            return stream.read(len(expected) + 1) == expected
+            observed = json_settings(stream, settings)
+            return all(observed.get(key) == [str(value).encode()] for key, value in settings.items())
 
         difference = "existing config differs from the declaration"
 
     with directories(data["directory"], create=True) as (home, parent, path):
-        guard_legacy_import(parent, operation)
         observed = inspect_file(parent, path, leaf, matches)
         if observed is None:
+            guard_legacy_config(parent, operation)
             publish(native, home, parent, path, operation, leaf, expected, mode)
         else:
             identical, actual_mode = observed
@@ -249,7 +252,7 @@ def show_settings(leaf, expected, settings):
             state = "multiple assignments"
         elif observed[0] is None:
             state = "unrecognized value format"
-        elif observed[0] == value.encode():
+        elif observed[0] == str(value).encode():
             state = "present"
         else:
             state = "different value"
@@ -271,31 +274,33 @@ def review_file(parent, path, leaf, read):
 
 def review_config(parent, path, data, mode):
     leaf = data["configFile"]
-    expected = dict(line.split("=", 1) for line in data["configText"].splitlines())
+    expected = data["configSettings"]
     keys = {key.encode() for key in expected}
-    modern, json_status = review_file(parent, path, APP_CONFIG, lambda stream: json_settings(stream, expected))
-    legacy, text_status = review_file(parent, path, leaf, lambda stream: text_settings(stream, keys))
+    modern, json_status = review_file(parent, path, leaf, lambda stream: json_settings(stream, expected))
+    legacy, text_status = review_file(parent, path, LEGACY_CONFIG, lambda stream: text_settings(stream, keys))
     status = max(json_status, text_status)
     if modern is not None:
-        status = max(status, show_settings(APP_CONFIG, expected, modern[0]))
+        settings, actual_mode = modern
+        status = max(status, show_settings(leaf, expected, settings), show_mode(leaf, actual_mode, mode))
     elif json_status == 0:
-        print(f"{APP_CONFIG}: missing")
+        print(f"{leaf}: missing")
 
     if legacy is None:
         if text_status == 0:
-            print(f"{leaf}: missing")
+            print(f"{LEGACY_CONFIG}: missing")
         return status if modern is not None else max(status, 1)
 
     settings, actual_mode = legacy
-    status = max(status, show_mode(leaf, actual_mode, mode))
+    status = max(status, show_mode(LEGACY_CONFIG, actual_mode, mode))
     if modern is not None or json_status:
         if settings:
-            print(f"{leaf}: declared legacy assignments are present alongside {APP_CONFIG}; review possible import.")
-            show_settings(leaf, {key: expected[key] for key in settings}, settings)
+            print(f"{LEGACY_CONFIG}: declared legacy assignments are present alongside {leaf}; review possible import.")
+            show_settings(LEGACY_CONFIG, {key: expected[key] for key in settings}, settings)
             return max(status, 1)
-        print(f"{leaf}: no declared legacy assignments")
+        print(f"{LEGACY_CONFIG}: no declared legacy assignments")
         return status
-    return max(status, show_settings(leaf, expected, settings))
+    print(f"{LEGACY_CONFIG}: existing legacy input suppresses the {leaf} seed.")
+    return max(status, show_settings(LEGACY_CONFIG, expected, settings))
 
 
 def show_mode(leaf, actual, expected):
