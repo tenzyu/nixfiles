@@ -84,7 +84,7 @@ async function pickCandidate(candidates: Candidate[]): Promise<Candidate> {
     candidate.option,
     sourceLabel(candidate),
   ]);
-  const fzf = Bun.spawn([
+  const fzf = spawnArgv("feature-trace selector", [
     "fzf", `--header=${table(columns, [])}`, "--prompt=feature-trace> ",
     "--layout=reverse", "--height=90%", "--border", "--info=inline",
   ], { stdin: "pipe", stdout: "pipe", stderr: "inherit" });
@@ -93,13 +93,13 @@ async function pickCandidate(candidates: Candidate[]): Promise<Candidate> {
   fzf.stdin.write(rows.map((values) => row(columns, values)).join("\n") + "\n");
   fzf.stdin.end();
   const selected = (await new Response(fzf.stdout).text()).trim();
-  if (await fzf.exited !== 0 || selected === "") {
-    throw new Error("feature-trace: edit cancelled");
-  }
+  const status = await fzf.exited;
+  if (status !== 0) throw new ProcessFailure("feature-trace selector", status);
+  if (selected === "") throw new Error("feature-trace: edit cancelled");
 
   const index = Number(selected.split(/\s+/, 1)[0]);
   if (!Number.isInteger(index) || index < 1 || index > candidates.length) {
-    throw new Error(`feature-trace: invalid fzf selection: ${selected}`);
+    throw new Error("feature-trace: invalid fzf selection");
   }
   return candidates[index - 1];
 }
@@ -110,17 +110,15 @@ export async function editTrace(result: TraceResult, repo: string, target: EditT
   const { source, line } = candidates.length === 1 ? candidates[0] : await pickCandidate(candidates);
   const file = source.startsWith("/") ? source : `${repo}/${source}`;
 
-  const editor = Bun.spawn(["sh", "-lc", 'exec $EDITOR_CMD "+$LINE" "$FILE"'], {
+  // Like the old unquoted expansion, split on shell IFS whitespace; do not expand globs.
+  const [command, ...flags] = (Bun.env.VISUAL ?? Bun.env.EDITOR ?? "vi").split(/[ \t\n]+/).filter(Boolean);
+  if (!command) throw new Error("feature-trace: editor command is empty");
+  const editor = spawnArgv("feature-trace editor", [command, ...flags, `+${line ?? 1}`, file], {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
-    env: {
-      ...Bun.env,
-      EDITOR_CMD: Bun.env.VISUAL ?? Bun.env.EDITOR ?? "vi",
-      FILE: file,
-      LINE: String(line ?? 1),
-    },
   });
   const status = await editor.exited;
-  if (status !== 0) throw new Error(`feature-trace: editor exited with status ${status}`);
+  if (status !== 0) throw new ProcessFailure("feature-trace editor", status);
 }
+import { ProcessFailure, spawnArgv } from "./process";

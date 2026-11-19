@@ -98,6 +98,15 @@
         cd ./cli
         tsc --noEmit
         bun test
+        cli=${lib.getExe frameworkCli}
+        "$cli" trace --help >help
+        grep -q -- '--why OPTION_PATH' help
+        if "$cli" trace --host --json >output 2>error; then
+          echo 'packaged CLI accepted an incomplete trace' >&2
+          exit 1
+        fi
+        test ! -s output
+        grep -q -- '--host requires a value' error
         touch "$out"
       '';
 
