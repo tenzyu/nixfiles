@@ -1,4 +1,8 @@
-{lib}: {
+{lib}: let
+  gameLockDirectory = "/run/nixfiles-game-locks";
+in rec {
+  inherit gameLockDirectory;
+
   # Derive paths without introducing NixOS options or bypassing their merge
   # priorities. This also allows data (/srv) to be separated from service HOME.
   mkGameDirectories = spec: let
@@ -27,6 +31,27 @@
       backupsDir = "${gameDir}/backups";
       tailscaleDir = "${stateDir}/tailscale";
     };
+
+  mkGameOperation = spec: let
+    dirs = mkGameDirectories spec;
+    contains = parent: path: path == parent || lib.hasPrefix "${parent}/" path;
+    overlapsLock = dir: contains dir gameLockDirectory || contains gameLockDirectory dir;
+  in
+  assert lib.assertMsg (!(lib.any overlapsLock [dirs.home dirs.gameDir dirs.secretsDir dirs.stateDir]))
+    "game service directories must be disjoint from ${gameLockDirectory}";
+  assert lib.assertMsg (builtins.match "[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*" spec.backupSource != null)
+    "game backup source must be a relative path below the game directory";
+  {
+    lockPath = "${gameLockDirectory}/${spec.key}.lock";
+    inherit (spec) containerName;
+    containerUnit = "container@${spec.containerName}.service";
+    guestUnit = "${spec.guestService}.service";
+    archiveUser = spec.user;
+    archiveUid = spec.uid;
+    archiveGid = spec.gid;
+    sourceDir = "${dirs.gameDir}/${spec.backupSource}";
+    inherit (dirs) backupsDir;
+  };
 
   # The same static service account is declared on the host and inside a
   # non-user-namespaced NixOS container. Separate paths from UID/GID ownership.

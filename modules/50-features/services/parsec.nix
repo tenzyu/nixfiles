@@ -32,9 +32,25 @@
       client_overlay_warnings=1
     '';
 
-    parsecTouchpadGpmapId = "06cb,83d7";
-    parsecTouchpadGpmapLine = "${parsecTouchpadGpmapId} a:_00 b:_00 x:_00 y:_00 bk:_00 g:_00 s:_00 sl:_00 sr:_00 l:_00 r:_00 du:_00 dr:_00 dd:_00 dl:_00 lyu:_00 lxr:_00 lyd:_00 lxl:_00 ryu:_00 rxr:_00 ryd:_00 rxl:_00 tl:_00 tr:_00";
+    policy = {
+      directory = ".parsec";
+      configFile = "config.txt";
+      mappingFile = "gpmap.txt";
+      mappingId = "06cb,83d7";
+      mode = "0600";
+    };
+    parsecTouchpadGpmapLine = "${policy.mappingId} a:_00 b:_00 x:_00 y:_00 bk:_00 g:_00 s:_00 sl:_00 sr:_00 l:_00 r:_00 du:_00 dr:_00 dd:_00 dl:_00 lyu:_00 lxr:_00 lyd:_00 lxl:_00 ryu:_00 rxr:_00 ryd:_00 rxl:_00 tl:_00 tr:_00";
   in {
+    options.local.parsecActivation = lib.mkOption {
+      internal = true;
+      readOnly = true;
+      default = if config.local.features.parsec.enable then policy else null;
+      type = with lib.types; nullOr (submodule {
+        options = lib.mapAttrs (_: _: lib.mkOption {type = str;}) policy;
+      });
+      description = "User-owned Parsec activation paths relative to HOME and the declared mapping ID.";
+    };
+
     config = lib.mkIf config.local.features.parsec.enable {
       home.packages = [
         (pkgs.writeShellApplication {
@@ -67,8 +83,8 @@
             export SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000
             export SDL_JOYSTICK_HIDAPI=0
 
-            mkdir -p "$HOME/.parsec"
-            cd "$HOME/.parsec"
+            mkdir -p "$HOME/${policy.directory}"
+            cd "$HOME/${policy.directory}"
 
             exec "$parsec_exe" "$@"
           '';
@@ -76,8 +92,8 @@
       ];
 
       home.activation.parsecConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        parsec_dir="$HOME/.parsec"
-        parsec_config="$parsec_dir/config.txt"
+        parsec_dir="$HOME/${policy.directory}"
+        parsec_config="$parsec_dir/${policy.configFile}"
 
         mkdir -p "$parsec_dir"
 
@@ -86,12 +102,12 @@
         fi
 
         printf '%s' ${lib.escapeShellArg parsecConfig} > "$parsec_config"
-        chmod 0600 "$parsec_config"
+        chmod ${policy.mode} "$parsec_config"
       '';
 
       home.activation.parsecTouchpadGpmap = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        parsec_dir="$HOME/.parsec"
-        gpmap="$parsec_dir/gpmap.txt"
+        parsec_dir="$HOME/${policy.directory}"
+        gpmap="$parsec_dir/${policy.mappingFile}"
         tmp="$gpmap.tmp"
 
         mkdir -p "$parsec_dir"
@@ -101,14 +117,14 @@
         fi
 
         if [ -f "$gpmap" ]; then
-          grep -v '^${parsecTouchpadGpmapId} ' "$gpmap" > "$tmp" || true
+          grep -v '^${policy.mappingId} ' "$gpmap" > "$tmp" || true
         else
           : > "$tmp"
         fi
 
         printf '%s\n' ${lib.escapeShellArg parsecTouchpadGpmapLine} >> "$tmp"
         mv "$tmp" "$gpmap"
-        chmod 0600 "$gpmap"
+        chmod ${policy.mode} "$gpmap"
       '';
 
       xdg.desktopEntries.parsec-xwayland = {

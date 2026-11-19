@@ -22,6 +22,8 @@
       home = if useSrv then "/var/lib/game-containers/ark" else "/home/game-ark";
       gameDir = if useSrv then "/srv/ark" else "/home/game-ark/ark";
       containerName = "neko7-ark";
+      guestService = "ark-survival-evolved";
+      backupSource = "server/ShooterGame/Saved";
       hostAddress = "10.77.10.1";
       localAddress = "10.77.10.2";
       tailscaleHostname = "neko7-ark";
@@ -40,7 +42,7 @@
         4327
       ];
     };
-    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
+    inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkArkModule = spec: {
       lib,
       pkgs,
@@ -59,7 +61,7 @@
         steam-run
       ];
 
-      systemd.services.ark-survival-evolved = {
+      systemd.services.${spec.guestService} = {
         description = "ARK: Survival Evolved Dedicated Server";
         wantedBy = ["multi-user.target"];
         wants = [
@@ -180,9 +182,5 @@
         };
       };
     };
-  in {
-    config =
-      lib.mkIf config.local.features.game-ark.enable
-      (mkGame spec mkArkModule);
-  };
+  in mkGame spec mkArkModule;
 }

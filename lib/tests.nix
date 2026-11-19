@@ -189,6 +189,29 @@ in {
     expected = {badKey = false; badRoot = false; storeRoot = false;};
   };
 
+  testGameOperationRejectsServiceOwnedLockAncestry = {
+    expr = let
+      spec = {
+        key = "minecraft";
+        home = "/home/game-minecraft";
+        backupSource = "survival";
+      };
+      accepts = overrides:
+        (builtins.tryEval (layout.mkGameOperation (spec // overrides)).lockPath).success;
+    in {
+      runAsHome = accepts {home = "/run";};
+      lockDirAsData = accepts {gameDir = layout.gameLockDirectory;};
+      stateInsideLockDir = accepts {stateDir = "${layout.gameLockDirectory}/state";};
+      escapingSource = accepts {backupSource = "../other-game";};
+    };
+    expected = {
+      runAsHome = false;
+      lockDirAsData = false;
+      stateInsideLockDir = false;
+      escapingSource = false;
+    };
+  };
+
   testStaticServiceAccountsAgreeAcrossScopes = {
     expr = let
       account = layout.mkStaticServiceAccount {bashInteractive = "/bin/bash";} {

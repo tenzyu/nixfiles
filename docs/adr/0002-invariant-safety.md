@@ -87,6 +87,72 @@ The IDs below name proposed cases, not test files or passing results. A case rec
 
 For 2i and 2k, record the review date, pinned revision, relevant files and dependencies, maintenance, license and notices, fixture evidence, and unmet requirements. Whole-package adoption needs evidence that every hard requirement holds. Partial adoption also needs exact files, attribution, an update plan, and tests for the extracted code. Stop when no remaining comparison could change the decision. Keep the small local adapter if evidence or compatibility is insufficient.
 
+### Native policy outputs for 2g and 2h
+
+**Game operations.** NixOS exposes the read-only option
+`config.local.gameOperations.<game>` for `ark`, `minecraft`, and `rust`.
+It is `null` unless both `game-<game>` and `game-server-tools` are enabled
+after native feature resolution. The container and tools still have their
+independent feature selections. Gate downstream operations on the option
+because a lock from an earlier generation can persist until reboot.
+
+| Field | Minecraft on `neko7` |
+| --- | --- |
+| `lockPath` | `/run/nixfiles-game-locks/minecraft.lock` |
+| `containerName` | `neko7-mc` |
+| `containerUnit` | `container@neko7-mc.service` in the host system manager |
+| `guestUnit` | `minecraft-server-survival.service` in the guest system manager |
+| `archiveUser`, `archiveUid`, `archiveGid` | Host account `game-minecraft`, UID and GID `27009`. The guest service runs as `minecraft` with the same numeric IDs. |
+| `sourceDir`, `backupsDir` | `/srv/minecraft/survival`, `/srv/minecraft/backups` with `game-srv`. In the legacy layout the two leaves are under `/home/game-minecraft/minecraft`. |
+
+Host `systemd.tmpfiles.settings.nixfiles-game-locks` declares a `d` entry for
+`/run/nixfiles-game-locks` (`root:wheel`, `0750`) and an `f` entry for
+`/run/nixfiles-game-locks/<game>.lock` (`root:wheel`, `0440`, no age or
+contents). Recreation of a missing file belongs to native tmpfiles. Its plain
+`f` rule preserves an existing regular inode. The lock has one inode across
+cooperating invocations, tmpfiles reapplication, and independent container and
+game-unit restarts within the same boot. Operators must leave the lock entry in
+place. The game service HOME, data, backups, secrets, and Tailscale state are
+outside this host namespace. The game account stays outside `wheel` and the
+guest receives no lock bind mount. [Layout and policy definitions](../../lib/service-layout.nix)
+· [Native host tmpfiles and account assertion](../../modules/50-features/game-servers/_internal/container.nix)
+
+2g uses the existing authorized host operator (root or a `wheel` member with
+the existing control authority) to coordinate lifecycle. Open the fixed
+regular lock file read-only and take an exclusive Linux `flock(2)` on the open
+file description. Require a trusted, local host `/run`, protected ancestry,
+and the expected file type and ownership. Refuse missing, unsafe, or
+unavailable locks. Keep the descriptor through state observation, any required
+stop, publication and recovery, and retain it while a trusted child can still
+write even if the coordinator exits. Direct unit control, arbitrary guest
+background jobs, and other writers that bypass the lock remain outside its
+guarantee. The existing native container and guest units own their lifecycles.
+
+The Shell core's `safety_lock` uses a separate exclusive lock in the publication
+scope. Its canonical root and regular `.safety.lock` must both belong to the effective
+writer, `game-minecraft` for Minecraft. The host lock is held first and spans
+the writer's entire operation and subsequent recovery. The writer uses the
+private publication scope for its own stage and never treats the host lock as
+that scope's `.safety.lock`. 2g must establish the publication ancestry
+requirements and prove descriptor retention through any privilege transition.
+In particular, ordinary `sudo` may close inherited descriptors. If the
+existing invocation cannot preserve control and retention safely, the
+mutation must refuse before stopping the unit or writing data. 2f supplies
+neither a sudo grant nor a privileged launcher. [Shell core contract](https://github.com/tenzyu/nixfiles/pull/50)
+
+**Parsec.** The effective Home Manager `config.local.parsecActivation` is
+read-only, with `null` when Parsec is disabled. When enabled, it exposes
+`directory = ".parsec"`, `configFile = "config.txt"`,
+`mappingFile = "gpmap.txt"`, `mappingId = "06cb,83d7"`, and `mode = "0600"`.
+Use the activation user's `$HOME`, corresponding to `config.home.homeDirectory`
+and `config.home.username`. On `neko5` this is `tenzyu` under
+`/home/tenzyu/.parsec`. The native `home.activation.parsecConfig` and
+`home.activation.parsecTouchpadGpmap` entries both follow `writeBoundary`
+in the existing user DAG. The declaration controls the full contents of
+`config.txt` and only the row with the declared ID in `gpmap.txt`. 2h must
+account for other writers within those scopes and honor Home Manager dry-run
+semantics. [Parsec feature](../../modules/50-features/services/parsec.nix)
+
 ### Consumer acceptance gates
 
 - **I-2 · Minecraft:** One game lock covers cooperating lifecycle commands. `send`, `console`, and `exec` are not read-only. Account for other writers, including direct unit control, timers, and background guest processes. Without evidence of quiescence, do not claim an offline-consistent archive. No-replace publication does not prevent the game UID from changing archives separately. Preflight failures leave service state unchanged. Back up a confirmed inactive server without starting it or its container. Refuse unknown, failed, and transitional states. For a running server, verify the guest unit's clean stop. Archive only `survival/` as the game UID, validate compression and expected world members, and read them back in a mock restore. Test same-second and concurrent runs without changing existing archives. A failed write, failed validation, conflict, or uncertain publication after stopping leaves the unit stopped. Resume a previously running unit only after confirmed publication. If restart fails, report archive success and service failure separately and exit unsuccessfully. The archive is server data, not declarative configuration or a backup of credentials or Tailscale identity.

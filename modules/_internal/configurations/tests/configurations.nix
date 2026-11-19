@@ -173,7 +173,7 @@
     unrelatedAllowed = false;
   };
 in {
-  failures = lib.runTests {
+  failures = lib.runTests ({
     testSystemStateVersionProjection = {
       expr = {
         native = active.config.system.stateVersion;
@@ -889,5 +889,5 @@ in {
         homeManager = true;
       };
     };
-  };
+  } // import ./native-policy.nix {inherit flake lib;});
 }
