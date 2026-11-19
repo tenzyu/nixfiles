@@ -27,6 +27,16 @@ class SelectionTests(unittest.TestCase):
     def test_store_clean_is_scoped(self):
         self.assertEqual(module.selection(["modules/50-features/nix/nix-store-clean.nix"]), (["nix-store-clean"], False))
 
+    def test_safety_python_check_is_scoped(self):
+        for path in (
+            "assets/safety/python/safety_operations.py",
+            "assets/safety/python/test_operations.py",
+            "assets/safety/python/default.nix",
+            "modules/10-foundations/safety-python-check.nix",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([path]), (["safety-python"], False))
+
     def test_opencode_is_scoped(self):
         self.assertEqual(module.selection(["assets/opencode/direnv.ts"]), (["opencode-direnv"], False))
 

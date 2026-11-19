@@ -10,6 +10,7 @@ from pathlib import PurePosixPath
 OPTIONAL_CHECKS = (
     "home-migration",
     "nix-store-clean",
+    "safety-python",
     "opencode-direnv",
     "rtk-rewrites",
     "safety-shell",
@@ -45,6 +46,8 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             checks.add("home-migration")
         if path == "modules/50-features/nix/nix-store-clean.nix" or path.startswith("assets/nix-store-clean/"):
             checks.add("nix-store-clean")
+        if path.startswith("assets/safety/python/") or path == "modules/10-foundations/safety-python-check.nix":
+            checks.add("safety-python")
         if path == "modules/50-features/development/opencode-direnv.nix" or path.startswith("assets/opencode/"):
             checks.add("opencode-direnv")
         if path == "modules/50-features/development/rtk.nix" or path.startswith("assets/rtk/"):
