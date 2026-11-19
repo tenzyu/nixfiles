@@ -27,12 +27,20 @@ MIGRATION_RULE_OWNERS = {
     "modules/50-features/desktop/firefox.nix",
 }
 
+SHELL_CORE = {
+    "assets/safety/shell/default.nix",
+    "assets/safety/shell/native.py",
+    "assets/safety/shell/operations.sh",
+}
+
 
 def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
     checks: set[str] = set()
     cache_probe = False
     for raw in changed_paths:
         path = PurePosixPath(raw).as_posix()
+        if path.endswith(".md") and path != "fixtures/contracts/safety-shell.md":
+            continue
         if (
             path in ("flake.lock", "flake.nix", "modules/10-foundations/overlays.nix")
             or path.startswith("modules/00-hosts/")
@@ -52,6 +60,8 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             checks.add("safety-python")
         if path in ("assets/safety/python/default.nix", "assets/safety/python/safety_operations.py"):
             checks.add("home-migration")
+        if path in SHELL_CORE:
+            checks.update(("safety-python", "game-backup-minecraft"))
         if path == "modules/50-features/development/opencode-direnv.nix" or path.startswith("assets/opencode/"):
             checks.add("opencode-direnv")
         if path == "modules/50-features/development/rtk.nix" or path.startswith("assets/rtk/"):
@@ -74,10 +84,7 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             "scripts/ci/audit-splitcast-cache.sh",
         )):
             cache_probe = True
-        if path.startswith((
-            "assets/safety/shell/",
-            "modules/50-features/game-servers/_internal/minecraft-backup/",
-        )) or path in (
+        if path.startswith("modules/50-features/game-servers/_internal/minecraft-backup/") or path in (
             "lib/service-layout.nix",
             "modules/10-foundations/game-backup-minecraft-check.nix",
             "modules/50-features/game-servers/_internal/container.nix",

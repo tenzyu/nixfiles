@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Conservative GC-root audit and guided Nix store maintenance.
 
-No command bypasses GC liveness. Only explicitly chosen, current-user-owned
-`result` symlinks may be unlinked; ordinary Nix GC performs store deletion.
+No command bypasses GC liveness. Review of current-user-owned `result`
+symlinks is advisory; ordinary Nix GC performs store deletion.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def system_status_ok(state: dict[str, str | None]) -> bool:
 
 def require_safe_generations() -> dict[str, str | None]:
     if os.geteuid() != 0:
-        raise SafetyError('system generation pruning requires root; run: sudo nix-store-clean-current-system prune-system --yes')
+        raise SafetyError('system generation pruning requires root')
     state = system_state()
     if not system_status_ok(state):
         raise SafetyError(f'incomplete or unregistered NixOS system: {state}')
@@ -194,12 +194,11 @@ def is_under_home(path: Path, home: Path) -> bool:
 
 
 def eligible_result(root: Root, *, home: Path, uid: int) -> bool:
-    """Only user-owned symlinks named result[-N] under HOME; never follow to unlink."""
+    """Identify user-owned project result symlinks for display only."""
     path = Path(root.path)
     if root.category != 'build-result' or not is_under_home(path, home):
         return False
-    # Never mutate hidden XDG/application state or dot-directories.
-    # Only explicit build result symlinks in ordinary user project paths qualify.
+    # Exclude hidden XDG/application state and dot-directories from the review.
     if any(part.startswith('.') for part in path.relative_to(home).parts[:-1]):
         return False
     try:
@@ -230,17 +229,17 @@ def input_choice(prompt: str) -> str:
         return ''
 
 
-def review_results(*, selection: str | None = None, ask: Callable[[str], str] = input_choice) -> int:
+def review_results(*, ask: Callable[[str], str] = input_choice) -> int:
     if not sys.stdin.isatty():
         raise SafetyError('review-results is interactive only (requires a terminal)')
     roots = get_result_roots()
     if not roots:
         print('No eligible user-owned result symlinks. direnv/profile roots remain untouched.')
         return 0
-    print('User-owned build result links (removing the link MAY invalidate project workflows):')
+    print('User-owned build result links (read-only snapshot, not removal recommendations):')
     for i, r in enumerate(roots, 1):
-        print(f'  {i:>3}. {r.path}\n       -> {r.target}')
-    selected = selection if selection is not None else ask('Numbers to unlink (e.g. 1,3) or Enter to cancel: ')
+        print(f'  {i:>3}. {r.path!r}\n       -> {r.target!r}')
+    selected = ask('Numbers to review (e.g. 1,3) or Enter to cancel: ')
     if not selected:
         return 0
     if not re.fullmatch(r'\d+(?:\s*,\s*\d+)*', selected):
@@ -248,30 +247,17 @@ def review_results(*, selection: str | None = None, ask: Callable[[str], str] = 
     indexes = sorted(set(int(n) for n in selected.split(',')))
     if not indexes or any(n < 1 or n > len(roots) for n in indexes):
         raise SafetyError('selection out of range')
-    chosen = [roots[i-1] for i in indexes]
-    print('Selected symlinks only (no store paths will be deleted):')
-    for r in chosen:
-        print(f'  {r.path}')
-    if ask('Type UNLINK to remove these exact symlinks: ') != 'UNLINK':
-        print('Cancelled; nothing changed.')
-        return 0
-    count = 0
-    for r in chosen:
-        # Recheck each element against a NEW root list and file metadata.
-        current_roots, _ = parse_roots(run_command('nix-store', '--gc', '--print-roots').stdout)
-        if not any(x.path == r.path and x.target == r.target and x.category == r.category for x in current_roots) or not eligible_result(r, home=Path.home(), uid=os.getuid()):
-            print(f'  Skipped changed or no-longer-rooted link: {r.path}', file=sys.stderr)
-            continue
-        Path(r.path).unlink()
-        count += 1
-        print(f'  Unlinked: {r.path}')
-    print(f'Unlinked {count} user result symlinks. Run GC separately after reviewing the consequences.')
-    return count
+    print('Selected symlinks (advisory only):')
+    for i in indexes:
+        r = roots[i-1]
+        print(f'  Link: {r.path!r} -> {r.target!r}')
+    print('Builds can change these links after inspection. Nothing was changed.')
+    return 0
 
 
 def native_gc(*, confirmed: bool) -> None:
     if os.geteuid() != 0:
-        raise SafetyError('store GC requires root for this workflow; run: sudo nix-store-clean-current-system gc --yes')
+        raise SafetyError('store GC requires root for this workflow')
     if not confirmed:
         raise SafetyError('gc requires --yes (or confirmation in interactive mode)')
     if not system_status_ok(system_state()):
@@ -296,7 +282,7 @@ def prune_system(*, keep: int, confirmed: bool) -> None:
     run_command('nix-env', '--profile', str(SYSTEM_PROFILE), '--delete-generations', f'+{keep}', capture=False)
     if not system_status_ok(system_state()):
         raise SafetyError('system references changed or missing after pruning; GC was NOT run')
-    print('Generation pruning complete. Run `sudo nix-store-clean-current-system gc --yes` when ready.')
+    print('Generation pruning complete. GC was not run and requires separate confirmation.')
 
 
 def interactive() -> None:
@@ -305,7 +291,7 @@ def interactive() -> None:
     while True:
         print('\nActions (all deletion requires separate confirmation):')
         print('  1. Refresh read-only audit')
-        print('  2. Review own build result symlinks (no sudo)')
+        print('  2. Review own build result symlinks (read-only; no sudo)')
         print('  3. Native garbage collection (sudo)')
         print('  4. Prune system generations, keep 3 (sudo; requires rebooted/current/profile match)')
         print('  0. Exit')
@@ -331,7 +317,8 @@ def interactive() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='Safe root audit and interactive Nix GC (never bypasses liveness).')
-    parser.add_argument('command', nargs='?', choices=['audit', 'gc', 'prune-system', 'review-results'], default=None)
+    parser.add_argument('command', nargs='?', choices=['audit', 'gc', 'prune-system', 'review-results'],
+                        default=None, help='review-results lists eligible symlinks without changing them')
     parser.add_argument('--json', action='store_true', help='machine-readable read-only audit')
     parser.add_argument('--yes', action='store_true', help='acknowledge the specified gc/prune-system operation')
     parser.add_argument('--keep-generations', type=int, default=3, metavar='N')

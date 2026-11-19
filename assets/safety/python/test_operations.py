@@ -2,6 +2,7 @@
 
 from dataclasses import FrozenInstanceError, replace
 import errno
+import fcntl
 import os
 from pathlib import Path
 import stat
@@ -183,39 +184,60 @@ class OperationsTests(unittest.TestCase):
                 else:
                     self.target.rmdir()
 
-    def test_publish_01_shell_and_python_contend_for_the_same_final(self):
-        self.source.write_bytes(b"Python payload")
-        shell_stage = self.target_dir / "shell-stage"
-        shell_stage.write_bytes(b"Shell payload")
-        shell_original = snapshot(shell_stage)
-        python_original = snapshot(self.source)
-        command = [
-            os.environ.get("SAFETY_TEST_BASH", "bash"), "-c",
-            'IFS= read -r ready || exit; exec "$@"', "bash",
-            os.environ.get("SAFETY_TEST_LN", "ln"), "-T", "--", shell_stage, self.target,
-        ]
-        with subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
-                              text=True, env={**os.environ, "LC_ALL": "C"}) as child:
-            child.stdin.write("\n")
-            child.stdin.flush()
-            try:
-                safety.execute_move(self.intent(), confirmed=True)
-            except safety.Conflict:
-                python_won = False
-            else:
-                python_won = True
-            _, diagnostic = child.communicate(timeout=10)
+    def shell_publish(self):
+        return subprocess.run([
+            os.environ["SAFETY_TEST_BASH"], "-ec", """
+                source "$1"
+                trap 'safety_finish "$?"' EXIT
+                safety_lock "$2"
+                safety_stage "$3"
+                printf 'Shell payload' >&"$safety_stage_fd"
+                safety_publish_new
+            """, "bash", os.environ["SAFETY_TEST_SHELL"], self.target_dir.resolve(), self.target.name,
+        ], capture_output=True, text=True, timeout=10)
 
-        self.assertEqual(snapshot(shell_stage), shell_original)
-        if python_won:
-            self.assertEqual(child.returncode, 1, diagnostic)
-            self.assertIn("File exists", diagnostic)
-            self.assertEqual(snapshot(self.target), python_original)
-            self.assertFalse(os.path.lexists(self.source))
-        else:
-            self.assertEqual(child.returncode, 0, diagnostic)
-            self.assertEqual(snapshot(self.target), shell_original)
-            self.assertEqual(snapshot(self.source), python_original)
+    def test_lock_01_packaged_shell_contends_with_python_flock(self):
+        lock = self.target_dir / ".safety.lock"
+        with lock.open("xb") as fd:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            before = snapshot(lock)
+            blocked = self.shell_publish()
+            self.assertEqual(blocked.returncode, 73, blocked.stderr)
+            self.assertIn("operation lock is held", blocked.stderr)
+            self.assertEqual(list(self.target_dir.iterdir()), [lock])
+            self.assertEqual(snapshot(lock), before)
+        allowed = self.shell_publish()
+        self.assertEqual(allowed.returncode, 0, allowed.stderr)
+        self.assertEqual(sorted(self.target_dir.iterdir()), [lock, self.target])
+        self.assertEqual(snapshot(lock), before)
+
+    def test_publish_01_packaged_shell_and_python_preserve_either_final(self):
+        lock = self.target_dir / ".safety.lock"
+        lock.touch()
+        with self.source.open("xb") as stage:
+            os.fchmod(stage.fileno(), 0o600)
+            stage.write(b"Python payload")
+            stage.flush()
+            os.fsync(stage.fileno())
+        python_original = snapshot(self.source)
+
+        shell_first = self.shell_publish()
+        self.assertEqual(shell_first.returncode, 0, shell_first.stderr)
+        shell_original = snapshot(self.target)
+        self.assertEqual(shell_original[2:], (stat.S_IFREG | 0o600, b"Shell payload"))
+        with self.assertRaises(safety.Conflict):
+            safety.execute_move(self.intent(), confirmed=True)
+        self.assertEqual(snapshot(self.target), shell_original)
+        self.assertEqual(snapshot(self.source), python_original)
+
+        self.target.unlink()  # Reset the isolated fixture to test the inverse order.
+        safety.execute_move(self.intent(), confirmed=True)
+        shell_second = self.shell_publish()
+        self.assertEqual(shell_second.returncode, 73, shell_second.stderr)
+        self.assertIn("Conflict", shell_second.stderr)
+        self.assertEqual(snapshot(self.target), python_original)
+        self.assertFalse(os.path.lexists(self.source))
+        self.assertEqual(sorted(self.target_dir.iterdir()), [lock, self.target])
 
     def test_publish_02_precommit_failures_preserve_errno_and_entries(self):
         self.source.write_bytes(b"pending")

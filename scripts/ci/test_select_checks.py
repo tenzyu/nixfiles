@@ -90,19 +90,30 @@ class SelectionTests(unittest.TestCase):
         ]), ([], False))
 
     def test_safety_shell_check_is_change_scoped(self):
+        for path, checked in (
+            ("operations.sh", ["game-backup-minecraft", "safety-python", "safety-shell"]),
+            ("default.nix", ["game-backup-minecraft", "safety-python", "safety-shell"]),
+            ("native.py", ["game-backup-minecraft", "parsec-activation", "safety-python", "safety-shell"]),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([f"assets/safety/shell/{path}"]), (checked, False))
         for path in (
-            "assets/safety/shell/operations.sh",
-            "assets/safety/shell/default.nix",
             "assets/safety/shell/test-operations.sh",
             "fixtures/contracts/safety-shell.md",
             "modules/10-foundations/safety-shell-check.nix",
         ):
             with self.subTest(path=path):
-                expected = ["safety-shell"]
-                if path.startswith("assets/safety/shell/"):
-                    expected.insert(0, "game-backup-minecraft")
-                self.assertEqual(module.selection([path]), (expected, False))
-        self.assertEqual(module.selection(["docs/adr/0002-invariant-safety.md"]), ([], False))
+                self.assertEqual(module.selection([path]), (["safety-shell"], False))
+
+    def test_local_docs_add_no_focused_checks(self):
+        self.assertEqual(module.selection([
+            "docs/adr/0002-invariant-safety.md",
+            "assets/safety/shell/README.md",
+            "assets/safety/python/README.md",
+            "assets/home-layout/README.md",
+            "assets/parsec-activation/README.md",
+            "modules/50-features/game-servers/_internal/minecraft-backup/README.md",
+        ]), ([], False))
 
     def test_parsec_check_is_scoped_and_follows_its_core_dependency(self):
         for path in (
@@ -113,9 +124,6 @@ class SelectionTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(module.selection([path]), (["parsec-activation"], False))
-        checks, cache_probe = module.selection(["assets/safety/shell/native.py"])
-        self.assertTrue({"parsec-activation", "safety-shell"}.issubset(checks))
-        self.assertFalse(cache_probe)
 
     def test_migration_rule_owners_are_mapped(self):
         for path in pathlib.Path("modules").rglob("*.nix"):
@@ -130,11 +138,16 @@ class SelectionTests(unittest.TestCase):
             "modules/50-features/game-servers/_internal/container.nix",
             "modules/50-features/game-servers/_internal/game.sh",
             "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh",
+            "modules/50-features/game-servers/_internal/minecraft-backup/default.nix",
+            "modules/50-features/game-servers/_internal/minecraft-backup/test.nix",
             "modules/50-features/game-servers/commands.nix",
             "modules/50-features/game-servers/minecraft.nix",
         ):
             with self.subTest(path=path):
                 self.assertEqual(module.selection([path]), (["game-backup-minecraft"], False))
+        for path in ("flake.nix", "flake.lock"):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([path]), (sorted(module.OPTIONAL_CHECKS), True))
         for path in (
             "modules/50-features/game-servers/ark.nix",
             "modules/50-features/game-servers/rust.nix",

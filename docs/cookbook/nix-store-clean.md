@@ -24,24 +24,15 @@ The new tool **never bypasses GC liveness**. It first explains *which roots are 
 ## Quick start
 
 ```sh
-# Runs an interactive menu when connected to a terminal; otherwise audits only.
-nix-store-clean-current-system
-
 # Explicit read-only audit and machine-readable snapshot.
 nix-store-clean-current-system audit
 nix-store-clean-current-system audit --json > nix-store-audit.json
 
-# Guided review of own nix build `result` symlinks (NO sudo).
+# Read-only review of your nix build `result` symlinks (no sudo).
 nix-store-clean-current-system review-results
-
-# Native GC, retaining every existing live root. Use sudo only for system operations.
-sudo nix-store-clean-current-system gc --yes
-
-# Optional rollback retention policy: keep at least 3 system profile generations.
-# Allowed only after booted/current/system-profile targets all match.
-sudo nix-store-clean-current-system prune-system --keep-generations 3 --yes
-sudo nix-store-clean-current-system gc --yes
 ```
+
+With no arguments, the cleaner opens the interactive menu on a terminal and audits otherwise. Native `gc` and optional `prune-system` are separate root operations. Each requires its own confirmation, either in the menu or with the explicit `--yes` flag. Pruning never invokes GC.
 
 To reduce accidental deletion, `prune-system` retains at least **two** generations, requires root privileges and explicit confirmation, and refuses to run if the three system links are missing, unregistered, or point at different store paths. The `+N` generation-retention semantics follow the Nix `nix-env --delete-generations` documentation: generations **newer** than the active profile are also retained. Because `nix-env` has `--dry-run` support, you can independently preview the effect with:
 
@@ -64,7 +55,7 @@ sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations +3 --dr
 | `build-result` | Only plain `result` / `result-N` symlinks under the invoking user's home directory are eligible for **interactive review**. |
 | `other` | Unclassified root; preserve. |
 
-`review-results` is the only action that unlinks a user's original symlink. It runs **without sudo**, requires an interactive terminal, lists the exact user-owned links, asks for specific item numbers and the literal confirmation `UNLINK`, then rechecks ownership, symlink target, parent containment and GC-root presence. It does not delete any `/nix/store` paths. Recreate a deliberately removed `result` via the project's `nix build` or other original build command; doing so after GC may require fetching or rebuilding the output. For safety, this action does not touch Home Manager, nix-direnv or profiles.
+`review-results` runs without sudo and requires an interactive terminal. It lists eligible user-owned links and lets you shortlist items by number. The shortlist is a snapshot, not permission to remove a link. A build or another process running as your user can change the entry after inspection. The cleaner no longer asks for `UNLINK`, emits removal commands, or changes any link, profile, or store path in this mode.
 
 ## After the earlier unsafe 11 GiB deletion
 
@@ -96,7 +87,7 @@ Nix package integration check (on a Nix machine):
 nix build .#checks.x86_64-linux.nix-store-clean
 ```
 
-Before treating this as production-ready, run a real NixOS VM lifecycle test covering native GC, a staged boot, a mismatch between booted/current/profile targets, and return to a previous generation; then perform a controlled neko5 acceptance run. The included tests cover parsing, user-owned symlink constraints, explicit confirmation and fail-closed rules, but **do not substitute for those system tests**.
+Before treating this as production-ready, run a real NixOS VM lifecycle test covering native GC, a staged boot, a mismatch between booted/current/profile targets, and return to a previous generation; then perform a controlled neko5 acceptance run. Fixtures cover read-only result review, native command selection, explicit GC and pruning confirmation, and refusal on boot mismatch. They do not substitute for those system tests.
 
 ## Primary references
 
