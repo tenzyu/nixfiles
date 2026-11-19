@@ -8,7 +8,7 @@
       safety-python = pkgs.runCommand "check-safety-python" {
         nativeBuildInputs = [pkgs.python3];
         SAFETY_TEST_BASH = "${pkgs.bash}/bin/bash";
-        SAFETY_TEST_LN = "${pkgs.coreutils}/bin/ln";
+        SAFETY_TEST_SHELL = pkgs.callPackage ../../assets/safety/shell {};
         PYTHONPATH = pkgs.callPackage ../../assets/safety/python {};
         PYTHONDONTWRITEBYTECODE = "1";
       } ''

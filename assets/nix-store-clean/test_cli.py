@@ -1,5 +1,7 @@
 """No Nix daemon or privileged NixOS VM required for these deterministic tests."""
 import importlib.util
+from contextlib import redirect_stdout
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -96,24 +98,33 @@ class ResultSymlinkTests(unittest.TestCase):
         other.symlink_to(self.output)
         self.assertFalse(MOD.eligible_result(MOD.Root(str(other), str(self.output), 'build-result', ''), home=self.home, uid=os.getuid()))
 
-    def test_selected_result_unlinks_only_symlink(self):
+    def test_selected_result_is_advisory_even_with_old_confirmation(self):
         roots_str = f'{self.link} -> {self.output}\n'
         fake = subprocess.CompletedProcess([], 0, stdout=roots_str)
-        with mock.patch.object(MOD, 'run_command', return_value=fake), \
-             mock.patch.object(MOD, 'get_result_roots', return_value=[self.root]), \
+        before = self.link.lstat()
+        with mock.patch.object(MOD, 'run_command', return_value=fake) as run, \
              mock.patch.object(MOD.Path, 'home', return_value=self.home), \
-             mock.patch.object(MOD.os, 'getuid', return_value=os.getuid()), \
-             mock.patch.object(MOD.sys, 'stdin') as stdin:
+             mock.patch.object(MOD.os, 'geteuid', return_value=1000), \
+             mock.patch.object(MOD.sys, 'stdin') as stdin, \
+             mock.patch('builtins.input', side_effect=['1', 'UNLINK']) as ask, \
+             redirect_stdout(StringIO()) as output:
             stdin.isatty.return_value = True
-            self.assertEqual(MOD.review_results(selection='1', ask=lambda prompt: 'UNLINK'), 1)
-        self.assertFalse(self.link.is_symlink())
+            self.assertEqual(MOD.main(['review-results', '--yes']), 0)
+        ask.assert_called_once()
+        self.assertIn('Numbers to review', ask.call_args.args[0])
+        run.assert_called_once_with('nix-store', '--gc', '--print-roots')
+        self.assertIn('Selected symlinks (advisory only)', output.getvalue())
+        self.assertIn('Nothing was changed.', output.getvalue())
+        self.assertNotIn('UNLINK', output.getvalue())
+        self.assertEqual(self.link.lstat().st_ino, before.st_ino)
+        self.assertEqual(self.link.readlink(), self.output)
         self.assertTrue(self.output.exists())
 
     def test_cancellation_leaves_symlink(self):
         with mock.patch.object(MOD, 'get_result_roots', return_value=[self.root]), \
              mock.patch.object(MOD.sys, 'stdin') as stdin:
             stdin.isatty.return_value = True
-            self.assertEqual(MOD.review_results(selection='1', ask=lambda prompt: 'no'), 0)
+            self.assertEqual(MOD.review_results(ask=lambda prompt: ''), 0)
         self.assertTrue(self.link.is_symlink())
 
 
