@@ -76,6 +76,19 @@ class SelectionTests(unittest.TestCase):
             "lib/tests.nix",
         ]), ([], False))
 
+    def test_safety_shell_check_is_change_scoped(self):
+        for path in (
+            "assets/safety/shell/operations.sh",
+            "assets/safety/shell/native.py",
+            "assets/safety/shell/default.nix",
+            "assets/safety/shell/test-operations.sh",
+            "fixtures/contracts/safety-shell.md",
+            "modules/10-foundations/safety-shell-check.nix",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(module.selection([path]), (["safety-shell"], False))
+        self.assertEqual(module.selection(["docs/adr/0002-invariant-safety.md"]), ([], False))
+
     def test_migration_rule_owners_are_mapped(self):
         for path in pathlib.Path("modules").rglob("*.nix"):
             if "local.homeMigration.paths" in path.read_text():
