@@ -274,6 +274,19 @@ in {
       };
     };
 
+    testNeko7SerialConsoleIsHostScoped = {
+      expr = lib.mapAttrs (_: host:
+        builtins.filter
+          (param: builtins.elem param ["console=tty0" "console=ttyS0,115200n8"])
+          host.config.boot.kernelParams
+      ) flake.nixosConfigurations;
+      expected = {
+        neko5 = [];
+        neko6 = [];
+        neko7 = ["console=tty0" "console=ttyS0,115200n8"];
+      };
+    };
+
     testGameContainersKeepTheirOwnStateVersion = {
       expr =
         lib.mapAttrs (_: container: container.config.system.stateVersion)
