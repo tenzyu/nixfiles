@@ -1,4 +1,4 @@
-import { repository, run } from "./process";
+import { repository, runOk } from "./process";
 import { editTrace } from "./trace-edit";
 import { renderTrace } from "./trace-render";
 
@@ -52,11 +52,12 @@ export type TraceResult =
   | { type: "why"; path: string; effective: string; definitions: Definition[]; winning_priority: number | null };
 
 export async function traceCommand(argv: string[]): Promise<void> {
-  const args = parseTraceArgs(argv);
-  if (args.host === "") throw new Error("feature-trace: --host is required");
-  if (args.why && args.user) {
-    throw new Error("feature-trace: --why takes a NixOS option path. Use --user with a feature trace.");
+  const parsed = parseTraceArgs(argv);
+  if (parsed.kind === "help") {
+    console.log(usage());
+    return;
   }
+  const { args } = parsed;
 
   const { root, flakeRef } = await repository();
   const result = await evalTrace(args, root, flakeRef);
@@ -69,7 +70,7 @@ export async function traceCommand(argv: string[]): Promise<void> {
   if (args.edit) await editTrace(result, root, args.editTarget);
 }
 
-export function parseTraceArgs(argv: string[]): TraceArgs {
+export function parseTraceArgs(argv: readonly string[]): { kind: "help" } | { kind: "trace"; args: TraceArgs } {
   const args: TraceArgs = {
     host: "",
     user: "",
@@ -85,7 +86,7 @@ export function parseTraceArgs(argv: string[]): TraceArgs {
 
   const readValue = (flag: string): string => {
     const value = argv[i + 1];
-    if (value == null || value.startsWith("--")) {
+    if (!value || value === "-h" || value.startsWith("--") || value.includes("\0")) {
       throw new Error(`feature-trace: ${flag} requires a value`);
     }
     i += 1;
@@ -98,9 +99,7 @@ export function parseTraceArgs(argv: string[]): TraceArgs {
     switch (arg) {
       case "--help":
       case "-h":
-        console.log(usage());
-        process.exit(0);
-        break;
+        return { kind: "help" };
 
       case "--host":
         args.host = readValue(arg);
@@ -114,7 +113,7 @@ export function parseTraceArgs(argv: string[]): TraceArgs {
         const value = readValue(arg);
         if (value !== "system" && value !== "home" && value !== "all") {
           throw new Error(
-            `feature-trace: --scope must be one of system, home, all (got: ${value})`,
+            "feature-trace: --scope must be one of system, home, all",
           );
         }
         args.scope = value;
@@ -148,13 +147,17 @@ export function parseTraceArgs(argv: string[]): TraceArgs {
         break;
 
       default:
-        throw new Error(`feature-trace: unknown argument: ${arg}`);
+        throw new Error("feature-trace: unknown argument");
     }
 
     i += 1;
   }
 
-  return args;
+  if (args.host === "") throw new Error("feature-trace: --host is required");
+  if (args.why && args.user) {
+    throw new Error("feature-trace: --why takes a NixOS option path. Use --user with a feature trace.");
+  }
+  return { kind: "trace", args };
 }
 
 function usage(): string {
@@ -176,7 +179,7 @@ async function evalTrace(args: TraceArgs, repo: string, flakeRef: string): Promi
   const traceModulePath = Bun.env.FEATURE_TRACE_LIB;
   if (!traceModulePath) throw new Error("FEATURE_TRACE_LIB is not set");
 
-  const result = await run([
+  const stdout = await runOk("feature-trace Nix evaluation", [
     "nix", "eval", "--json", "--impure",
     "--expr", `
       { repo, flakeRef, traceModulePath, argsJSON }:
@@ -204,8 +207,9 @@ async function evalTrace(args: TraceArgs, repo: string, flakeRef: string): Promi
     "--argstr", "argsJSON", JSON.stringify(args),
     "trace",
   ]);
-  if (result.code !== 0) {
-    throw new Error(result.stderr.trim() || `nix eval failed with status ${result.code}`);
+  try {
+    return JSON.parse(stdout) as TraceResult;
+  } catch {
+    throw new Error("feature-trace: Nix returned invalid JSON");
   }
-  return JSON.parse(result.stdout) as TraceResult;
 }

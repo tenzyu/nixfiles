@@ -4,19 +4,16 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { promisify } from "node:util"
-import { loadEnvironment } from "./direnv"
+import plugin, { loadEnvironment } from "./direnv"
 
 const exec = promisify(execFile)
-const binary = process.env.DIRENV_BIN ?? "direnv"
+const binary = "direnv"
 let root: string
 let environment: NodeJS.ProcessEnv
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "opencode-direnv-test-"))
-  environment = { ...process.env, HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_DATA_HOME: join(root, "data") }
-  for (const key of Object.keys(environment)) {
-    if (key.startsWith("DIRENV_")) delete environment[key]
-  }
+  environment = { PATH: process.env.PATH, HOME: root, XDG_CONFIG_HOME: join(root, "config"), XDG_DATA_HOME: join(root, "data") }
 })
 
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
@@ -62,4 +59,82 @@ test("unapproved or broken envrc cannot silently run with the wrong environment"
   await writeFile(join(a, ".envrc"), "exit 42\n")
   await exec(binary, ["allow", a], { env: environment })
   await expect(loadEnvironment(a, environment, binary)).rejects.toThrow()
+})
+
+test("packaged hook uses the substituted binary and changes only the event environment", async () => {
+  const cwd = await project("path with spaces", "export NIXFILES_ENV_PROBE=packaged:$NIXFILES_EVENT_PROBE\nunset NIXFILES_EVENT_PROBE\n")
+  const env = { ...environment, NIXFILES_EVENT_PROBE: "event", PATH: root }
+  await plugin.setup({ shell: { async hook(name, handler) {
+    expect(name).toBe("create.before")
+    await handler({ cwd, env })
+  } } })
+  expect(env).toMatchObject({ NIXFILES_ENV_PROBE: "packaged:event", NIXFILES_EVENT_PROBE: undefined })
+  expect(process.env.NIXFILES_ENV_PROBE).toBeUndefined()
+})
+
+async function fixture(status: string, exportScript: string) {
+  const executable = join(root, "direnv fixture")
+  await writeFile(executable, `#!${process.execPath}
+    const args = process.argv.slice(2)
+    if (args.join(" ") === "status --json") {
+      process.stdout.write(${JSON.stringify(status)})
+    } else if (args.join(" ") === "export json") {
+      await Bun.write(${JSON.stringify(join(root, "exported"))}, "yes")
+      ${exportScript}
+    } else process.exit(99)
+  `, { mode: 0o700 })
+  return executable
+}
+
+test.each([
+  "fixture invalid JSON",
+  '{"state":[]}',
+  '{"state":{}}',
+  '{"state":{"foundRC":{"allowed":"0"}}}',
+  '{"state":{"foundRC":{"allowed":2}}}',
+])("refuses malformed or unapproved status before export: %s", async (status) => {
+  const executable = await fixture(status, 'console.log("{}")')
+  await expect(loadEnvironment(root, environment, executable)).rejects.toThrow(/^direnv (status|environment)/)
+  expect(await Bun.file(join(root, "exported")).exists()).toBe(false)
+})
+
+const approved = '{"state":{"foundRC":{"allowed":0}}}'
+
+test.each([
+  "fixture invalid JSON",
+  "[]",
+  '{"FIRST":"valid","fixture-key":123}',
+  '{"bad=name":"fixture-value"}',
+  '{"KEY":"\\u0000"}',
+])("rejects invalid export without echoing any entries: %s", async (output) => {
+  const executable = await fixture(approved, `console.log(${JSON.stringify(output)})`)
+  await expect(loadEnvironment(root, environment, executable)).rejects.toThrow(
+    /^direnv export (returned invalid JSON|json did not return an environment object|returned an invalid environment entry)$/,
+  )
+})
+
+test("unset and prototype-shaped keys remain own data entries", async () => {
+  const executable = await fixture(approved, `console.log('{"__proto__":null,"KEEP":"value"}')`)
+  const changes = await loadEnvironment(root, environment, executable)
+  expect(Object.hasOwn(changes, "__proto__")).toBe(true)
+  expect(Object.getPrototypeOf(changes)).toBe(Object.prototype)
+  expect(changes.__proto__).toBeUndefined()
+  expect(changes.KEEP).toBe("value")
+})
+
+test("keeps subprocess failure codes without including output or executable paths", async () => {
+  const executable = await fixture(approved, `
+    console.log('fixture stdout'); console.error('fixture stderr'); process.exit(42)
+  `)
+  await expect(loadEnvironment(root, environment, executable)).rejects.toMatchObject({
+    code: 42, message: "direnv export failed (exit 42)",
+  })
+  await expect(loadEnvironment(root, environment, join(root, "absent executable"))).rejects.toMatchObject({
+    code: "ENOENT", message: "direnv status failed (ENOENT)",
+  })
+})
+
+test("does not accept export output above the 8 MiB buffer", async () => {
+  const executable = await fixture(approved, `console.log(' '.repeat(8 * 1024 * 1024) + '{}')`)
+  await expect(loadEnvironment(root, environment, executable)).rejects.toMatchObject({ code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" })
 })

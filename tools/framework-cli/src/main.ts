@@ -1,5 +1,6 @@
 import "./types";
 import { frameworkTestCommand, invariantsCommand } from "./invariants";
+import { ProcessFailure } from "./process";
 import { unitTestsCommand } from "./test-command";
 import { traceCommand } from "./trace";
 
@@ -10,6 +11,7 @@ function usage(): string {
 async function main(): Promise<void> {
   const [command, ...args] = Bun.argv.slice(2);
 
+  if (command !== "trace" && args.length) throw new Error(`unexpected arguments\n${usage()}`);
   switch (command) {
     case "test":
       await frameworkTestCommand();
@@ -29,11 +31,11 @@ async function main(): Promise<void> {
       console.log(usage());
       break;
     default:
-      throw new Error(`unknown command: ${command}\n${usage()}`);
+      throw new Error(`unknown command\n${usage()}`);
   }
 }
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  process.exit(error instanceof ProcessFailure && typeof error.status === "number" ? error.status : 1);
 });
