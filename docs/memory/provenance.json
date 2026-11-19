@@ -40,11 +40,25 @@
     {
       "page": "docs/memory/decisions.md",
       "sources": [
-        "modules/50-features/nix/nix-store-clean.nix",
-        "modules/50-features/home/home-migration.nix",
+        "assets/home-layout/migrate.py",
+        "assets/parsec-activation/activate.py",
+        "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh",
         "modules/50-features/game-servers/minecraft.nix",
-        "modules/50-features/security/sops-nix.nix"
-      ]
+        "modules/50-features/hardware/android-mic.nix",
+        "modules/50-features/home/home-migration.nix",
+        "modules/50-features/nix/nix-store-clean.nix",
+        "modules/50-features/security/sops-nix.nix",
+        "modules/50-features/services/parsec.nix"
+      ],
+      "reviewed_revision": "9638f84d5b5e8f2de1de4af401f0bbb1cd35d707",
+      "source_blobs": {
+        "assets/home-layout/migrate.py": "3e87d713e789f9c1adfd7c9d032b39954d31c9a7",
+        "assets/parsec-activation/activate.py": "65df8cb5f6c14347799d419b35ea86837bdf387b",
+        "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh": "865ac61bc6b396d9fa4c2dae77c0658831edbaad",
+        "modules/50-features/hardware/android-mic.nix": "fe0753166421fcd59c5c4e5c77a950c2aed1f77e",
+        "modules/50-features/home/home-migration.nix": "6547e548e74c1d5c94a816e20b2c0b4cb3f453e7",
+        "modules/50-features/services/parsec.nix": "98bd507273db0479aa594f37592662ce411299ff"
+      }
     },
     {
       "page": "docs/memory/evidence.md",

@@ -13,6 +13,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 
 - [Secrets and Tailscale](secrets-and-tailscale.md) — provider, identity and service credential boundaries.
 - [Minecraft and game server features](game-server-features.md) · [historical /srv migration](game-server-srv-migration.md) · [service layout](service-layout.md) — do not replay an initial migration on migrated data.
+- [Parsec settings review](../../assets/parsec-activation/README.md) — check saved decoder, display and controller settings before a separate manual edit.
 - [Nix store cleanup](nix-store-clean.md) · [Home Manager data migration](../../assets/home-layout/README.md) — GC roots and user data need distinct rollback treatment.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.

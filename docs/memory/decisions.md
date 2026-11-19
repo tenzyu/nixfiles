@@ -3,19 +3,19 @@ type: Decision Record
 title: "Safety, ownership and acceptance"
 description: "Durable configuration constraints and explicit operational gates"
 status: stable
-source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
+source_revision: 9638f84d5b5e8f2de1de4af401f0bbb1cd35d707
 sources:
   - id: gc
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/nix/nix-store-clean.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/nix/nix-store-clean.nix
     title: "Nix store cleaner"
   - id: home
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/home/home-migration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/home/home-migration.nix
     title: "Home migration"
   - id: game
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/game-servers/minecraft.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/game-servers/minecraft.nix
     title: "Minecraft"
   - id: secret
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/security/sops-nix.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/security/sops-nix.nix
     title: "SOPS provider"
 ---
 
@@ -27,7 +27,7 @@ Nix module implementation and exact host configuration supersede old README asse
 
 ## D2 — Data and rollback safety
 
-The XDG migration includes data movement, collision checks and journals. Home Manager activation is strictly check-only. Data moves require a separate, explicitly approved `home-layout-migrate apply`. A planned existing link or reference repair requires operator review and blocks the whole apply batch. After interruption, reconcile the actual source, destination and backup with the journal. NixOS generation rollback **does not reverse renames of user data**. `neko5` contains an unresolved migration TODO. See [home migration runbook](../../assets/home-layout/README.md).
+[ADR-0002](../adr/0002-invariant-safety.md#convergence-decisions) records accepted policy, source pins, and pending code dependencies. Home Manager's migration step is read-only. In [PR #65](https://github.com/tenzyu/nixfiles/pull/65), pending moves and reviewed repair proposals warn before the write boundary. Unsafe plans and native Home Manager conflicts still block. Both populated paths stay in place even when a comparison reports an apparent match. Only a separate approved apply can commit a no-replace move. Existing links and reference files still require operator review. After interruption, compare actual entries and preserved copies with the journal before deciding what to restore. Generation rollback cannot reverse a data rename. The unresolved neko5 migration TODO still needs a real-host receipt. [Home runbook](../../assets/home-layout/README.md).
 
 The Nix store cleaner does not ignore GC roots; `prune-system` needs explicit confirmation and full staged-boot/rollback VM acceptance. Reclaiming a large amount of space is not evidence of safe deletion. See [Nix store cleanup](../cookbook/nix-store-clean.md).
 
@@ -54,6 +54,14 @@ For neko7, `game-srv.enable = true` declares Minecraft data under `/srv/minecraf
 ## D8 — A secrets provider is not a provisioned secret
 
 Both neko5 and neko7 select `sops-nix`. An age key, encrypted manifest, permission boundary, successful decryption and service reload are **separate** operational facts. Do not assert them from the host feature flag. Preserve `tailscaled` state across reconfiguration; avoid accidental node re-enrollment or token exposure. See [secrets](../cookbook/secrets-and-tailscale.md).
+
+## D9 — App-owned settings and uncertain service outcomes
+
+Parsec owns its saved settings and controller mappings. [PR #64](https://github.com/tenzyu/nixfiles/pull/64) keeps application-compatible first-run seeds and adds read-only comparison for the intended keys and controller ID. A saved-value match does not establish effective client behavior. Preserve the original before a manual edit, control its writers, and verify it in the app. [Parsec runbook](../../assets/parsec-activation/README.md).
+
+Minecraft's [PR #63](https://github.com/tenzyu/nixfiles/pull/63) keeps the same-boot admission guard after a manager job whose result is unconfirmed. Diagnose both managers, then clear the guard only after reconciliation while holding the original lock. A failed post-stop backup never requests an automatic restart. An uncertain archive and service recovery require separate decisions. Keep ARK and Rust disabled on neko7 and leave updates, retention and sharing with their existing owners. [Minecraft runbook](../../modules/50-features/game-servers/_internal/minecraft-backup/README.md#diagnose-and-recover).
+
+The local Safety Core operations follow real consumers. Keep Python for the Home mover, Shell for Minecraft publication, Parsec's anonymous stage, and the separate TypeScript process boundaries. Keep Rust as an opt-in lookup fixture outside host closures. No proposed implementation or packaged fixture substitutes for host acceptance. [Consumer and port decisions](../adr/0002-invariant-safety.md#q8--safety-core-and-rust).
 
 ## Evidence requirements
 
