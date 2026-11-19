@@ -72,6 +72,62 @@ in {
     };
   };
 
+  testWinningPriorityDoesNotPretendToIncludeSuppressedDefinitions = {
+    expr = let
+      record = builtins.head (trace.traceHost (base // {
+        scope = "system";
+        feature = "beta";
+      })).system;
+      why = trace.traceWhy (base // {option = "local.features.beta.enable";});
+    in {
+      inherit (record) winning_priority;
+      whyPriority = why.winning_priority;
+      retained = map (d: {
+        inherit (d) value origin winning_priority;
+      }) record.definitions;
+    };
+    expected = {
+      winning_priority = 100;
+      whyPriority = 100;
+      retained = [{
+        value = false;
+        origin = "definitionsWithLocations";
+        winning_priority = 100;
+      }];
+    };
+  };
+
+  testDefaultPrioritySurvivesButOriginalOverrideWrapperDoesNot = {
+    expr = let
+      evaluatedDefault = lib.evalModules {
+        modules = [{
+          options.local.features.alpha.enable = lib.mkEnableOption "alpha";
+          config.local.features.alpha.enable = lib.mkDefault true;
+        }];
+      };
+      withDefault = fakeFlake // {
+        nixosConfigurations.defaultHost = {
+          config = evaluatedDefault.config;
+          options = evaluatedDefault.options;
+        };
+      };
+      why = trace.traceWhy (base // {
+        flake = withDefault;
+        host = "defaultHost";
+        option = "local.features.alpha.enable";
+      });
+    in {
+      effective = why.effective;
+      winningPriority = why.winning_priority;
+      values = map (d: d.value) why.definitions;
+    };
+    expected = {
+      effective = "true";
+      winningPriority = (lib.mkDefault true).priority;
+      values = [true];
+    };
+  };
+
   testHomeTraceKeepsEffectiveStatusAndSourceHints = {
     expr = let
       record =

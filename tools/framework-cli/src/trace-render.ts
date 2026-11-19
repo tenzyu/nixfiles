@@ -4,6 +4,7 @@ import type { Feature, Location, TraceResult } from "./trace";
 const featureColumns = [
   { title: "FEATURE", width: 31 },
   { title: "STATUS", width: 9 },
+  { title: "PRIORITY", width: 9 },
   { title: "ACTIVATION", width: 15 },
   { title: "SOURCE", width: 80 },
 ];
@@ -17,7 +18,7 @@ function featureTable(features: Feature[]): string {
     const activation = feature.activations[0];
     const source = activation ? sourceLabel(activation) : "";
     const hint = activation?.origin === "text-scan" ? " (source hint)" : "";
-    return [feature.name, feature.status, feature.kind, source + hint];
+    return [feature.name, feature.status, feature.winning_priority ?? "-", feature.kind, source + hint];
   }));
 }
 
@@ -25,7 +26,7 @@ export function renderTrace(result: TraceResult): string {
   if (result.type === "why") {
     if (result.definitions.length === 0) return JSON.stringify(result, null, 2);
     return [
-      `Effective value for ${result.path}: ${result.effective}`,
+      `Effective value for ${result.path}: ${result.effective} (winning priority: ${result.winning_priority ?? "unknown"})`,
       table([
         { title: "OPTION", width: 50 },
         { title: "FILE", width: 80 },
