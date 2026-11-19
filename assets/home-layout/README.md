@@ -211,5 +211,8 @@ packaged runner と fixture home で認証ファイル保持、再実行、neste
 既存リンク・参照修復時の batch 拒否を検証する。
 競合する移動先、別 mount、intent/rename/親 flush/完了記録の失敗では実物と journal を照合する。
 Nix sandbox で `/` の所有 UID がマップされない場合、fixture process 内でその所有判定だけを
-模擬する。別 process の packaged launcher は読み取り専用で起動し、未対応の親で apply が拒否されることを確認する。
+模擬する。xattr の列挙が未対応の sandbox では個別の fixture で空の一覧を模擬し、
+`ENOTSUP` を返すと同等判定と scaffold 退避が拒否されることも検査する。サポートされる
+ファイルシステムではローカルの fixture で実際の xattr 差を検査する。
+別 process の packaged launcher は読み取り専用で起動し、未対応の親で apply が拒否されることを確認する。
 実ホームの activation や認証付きアプリの起動をテストから実行しない。
