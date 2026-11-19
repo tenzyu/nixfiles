@@ -1,8 +1,9 @@
 # ADR-0001 — Canonical feature selection semantics
 
-- **Status:** Accepted (semantics); proposed implementation in [PR #47](https://github.com/tenzyu/nixfiles/pull/47); verification pending
+- **Status at proposal:** Accepted (semantics); implementation proposed in [PR #47](https://github.com/tenzyu/nixfiles/pull/47); verification pending
 - **Date:** 2026-11-19
-- **Source baseline:** [`7b0ee333c2d312a9e5c1e769675eea6df5e35bdf`](https://github.com/tenzyu/nixfiles/commit/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf)
+- **Pre-change source:** [Embedded Home Manager materializer before PR #47](https://github.com/tenzyu/nixfiles/blob/e3cece3ed2717448bdd3f2307479fe58df62bd32/modules/_internal/configurations/materializers/home-manager.nix)
+- **Landed source:** [PR #47 squash commit](https://github.com/tenzyu/nixfiles/commit/0daacae75f19dc2b01712c26471b42b2c6bc9ca3)
 - **Scope:** `configurations.nixos.*.module.local.features`, `local.users.*.features`, standalone and embedded Home Manager
 
 ## Context

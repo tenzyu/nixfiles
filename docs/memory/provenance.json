@@ -11,7 +11,7 @@
         "modules/_internal/configurations/materializers/home-manager.nix",
         "tools/framework-cli/feature-trace.nix"
       ],
-      "reviewed_revision": "7b0ee333c2d312a9e5c1e769675eea6df5e35bdf"
+      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3"
     },
     {
       "page": "docs/memory/feature-options.md",
@@ -21,7 +21,7 @@
         "modules/_internal/configurations/lib/features.nix",
         "modules/_internal/configurations/materializers/home-manager.nix"
       ],
-      "reviewed_revision": "7b0ee333c2d312a9e5c1e769675eea6df5e35bdf"
+      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3"
     },
     {
       "page": "docs/memory/composition.md",

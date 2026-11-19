@@ -3,31 +3,31 @@ type: Architecture
 title: "Feature projection"
 description: "NixOS and Home Manager feature resolution"
 status: stable
-source_revision: 7b0ee333c2d312a9e5c1e769675eea6df5e35bdf
+source_revision: 0daacae75f19dc2b01712c26471b42b2c6bc9ca3
 sources:
   - id: src-1
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/flake.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/flake.nix
     title: "flake.nix"
   - id: src-2
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/configurations.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/_internal/configurations/configurations.nix
     title: "modules/_internal/configurations/configurations.nix"
   - id: src-3
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/options.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/_internal/configurations/materializers/options.nix
     title: "modules/_internal/configurations/materializers/options.nix"
   - id: src-4
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/users.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/_internal/configurations/materializers/users.nix
     title: "modules/_internal/configurations/materializers/users.nix"
   - id: src-5
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/_internal/configurations/materializers/home-manager.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/_internal/configurations/materializers/home-manager.nix
     title: "modules/_internal/configurations/materializers/home-manager.nix"
   - id: src-6
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/10-foundations/_policy/materializer.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/10-foundations/_policy/materializer.nix
     title: "modules/10-foundations/_policy/materializer.nix"
   - id: src-7
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/cli/zsh.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/50-features/cli/zsh.nix
     title: "modules/50-features/cli/zsh.nix"
   - id: src-8
-    resource: https://github.com/tenzyu/nixfiles/blob/7b0ee333c2d312a9e5c1e769675eea6df5e35bdf/modules/50-features/gaming/steam.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/0daacae75f19dc2b01712c26471b42b2c6bc9ca3/modules/50-features/gaming/steam.nix
     title: "modules/50-features/gaming/steam.nix"
 ---
 
