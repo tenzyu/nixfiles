@@ -24,6 +24,9 @@ inside() {
 guest_ctl() { inside "$guest_systemctl" --no-ask-password "$@"; }
 host_ctl() { env -i PATH="$PATH" "$host_systemctl" --no-ask-password "$@"; }
 
+readonly job_guard="${lockPath}.job"
+guard_present() { [[ -e $job_guard || -L $job_guard ]]; }
+
 lock_lifecycle() {
   local directory=${lockPath%/*} entry metadata status
   # /run (or the fixture directory) and the policy directory must be
@@ -52,14 +55,14 @@ lock_lifecycle() {
   flock --exclusive --nonblock --conflict-exit-code 73 -- "$host_lock_fd" || {
     status=$?
     if ((status == 73)); then
-      fail 73 'Conflict: another managed Minecraft operation holds the lifecycle lock'
+      fail 73 "Conflict: another managed Minecraft operation holds the lifecycle lock; inspect with 'game diagnose minecraft'"
     fi
     fail "$status" 'Unsupported: could not take the lifecycle flock'
   }
   host_inode=$(stat -Lc '%d:%i' -- "/proc/self/fd/$host_lock_fd")
-  readonly host_lock_fd host_inode job_guard="${lockPath}.job"
-  if [[ -e $job_guard || -L $job_guard ]]; then
-    fail 69 "OutcomeUnknown: previous native job unconfirmed; reconcile host and guest jobs before clearing $job_guard"
+  readonly host_lock_fd host_inode
+  if guard_present; then
+    fail 69 "OutcomeUnknown: previous native job unconfirmed ($job_guard); run 'game diagnose minecraft' and follow the recovery runbook"
   fi
 }
 
@@ -75,12 +78,17 @@ protected_call() (
 
 native_job() (
   trap '' HUP INT TERM PIPE
+  local manager=$1 verb=$2 unit=$3 status=0
   # A manager job can outlive every client on a hard kill or bus failure.
   # Keep an admission guard in the protected host directory until the client
-  # confirms completion. A returning invocation never replaces the lock inode.
+  # confirms successful completion. A nonzero exit does not establish whether
+  # the manager accepted the job or finished it.
   mkdir -m 0700 -- "$job_guard" || exit "$?"
-  "$@" || exit "$?"
-  rmdir -- "$job_guard"
+  "${manager}_ctl" "$verb" "$unit" || status=$?
+  if ((status != 0)); then
+    fail "$status" "OutcomeUnknown: $manager $verb $unit returned $status; guard retained at $job_guard; run 'game diagnose minecraft'"
+  fi
+  rmdir -- "$job_guard" || fail "$?" "Admission: $manager $verb $unit completed; could not remove $job_guard"
 )
 
 # Arbitrary admin commands must never receive the lifecycle descriptor.
@@ -95,13 +103,17 @@ admin_command() (
   exit "$status"
 )
 
+unit_properties() {
+  "$1" show --all --no-pager \
+    --property=LoadState,ActiveState,SubState,Result,Job,MainPID,ControlPID,ControlGroup,TasksCurrent,ExecMainPID,ExecMainCode,ExecMainStatus \
+    "$2"
+}
+
 declare -A unit_state
 observe() {
-  local ctl=$1 unit=$2 output key value
+  local output key value
   unit_state=()
-  output=$("$ctl" show --all --no-pager \
-    --property=LoadState,ActiveState,SubState,Result,Job,MainPID,ControlPID,ControlGroup,TasksCurrent,ExecMainPID,ExecMainCode,ExecMainStatus \
-    "$unit") || return "$?"
+  output=$(unit_properties "$@") || return "$?"
   while IFS='=' read -r key value; do
     case "$key" in
       LoadState|ActiveState|SubState|Result|Job|MainPID|ControlPID|ControlGroup|TasksCurrent|ExecMainPID|ExecMainCode|ExecMainStatus)
@@ -152,6 +164,35 @@ status_report() {
   fi
 }
 
+manager_report() {
+  local manager=$1 unit=$2 ctl=${1}_ctl status=0
+  printf '\n%s unit %s\n' "$manager" "$unit"
+  if ! unit_properties "$ctl" "$unit"; then
+    printf '%s unit properties unavailable\n' "$manager" >&2
+    status=69
+  fi
+  printf '\n%s manager jobs\n' "$manager"
+  if ! "$ctl" list-jobs --no-pager --full; then
+    printf '%s job queue unavailable\n' "$manager" >&2
+    status=69
+  fi
+  return "$status"
+}
+
+diagnose() {
+  local status=0
+  if guard_present; then
+    printf 'Admission: guard present at %s\n' "$job_guard"
+    stat -c 'type=%F owner=%u:%g mode=%a last-change=%z' -- "$job_guard" || status=69
+  else
+    printf 'Admission: no guard observed at %s\n' "$job_guard"
+  fi
+  printf 'Unit and job listings are snapshots. Reconcile the previous request under the lifecycle lock before clearing a guard.\n'
+  manager_report host "$containerUnit" || status=$?
+  manager_report guest "$guestUnit" || status=$?
+  return "$status"
+}
+
 as_archive_user() {
   env -i PATH="$PATH" "$drop_privileges" --reuid "$archiveUid" --regid "$archiveGid" \
     --clear-groups --no-new-privs -- "$writer" "$1" "$2" "$host_lock_fd" "$host_inode"
@@ -179,7 +220,7 @@ backup() {
   if [[ -n $previous_pid ]]; then
     active && [[ ${unit_state[MainPID]} == "$previous_pid" ]] ||
       fail 69 "backup refused before stop: guest changed during preflight ($(state_description))"
-    native_job guest_ctl stop "$guestUnit" ||
+    native_job guest stop "$guestUnit" ||
       fail "$?" 'Archive: not attempted; stop command failed, inspect guest unit before retrying'
     guest_state && clean_inactive && [[ ${unit_state[ExecMainCode]} == 1 &&
       ${unit_state[ExecMainPID]-} == "$previous_pid" ]] ||
@@ -193,7 +234,7 @@ backup() {
     if [[ $publication == not-published ]]; then
       printf 'Archive: no new publication (%s/%s; writer status %d)\n' "$backupsDir" "$leaf" "$status" >&2
     else
-      printf 'Archive: unconfirmed (%s/%s; writer status %d)\n' "$backupsDir" "$leaf" "$status" >&2
+      printf 'Archive: unconfirmed (OutcomeUnknown, %s/%s; writer status %d)\n' "$backupsDir" "$leaf" "$status" >&2
     fi
     printf 'Resume: skipped; guest was observed inactive before archiving\n' >&2
     return "$((status != 0 ? status : 75))"
@@ -207,8 +248,8 @@ backup() {
     if ! { host_state && active && guest_state && clean_inactive; }; then
       fail 69 "Resume: failed to confirm a stable inactive guest ($(state_description)); archive remains published"
     fi
-    native_job guest_ctl start "$guestUnit" ||
-      fail "$?" 'Resume: failed to start guest; archive remains published'
+    native_job guest start "$guestUnit" ||
+      fail "$?" 'Resume: failed to confirm guest start; archive remains published'
     if ! { guest_state && active; }; then
       fail 69 "Resume: failed to confirm guest running ($(state_description)); archive remains published"
     fi
@@ -220,13 +261,16 @@ readonly action=${1:-}
 if (($# == 0)); then fail 64 'Denied: expected a Minecraft operation'; fi
 shift
 case "$action" in
-  status|start|stop|restart|console|backup|update)
+  status|diagnose|start|stop|restart|console|backup|update)
     (($# == 0)) || fail 64 "Denied: $action takes no extra arguments" ;;
   send) (($# == 1)) || fail 64 'Usage: game send minecraft COMMAND' ;;
   exec) (($# > 0)) || fail 64 'Usage: game exec minecraft COMMAND [ARGS...]' ;;
   *) fail 64 'Denied: unknown Minecraft operation' ;;
 esac
-if [[ $action == status ]]; then status_report; exit; fi
+case "$action" in
+  status) status_report; exit ;;
+  diagnose) diagnose; exit ;;
+esac
 lock_lifecycle
 trap 'fail 129 "Interrupted: lifecycle operation (HUP); inspect guest and archives"' HUP
 trap 'fail 130 "Interrupted: lifecycle operation (INT); inspect guest and archives"' INT
@@ -234,13 +278,13 @@ trap 'fail 143 "Interrupted: lifecycle operation (TERM); inspect guest and archi
 
 case "$action" in
   start|restart)
-    native_job host_ctl start "$containerUnit"
-    native_job guest_ctl "$action" "$guestUnit"
+    native_job host start "$containerUnit"
+    native_job guest "$action" "$guestUnit"
     ;;
   stop)
     host_state || fail 69 "stop refused: container observation failed ($(state_description))"
     if active; then
-      native_job guest_ctl stop "$guestUnit"
+      native_job guest stop "$guestUnit"
     elif ! clean_inactive; then
       fail 69 "stop refused: unsupported container state ($(state_description))"
     fi
@@ -255,7 +299,7 @@ case "$action" in
     admin_command tmux -S /run/minecraft/survival.sock attach
     ;;
   exec)
-    native_job host_ctl start "$containerUnit"
+    native_job host start "$containerUnit"
     admin_command "$@"
     ;;
   update)
