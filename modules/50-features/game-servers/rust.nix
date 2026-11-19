@@ -22,6 +22,8 @@
       home = if useSrv then "/var/lib/game-containers/rust" else "/home/game-rust";
       gameDir = if useSrv then "/srv/rust" else "/home/game-rust/rust";
       containerName = "neko7-rust";
+      guestService = "rust-dedicated";
+      backupSource = "server/server";
       hostAddress = "10.77.20.1";
       localAddress = "10.77.20.2";
       tailscaleHostname = "neko7-rust";
@@ -39,7 +41,7 @@
         28082
       ];
     };
-    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
+    inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkRustModule = spec: {
       lib,
       pkgs,
@@ -231,7 +233,7 @@
         '';
       };
 
-      systemd.services.rust-dedicated = {
+      systemd.services.${spec.guestService} = {
         description = "Rust Dedicated Server";
         wantedBy = ["multi-user.target"];
         wants = [
@@ -394,9 +396,5 @@
         };
       };
     };
-  in {
-    config =
-      lib.mkIf config.local.features.game-rust.enable
-      (mkGame spec mkRustModule);
-  };
+  in mkGame spec mkRustModule;
 }

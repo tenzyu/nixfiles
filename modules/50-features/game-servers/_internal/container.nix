@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pkgs,
 }: let
@@ -107,13 +108,60 @@
     };
   };
 in {
-  mkGame = spec: gameModule:
-    mkMerge [
-      (mkHostUser spec.key spec)
-      {
-        systemd.tmpfiles.rules = mkHostTmpfiles spec.key spec;
-        networking.nat.internalInterfaces = ["ve-${spec.containerName}"];
-      }
-      (mkContainer spec gameModule)
+  mkGame = spec: gameModule: let
+    enabled = config.local.features."game-${spec.key}".enable;
+    hasOperations = enabled && config.local.features.game-server-tools.enable;
+    policy = serviceLayout.mkGameOperation spec;
+    archiveUser = config.users.users.${policy.archiveUser};
+    lockAccess = {user = "root"; group = "wheel";};
+  in {
+    options.local.gameOperations.${spec.key} = lib.mkOption {
+      internal = true;
+      readOnly = true;
+      default = if hasOperations then policy else null;
+      type = with lib.types; nullOr (submodule {
+        options = {
+          lockPath = lib.mkOption {type = str;};
+          containerName = lib.mkOption {type = str;};
+          containerUnit = lib.mkOption {type = str;};
+          guestUnit = lib.mkOption {type = str;};
+          archiveUser = lib.mkOption {type = str;};
+          archiveUid = lib.mkOption {type = ints.positive;};
+          archiveGid = lib.mkOption {type = ints.positive;};
+          sourceDir = lib.mkOption {type = str;};
+          backupsDir = lib.mkOption {type = str;};
+        };
+      });
+      description = "Fixed host operation identities for the selected game and operator tools.";
+    };
+
+    config = mkMerge [
+      (mkIf enabled (mkMerge [
+        (mkHostUser spec.key spec)
+        {
+          systemd.tmpfiles.rules = mkHostTmpfiles spec.key spec;
+          networking.nat.internalInterfaces = ["ve-${spec.containerName}"];
+        }
+        (mkContainer spec gameModule)
+      ]))
+      (mkIf hasOperations {
+        assertions = [{
+          assertion =
+            archiveUser.name == policy.archiveUser
+            && archiveUser.uid == policy.archiveUid
+            && config.users.groups.${archiveUser.group}.gid == policy.archiveGid
+            && archiveUser.group != "wheel"
+            && !(lib.elem "wheel" archiveUser.extraGroups)
+            && !(lib.elem policy.archiveUser config.users.groups.wheel.members);
+          message = "The ${spec.key} archive account must keep its fixed name and UID/GID and stay outside the wheel operator group.";
+        }];
+
+        # Shared host inode, independent of guest-unit and data lifetimes.
+        systemd.tmpfiles.settings.nixfiles-game-locks = {
+          ${serviceLayout.gameLockDirectory}.d = lockAccess // {mode = "0750";};
+          ${policy.lockPath}.f = lockAccess // {mode = "0440";};
+        };
+      })
     ];
+  };
 }

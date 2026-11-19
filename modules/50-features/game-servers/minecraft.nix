@@ -15,6 +15,8 @@
       home = if useSrv then "/var/lib/game-containers/minecraft" else "/home/game-minecraft";
       gameDir = if useSrv then "/srv/minecraft" else "/home/game-minecraft/minecraft";
       containerName = "neko7-mc";
+      guestService = "minecraft-server-survival";
+      backupSource = "survival";
       hostAddress = "10.77.30.1";
       localAddress = "10.77.30.2";
       tailscaleHostname = "neko7-minecraft";
@@ -23,7 +25,7 @@
       tcpPorts = [25565];
       extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
     };
-    inherit (import ./_internal/container.nix {inherit lib pkgs;}) mkGame;
+    inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkMinecraftModule = spec: {
       pkgs,
       lib,
@@ -34,7 +36,7 @@
       nixpkgs.overlays = [inputs.nix-minecraft.overlay];
 
       # The legacy layout keeps Minecraft data under /home.
-      systemd.services.minecraft-server-survival.serviceConfig.ProtectHome =
+      systemd.services.${spec.guestService}.serviceConfig.ProtectHome =
         lib.mkIf (!useSrv) (lib.mkForce false);
 
       users.users.minecraft.uid = spec.uid;
@@ -63,9 +65,5 @@
         };
       };
     };
-  in {
-    config =
-      lib.mkIf config.local.features.game-minecraft.enable
-      (mkGame spec mkMinecraftModule);
-  };
+  in mkGame spec mkMinecraftModule;
 }
