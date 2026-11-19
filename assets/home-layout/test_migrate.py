@@ -39,6 +39,18 @@ class MigrationTest(unittest.TestCase):
                 return trust(boundary, fd, path, **options)
 
             self.enterContext(patch.object(migrate.MoveBoundary, "trust", trust_sandbox_root))
+        self.sandbox_xattr_listing = False
+        if build_dir:
+            try:
+                os.listxattr(self.home)
+            except OSError as error:
+                if error.errno != errno.ENOTSUP:
+                    raise
+                # Some Nix sandbox tmpfs builds cannot even enumerate xattrs.
+                # Model an empty attribute list for the ordinary fixtures. A
+                # separate test below injects ENOTSUP on the production path.
+                self.sandbox_xattr_listing = True
+                self.enterContext(patch.object(migrate.os, "listxattr", return_value=[]))
         self.manifest = {"home": str(self.home), "state": str(self.home / "state"),
                          "rules": [], "managed": []}
 
@@ -406,6 +418,29 @@ class MigrationTest(unittest.TestCase):
         differs()
         self.assertFalse((self.home / "state").exists())
 
+    def test_unavailable_metadata_cannot_authorize_comparison_or_scaffolding(self):
+        old = self.file(".old/key")
+        target = self.home / ".new/user.js"
+        target.parent.mkdir()
+        target.symlink_to("/nix/store/nonexistent-home-manager-files/user.js")
+        self.rule(".old", ".new")
+        self.manifest["managed"] = [str(target)]
+        with (patch.object(migrate.os, "listxattr", side_effect=OSError(errno.ENOTSUP, "no xattrs")),
+              self.assertRaises(OSError) as failure):
+            migrate.apply(self.manifest)
+        self.assertEqual(failure.exception.errno, errno.ENOTSUP)
+        self.assertTrue(target.is_symlink())
+
+        new = self.file("other/key")
+        self.manifest["rules"].clear()
+        self.rule(".old/key", "other/key")
+        for path in (old, new):
+            os.utime(path, (100, 100))
+        with patch.object(migrate.os, "listxattr", side_effect=OSError(errno.ENOTSUP, "no xattrs")):
+            with self.assertRaisesRegex(migrate.Conflict, "comparison could not establish a match"):
+                migrate.plan(self.manifest, compare_collisions=True)
+        self.assertFalse((self.home / "state").exists())
+
     def test_comparison_checks_xattrs_when_supported(self):
         old = self.file(".old", "same")
         new = self.file(".new", "same")
@@ -645,7 +680,7 @@ class MigrationTest(unittest.TestCase):
                               capture_output=True, text=True, check=False)
 
     def invoke(self, *args):
-        if not self.sandbox_root:
+        if not (self.sandbox_root or self.sandbox_xattr_listing):
             return self.launch(*args)
         manifest = self.home / "fixture-manifest.json"
         manifest.write_text(json.dumps(self.manifest))
