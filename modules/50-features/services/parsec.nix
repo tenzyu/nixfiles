@@ -25,6 +25,7 @@
       };
     });
 
+    # Parsec imports this legacy seed at startup. Existing config.json is app-owned.
     parsecConfig = ''
       decoder_software=0
       client_decoder_h265=1
@@ -39,6 +40,7 @@
       mappingId = "06cb,83d7";
       mode = "0600";
     };
+    # The Dynabook touchpad on neko5 was reported as HID Controller #14.
     parsecTouchpadGpmapLine = "${policy.mappingId} a:_00 b:_00 x:_00 y:_00 bk:_00 g:_00 s:_00 sl:_00 sr:_00 l:_00 r:_00 du:_00 dr:_00 dd:_00 dl:_00 lyu:_00 lxr:_00 lyd:_00 lxl:_00 ryu:_00 rxr:_00 ryd:_00 rxl:_00 tl:_00 tr:_00";
     activationData = pkgs.writeText "parsec-activation.json" (builtins.toJSON {
       inherit (config.local.parsecActivation) directory configFile mappingFile mappingId mode;
@@ -59,6 +61,9 @@
 
     config = lib.mkIf config.local.features.parsec.enable {
       home.packages = [
+        (pkgs.writeShellScriptBin "parsec-activation-review" ''
+          exec ${activate} review "$@"
+        '')
         (pkgs.writeShellApplication {
           name = "parsec-xwayland";
           runtimeInputs = [parsecPackage];
