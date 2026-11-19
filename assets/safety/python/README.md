@@ -1,6 +1,6 @@
 # Private Python safety operations
 
-The Linux module has one executable intent, `MoveNew`. The Home adapter can use it to move legacy regular files or directories, archive an existing directory under a new journal entry, or publish a regular backup from a private stage. Home's pathname-based `rename_noreplace` and this module use the same Linux flag. This module passes two authorized parent descriptors to the kernel and flushes their directory entries after the move.
+The Linux module has one executable intent, `MoveNew`. The Home adapter uses it to move legacy regular files or directories and archive an existing destination directory under migration state. The same intent can publish a regular backup from a private stage. It uses the Linux no-replace flag with two authorized parent descriptors and flushes their directory entries after the move.
 
 The caller opens and authorizes both parent directories, selects the exact leaves and source type, and records the approved effective UID in the frozen intent. Use open, sync-capable directory descriptors and hold them through execution. Intent construction reads descriptor metadata only. For mutation, the caller passes `confirmed=True` only after explicit authorization for that intent. The Home adapter owns manifest policy, batch preflight, opening and creating parents, locks if appropriate, and its existing journal.
 

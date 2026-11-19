@@ -49,6 +49,8 @@ def selection(changed_paths: list[str]) -> tuple[list[str], bool]:
             checks.add("nix-store-clean")
         if path.startswith("assets/safety/python/") or path == "modules/10-foundations/safety-python-check.nix":
             checks.add("safety-python")
+        if path in ("assets/safety/python/default.nix", "assets/safety/python/safety_operations.py"):
+            checks.add("home-migration")
         if path == "modules/50-features/development/opencode-direnv.nix" or path.startswith("assets/opencode/"):
             checks.add("opencode-direnv")
         if path == "modules/50-features/development/rtk.nix" or path.startswith("assets/rtk/"):

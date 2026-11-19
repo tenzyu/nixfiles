@@ -14,10 +14,8 @@
         map (file: "${config.home.homeDirectory}/${file.target}")
         (lib.filter (file: file.enable) (builtins.attrValues config.home.file));
     });
-    runner = pkgs.writeShellScript "home-layout-migrate" ''
-      exec ${pkgs.python3}/bin/python3 ${../../../assets/home-layout/migrate.py} \
-        --manifest ${manifest} "$@"
-    '';
+    migration = pkgs.callPackage ../../../assets/home-layout {};
+    runner = migration.launcher manifest;
   in {
     # All registry modules are imported. Rules belong to the feature that changes
     # the location, rather than to a host or a one-shot stateVersion migration.
@@ -45,7 +43,7 @@
           repairAbsoluteLinks = lib.mkOption {
             type = lib.types.bool;
             default = false;
-            description = "Repair absolute symlinks pointing to a declared legacy migration root.";
+            description = "Diagnose absolute symlinks pointing to a declared legacy migration root.";
           };
         };
       });
@@ -66,14 +64,17 @@
     };
   };
 
-  perSystem = {pkgs, ...}: {
+  perSystem = {pkgs, ...}: let
+    migration = pkgs.callPackage ../../../assets/home-layout {};
+  in {
     checks.home-migration =
       pkgs.runCommand "check-home-migration" {
         nativeBuildInputs = [pkgs.python3];
+        PYTHONPATH = migration.source;
+        PYTHONDONTWRITEBYTECODE = "1";
+        MIGRATE_LAUNCHER = migration.launcher "/proc/self/fd/0";
       } ''
-        export PYTHONDONTWRITEBYTECODE=1
-        export MIGRATE_SOURCE=${../../../assets/home-layout/migrate.py}
-        python3 ${../../../assets/home-layout/test_migrate.py}
+        python3 ${../../../assets/home-layout/test_migrate.py} -v
         touch "$out"
       '';
   };
