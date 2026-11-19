@@ -21,6 +21,12 @@
           };
           flake.modules.homeManager.adapter-home-default.local.features.adapter-home-default.enable =
             lib.mkDefault true;
+          # Registered Home Manager modules with no host selection.
+          flake.modules.homeManager.adapter-unselected-on.local.features.adapter-unselected-on.enable =
+            lib.mkDefault true;
+          flake.modules.homeManager.adapter-unselected-off.local.features.adapter-unselected-off.enable =
+            lib.mkDefault false;
+          flake.modules.homeManager.adapter-unselected-empty = {};
           flake.local.featurePolicies.adapter-check = {
             unfree = ["adapter-unfree"];
             permittedInsecure = ["adapter-insecure-1"];
@@ -576,7 +582,7 @@ in {
       expected = {
         systemFeature = true;
         enable = false;
-        embeddedDefault = true;
+        embeddedDefault = false;
         assertions = [];
         ADAPTER_SYSTEM = "enabled";
         ADAPTER_IMPORT = "included";
@@ -603,6 +609,105 @@ in {
           homeConfigurationName = "alice@adapter-active";
           embeddedInNixOS = true;
         };
+      };
+    };
+
+    testEmbeddedHomeTriStateNativeDefaults = {
+      expr = {
+        unselectedOn = embedded.local.features.adapter-unselected-on.enable;
+        unselectedOff = embedded.local.features.adapter-unselected-off.enable;
+        unselectedEmpty = embedded.local.features.adapter-unselected-empty.enable;
+        explicitFalse = embedded.local.features.adapter-home-default.enable;
+        explicitTrue = embedded.local.features.adapter-check.enable;
+        selectedNull = hostSeeds.adapter-active.module.local.users.alice.features.adapter-unselected-on.enable;
+        selectedFalse = hostSeeds.adapter-active.module.local.users.alice.features.adapter-home-default.enable;
+      };
+      expected = {
+        unselectedOn = true;
+        unselectedOff = false;
+        unselectedEmpty = false;
+        explicitFalse = false;
+        explicitTrue = true;
+        selectedNull = null;
+        selectedFalse = false;
+      };
+    };
+
+    testEmbeddedHomeNativePriorities = {
+      expr = let
+        withModule = module:
+          (active.extendModules {modules = [module];}).config.home-manager.users.alice.local.features;
+      in {
+        forceOverExplicitFalse =
+          (withModule {home-manager.users.alice.local.features.adapter-home-default.enable = lib.mkForce true;})
+          .adapter-home-default.enable;
+        forceOverExplicitTrue =
+          (withModule {home-manager.users.alice.local.features.adapter-check.enable = lib.mkForce false;})
+          .adapter-check.enable;
+        normalTrueConflictsWithFalse =
+          (builtins.tryEval (
+            (withModule {home-manager.users.alice.local.features.adapter-home-default.enable = true;})
+            .adapter-home-default.enable
+          )).success;
+        normalFalseConflictsWithTrue =
+          (builtins.tryEval (
+            (withModule {home-manager.users.alice.local.features.adapter-check.enable = false;})
+            .adapter-check.enable
+          )).success;
+      };
+      expected = {
+        forceOverExplicitFalse = true;
+        forceOverExplicitTrue = false;
+        normalTrueConflictsWithFalse = false;
+        normalFalseConflictsWithTrue = false;
+      };
+    };
+
+    testEmbeddedHomeRespectsNativeUserEvaluation = {
+      expr = let
+        withModule = module:
+          (active.extendModules {modules = [module];}).config.home-manager.users.alice.local.features;
+      in {
+        forceTrueOverSeedFalse =
+          (withModule {local.users.alice.features.adapter-home-default.enable = lib.mkForce true;})
+          .adapter-home-default.enable;
+        forceFalseOverSeedTrue =
+          (withModule {local.users.alice.features.adapter-check.enable = lib.mkForce false;})
+          .adapter-check.enable;
+        nativePositiveWithoutHostSelection =
+          (withModule {local.users.alice.features.adapter-unselected-empty.enable = lib.mkDefault true;})
+          .adapter-unselected-empty.enable;
+        nativeFalseWithoutHostSelectionDoesNotSuppressHmDefault =
+          (withModule {local.users.alice.features.adapter-unselected-on.enable = lib.mkForce false;})
+          .adapter-unselected-on.enable;
+      };
+      expected = {
+        forceTrueOverSeedFalse = true;
+        forceFalseOverSeedTrue = false;
+        nativePositiveWithoutHostSelection = true;
+        nativeFalseWithoutHostSelectionDoesNotSuppressHmDefault = true;
+      };
+    };
+
+    testNeko5SteamDependencyRemainsSoftDefault = {
+      expr = let
+        host = flake.nixosConfigurations.neko5;
+        off = (host.extendModules {
+          modules = [{local.features.gaming-core.enable = false;}];
+        }).config;
+      in {
+        system = host.config.local.features.gaming-core.enable;
+        home = host.config.home-manager.users.tenzyu.local.features.gaming-core.enable;
+        hostSystemChoice = hostSeeds.neko5.module.local.features.gaming-core.enable;
+        hostHomeChoice = hostSeeds.neko5.module.local.users.tenzyu.features.gaming-core.enable;
+        explicitSystemOff = off.local.features.gaming-core.enable;
+      };
+      expected = {
+        system = true;
+        home = true;
+        hostSystemChoice = null;
+        hostHomeChoice = null;
+        explicitSystemOff = false;
       };
     };
 
