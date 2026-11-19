@@ -2,6 +2,8 @@
 
 ## 2026-11-19
 
+- **Canonical feature semantics (PR #47):** Project an explicit host `false` into embedded Home Manager without treating an unspecified NixOS user `false` as an explicit HM override. Added adapter and native-priority regression fixtures; `feature-trace` now reports the surviving NixOS option's winning priority and distinguishes source hints. Source and test changes are committed; Nix evaluation, CI and host impact comparison are separate acceptance steps. [Decision](../adr/0001-canonical-feature-semantics.md).
+
 - **Structural Dreaming:** separated source-linked semantic knowledge from operational runbooks; retained legacy documentation paths as redirects. Added a bounded evidence/retrieval contract, deterministic metadata and source drift checks. This is documentation/CI work only, not a host activation or measured reader improvement.
 
 
