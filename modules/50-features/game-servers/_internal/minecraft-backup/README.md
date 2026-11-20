@@ -28,6 +28,8 @@ name is a conflict. Each new archive has mode 0600 and contains the
 `survival/` tree and regular `world/level.dat` data. Restore declarative
 settings through Nix.
 
+Backup prints the target archive path before preflight or any service
+stop. Keep that output to identify the candidate after an interruption.
 Only confirmed publication allows a previously running unit to resume.
 An archive error or an uncertain publication leaves it in the stopped
 state observed before capture. A failed resume is reported independently
@@ -36,8 +38,9 @@ after an unknown outcome. Keep existing finals and the lock inode.
 
 A native systemd job may outlive every client during hard interruption or
 loss of the manager connection. The root-only `minecraft.lock.job`
-directory beside the host lock is created before dispatch and keeps later
-managed mutations out when the waiter cannot confirm success. The waiter
+directory beside the host lock lives on the current boot's `/run` tmpfs.
+The operator creates it before dispatch and it keeps later managed
+mutations out when the waiter cannot confirm success. The waiter
 ignores terminal interruption signals and retains the flock while the
 native command runs. A hard kill or a lost reply can still leave just the
 guard. A nonzero native command reports the manager, verb and unit, and
@@ -105,7 +108,8 @@ exec 9<"$lock" || exit 1
   backup left the guest stopped, leave it stopped pending that decision.
   Preserve existing finals and any retained stage while checking publication.
 
-For an unconfirmed archive, use the exact path printed by `game backup`.
+For an unconfirmed archive, use the path printed as `Archive target` by
+`game backup minecraft`. Treat it as the candidate to inspect.
 Inspect the final and any retained stage under the archive account with
 `gzip -t -- "$candidate"` and `tar -tzf "$candidate"`. Look for the
 expected `survival/world/level.dat`. A readable archive helps recover data,

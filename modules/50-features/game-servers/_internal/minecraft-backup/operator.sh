@@ -188,6 +188,7 @@ diagnose() {
     printf 'Admission: no guard observed at %s\n' "$job_guard"
   fi
   printf 'Unit and job listings are snapshots. Reconcile the previous request under the lifecycle lock before clearing a guard.\n'
+  printf 'Archive publication requires separate verification. Use the archive target from the backup output and follow the recovery runbook.\n'
   manager_report host "$containerUnit" || status=$?
   manager_report guest "$guestUnit" || status=$?
   return "$status"
@@ -212,6 +213,7 @@ backup() {
   timestamp=$("$clock" +%Y%m%d-%H%M%S) || fail "$?" 'backup refused before stop: date failed'
   leaf=minecraft-$timestamp.tar.gz
   [[ $leaf =~ ^minecraft-[0-9]{8}-[0-9]{6}\.tar\.gz$ ]] || fail 69 'Unsupported: invalid archive timestamp'
+  printf 'Archive target: %s/%s\n' "$backupsDir" "$leaf" >&2
   as_archive_user preflight "$leaf" || fail "$?" 'backup refused before stop: archive preflight failed'
 
   if ! { host_state && active && guest_state; }; then

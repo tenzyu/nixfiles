@@ -109,6 +109,20 @@ def start(action: str, *args: str):
 def await_result(process, status):
     out, err = process.communicate(timeout=10)
     assert process.returncode == status, (process.returncode, status, out, err, events())
+    return out, err
+
+
+setup(host="inactive", guest="inactive")
+identity_before = lock.stat().st_ino
+run("start")
+assert guest_state() == "running" and not guard.exists()
+run("stop")
+assert guest_state() == "inactive" and not guard.exists()
+run("restart")
+assert guest_state() == "running" and not guard.exists()
+assert events() == ["host start", "guest start", "host show", "guest stop", "host start", "guest restart"]
+assert lock.stat().st_ino == identity_before
+print("LIFECYCLE-01: managed start, stop and restart clear each confirmed native job guard")
 
 
 setup()
@@ -119,6 +133,7 @@ old_info = observe(old)
 identity_before = lock.stat().st_ino
 result = run("backup", output="Resume: guest running")
 assert "Archive: published" in result.stdout
+assert f"Archive target: {final}\n" in result.stderr
 assert guest_state() == "running"
 assert not guard.exists()
 assert observe(old) == old_info
@@ -256,7 +271,8 @@ try:
     process.kill()
     run("restart", status=73, output="lifecycle lock")
     set_control("tar-release", "")
-    await_result(process, -signal.SIGKILL)
+    out, err = await_result(process, -signal.SIGKILL)
+    assert out == "" and f"Archive target: {final}\n" in err
     assert guest_state() == "inactive" and final.is_file()
     run("start", output="")
 finally:
@@ -320,6 +336,8 @@ before = observe(guard)
 guard_ctime = guard.stat().st_ctime_ns
 result = run("diagnose", output="Admission: guard present")
 assert result.stdout.count("No jobs running.") == 2, result.stdout
+assert "Reconcile the previous request under the lifecycle lock" in result.stdout
+assert "Archive publication requires separate verification" in result.stdout
 run("status", output="container up / server inactive")
 event_count = len(events())
 for action, args in (("start", ()), ("restart", ()), ("stop", ()), ("backup", ()),

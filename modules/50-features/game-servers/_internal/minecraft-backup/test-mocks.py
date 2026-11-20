@@ -67,9 +67,10 @@ def unit(guest: bool, command: str, *flags: str) -> None:
         else:
             print("No jobs running.")
     elif command == "stop":
+        assert flags == (service,)
+        assert (root / "run/minecraft.lock.job").is_dir()
         behavior = read("stop")
         if behavior in ("block", "disconnect"):
-            (root / "run/minecraft.lock.job").stat()
             queue.write_text(command)
             if behavior == "disconnect":
                 sys.exit(31)
@@ -80,9 +81,10 @@ def unit(guest: bool, command: str, *flags: str) -> None:
         if behavior == "unknown":
             sys.exit(31)
     elif command in ("start", "restart"):
+        assert flags == (service,)
+        assert (root / "run/minecraft.lock.job").is_dir()
         behavior = read("resume" if guest else "host-start")
         if behavior == "disconnect":
-            (root / "run/minecraft.lock.job").stat()
             queue.write_text(command)
             sys.exit(32 if guest else 33)
         if behavior == "return-failure":
