@@ -84,6 +84,142 @@ class MigrationTest(unittest.TestCase):
         run = self.journal()[0]["run"]
         migrate.mutate(self.manifest, "recover", group, {}, shutil.which("rsync"), run_id=run)
 
+    def installed_manifest(self):
+        generation = self.home / "installed-generation"
+        generation.mkdir(exist_ok=True)
+        (generation / "home-layout-manifest.json").write_text(json.dumps(self.manifest))
+        return generation
+
+    def admit(self, incumbent, *, candidate_files=None, incumbent_files=None):
+        with patch.object(migrate, "generation_files",
+                          side_effect=lambda _, gen: (incumbent_files or {}) if gen == incumbent else
+                          (candidate_files or {})):
+            migrate.activation_gate(self.manifest, migrate.MoveBoundary(), Path("/fixture-generation"),
+                                    None, incumbent, False)
+
+    def test_counterexample_go_fixed_paths_survive_gopath_cutover_and_inverse(self):
+        binary = self.file("go/custom-bin/record", "binary")
+        module = self.file("go/custom-mod/record", "module")
+        ordinary = self.file("go/src/record", "project")
+        carrier = self.home / "go"
+        carrier.chmod(0o710)
+        original = [path.stat().st_ino for path in (binary, module, ordinary, carrier)]
+        fixed = {"GOBIN": str(binary.parent), "GOMODCACHE": str(module.parent)}
+        rule = self.rule("go", "xdg/go", owner="common", group="go", route=str(carrier),
+                         independentRoutes=fixed, consumers=fixed, serviceRoutes=fixed)
+        incumbent = self.installed_manifest()
+        migrate.apply(self.manifest)
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
+        moved = self.home / "xdg/go/src/record"
+        self.assertTrue(binary.is_file() and module.is_file(), "cutover disconnected both fixed Go paths")
+        self.assertEqual([path.read_text() for path in (binary, module, moved)], ["binary", "module", "project"])
+        self.assertEqual([path.stat().st_ino for path in (binary, module, moved, carrier)], original)
+        self.assertEqual(carrier.stat().st_mode & 0o777, 0o710)
+        self.admit(self.installed_manifest())  # A subsequent generation keeps the same routes.
+        migrate.mutate(self.manifest, "rollback", "go", {}, None, run_id=self.journal()[0]["run"])
+        self.assertEqual([path.stat().st_ino for path in (binary, module, ordinary, carrier)], original)
+        self.assertFalse(moved.exists())
+
+    def test_counterexample_equal_retirement_cannot_certify_uncovered_rustup(self):
+        old = self.file(".cargo/record")
+        new = self.file("xdg/cargo/record")
+        for path in (old, new, old.parent, new.parent):
+            os.utime(path, (100, 100))
+        rules = [self.rule(source, target, group="rust", route=str(self.home / source))
+                 for source, target in ((".cargo", "xdg/cargo"), (".rustup", "xdg/rustup"))]
+        incumbent = self.installed_manifest()
+        plan = self.invoke("plan", "--group", "rust", "--retire-equal")
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        retired = self.invoke("retire-equal", "--group", "rust", "--offline", "--expect",
+                              json.loads(plan.stdout)["expect"])
+        self.assertEqual(retired.returncode, 0, retired.stderr)
+        for rule in rules:
+            rule["route"] = rule["target"]
+        self.admit(incumbent)  # Rustup genuinely has no previous state yet.
+        late = self.file(".rustup/record", "new legacy toolchain")
+        with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+            self.admit(incumbent)
+        self.assertEqual(late.read_text(), "new legacy toolchain")
+        self.assertFalse((self.home / "xdg/rustup").exists())
+
+    def test_counterexample_candidate_state_change_cannot_hide_outstanding_journal(self):
+        old = self.file(".old/record")
+        self.rule(".old", "xdg/new")
+        self.manifest.update(version=2, stateHome=str(self.home / "state-a"))
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
+              self.assertRaisesRegex(OSError, "after durable group header")):
+            migrate.apply(self.manifest)
+        original = self.manifest.copy()
+        result = self.invoke("plan", "--group", "fixture")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("Recover outstanding run", result.stderr)
+        self.manifest.update(stateHome=str(self.home / "state-b"), state=str(self.home / "other-state"))
+        result = self.invoke("plan", "--group", "fixture")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Recover outstanding run", result.stderr)
+        self.assertTrue(old.exists())
+        self.assertFalse((self.home / "other-state").exists())
+        self.manifest = original
+        self.recover()
+        self.assertEqual((self.home / "xdg/new/record").read_text(), "credentials")
+
+    def test_counterexample_owned_link_cleanup_preserves_directory_metadata(self):
+        root = self.home / ".codex"
+        root.mkdir()
+        root.chmod(0o710)
+        link = root / "old-link"
+        referent = "/nix/store/fixture-home-manager-files/.codex/old-link"
+        link.symlink_to(referent)
+        self.rule(".codex", "xdg/codex", owner="codex", route=str(root))
+        incumbent = self.installed_manifest()
+        with self.assertRaisesRegex(migrate.Conflict, "cleanup.*protected directory"):
+            self.admit(incumbent, incumbent_files={link: {referent}})
+        self.file(".codex/record")
+        self.admit(incumbent, incumbent_files={link: {referent}})
+        self.assertEqual(root.stat().st_mode & 0o777, 0o710)
+
+    def test_counterexample_cross_mount_gtk2_atomic_save_allows_unchanged_activation(self):
+        target = self.cross_mount()
+        old = self.file(".old", "initial GTK2 settings")
+        rule = self.manifest["rules"][0]
+        rule.update(group="gtk2", owner="common", route=str(old))
+        incumbent = self.installed_manifest()
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
+        inode = target.stat().st_ino
+        new = target.with_name("app-save")
+        new.write_text("saved GTK2 settings")
+        new.replace(target)
+        self.assertNotEqual(target.stat().st_ino, inode)
+        with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+            self.admit(incumbent)
+        self.admit(self.installed_manifest())
+        run = self.journal()[0]["run"]
+        with self.assertRaisesRegex(migrate.Conflict, "Authoritative target identity has changed"):
+            migrate.mutate(self.manifest, "retire", "gtk2", {}, None, run_id=run)
+        self.assertEqual(old.read_text(), "initial GTK2 settings")
+        self.assertEqual(target.read_text(), "saved GTK2 settings")
+
+    def test_counterexample_cross_mount_retirement_can_repeat_after_undo(self):
+        target = self.cross_mount()
+        old = self.file(".old/record")
+        original_inode = old.stat().st_ino
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        run = self.journal()[0]["run"]
+        migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=run)
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        retired, = [item for item in runs if item["header"]["mode"] == "retire"]
+        migrate.mutate(self.manifest, "rollback", "fixture", {}, None, run_id=retired["header"]["run"])
+        self.assertEqual(old.stat().st_ino, original_inode)
+        result = self.invoke("retire", "--group", "fixture", "--offline", "--run", run)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(old.exists())
+        self.assertEqual((target / "record").read_text(), "credentials")
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        self.assertEqual(len([item for item in runs if item["header"]["mode"] == "retire"]), 2)
+
     def test_fresh_home_and_repeat_are_noops(self):
         self.rule(".old", ".local/share/new")
         self.assertEqual(migrate.plan(self.manifest), [])
