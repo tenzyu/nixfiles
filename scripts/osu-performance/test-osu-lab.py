@@ -211,8 +211,11 @@ class TestLatencyLab(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / "top.txt"
             p.write_text('S ID QUANT RATE WAIT BUSY W/Q B/Q ERR NAME\nR 32 256 48000 1us 2us 0.2 0.1 3 alsa_output.pci-0000_00_1f.3.analog-stereo\nR 32 256 48000 1us 2us 0.2 0.1 6 alsa_output.pci-0000_00_1f.3.analog-stereo\n')
-            got = lab.parse_pw_top(p)
-            self.assertEqual(next(iter(got["nodes"].values()))["delta_err"], 3)
+            parsed = lab.parse_pw_top(p)
+            analysis = lab.analyze({"pw_top": parsed})
+            row = next(iter(analysis["audio"]["pw_top"]["nodes"].values()))
+            self.assertEqual((row["first_err"], row["last_err"], row["delta_err"]), (3, 6, 3))
+            self.assertEqual(row["delta_err_source"], lab.PW_ERR_SOURCE)
 
     def test_draw_denominators_include_only_observed_eligible_samples(self):
         data = {"samples": [
@@ -275,18 +278,23 @@ class TestLatencyLab(unittest.TestCase):
         self.assertNotIn('nan',result)
 
 
-    def test_pw_top_missing_and_reset_counts_are_unknown(self):
+    def test_pw_top_requires_nondecreasing_samples_from_one_observed_node(self):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / "top.txt"
             p.write_text("R 32 256 48000 1us 2us 0.2 0.1 0 alsa_output.single\n"
                          "R 33 256 48000 1us 2us 0.2 0.1 3 alsa_output.reset\n"
-                         "R 33 256 48000 1us 2us 0.2 0.1 1 alsa_output.reset\n"
+                         "R 33 256 48000 1us 2us 0.2 0.1 0 alsa_output.reset\n"
+                         "R 33 256 48000 1us 2us 0.2 0.1 4 alsa_output.reset\n"
+                         "R 35 256 48000 1us 2us 0.2 0.1 3 alsa_output.replaced\n"
+                         "R 36 256 48000 1us 2us 0.2 0.1 4 alsa_output.replaced\n"
                          "R 34 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n"
                          "R 34 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n")
-            nodes = lab.parse_pw_top(p)["nodes"]
-            self.assertIsNone(nodes["alsa_output.single"]["delta_err"])
-            self.assertIsNone(nodes["alsa_output.reset"]["delta_err"])
+            nodes = lab.analyze({"pw_top": lab.parse_pw_top(p)})["audio"]["pw_top"]["nodes"]
+            for name in ("single", "reset", "replaced"):
+                self.assertIsNone(nodes[f"alsa_output.{name}"]["delta_err"])
+                self.assertIsNone(nodes[f"alsa_output.{name}"]["delta_err_source"])
             self.assertEqual(nodes["alsa_output.zero"]["delta_err"], 0)
+            self.assertEqual(nodes["alsa_output.zero"]["delta_err_source"], lab.PW_ERR_SOURCE)
 
     def test_each_performance_log_delta_is_preserved_and_bounded(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,11 +334,24 @@ class TestLatencyLab(unittest.TestCase):
             old_input = {**EVDEV, **dict.fromkeys(lab.INPUT_COUNTS, 0), "reports": 2, "syn_dropped": 0,
                          "period_ms": lab.dist([0]), "observer_delay_ms": lab.dist([]),
                          "histogram": lab.histogram([0], 0, 12, 0.5)}
+            old_nodes = {
+                "alsa_output.reset": {"observations": 3, "first_err": 3, "last_err": 4, "delta_err": 1},
+                "alsa_output.replaced": {"observations": 2, "first_err": 3, "last_err": 4, "delta_err": 1},
+                "alsa_output.zero": {"observations": 2, "first_err": 2, "last_err": 2, "delta_err": 0},
+            }
             legacy = {"version": "2026-11-13.1", "config": {"label": "Old", "seconds": 90},
-                      "input": {"devices": [old_input], "status": []}, "samples": [display_sample({})]}
+                      "input": {"devices": [old_input], "status": []}, "samples": [display_sample({})],
+                      "pw_top": {"status": "parsed", "nodes": old_nodes}}
             lab.write_json(root / "data.json", legacy)
             lab.write_json(other / "data.json", {**legacy, "config": {"label": "Other", "seconds": 10}})
-            (root / "pw-top-batch.txt").write_text("legacy raw audio")
+            (root / "pw-top-batch.txt").write_text(
+                "R 32 256 48000 1us 2us 0.2 0.1 3 alsa_output.reset\n"
+                "R 32 256 48000 1us 2us 0.2 0.1 0 alsa_output.reset\n"
+                "R 32 256 48000 1us 2us 0.2 0.1 4 alsa_output.reset\n"
+                "R 33 256 48000 1us 2us 0.2 0.1 3 alsa_output.replaced\n"
+                "R 34 256 48000 1us 2us 0.2 0.1 4 alsa_output.replaced\n"
+                "R 35 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n"
+                "R 35 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n")
             (root / "performance-logs").mkdir()
             (root / "performance-logs/performance-update.log").write_text("Frame length: 74 ms")
             evidence = list(root.rglob("*.txt")) + list(root.rglob("*.log")) + [root / "data.json", other / "data.json"]
@@ -348,6 +369,10 @@ class TestLatencyLab(unittest.TestCase):
             self.assertIsNone(summary["input"]["devices"][0]["period_ms"]["p50"])
             self.assertIsNone(summary["draw"]["dso_ratio"])
             self.assertEqual(json.loads((root / "data.json").read_text()), legacy)
+            comparison = json.loads((root / "comparison.json").read_text())[0]["analysis"]
+            for result in (summary, comparison):
+                self.assertEqual(result["audio"]["pw_top"]["nodes"],
+                                 {name: {**row, "delta_err": None} for name, row in old_nodes.items()})
             html = (root / "comparison.html").read_text()
             self.assertIn("Δは未判定", html)
             self.assertIn("未測定 (0/0 observed)", html)
@@ -377,6 +402,7 @@ class TestLatencyLab(unittest.TestCase):
                   "expected_bass": "-128", "game_settings": "8x-sync"}
         window = {"status": "complete", "clock": lab.MONOTONIC, "elapsed_s": 10, "sample_interval_s": 1}
         first = {"config": config, "version": lab.VERSION,
+                 "environment": {"bass": "-128", "monitor_modes": [(1366, 768, 60.003, False)]},
                  "analysis": lab.analyze({"capture": window, "samples": [display_sample({"directScanoutTo": "1"})]})}
         second = {**first, "config": {**config, "label": "B"},
                   "analysis": lab.analyze({"capture": window, "samples": [display_sample({"directScanoutTo": "0"})]})}
@@ -384,9 +410,12 @@ class TestLatencyLab(unittest.TestCase):
         mismatches = [
             {**second, "config": {**config, "expected_tablet_hz": 1000}},
             {**second, "version": "older"},
-            {**second, "environment": {"bass": "-256"}},
+            {**second, "environment": {**first["environment"], "bass": "-256"}},
+            {**second, "environment": {**first["environment"], "monitor_modes": [(1366, 768, 60.003, 0)]}},
+            {**second, "environment": {**first["environment"], "monitor_modes": [(1366, 768, 61, False)]}},
             {**second, "analysis": {**second["analysis"], "capture": {**window, "status": "partial"}}},
             {**second, "analysis": {**second["analysis"], "capture": {**window, "elapsed_s": 13}}},
+            {**second, "analysis": {**second["analysis"], "capture": {**window, "elapsed_s": None}}},
         ]
         for other in mismatches:
             with self.subTest(other=other):
@@ -395,6 +424,31 @@ class TestLatencyLab(unittest.TestCase):
                 self.assertIn("0.000 (0/1 observed)", report)
                 self.assertIn("100.000 (1/1 observed)", report)
                 self.assertIn("Δは未判定", report)
+
+    def test_compare_preserves_dso_observations_with_missing_conditions(self):
+        config = {"seconds": 10, "expected_tablet_hz": 400, "expected_bass": "-128", "game_settings": "8x-sync"}
+        window = {"status": "complete", "clock": lab.MONOTONIC, "elapsed_s": 10, "sample_interval_s": 1}
+        mode = {"width": 1366, "height": 768, "refreshRate": 60.003, "vrr": False}
+        cases = [(None, {}), (None, mode), (" ", mode), ("-128", {}), ("-128", {**mode, "vrr": None}), ("-128", mode)]
+        for bass, display_mode in cases:
+            with self.subTest(bass=bass, display_mode=display_mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                sessions = [root / "active", root / "inactive"]
+                for session, scanout in zip(sessions, ("1", "0")):
+                    session.mkdir()
+                    proc = {"environ": {"OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD": bass}} if bass else {}
+                    lab.write_json(session / "data.json", {
+                        "version": "2026-11-20.1", "config": {**config, "label": session.name},
+                        "capture": window, "proc_start": proc,
+                        "samples": [display_sample({**display_mode, "directScanoutTo": scanout})],
+                    })
+                self.assertEqual(lab.compare(SimpleNamespace(sessions=sessions, out=root)), 0)
+                report = (root / "comparison.html").read_text()
+                self.assertIn("100.000 (1/1 observed)", report)
+                self.assertIn("0.000 (0/1 observed)", report)
+                expected_delta = bass == "-128" and display_mode == mode
+                self.assertEqual("-100.000" in report, expected_delta)
+                self.assertEqual("Δは未判定" in report, not expected_delta)
 
 
 class TestCaptureLifecycle(unittest.TestCase):

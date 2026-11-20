@@ -60,14 +60,14 @@ osu-lab compare ~/osu-lab-results/*-400hz-8x-bass128-sync \
 
 比較に`*`を使う場合、対象のセッションが1件ずつであることを確認すること。複数試行がある場合はディレクトリを明示的に指定する。
 
-比較表は各セッションの観測値、観測件数、申告条件を横に並べる。2件の差分は、両方が完了し、記録された設定・バージョン・表示モード・BASS環境変数が一致し、実測した経過時間の差がサンプル間隔以内の場合に表示する。条件変更を含む比較では個別の観測値を見る。同一条件での反復と実際の操作条件の確認は操作者が行う。
+比較表は各セッションの観測値、観測件数、申告条件を横に並べる。2件の差分には、両方の計測の完了、記録された設定とバージョンの一致、サンプル間隔以内の経過時間差が必要。eDP-1の幅・高さ・リフレッシュレート・VRRと、プロセスのBASS環境変数も両方の計測で取得でき、一致している必要がある。条件が異なるか取得できなかった場合も、各セッションで実測した値と観測件数は表示する。同一条件での反復と実際の操作条件の確認は操作者が行う。
 
 ## 取得できるデータの由来
 
 | 軸 | データ | 観測の限界 |
 |---|---|---|
 | Input | `hidraw`の報告1件ごとの読み出し完了間隔、`evdev`の整列済み`SYN_REPORT`間隔、取得遅延、`SYN_DROPPED`、完了フレーム内のpress/release数 | 時間の分布はms。各分布の`count`は採用した間隔または遅延の件数。申告tablet Hz、センサー内部レート、入力→Update時間は別の値。 |
-| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（プロセスが受け取った**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodと物理的な発音開始は未測定。ERRはXRunを含む。同一ノードで2回以上観測しカウンターが減少しない場合に増分を算出する。ALSAとPipeWireノードの対応は型・パスで追加確認が必要。 |
+| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（プロセスが受け取った**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodと物理的な発音開始は未測定。ERRはXRunを含む。同じノードIDで2回以上取得し、観測したカウンターが減少しない場合に増分を算出する。観測上の連続性の記録がない旧版の増分は未測定とし、最初と最後の読み値を表示する。ALSAとPipeWireノードの対応は型・パスで追加確認が必要。 |
 | Update | `/proc/$pid/cgroup`と`cpu.weight/uclamp`、`timerslack_ns`、`task/*/schedstat` runqueue累積待機時間、CPU温度/周波数、アプリ報告のslow-frameログ | `schedstat`のwait/sliceはスケジューラの代理指標（ms/slice）。全Updateのp99/p99.9や入力→Update待ち時間にはin-process instrumentationが必要。プロセス名が判別できなければ`--pid`を使う。 |
 | Draw | 前面のosu!がeDP-1のfullscreen 2/0を満たす点サンプル、`directScanoutTo`、`activelyTearing`、阻害理由 | DSO率の母数は対象サンプルのうちDSO状態が取得できた件数。tearing率の母数はDSOが有効でtearing状態も取得できた件数。母数0は未測定、観測した全件がfalseなら0%。Per-frame KMS flip、GPU完了、光学遅延は未測定。 |
 

@@ -26,7 +26,7 @@ from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "2026-11-20.1"
+VERSION = "2026-11-20.2"
 EVENT = struct.Struct("@llHHi")  # struct input_event on native 64-bit Linux
 EVIOCSCLOCKID = 0x400445A0  # _IOW('E', 0xA0, int), CLOCK_MONOTONIC=1
 MONITOR = "eDP-1"
@@ -37,6 +37,7 @@ STOP = None
 INPUT_COUNTS = ("key_up", "key_down", "key_repeat", "pen_touch_up", "pen_touch_down")
 MONOTONIC = "CLOCK_MONOTONIC"
 INCOMPLETE = "capture-incomplete"
+PW_ERR_SOURCE = "pw-top same observed node ID and nondecreasing ERR samples"
 
 
 def stamp():
@@ -507,10 +508,15 @@ def parse_pw_top(path):
         except (ValueError, IndexError):
             quantum, rate = None, None
         rows.setdefault(name, []).append({"id": bits[1], "err": err, "quantum": quantum, "rate": rate})
-    return {"nodes": {name: {"observations": len(v), "first_err": v[0]["err"], "last_err": v[-1]["err"],
-                             "delta_err": counter_delta([row["err"] for row in v]) if len({row["id"] for row in v}) == 1 else None,
-                             "graph_quantum": v[-1]["quantum"], "graph_rate": v[-1]["rate"]} for name, v in rows.items()},
-            "status": "parsed" if rows else "raw_capture_only"}
+    nodes = {}
+    for name, observations in rows.items():
+        first, last = observations[0], observations[-1]
+        ids = {row["id"] for row in observations}
+        delta = counter_delta([row["err"] for row in observations]) if len(ids) == 1 else None
+        nodes[name] = {"observations": len(observations), "first_err": first["err"], "last_err": last["err"],
+                       "delta_err": delta, "delta_err_source": PW_ERR_SOURCE if delta is not None else None,
+                       "graph_quantum": last["quantum"], "graph_rate": last["rate"]}
+    return {"nodes": nodes, "status": "parsed" if nodes else "raw_capture_only"}
 
 
 def counter_delta(values):
@@ -558,9 +564,8 @@ def analyze_input(raw):
 def analyze_pw_top(raw):
     if not raw or "nodes" not in raw:
         return raw
-    # Old data retained first/last counters, but used 0 for a single row or reset.
-    nodes = {name: {**row, "delta_err": row.get("delta_err") if
-                    row["observations"] >= 2 and row["first_err"] <= row["last_err"] else None}
+    # Endpoints alone cannot identify a reset or a replacement under the same node name.
+    nodes = {name: {**row, "delta_err": row.get("delta_err") if row.get("delta_err_source") == PW_ERR_SOURCE else None}
              for name, row in raw["nodes"].items()}
     return {**raw, "nodes": nodes}
 
@@ -720,7 +725,7 @@ def html_report(data, summary):
     pcm_rows = [(x["path"], x["params"].replace('\n', '; ')) for x in alsa.get("open_playback_pcms", [])]
     pw = summary["audio"].get("pw_top") or {}
     pwrows = [(k, v["observations"], pill(v.get("graph_quantum")), pill(v.get("graph_rate")),
-               pill(v["delta_err"])) for k, v in pw.get("nodes", {}).items()]
+               pill(v.get("first_err")), pill(v.get("last_err")), pill(v["delta_err"])) for k, v in pw.get("nodes", {}).items()]
     nodeprops = (summary["audio"].get("pw_end") or {}).get("nodes", [])
     prop_rows = [(x.get("id"), x.get("props", {}).get("node.name"), x.get("props", {}).get("api.alsa.period-size"),
                   x.get("props", {}).get("api.alsa.period-num"), x.get("props", {}).get("api.alsa.headroom")) for x in nodeprops]
@@ -773,8 +778,8 @@ body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header
     body.append('<h3>開いているALSA playback PCM</h3><div class="tabwrap">'+simple_table(['PCM','hw_params'],pcm_rows)+'</div>')
     body.append('<h3>PipeWireノードの要求値</h3><div class="tabwrap">'+simple_table(['ID','ノード','period-size','period-num','headroom'],prop_rows)+'</div>')
     body.append('<h3>pw-top Graph / ERR</h3><p class="micro">'+esc(pill(pw.get('status')))+'</p><div class="tabwrap">'+
-                simple_table(['Node','観測行数','QUANT frames','RATE Hz','ERR増分'],pwrows)+
-                '</div><p class="micro">QUANT/RATEはPipeWire graph/streamの観測値。ERR増分は同一ノードの連続したカウンター観測から算出。</p></section>')
+                simple_table(['Node','観測行数','QUANT frames','RATE Hz','最初のERR','最後のERR','ERR増分'],pwrows)+
+                '</div><p class="micro">QUANT/RATEはPipeWire graph/streamの観測値。ERR増分には同一ノードIDで減少しないERR観測の記録が必要です。</p></section>')
     body.append('<section><h2>Update <span class="kind proxy">scheduler/slow-frame</span></h2>')
     body.append('<p class="intro">procfsのschedstatで累積runqueue待機時間を記録します。Updateフレーム周期分布は別物です。Ctrl+F2のperformanceログは遅延フレームの選択的ログであり、全フレームp99は算出しません。</p>')
     body.append(f'<p class="micro">PID {esc(proc.get("pid"))} / cgroup {esc(proc.get("cgroup"))} / timerslack {esc(proc.get("timerslack_ns"))}ns / '
@@ -803,24 +808,43 @@ body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header
     return '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+style+'</style><body>'+''.join(body)+'</body></html>'
 
 
+def positive_number(value):
+    return type(value) in (int, float) and 0 < value < math.inf
+
+
+def recorded_text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def observed_display_mode(mode):
+    width, height, refresh, vrr = mode
+    return all(positive_number(value) for value in (width, height, refresh)) and type(vrr) is bool
+
+
 def comparable(entries):
     # Recorded metadata can rule out matching conditions, but cannot verify play/workload.
-    configs = [e["config"] for e in entries]
-    for key in ("seconds", "expected_tablet_hz", "expected_bass", "game_settings"):
-        values = [c.get(key) for c in configs]
-        if None in values or len(set(values)) != 1:
+    for key, observed in (("seconds", positive_number), ("expected_tablet_hz", positive_number),
+                          ("expected_bass", recorded_text), ("game_settings", recorded_text)):
+        first, second = (e["config"].get(key) for e in entries)
+        if not observed(first) or not observed(second) or first != second:
             return False
-    if entries[0].get("version") is None or entries[0].get("version") != entries[1].get("version"):
+    first, second = (e.get("version") for e in entries)
+    if not recorded_text(first) or first != second:
         return False
-    if entries[0].get("environment") != entries[1].get("environment"):
+    environments = [e.get("environment") or {} for e in entries]
+    for env in environments:
+        modes = env.get("monitor_modes")
+        if not recorded_text(env.get("bass")) or not modes or not all(observed_display_mode(mode) for mode in modes):
+            return False
+    if environments[0] != environments[1]:
         return False
     windows = [e["analysis"].get("capture", {}) for e in entries]
     if any(w.get("status") != "complete" or w.get("clock") != MONOTONIC for w in windows):
         return False
-    first, second = windows
-    interval = first.get("sample_interval_s")
-    return (isinstance(interval, (int, float)) and interval > 0 and interval == second.get("sample_interval_s")
-            and abs(first["elapsed_s"] - second["elapsed_s"]) <= interval)
+    first_interval, second_interval = (w.get("sample_interval_s") for w in windows)
+    elapsed = [w.get("elapsed_s") for w in windows]
+    return (positive_number(first_interval) and positive_number(second_interval) and first_interval == second_interval
+            and all(positive_number(value) for value in elapsed) and abs(elapsed[0] - elapsed[1]) <= first_interval)
 
 
 def comparison_values(summary):
@@ -867,14 +891,20 @@ def comparison_html(entries):
     for cfg, summary, env in ((e["config"], e["analysis"], e.get("environment") or {}) for e in entries):
         window = summary.get("capture", {})
         draw = summary["draw"]
+        modes = ", ".join(f"{width}×{height} @ {rate} Hz (VRR {'on' if vrr else 'off'})"
+                          for width, height, rate, vrr in (env.get("monitor_modes") or [])
+                          if observed_display_mode((width, height, rate, vrr)))
+        bass = env.get("bass")
         conditions.append((cfg.get("label"), window.get("status", "unknown"),
                            pill(cfg.get("seconds")), fmt(window.get("elapsed_s"), 3),
                            pill(cfg.get("expected_tablet_hz")), pill(cfg.get("expected_bass")),
-                           pill(env.get("bass")), pill(cfg.get("game_settings")), draw.get("eligible_samples", 0)))
+                           pill(bass if recorded_text(bass) else None),
+                           pill(cfg.get("game_settings")), modes or "未測定",
+                           draw.get("eligible_samples", 0)))
     body = '<header><h1>osu! latency lab · comparison</h1><p class="intro">記録された観測値をセッションごとに表示します。</p></header>'
     body += '<section><h2>計測条件</h2><div class="tabwrap">' + simple_table(
         ['セッション', 'capture', '要求 s', '経過 s', '申告 tablet Hz', 'BASSラベル', 'BASS環境変数', 'ゲーム設定ラベル',
-         '2/0対象件数'], conditions) + '</div></section>'
+         'eDP-1表示モード', '2/0対象件数'], conditions) + '</div></section>'
     if pair and not show_delta:
         body += '<p>記録条件が異なるか不明、または計測区間が不完全なため、Δは未判定。</p>'
     cols = ['指標', *labels] + (['Δ（右−左）'] if pair else []) + ['由来']
@@ -1070,8 +1100,9 @@ def compare(args):
         proc = data.get("proc_start") or {}
         monitors = set()
         for sample in data["samples"]:
-            mon = (sample.get("display") or {}).get("monitor") or {}
-            if mon.get("name") == MONITOR:
+            display = sample.get("display") or {}
+            mon = display.get("monitor") or {}
+            if display.get("status", "ok") == "ok" and mon.get("name") == MONITOR:
                 monitors.add(tuple(mon.get(key) for key in ("width", "height", "refreshRate", "vrr")))
         environment = {"bass": (proc.get("environ") or {}).get("OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD"),
                        "monitor_modes": sorted(monitors, key=repr)}
