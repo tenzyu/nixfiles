@@ -26,4 +26,15 @@ The fixture is kept at `scripts/ci/fixtures/retrieval-cases.json` **outside the 
 
 The first blinded pair used functional commit `056076293a10118d34fc2be764c562f39b4840e3` and docs draft `2ddaa5452b73f3ecc703689de72767e89cb5050b`. The source-only reader used nine commands against an eight-command budget. The wiki-assisted reader used eight. The pair is invalid and supplies no measured retrieval benefit.
 
-The rerun is pending on the [replacement functional snapshot](../adr/0002-invariant-safety.md#convergence-decisions) and its exact docs overlay. Both readers must stop after the eighth command. Failed commands count toward the limit.
+The valid pair below used fresh contexts and the same fixed eight-command budget. Failed commands counted toward the limit.
+
+## 2026-11-20 valid pair
+
+Functional commit `bda99416d6a0faf8ab2f01ce4a507e77246a74b5`, tree `d4966f7283a5e286241c15cc6c57d8fee7aecf48`. Trial docs `75baed0bc533d959079b06ddaec6d90eedb3e76b`, overlay tree `6a55ba24e566f6b227ec1ab0e0b3bc483111b092`. The common corpus, permissions, model and effort matched. Only the wiki-assisted arm received the startup router and wiki. Separate materialized roots and T3 contexts provided task-level isolation.
+
+Both arms used exactly eight calls and each finished six cases with two partial cases. Neither produced an unsafe promotion or false live acceptance claim. The partial criteria were:
+
+- **#66 provenance.** Both respected the reviewed scope and individual approval, but did not fully specify extracting the docs-only patch from the actual old base and excluding old integration-only product ancestry before retargeting.
+- **Semantic memory.** Both covered pinned corrections and blinded grading, but omitted a requirement to prune a genuine duplicate while retaining its provenance.
+
+The wiki-assisted arm added context on cases already answered correctly at the same budget. The pair demonstrated no comparative gain under the acceptance gate. Timing and tokens were not compared. Retain the factual corrections, the duplicate consolidation with its archive link, and the previous validated startup memory. The final docs add this receipt after the trial freeze. [Reviewed source and evidence](../adr/0002-invariant-safety.md#convergence-decisions).
