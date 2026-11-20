@@ -22,12 +22,17 @@
     config,
     lib,
     ...
-  }: {
+  }: let
+    legacy = "${config.home.homeDirectory}/.zsh_history";
+    intended = "${config.xdg.stateHome}/zsh/history";
+  in {
     config = lib.mkIf config.local.features.zsh.enable {
       local.homeMigration.paths = [
         {
-          source = "${config.home.homeDirectory}/.zsh_history";
-          target = config.programs.zsh.history.path;
+          owner = "zsh";
+          source = legacy;
+          target = intended;
+          route = config.programs.zsh.history.path;
         }
       ];
 
@@ -42,7 +47,10 @@
         syntaxHighlighting.enable = true;
 
         history = {
-          path = "${config.xdg.stateHome}/zsh/history";
+          path =
+            if builtins.elem "zsh" config.local.homeMigration.legacyGroups
+            then legacy
+            else intended;
           save = 1000000;
           size = 1000000;
         };

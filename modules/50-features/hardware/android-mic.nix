@@ -87,12 +87,32 @@ in {
     pkgs,
     ...
   }: let
+    useXdg = config.local.features.home-layout.enable;
+    intended = "${config.xdg.dataHome}/android";
+    androidHome =
+      if builtins.elem "android-mic" config.local.homeMigration.legacyGroups
+      then config.home.homeDirectory
+      else intended;
+    adbHome = config.home.sessionVariables.ANDROID_USER_HOME;
     androidTools =
-      if config.local.features.home-layout.enable
-      then mkAndroidTools pkgs "${config.xdg.dataHome}/android"
+      if useXdg
+      then mkAndroidTools pkgs adbHome
       else pkgs.android-tools;
   in {
     config = lib.mkIf config.local.features.android-mic.enable {
+      local.homeMigration.paths = lib.optional useXdg {
+        owner = "android-mic";
+        source = "${config.home.homeDirectory}/.android";
+        target = "${intended}/.android";
+        route = "${adbHome}/.android";
+        consumers.ANDROID_USER_HOME = adbHome;
+        serviceVariables = ["ANDROID_USER_HOME"];
+        processes = ["adb" ".adb-wrapped" "*android-mic*"];
+      };
+
+      home.sessionVariables = lib.mkIf useXdg {ANDROID_USER_HOME = androidHome;};
+      systemd.user.sessionVariables = lib.mkIf useXdg {ANDROID_USER_HOME = androidHome;};
+
       home.packages = lib.optionals pkgs.stdenv.hostPlatform.isx86_64 [
         (mkAppimage pkgs androidTools)
         androidTools

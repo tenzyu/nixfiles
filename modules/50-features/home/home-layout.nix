@@ -3,7 +3,60 @@
     config,
     lib,
     ...
-  }: {
+  }: let
+    home = config.home.homeDirectory;
+    vars = config.home.sessionVariables;
+    held = group: builtins.elem group config.local.homeMigration.legacyGroups;
+    tools = [
+      {
+        group = "codex";
+        variable = "CODEX_HOME";
+        legacy = "${home}/.codex";
+        intended = "${config.xdg.dataHome}/codex";
+        processes = ["*codex*"];
+        references = ["config.toml" "hooks.json"];
+      }
+      {
+        group = "gemini";
+        variable = "GEMINI_CLI_HOME";
+        legacy = home;
+        intended = "${config.xdg.dataHome}/gemini";
+        suffix = "/.gemini";
+        processes = ["*gemini*"];
+      }
+      {
+        group = "bun";
+        variable = "BUN_INSTALL_CACHE_DIR";
+        legacy = "${home}/.bun/install/cache";
+        intended = "${config.xdg.cacheHome}/bun/install";
+        processes = ["bun" ".bun-wrapped"];
+        links = true;
+      }
+      {
+        group = "bun";
+        variable = "BUN_INSTALL";
+        legacy = "${home}/.bun";
+        intended = "${config.xdg.dataHome}/bun";
+        processes = ["bun" ".bun-wrapped"];
+        links = true;
+      }
+      {
+        group = "bash-history";
+        variable = "HISTFILE";
+        legacy = "${home}/.bash_history";
+        intended = "${config.xdg.stateHome}/bash/history";
+      }
+      {
+        group = "claude";
+        variable = "CLAUDE_CONFIG_DIR";
+        legacy = "${home}/.claude";
+        intended = "${config.xdg.configHome}/claude";
+        processes = ["*claude*"];
+      }
+    ];
+    emitted = lib.filter (tool: tool.group != "claude" || !held "claude") tools;
+    effective = tool: vars.${tool.variable} or tool.legacy;
+  in {
     config = lib.mkIf config.local.features.home-layout.enable {
       xdg.userDirs = {
         enable = true;
@@ -19,81 +72,51 @@
       };
 
       local.homeMigration.paths =
-        [
+        map (tool: let
+          suffix = tool.suffix or "";
+        in {
+          inherit (tool) group;
+          owner = "home-layout";
+          source = tool.legacy + suffix;
+          target = tool.intended + suffix;
+          route = effective tool + suffix;
+          consumers = lib.optionalAttrs (builtins.hasAttr tool.variable vars) {${tool.variable} = effective tool;};
+          serviceVariables = lib.optional (tool.variable != "HISTFILE") tool.variable;
+          processes = tool.processes or [];
+          references = tool.references or [];
+          repairAbsoluteLinks = tool.links or false;
+        })
+        tools
+        ++ [
           {
-            source = "${config.home.homeDirectory}/.codex";
-            target = config.home.sessionVariables.CODEX_HOME;
-            processes = ["*codex*"];
-            references = ["config.toml" "hooks.json"];
-          }
-          {
-            source = "${config.home.homeDirectory}/.gemini";
-            target = "${config.home.sessionVariables.GEMINI_CLI_HOME}/.gemini";
-            processes = ["*gemini*"];
-          }
-          {
-            source = "${config.home.homeDirectory}/.bun/install/cache";
-            target = config.home.sessionVariables.BUN_INSTALL_CACHE_DIR;
-            processes = ["bun" ".bun-wrapped"];
-            # Cache is regenerable; preserve any existing target as a journaled backup.
-            onConflict = "backup";
-            repairAbsoluteLinks = true;
-          }
-          {
-            source = "${config.home.homeDirectory}/.bun";
-            target = config.home.sessionVariables.BUN_INSTALL;
-            processes = ["bun" ".bun-wrapped"];
-            repairAbsoluteLinks = true;
-          }
-          {
-            source = "${config.home.homeDirectory}/.bash_history";
-            target = config.home.sessionVariables.HISTFILE;
-          }
-          {
-            source = "${config.home.homeDirectory}/.claude";
-            target = config.home.sessionVariables.CLAUDE_CONFIG_DIR;
+            owner = "home-layout";
+            group = "claude";
+            source = "${home}/.claude.json";
+            target = "${config.xdg.configHome}/claude/.claude.json";
+            route =
+              if held "claude"
+              then "${home}/.claude.json"
+              else "${vars.CLAUDE_CONFIG_DIR}/.claude.json";
             processes = ["*claude*"];
           }
-          {
-            source = "${config.home.homeDirectory}/.claude.json";
-            target = "${config.home.sessionVariables.CLAUDE_CONFIG_DIR}/.claude.json";
-            processes = ["*claude*"];
-          }
-        ]
-        ++ lib.optional config.local.features.android-mic.enable {
-          source = "${config.home.homeDirectory}/.android";
-          target = "${config.home.sessionVariables.ANDROID_USER_HOME}/.android";
-          processes = ["adb" ".adb-wrapped" "*android-mic*"];
-        };
+        ];
 
-      home.sessionVariables = {
-        ANDROID_USER_HOME = "${config.xdg.dataHome}/android";
-        BUN_INSTALL = "${config.xdg.dataHome}/bun";
-        BUN_INSTALL_CACHE_DIR = "${config.xdg.cacheHome}/bun/install";
-        CLAUDE_CONFIG_DIR = "${config.xdg.configHome}/claude";
-        CODEX_HOME = "${config.xdg.dataHome}/codex";
-        # Gemini appends .gemini to this root; retain its existing credentials/history.
-        GEMINI_CLI_HOME = "${config.xdg.dataHome}/gemini";
-        HISTFILE = "${config.xdg.stateHome}/bash/history";
-      };
+      home.sessionVariables = builtins.listToAttrs (map (
+          tool:
+            lib.nameValuePair tool.variable (
+              if held tool.group
+              then tool.legacy
+              else tool.intended
+            )
+        )
+        emitted);
+      home.sessionPath = ["${vars.BUN_INSTALL}/bin"];
 
-      home.sessionPath = ["${config.home.sessionVariables.BUN_INSTALL}/bin"];
-
-      # GUI applications and user services need the same locations as shells.
-      # Filter by names using the evaluator's native attrset intersection;
-      # the right-hand set supplies values and absent keys remain absent.
-      systemd.user.sessionVariables = builtins.intersectAttrs
-        (lib.genAttrs [
-          "ANDROID_USER_HOME"
-          "BUN_INSTALL"
-          "BUN_INSTALL_CACHE_DIR"
-          "CLAUDE_CONFIG_DIR"
-          "CODEX_HOME"
-          "GEMINI_CLI_HOME"
-          "DOTNET_CLI_HOME"
-          "NPM_CONFIG_CACHE"
-        ] (_: null))
-        config.home.sessionVariables;
+      # GUI applications and user services inherit the same storage as shells.
+      systemd.user.sessionVariables =
+        builtins.intersectAttrs
+        (lib.genAttrs (map (tool: tool.variable) (lib.filter (tool: tool.variable != "HISTFILE") emitted)) (_: null))
+        vars;
     };
   };
 }

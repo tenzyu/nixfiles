@@ -4,12 +4,18 @@
     lib,
     pkgs,
     ...
-  }: {
+  }: let
+    legacy = "${config.home.homeDirectory}/.mozilla/firefox";
+    intended = "${config.xdg.configHome}/mozilla/firefox";
+    held = builtins.elem "firefox" config.local.homeMigration.legacyGroups;
+  in {
     config = lib.mkIf config.local.features.firefox.enable {
       local.homeMigration.paths = [
         {
-          source = "${config.home.homeDirectory}/.mozilla/firefox";
-          target = config.programs.firefox.configPath;
+          owner = "firefox";
+          source = legacy;
+          target = intended;
+          route = config.programs.firefox.configPath;
           processes = ["*firefox*"];
         }
       ];
@@ -37,8 +43,13 @@
       programs.firefox = {
         enable = true;
         package = pkgs.unstable.firefox;
-        configPath = "${config.xdg.configHome}/mozilla/firefox";
-        profiles.default = {
+        configPath =
+          if held
+          then legacy
+          else intended;
+        # A held browser uses its existing profile selection and settings.
+        # Declare the default profile when that generation selects its target.
+        profiles.default = lib.mkIf (!held) {
           extensions.force = true;
           settings = {
             "accessibility.force_disabled" = 1;
