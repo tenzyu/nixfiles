@@ -131,8 +131,13 @@ Bun の通常のインストールで新しい保存先に再生成できる。
 
 ## 中断・退避・ロールバック
 
-private な `$XDG_STATE_HOME/home-cleanup/bronze/activation` に version 2 の
-`operations.jsonl` を保存する。intent は名前空間を変更する前に、完了は両側の親を同期した後に
+version 2 の `operations.jsonl` は private な保存先に置く。初回の保存先は
+`$XDG_STATE_HOME/home-cleanup/bronze/activation`。承認済み操作で HOME 直下の
+`.home-layout-journal-domain.json` に保存先を記録する。後続世代は XDG state base を変更しても、
+記録された保存先を参照する。以前の候補が別の XDG state base を使っていた場合は、
+`local.homeMigration.legacyStateHomes` にその base を宣言する。過去の journal は元の場所に保持する。
+
+intent は名前空間を変更する前に、完了は両側の親を同期した後に
 記録する。新しい apply は未完了の run があれば停止する。排他を確立し直し、同じ generation と
 group の runner に表示された run ID を渡す。
 
