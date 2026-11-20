@@ -50,6 +50,7 @@
         fonts.enable = true;
         stub-ld.enable = true;
         nix-ld.enable = true;
+        codex-sandbox.enable = true;
         t3code-browser.enable = true;
         docker-rootless.enable = true;
         llama-cpp-cuda.enable = true;
