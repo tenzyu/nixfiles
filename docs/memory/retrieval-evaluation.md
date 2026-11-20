@@ -21,3 +21,9 @@ For a genuine paired trial: run two fresh agents with **identical model, effort,
 For each question score **one factual point** only if all material distinctions are present, and **one evidence point** only if a path + revision or recorded receipt substantiates them. Count false claims of deployed/runtime acceptance and violations of safety gates separately. Record shell/tool invocations, repeated searches, duration and tokens **only when observed**. Report each response and missed criterion, not just the mean. Do not assert a general quality improvement from one trial or use deterministic smoke coverage as a substitute for this experiment.
 
 The fixture is kept at `scripts/ci/fixtures/retrieval-cases.json` **outside the Wiki search corpus** to reduce answer leakage. Questions concern typed feature contracts, native module semantics, actual host selections, system state versions, the historical Minecraft cutover, SplitCast's ownership and authorization limits. [Evidence](evidence.md) defines allowed claim levels.
+
+## 2026-11-20 pilot
+
+The first blinded pair used functional commit `056076293a10118d34fc2be764c562f39b4840e3` and docs draft `2ddaa5452b73f3ecc703689de72767e89cb5050b`. The source-only reader used nine commands against an eight-command budget. The wiki-assisted reader used eight. The pair is invalid and supplies no measured retrieval benefit.
+
+The rerun is pending on the [replacement functional snapshot](../adr/0002-invariant-safety.md#convergence-decisions) and its exact docs overlay. Both readers must stop after the eighth command. Failed commands count toward the limit.

@@ -11,7 +11,10 @@
         "modules/_internal/configurations/materializers/home-manager.nix",
         "tools/framework-cli/feature-trace.nix"
       ],
-      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3"
+      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3",
+      "source_blobs": {
+        "modules/_internal/configurations/materializers/home-manager.nix": "e0b53b03e05c119f1ec1ecc619e699a17cffad59"
+      }
     },
     {
       "page": "docs/memory/feature-options.md",
@@ -21,7 +24,10 @@
         "modules/_internal/configurations/lib/features.nix",
         "modules/_internal/configurations/materializers/home-manager.nix"
       ],
-      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3"
+      "reviewed_revision": "0daacae75f19dc2b01712c26471b42b2c6bc9ca3",
+      "source_blobs": {
+        "modules/_internal/configurations/materializers/home-manager.nix": "e0b53b03e05c119f1ec1ecc619e699a17cffad59"
+      }
     },
     {
       "page": "docs/memory/composition.md",
@@ -60,7 +66,7 @@
       ],
       "reviewed_revision": "9638f84d5b5e8f2de1de4af401f0bbb1cd35d707",
       "source_blobs": {
-        "assets/home-layout/migrate.py": "d43045fcd9a6fede5f7d6f82709b5da65f88685e",
+        "assets/home-layout/migrate.py": "5f397ee3f967491c48885f609b6778401f07743c",
         "assets/home-layout/move_boundary.py": "737aef82824af1ed410f396f6dc192d90e7578e7",
         "assets/nix-store-clean/cli.py": "40bbbefe492958760c73670516a943f54d4bcf0c",
         "assets/parsec-activation/activate.py": "ec6def29cd56354fea20daf6f11a8f51301a4ee7",
@@ -83,7 +89,7 @@
         "modules/00-hosts/neko7/configuration.nix"
       ],
       "source_blobs": {
-        ".github/workflows/nix-validation.yml": "5e843eee587619028e445430b1694040d654f2c6"
+        ".github/workflows/nix-validation.yml": "c2c51adc268856e482d0bc4dc5a003e2a13e7215"
       }
     },
     {
