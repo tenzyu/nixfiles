@@ -41,23 +41,39 @@
       "page": "docs/memory/decisions.md",
       "sources": [
         "assets/home-layout/migrate.py",
+        "assets/home-layout/move_boundary.py",
+        "assets/nix-store-clean/cli.py",
         "assets/parsec-activation/activate.py",
+        "modules/50-features/bundles/common.nix",
+        "modules/50-features/cli/zsh.nix",
+        "modules/50-features/desktop/firefox.nix",
         "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh",
         "modules/50-features/game-servers/minecraft.nix",
         "modules/50-features/hardware/android-mic.nix",
+        "modules/50-features/home/home-layout.nix",
         "modules/50-features/home/home-migration.nix",
         "modules/50-features/nix/nix-store-clean.nix",
         "modules/50-features/security/sops-nix.nix",
-        "modules/50-features/services/parsec.nix"
+        "modules/50-features/services/parsec.nix",
+        "modules/_internal/configurations/materializers/home-manager.nix",
+        "scripts/osu-performance/osu-lab.py"
       ],
       "reviewed_revision": "9638f84d5b5e8f2de1de4af401f0bbb1cd35d707",
       "source_blobs": {
-        "assets/home-layout/migrate.py": "3e87d713e789f9c1adfd7c9d032b39954d31c9a7",
-        "assets/parsec-activation/activate.py": "65df8cb5f6c14347799d419b35ea86837bdf387b",
-        "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh": "865ac61bc6b396d9fa4c2dae77c0658831edbaad",
-        "modules/50-features/hardware/android-mic.nix": "fe0753166421fcd59c5c4e5c77a950c2aed1f77e",
-        "modules/50-features/home/home-migration.nix": "6547e548e74c1d5c94a816e20b2c0b4cb3f453e7",
-        "modules/50-features/services/parsec.nix": "98bd507273db0479aa594f37592662ce411299ff"
+        "assets/home-layout/migrate.py": "0225ad88d36edf4c3467d7034d690a3942192eb5",
+        "assets/home-layout/move_boundary.py": "737aef82824af1ed410f396f6dc192d90e7578e7",
+        "assets/nix-store-clean/cli.py": "40bbbefe492958760c73670516a943f54d4bcf0c",
+        "assets/parsec-activation/activate.py": "ec6def29cd56354fea20daf6f11a8f51301a4ee7",
+        "modules/50-features/bundles/common.nix": "d279f97f7b7dc17bbbe69da48d2ac42447a143b8",
+        "modules/50-features/cli/zsh.nix": "ae89ad84416c35e04d8f86666c1100e57e4a4de6",
+        "modules/50-features/desktop/firefox.nix": "2bc6058878c126bcd45cb95369caab1d29776f94",
+        "modules/50-features/game-servers/_internal/minecraft-backup/operator.sh": "9a134e69a7c2d23c90ec1923bef9f0fcfc7be422",
+        "modules/50-features/hardware/android-mic.nix": "4f099c62ed92b4262014400cf81102df3b9bd4d3",
+        "modules/50-features/home/home-layout.nix": "d23e9ad357751bc967a06eb2e9904fc29e5c2c4e",
+        "modules/50-features/home/home-migration.nix": "fb8bafb4c23f4160a9d8fa9cb842bb72580d9ad7",
+        "modules/50-features/services/parsec.nix": "98bd507273db0479aa594f37592662ce411299ff",
+        "modules/_internal/configurations/materializers/home-manager.nix": "e0b53b03e05c119f1ec1ecc619e699a17cffad59",
+        "scripts/osu-performance/osu-lab.py": "11bfe3092845e0ec9877d31d5c91ea40d02ca1c5"
       }
     },
     {

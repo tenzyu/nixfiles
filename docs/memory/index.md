@@ -12,7 +12,7 @@ Select **one** relevant concept, then follow its primary evidence. This OKF bund
 - [Feature ownership](feature-options.md) — where NixOS, Home Manager and integration effects belong.
 - [Composition](composition.md) — pure value stages versus native NixOS priority and merge.
 - [Host boundaries](host-state.md) — current source selections versus dated observations.
-- [Decisions](decisions.md) — durable constraints and acceptance gates. [ADR-0002](../adr/0002-invariant-safety.md#convergence-decisions) records Home, Parsec, Minecraft and Safety Core dispositions.
+- [Decisions](decisions.md) — data safety, app ownership and acceptance gates. [ADR-0002](../adr/0002-invariant-safety.md#convergence-decisions) pins the six functional candidates and their evidence.
 
 ## Recover or correct knowledge
 

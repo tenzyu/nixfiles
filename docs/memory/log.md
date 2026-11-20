@@ -1,8 +1,14 @@
 # Knowledge update log
 
+## 2026-11-20
+
+- **ADR-0002 candidate.** The user's accepted design replaces the warning-only Home route with per-group continuity and an embedded write gate. [D2](decisions.md#d2--data-and-rollback-safety) is the canonical rule for equal-looking roots and independent retirement authority. The repeated ADR statement and its older scaffold evidence remain in the [archived draft](https://github.com/tenzyu/nixfiles/blob/af0cc75d74353079ea550f3cd90548ea41dc6812/docs/adr/0002-invariant-safety.md#L210).
+- **Parsec source route.** The old main pin leads to the legacy text seeder. The [candidate Parsec route](../adr/0002-invariant-safety.md#parsec) points to native JSON seeding and read-only review at the exact candidate revision. [Superseded decisions page](https://github.com/tenzyu/nixfiles/blob/af0cc75d74353079ea550f3cd90548ea41dc6812/docs/memory/decisions.md).
+- **Evidence scope.** The [six-delta candidate](../adr/0002-invariant-safety.md#convergence-decisions) and source blobs replace the 2026-11-19 integration snapshot for candidate lookup. Independent review found two preliminary Home blockers. [Home evidence](../adr/0002-invariant-safety.md#home-migration) retains the counterexamples. The paired trial awaits the repaired source freeze. Host acceptance **NOT RUN**.
+
 ## 2026-11-19
 
-- **ADR-0002 convergence:** Reconciled the prior abort-on-pending policy, Bun/npm backup exception, Parsec import behavior, and Minecraft's uncertain-job guard with the reviewed implementations in PRs #63–#65. The combined review revision and actual test receipts are recorded in [ADR-0002](../adr/0002-invariant-safety.md#convergence-decisions). The application and service limits remain operational checks. Real-host acceptance **NOT RUN**.
+- **ADR-0002 convergence:** Reconciled the prior abort-on-pending policy, Bun/npm backup exception, Parsec import behavior, and Minecraft's uncertain-job guard with the reviewed implementations in PRs #63–#65. This describes the [2026-11-19 review snapshot](https://github.com/tenzyu/nixfiles/blob/af0cc75d74353079ea550f3cd90548ea41dc6812/docs/adr/0002-invariant-safety.md#convergence-decisions). The application and service limits remain operational checks. Real-host acceptance **NOT RUN**.
 
 - **Canonical feature semantics (PR #47):** Project an explicit host `false` into embedded Home Manager without treating an unspecified NixOS user `false` as an explicit HM override. Added adapter and native-priority regression fixtures; `feature-trace` now reports the surviving NixOS option's winning priority and distinguishes source hints. Source and test changes are committed; Nix evaluation, CI and host impact comparison are separate acceptance steps. [Decision](../adr/0001-canonical-feature-semantics.md).
 
@@ -30,7 +36,7 @@
 - **Architecture correction (PR #12):** Removed the nested framework Flake; moved projection into `modules/_internal/framework/`, kept `modules/10-fundamental/`, and separated tooling and package overlays. The CLI names and host declaration surface remain unchanged.
 - **Feature provenance:** Restricted `feature-trace --feature` to the requested feature and separated evaluated definitions from best-effort text-scan hints.
 - **Projection integrity:** Added an assertion for a user-selected feature whose same-named NixOS counterpart is explicitly disabled.
-- **Migration safety:** Automatic Home Manager migration now requires an explicit opt-in; pending work otherwise stops activation before mutation.
+- **Migration safety:** Automatic Home Manager migration now requires an explicit opt-in; pending work otherwise stops activation before mutation. [PR #32 removed activation-time apply on 2026-11-18](https://github.com/tenzyu/nixfiles/commit/b730db76c24928f0d6f5d91d1d6355f71a67ff72). See [D2](decisions.md#d2--data-and-rollback-safety) for the later candidate policy.
 
 - **Reconciliation:** Replaced stale README references to removed `modules/10-framework/` and cache-check documents with the current `framework/` layout.
 - **Creation:** Added OKF v0.2 knowledge index, architecture, host state, decisions and maintenance rules.
