@@ -1,5 +1,29 @@
 {
   configurations.nixos.neko5.module = {
+    home-manager.users.tenzyu.imports = [({lib, ...}: {
+      # Install the config files normally. Apply reloads at the next app launch,
+      # outside Home Manager activation and its protected HOME write checks.
+      xdg.configFile = lib.genAttrs [
+        "kitty/kitty.conf"
+        "mako/config"
+        "waybar/config"
+        "waybar/style.css"
+      ] (_: {onChange = lib.mkForce "";});
+    })];
+    # Adopt the paths already used by the installed shell, session and Firefox wrapper.
+    home-manager.users.tenzyu.local.homeMigration.adoptedRoutes = {
+      bash-history = "intended";
+      bun = "intended";
+      claude = "intended";
+      codex = "intended";
+      firefox = "intended";
+      gemini = "intended";
+      node-history = "intended";
+      npm = "intended";
+      rust = "intended";
+      zsh = "intended";
+    };
+
     # This key permits the neko7 -> neko5 SSH path only.
     # Generic SSH enablement must not grant access to other hosts.
     users.users.tenzyu.openssh.authorizedKeys.keys = [
