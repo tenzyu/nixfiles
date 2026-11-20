@@ -123,3 +123,33 @@ app save reopened-record
 test "$(app read | tail -1)" = reopened-record
 test "$(unit_read)" = reopened-record
 test ! -e "$home/.codex"
+
+# Both candidate roots are empty. Only the installed intended route owns data.
+installed=$(readlink -f /run/current-system)
+loginctl enable-linger "$user"
+systemctl start user@1000.service
+if candidate redirected > /tmp/redirected-live.log 2>&1; then
+  echo 'Changing the XDG base accepted a running user with incumbent data' >&2
+  exit 1
+fi
+grep -F 'incumbent roots outside the candidate require assessment' /tmp/redirected-live.log
+grep -F 'exclude active sessions and writers before cutover' /tmp/redirected-live.log
+test "$(readlink -f /run/current-system)" = "$installed"
+test "$(app version)" = intended
+test ! -e "$home/reached-redirected"
+test ! -e "$home/redirected-data"
+test "$(app read | tail -1)" = reopened-record
+
+loginctl disable-linger "$user"
+if loginctl show-user "$user" >/dev/null 2>&1; then
+  loginctl terminate-user "$user"
+fi
+wait_for_user_clear
+if candidate redirected > /tmp/redirected-offline.log 2>&1; then
+  echo 'Changing the XDG base accepted an empty target without a verified transfer' >&2
+  exit 1
+fi
+grep -F 'intended route requires a verified transfer' /tmp/redirected-offline.log
+test "$(readlink -f /run/current-system)" = "$installed"
+test ! -e "$home/redirected-data"
+test "$(app read | tail -1)" = reopened-record

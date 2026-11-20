@@ -36,6 +36,8 @@ NixOS の `system.preSwitchChecks` は実現済みの候補と稼働中の gener
 Home Manager も `checkLinkTargets` と `writeBoundary` の前に保護対象を再確認する。
 診断は移行の状態、activation の書き込み、アプリのルートをそれぞれ示す。
 旧ルートを保持し書き込みが安全なら、保留中の移行があっても他の設定を適用できる。
+XDG base の変更では、候補の両ルートが空でも適用済み generation の宣言と実効ルートを調べる。
+適用済みルートにデータが残っていれば、writer の排除と検証済み移行が必要になる。
 
 保護対象の通常ファイル、帰属を証明できないリンク、危険な親リンクは、
 強制リンク、旧 generation の cleanup、バックアップ設定があっても上書きしない。
@@ -142,6 +144,8 @@ group の runner に表示された run ID を渡す。
 別途対応する。旧版 journal を退ける場合も証拠を保持し、修復後のルートを再検証する。
 
 `retire --group GROUP --offline --run RUN_ID` は検証済み cross-mount 移行の旧側を可逆退避する。
+退避開始時と復旧時は、完了した転送 journal から権限を確認し、公開先の identity と内容を
+グループ全体で再検証してから退避する。公開先に後から書き込まれたデータがあれば両側を保全する。
 既に同等に見える二つのコピーには、採用先への承認を得て別途の `plan --group GROUP --retire-equal`
 と `retire-equal --group GROUP --offline --expect TOKEN` を使う。いずれも通常 apply と別の承認が必要。
 `rollback --group GROUP --offline --run RUN_ID` は検証できた移動や退避を逆順に戻す。

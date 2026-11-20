@@ -619,9 +619,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
             raise Conflict(f"[{group}] runtime continuity: removing a route with existing data")
 
     for group, rules in current.items():
-        rules = [rule for rule in rules if rule["source"] != rule["target"]]
-        if not rules:
-            continue
+        incumbent_rules = old.get(group, [])
         selected = [absolute(rule.get("route", rule["target"])) for rule in rules]
         legacy = [absolute(rule["source"]) for rule in rules]
         intended = [absolute(rule["target"]) for rule in rules]
@@ -630,7 +628,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         for path in selected:
             if not path.is_relative_to(home):
                 resolve_external(boundary, manifest, path)
-        held = selected == legacy
+        held = selected == legacy and selected != intended
         for rule in rules:
             variables = set(rule.get("serviceVariables", [])) | rule.get("independentRoutes", {}).keys()
             consumers = rule.get("consumers", {})
@@ -639,7 +637,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
             if held and group == "claude" and "CLAUDE_CONFIG_DIR" in consumers:
                 raise Conflict("[claude] runtime continuity: legacy account state requires unsetting CLAUDE_CONFIG_DIR")
         if group in old:
-            before = {rule["source"]: rule for rule in old[group]}
+            before = {rule["source"]: rule for rule in incumbent_rules}
             old_routes = [absolute(before[str(path)].get("route", before[str(path)]["target"]))
                           if str(path) in before else None for path in legacy]
             if any(rule.get("independentRoutes", {}) != before.get(rule["source"], {}).get("independentRoutes", {})
@@ -653,22 +651,30 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         # preventing an unrelated activation on a verified incumbent route.
         source_states = [assess_root(boundary, path, generated) for path in legacy]
         target_states = [assess_root(boundary, path, generated) for path in intended]
+        incumbent_only = protected_roots(incumbent_rules) - protected_roots(rules)
+        incumbent_states = {assess_root(boundary, path, generated) for path in incumbent_only}
         data = {"data", "unknown"}
-        has_old = bool(data.intersection(source_states))
+        has_old = any(state in data and source != target
+                      for state, source, target in zip(source_states, legacy, intended))
         has_new = bool(data.intersection(target_states))
         independent = {absolute(path) for rule in rules for path in rule.get("independentRoutes", {}).values()}
         independent_states = {assess_root(boundary, path, generated) for path in independent}
-        pending = has_old or has_new or bool(data.intersection(independent_states))
+        incumbent_pending = bool(data.intersection(incumbent_states))
+        pending = has_old or has_new or incumbent_pending or bool(data.intersection(independent_states))
         if "unknown" in independent_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe independent consumer root")
         selected_states = source_states if held else target_states
         if "unknown" in selected_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe selected root")
-        assessment = "both locations need assessment" if has_old and has_new else (
-            "legacy pending" if has_old else "target present" if has_new else "fresh")
+        if incumbent_pending:
+            assessment = "incumbent roots outside the candidate require assessment"
+        elif has_old and has_new:
+            assessment = "both locations need assessment"
+        else:
+            assessment = "legacy pending" if has_old else "target present" if has_new else "fresh"
         print(f"[{group}] migration assessment: {assessment}", file=sys.stderr)
 
-        selected_has_data = (has_old if held else has_new) or "data" in independent_states
+        selected_has_data = "data" in selected_states or "data" in independent_states
         unfinished = any(run["header"]["group"] == group and not run["finished"] for run in runs)
         if unfinished and not (held and old_routes == selected and selected_has_data):
             raise Conflict(f"[{group}] runtime continuity: recover the interrupted group before routing")
@@ -990,18 +996,21 @@ def execute_operation(boundary, log, run, index, op, events, rsync):
         check_payload(boundary, op, move_from, target=op["op"] == "copy", sync=True)
         write_journal(log, {"event": "intent", "index": index, "source": str(move_from),
                             "target": str(target), "entry": move_entry})
+        if proof := op.get("proof"):
+            verify_authoritative(boundary, op, proof)
         commit_move(boundary, move_from, target, move_entry, op["right"])
     write_journal(log, {"event": "done", "index": index, "entry": move_entry})
 
 
 def execute_run(boundary, journal, log, rsync):
     run, header, events = journal["path"], journal["header"], journal["events"]
-    for index, operation in enumerate(header["operations"]):
+    for operation in header["operations"]:
         for anchor in operation["anchors"]:
             if boundary.anchor(Path(anchor[0])) != anchor:
                 raise Conflict(f"Planned parent or mount changed: {anchor[0]}")
         if proof := operation.get("proof"):
             verify_authoritative(boundary, operation, proof)
+    for index, operation in enumerate(header["operations"]):
         prior = [event for event in events if event.get("index") == index]
         complete = next((event for event in prior if event["event"] == "done"), None)
         if complete is None:
@@ -1021,14 +1030,17 @@ def execute_run(boundary, journal, log, rsync):
     write_journal(log, {"event": "finished"})
 
 
+def quarantine_target(run, source, sibling):
+    return str(Path(source).parent / f".home-layout-{run}-{sibling}/payload")
+
+
 def commit_batch(boundary, state, header, rsync):
     name = datetime.datetime.now().strftime("%Y%m%dT%H%M%S-") + uuid.uuid4().hex
     run = state / name
     header = {"event": "begin", "version": 2, "run": name, **header}
     for op in header["operations"]:
         if op["target"] is None:
-            private = Path(op["source"]).parent / f".home-layout-{name}-{op['sibling']}"
-            op["target"] = str(private / "payload")
+            op["target"] = quarantine_target(name, op["source"], op["sibling"])
     print(f"Migration journal: {run}", file=sys.stderr, flush=True)
     with boundary.directory(state, create=True) as parent:
         os.mkdir(name, mode=0o700, dir_fd=parent)
@@ -1056,7 +1068,8 @@ def verify_authoritative(boundary, operation, proof, *, unchanged=False):
     if observe(boundary, target, proof["mount"]) != proof["entry"]:
         raise Conflict(f"Authoritative target identity has changed: {target}")
     if not unchanged:
-        fingerprint, _ = payload(boundary, target, proof["mount"], copy=True)
+        fingerprint, _ = payload(boundary, target, proof["mount"], proof.get("exclude", ()),
+                                 operation["mutable"], copy=True)
         if fingerprint != operation["payload"]:
             raise Conflict(f"Authoritative target has changed: {target}")
 
@@ -1207,23 +1220,56 @@ def other_operation(boundary, op, source, target, entry, mount, kind, sibling=No
             "exclude": source_exclude, "targetExclude": target_exclude}
 
 
+def retirement_sources(parent, runs):
+    header = parent["header"]
+    if (not parent["finished"] or header["mode"] != "apply"
+            or disposition(runs, parent, "rollback") or disposition(runs, parent, "retire")):
+        raise Conflict("Retirement requires a completed, unretired transfer")
+    return [(index, op) for index, op in enumerate(header["operations"]) if op["op"] == "copy"]
+
+
+def retirement_proof(parent, index, operation):
+    return {"target": operation["target"], "mount": operation["right"],
+            "entry": done_entry(parent, index), "exclude": operation["targetExclude"]}
+
+
+def validate_retirement_recovery(journal, runs):
+    header = journal["header"]
+    parent = next((run for run in runs if run["header"]["run"] == header.get("parent")), None)
+    if (parent is None or parent["header"]["group"] != header["group"]
+            or parent["header"]["context"] != header["context"]):
+        raise Conflict("The interrupted retirement has no matching transfer authority")
+    approved = retirement_sources(parent, runs)
+    if len(approved) != len(header["operations"]):
+        raise Conflict("The interrupted retirement does not match the completed transfer")
+    for recorded, (index, operation) in zip(header["operations"], approved):
+        proof = retirement_proof(parent, index, operation)
+        sibling = f"retired-{index}"
+        expected = {key: operation[key] for key in ("source", "entry", "left", "payload", "exclude", "mutable")}
+        expected.update(op="rename", kind="retirement", sibling=sibling, right=operation["left"],
+                        target=quarantine_target(header["run"], operation["source"], sibling))
+        if (any(recorded.get(key) != value for key, value in expected.items())
+                or recorded.get("proof", proof) != proof):
+            raise Conflict("The interrupted retirement does not match the completed transfer")
+        # Earlier journals omitted the proof. Derive it from the completed
+        # parent rather than using the current target as the expected identity.
+        recorded["proof"] = proof
+        recorded["targetExclude"] = operation["exclude"]
+
+
 def disposition_operations(boundary, parent, runs, mode):
     header = parent["header"]
     if not parent["finished"] or disposition(runs, parent, "rollback"):
         raise Conflict("Select a completed run that has not been rolled back")
     operations = list(enumerate(header["operations"]))
     if mode == "retire":
-        if header["mode"] != "apply" or disposition(runs, parent, "retire"):
-            raise Conflict("Retirement requires a completed, unretired transfer")
         result = []
-        for index, op in operations:
-            if op["op"] == "copy":
-                target = Path(op["target"])
-                if observe(boundary, target, op["right"]) != done_entry(parent, index):
-                    raise Conflict(f"Published destination identity has changed: {target}")
-                check_payload(boundary, op, target, target=True)
-                result.append(other_operation(boundary, op, Path(op["source"]), None, op["entry"],
-                                              op["left"], "retirement", f"retired-{index}"))
+        for index, op in retirement_sources(parent, runs):
+            proof = retirement_proof(parent, index, op)
+            verify_authoritative(boundary, op, proof)
+            retirement = other_operation(boundary, op, Path(op["source"]), None, op["entry"],
+                                         op["left"], "retirement", f"retired-{index}")
+            result.append({**retirement, "proof": proof, "targetExclude": op["exclude"]})
         return result
 
     retired = disposition(runs, parent, "retire")
@@ -1240,6 +1286,9 @@ def disposition_operations(boundary, parent, runs, mode):
         reverse = other_operation(boundary, op, target, None if op["op"] == "copy" or source in cleared else source,
                                   done_entry(parent, index), op["right"], "restore",
                                   f"rollback-{index}", reverse=True)
+        if op["op"] == "copy":
+            reverse["proof"] = {"target": str(source), "mount": op["left"], "entry": op["entry"],
+                                "exclude": op["exclude"]}
         if source in cleared and op["op"] != "copy":
             reverse["target"] = str(source)
         result.append(reverse)
@@ -1274,6 +1323,8 @@ def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None,
                     or unfinished[0]["header"]["manifest"] != digest(manifest)):
                 raise Conflict("Recovery requires the outstanding run, original generation and group")
             journal = unfinished[0]
+            if journal["header"]["mode"] == "retire":
+                validate_retirement_recovery(journal, runs)
             with journal_data(boundary, journal["path"], append=True) as log:
                 execute_run(boundary, journal, log, rsync)
             return []

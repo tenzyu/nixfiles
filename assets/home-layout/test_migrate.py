@@ -361,6 +361,70 @@ class MigrationTest(unittest.TestCase):
         self.assertFalse(target.exists())
         self.assertFalse((self.home / "state").exists())
 
+    def test_cross_mount_retirement_recovery_rechecks_published_target(self):
+        target = self.cross_mount()
+        first_source = self.file(".first-old/key", "other payload")
+        first_target = target.with_name("first-published")
+        first_rule = self.rule(".first-old", ".unused")
+        first_rule["target"] = str(first_target)
+        self.manifest["rules"].insert(0, self.manifest["rules"].pop())
+        original = self.file(".old/key", "initial payload")
+        inode = original.stat().st_ino
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        transfer = self.journal()[0]["run"]
+
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable retirement header")),
+              self.assertRaisesRegex(OSError, "after durable retirement header")):
+            migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=transfer)
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        pending, = [run for run in runs if not run["finished"]]
+        header = pending["header"]
+        self.assertEqual(header["mode"], "retire")
+        self.assertEqual(pending["events"], [])
+        journal = pending["path"] / "operations.jsonl"
+        before = journal.read_bytes()
+        published = target / "key"
+        published_info = published.stat()
+        published.write_text("changed payload")
+        os.utime(published, ns=(published_info.st_atime_ns, published_info.st_mtime_ns))
+
+        recovered = self.launch("recover", "--group", "fixture", "--offline", "--run", header["run"])
+        self.assertEqual(recovered.returncode, 1, recovered.stderr)
+        self.assertIn("Authoritative target has changed", recovered.stderr)
+        self.assertEqual(published.read_text(), "changed payload")
+        self.assertEqual(original.read_text(), "initial payload")
+        self.assertEqual(original.stat().st_ino, inode)
+        self.assertEqual(first_source.read_text(), "other payload")
+        self.assertEqual((first_target / "key").read_text(), "other payload")
+        self.assertTrue(all(not Path(op["target"]).exists() for op in header["operations"]))
+        self.assertEqual(journal.read_bytes(), before)
+
+        published.write_text("initial payload")
+        os.utime(published, ns=(published_info.st_atime_ns, published_info.st_mtime_ns))
+        recovered = self.launch("recover", "--group", "fixture", "--offline", "--run", header["run"])
+        self.assertEqual(recovered.returncode, 0, recovered.stderr)
+        self.assertFalse(first_source.exists())
+        self.assertFalse(original.exists())
+        self.assertEqual((Path(header["operations"][1]["target"]) / "key").read_text(), "initial payload")
+
+    def test_cross_mount_retirement_rechecks_published_target_after_intent(self):
+        target = self.cross_mount()
+        original = self.file(".old/key", "initial payload")
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        transfer = self.journal()[0]["run"]
+        write = migrate.write_journal
+
+        def change_target(log, event):
+            write(log, event)
+            if event["event"] == "intent":
+                (target / "key").write_text("later payload")
+
+        with (patch.object(migrate, "write_journal", side_effect=change_target),
+              self.assertRaisesRegex(migrate.Conflict, "Authoritative target has changed")):
+            migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=transfer)
+        self.assertEqual(original.read_text(), "initial payload")
+        self.assertEqual((target / "key").read_text(), "later payload")
+
     def test_equal_copies_require_separate_plan_and_can_be_restored(self):
         old = self.file(".old", "authoritative bytes")
         new = self.file(".new", "authoritative bytes")
@@ -753,6 +817,22 @@ class MigrationTest(unittest.TestCase):
             migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, False)
         self.assertEqual(source.read_text(), "original")
         self.assertFalse((self.home / ".new").exists())
+
+    def test_xdg_redirect_assesses_populated_incumbent_with_empty_candidate_roots(self):
+        old_record = self.file("previous-xdg/codex/record", "incumbent data")
+        rule = self.rule(".codex", "previous-xdg/codex", owner="codex")
+        incumbent = self.home / "installed-generation"
+        incumbent.mkdir()
+        (incumbent / "home-layout-manifest.json").write_text(json.dumps(self.manifest))
+        rule["target"] = str(self.home / "different-xdg/codex")
+        generation = Path("/fixture-generation")
+        with patch.object(migrate, "generation_files", return_value={}):
+            with self.assertRaisesRegex(migrate.Conflict, "exclude active sessions and writers before cutover"):
+                migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, True)
+            with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+                migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, False)
+        self.assertEqual(old_record.read_text(), "incumbent data")
+        self.assertFalse(Path(rule["target"]).exists())
 
     def test_cross_rule_absolute_link_proposal_uses_specific_target(self):
         cache = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package', 'legacy')

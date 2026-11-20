@@ -218,7 +218,9 @@ in {
           '';
         variant = name: {
           home-manager.users.${user} = {lib, ...}: {
-            local.homeMigration.legacyGroups = lib.mkForce (lib.optional (name != "intended") "codex");
+            local.homeMigration.legacyGroups =
+              lib.mkForce (lib.optional (!builtins.elem name ["intended" "redirected"]) "codex");
+            xdg.dataHome = lib.mkIf (name == "redirected") (lib.mkForce "${home}/redirected-data");
             local.fixtureVariant = lib.mkForce name;
             home.file =
               {
@@ -305,7 +307,7 @@ in {
             };
           };
         };
-        specialisation = lib.genAttrs ["held" "intended" "backup" "forced"] (name: {configuration = variant name;});
+        specialisation = lib.genAttrs ["held" "intended" "redirected" "backup" "forced"] (name: {configuration = variant name;});
         environment.systemPackages = [pkgs.jq];
         boot.tmp.useTmpfs = false;
         virtualisation.fileSystems."/migration-target" = {
