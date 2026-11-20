@@ -1009,7 +1009,7 @@ def execute_operation(boundary, log, run, index, op, events, rsync):
     write_journal(log, {"event": "done", "index": index, "entry": move_entry})
 
 
-def check_completed_operation(boundary, operation, complete):
+def check_completed_operation(boundary, operation, complete, replacement):
     target = Path(operation["target"])
     if observe(boundary, target, operation["right"]) != complete["entry"]:
         raise Conflict(f"Earlier committed step changed before recovery: {target}")
@@ -1019,49 +1019,107 @@ def check_completed_operation(boundary, operation, complete):
         remaining = observe(boundary, source, operation["left"])
         if operation["op"] == "copy" and remaining == operation["entry"]:
             check_payload(boundary, operation, source)
-        elif remaining is not None or operation["op"] == "copy":
+        elif (remaining is not None and remaining != replacement) or operation["op"] == "copy":
             raise Conflict(f"Earlier committed step has an unexpected legacy entry: {source}")
 
 
-def preflight_retirement_step(boundary, operation, prior, complete):
-    if complete is not None:
-        check_completed_operation(boundary, operation, complete)
-        return
+def projected_destination(path, pending_moves):
+    mount = None
+    for source, target, retained, right in reversed(pending_moves):
+        if path.is_relative_to(target):
+            path = source / path.relative_to(target)
+            if mount is None:
+                mount = right
+        elif not retained and path.is_relative_to(source):
+            return None, None
+    return path, mount
+
+
+def check_destination_parent(boundary, parent, mount, pending_moves):
+    while True:
+        actual, projected_mount = projected_destination(parent, pending_moves)
+        if actual is not None:
+            try:
+                with boundary.directory(actual) as fd:
+                    actual_mount = boundary.mount(fd, actual)
+                    if (projected_mount or actual_mount) != mount:
+                        raise Conflict(f"Mount changed after planning: {parent}")
+                    boundary.writable(fd, actual)
+                    return
+            except FileNotFoundError:
+                pass
+        if parent == parent.parent:
+            raise Conflict("Migration destination has no available parent")
+        parent = parent.parent
+
+
+def preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
     source, target = Path(operation["source"]), Path(operation["target"])
     before = observe(boundary, source, operation["left"])
-    after = observe(boundary, target, operation["right"])
-    check_move_entries(boundary, operation, source, operation["entry"], before, after, prior)
-    # A published move without a completion record still needs its source
-    # parent to be available for the recovery fsync.
-    with boundary.directory(source.parent) as left:
-        if after is None:
-            boundary.writable(left, source.parent)
-            with boundary.directory(target.parent, nearest=True) as right:
-                boundary.writable(right, target.parent)
+    if pending_moves:
+        actual, _ = projected_destination(target, pending_moves)
+        info = boundary.entry(actual) if actual is not None else None
+        after = list(identity(info)) if info is not None else None
+    else:
+        after = observe(boundary, target, operation["right"])
+
+    move_from, move_entry, staged = source, operation["entry"], before
+    retained = False
+    if operation["op"] == "copy":
+        if before != move_entry:
+            raise Conflict(f"Copy source changed after planning: {source}")
+        check_payload(boundary, operation, source)
+        ready = next((event for event in reversed(prior) if event["event"] == "ready"), None)
+        if ready is None:
+            if after is not None:
+                raise Conflict(f"Copy target is already occupied: {target}")
+            if not rsync:
+                raise Unsupported("Cross-mount transfer requires the packaged rsync")
+            retained = True
+        else:
+            move_from, move_entry = Path(ready["stage"]), ready["entry"]
+            staged = observe(boundary, move_from, operation["right"])
+
+    if not retained:
+        check_move_entries(boundary, operation, move_from, move_entry, staged, after, prior)
+        # An unlogged publication still needs this parent for the recovery fsync.
+        with boundary.directory(move_from.parent) as left:
+            if after is None:
+                boundary.writable(left, move_from.parent)
+    if after is None:
+        check_destination_parent(boundary, target.parent, operation["right"], pending_moves)
+        pending_moves.append((move_from, target, retained, operation["right"]))
 
 
 def execute_run(boundary, journal, log, rsync):
     run, header, events = journal["path"], journal["header"], journal["events"]
-    retiring = header["mode"] in ("retire", "retire-equal")
+    operations = header["operations"]
+    intents = {event["target"]: (event["index"], event["entry"])
+               for event in events if event["event"] == "intent"}
+    pending_moves = []
     steps = []
-    for index, operation in enumerate(header["operations"]):
+    for index, operation in enumerate(operations):
         for anchor in operation["anchors"]:
             if boundary.anchor(Path(anchor[0])) != anchor:
                 raise Conflict(f"Planned parent or mount changed: {anchor[0]}")
         if proof := operation.get("proof"):
             verify_authoritative(boundary, operation, proof)
         prior = [event for event in events if event.get("index") == index]
+        if pending_moves and prior:
+            raise Conflict("Migration journal advanced past an unpublished operation")
         complete = next((event for event in prior if event["event"] == "done"), None)
-        # Retirement moves independent roots into private quarantine paths.
-        # Check the whole group's observed state before advancing any step.
-        if retiring:
-            preflight_retirement_step(boundary, operation, prior, complete)
-        steps.append((operation, prior, complete))
-    for index, (operation, prior, complete) in enumerate(steps):
+        later_index, entry = intents.get(operation["source"], (-1, None))
+        replacement = entry if later_index > index else None
+        if complete is None:
+            preflight_pending_step(boundary, operation, prior, pending_moves, rsync)
+        else:
+            check_completed_operation(boundary, operation, complete, replacement)
+        steps.append((operation, prior, complete, replacement))
+    for index, (operation, prior, complete, replacement) in enumerate(steps):
         if complete is None:
             execute_operation(boundary, log, run, index, operation, prior, rsync)
         else:
-            check_completed_operation(boundary, operation, complete)
+            check_completed_operation(boundary, operation, complete, replacement)
     write_journal(log, {"event": "finished"})
 
 
@@ -1425,13 +1483,14 @@ def main():
     checks.add_argument("--require-noop", action="store_true", help="fail if migration work is pending")
     checks.add_argument("--activation", action="store_true", help="protect Home Manager's write boundary")
     checks.add_argument("--admission", action="store_true", help=argparse.SUPPRESS)
+    checks.add_argument("--removed-account", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     changing = args.mode in ("apply", "recover", "retire", "retire-equal", "rollback")
     if changing and not (args.group and args.offline):
         parser.error("Mutation requires --group and an approved --offline window")
     if args.mode in ("recover", "retire", "rollback") and not args.run:
         parser.error("Select a journal with --run")
-    if (args.require_noop or args.activation or args.admission) and args.mode != "check":
+    if (args.require_noop or args.activation or args.admission or args.removed_account) and args.mode != "check":
         parser.error("Check flags are only valid with check")
     if args.mode == "plan" and not args.group:
         parser.error("Select a group with --group")
@@ -1441,6 +1500,13 @@ def main():
         manifest = json.loads(args.manifest.read_text())
         home, state = manifest_paths(manifest)
         boundary = MoveBoundary()
+        if args.removed_account:
+            incumbent = generation_path(args.incumbent)
+            if incumbent is None:
+                raise Unsupported("Installed Home Manager generation for removed account is unavailable")
+            candidate = {**manifest, "rules": [], "activationWrites": [], "opaque": []}
+            activation_gate(candidate, boundary, None, None, incumbent, False)
+            return 0
         generation = generation_path(args.generation)
         if args.generation and generation is None:
             raise Unsupported("Candidate Home Manager generation is unavailable")

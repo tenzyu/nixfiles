@@ -638,6 +638,88 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual((self.home / "cache/bun/install/key").read_text(), "cached")
         self.assertEqual((self.home / "data/bun/bin/bun").read_text(), "binary")
 
+    def assert_home_group_recovery_preflights(self, mode):
+        config = self.file(".claude/settings.json", "original")
+        account = self.file(".claude.json", "original")
+        self.rule(".claude", ".config/claude")
+        self.rule(".claude.json", ".config/claude/.claude.json")
+        run_id = None
+        later = account
+        if mode == "rollback":
+            migrate.apply(self.manifest)
+            run_id = self.journal()[0]["run"]
+            later = self.home / ".config/claude/settings.json"
+        _, state = migrate.manifest_paths(self.manifest)
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
+              self.assertRaisesRegex(OSError, "after durable group header")):
+            migrate.mutate(self.manifest, mode, "fixture", {}, None, run_id=run_id, require_token=False)
+        runs = migrate.read_runs(migrate.MoveBoundary(), state)
+        pending, = [run for run in runs if not run["finished"]]
+        self.assertEqual(pending["events"], [])
+        header = pending["header"]
+        operations = header["operations"]
+        sources = [Path(operation["source"]) for operation in operations]
+        destinations = [Path(operation["target"]) for operation in operations]
+        identities = [migrate.identity(source.lstat()) for source in sources]
+        journal = pending["path"] / "operations.jsonl"
+        before = journal.read_bytes()
+
+        info = later.stat()
+        later.write_text("changed!")
+        os.utime(later, ns=(info.st_atime_ns, info.st_mtime_ns))
+        args = ("recover", "--group", "fixture", "--offline", "--run", header["run"])
+        refused = self.invoke(*args)
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("Payload changed after planning", refused.stderr)
+        self.assertTrue(all(source.exists() for source in sources), "Recovery moved a pending source")
+        self.assertEqual([migrate.identity(source.lstat()) for source in sources], identities)
+        self.assertTrue(all(not destination.exists() for destination in destinations))
+        self.assertEqual(later.read_text(), "changed!")
+        self.assertEqual(journal.read_bytes(), before)
+
+        later.write_text("original")
+        os.utime(later, ns=(info.st_atime_ns, info.st_mtime_ns))
+        resumed = self.invoke(*args)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        if mode == "apply":
+            config = self.home / ".config/claude/settings.json"
+            account = self.home / ".config/claude/.claude.json"
+        self.assertEqual([config.read_text(), account.read_text()], ["original", "original"])
+
+    def test_home_group_recovery_preflights_apply(self):
+        self.assert_home_group_recovery_preflights("apply")
+
+    def test_home_group_recovery_preflights_rollback(self):
+        self.assert_home_group_recovery_preflights("rollback")
+
+    def test_home_group_recovery_after_scaffold_was_restored(self):
+        record = self.file(".mozilla/firefox/places.sqlite", "profile")
+        scaffold = self.home / ".config/mozilla/firefox/user.js"
+        scaffold.parent.mkdir(parents=True)
+        scaffold.symlink_to("/nix/store/nonexistent-home-manager-files/user.js")
+        self.rule(".mozilla/firefox", ".config/mozilla/firefox")
+        migrate.apply(self.manifest, generated={scaffold: {str(scaffold.readlink())}})
+        transfer = self.journal()[0]["run"]
+        write = migrate.write_journal
+
+        def interrupt(log, event):
+            if event["event"] == "done" and event["index"] == 1:
+                raise OSError("after restoring scaffold")
+            write(log, event)
+
+        with (patch.object(migrate, "write_journal", side_effect=interrupt),
+              self.assertRaisesRegex(OSError, "after restoring scaffold")):
+            migrate.mutate(self.manifest, "rollback", "fixture", {}, None, run_id=transfer)
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        pending, = [run for run in runs if not run["finished"]]
+        self.assertEqual([event["event"] for event in pending["events"]], ["intent", "done", "intent"])
+        self.assertTrue(scaffold.is_symlink())
+        original = scaffold.lstat().st_ino
+        resumed = self.invoke("recover", "--group", "fixture", "--offline", "--run", pending["header"]["run"])
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertEqual(scaffold.lstat().st_ino, original)
+        self.assertEqual(record.read_text(), "profile")
+
     def test_unknown_absolute_self_symlinks_block(self):
         self.file(".old/key")
         (self.home / ".old/link").symlink_to(self.home / ".old/key")

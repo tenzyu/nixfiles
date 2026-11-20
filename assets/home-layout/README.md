@@ -33,6 +33,8 @@ home-manager.users.tenzyu.local.homeMigration = {
 
 NixOS の `system.preSwitchChecks` は実現済みの候補と稼働中の generation を照合し、
 対象 UID で検査する。実行は bootloader／サービス／per-user package profile の切替より前。
+候補と適用済みの両方でルートのないアカウントは、通常の NixOS と Home Manager の処理で作成・更新される。
+ルートやアカウントを廃止する場合も適用済みのルートを検査し、データが残る場合や HOME が利用できない場合は切替を保留する。
 Home Manager も `checkLinkTargets` と `writeBoundary` の前に保護対象を再確認する。
 診断は移行の状態、activation の書き込み、アプリのルートをそれぞれ示す。
 旧ルートを保持し書き込みが安全なら、保留中の移行があっても他の設定を適用できる。
@@ -138,7 +140,8 @@ group の runner に表示された run ID を渡す。
 "$runner" recover --group GROUP --offline --run RUN_ID
 ```
 
-元、公開先、staging、退避先の記録と実物が一致する場合に続行する。公開済みで完了記録だけが
+apply、rollback、退避の再開では、グループ全体の元、公開先、staging、退避先の記録と実物を、
+未完了の先行操作が作るパスも含めて確認してから journal とファイルを更新する。公開済みで完了記録だけが
 欠ける場合は identity と内容を再検証して続行する。中断した staging は保持し、新しい staging
 を作る。矛盾、破損記録、旧版 journal、mount identity の変化は現物とバックアップを照合して
 別途対応する。旧版 journal を退ける場合も証拠を保持し、修復後のルートを再検証する。

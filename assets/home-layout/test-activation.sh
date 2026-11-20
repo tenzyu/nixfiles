@@ -153,3 +153,35 @@ grep -F 'intended route requires a verified transfer' /tmp/redirected-offline.lo
 test "$(readlink -f /run/current-system)" = "$installed"
 test ! -e "$home/redirected-data"
 test "$(app read | tail -1)" = reopened-record
+
+# The native switch must be able to create a route-free account.
+if id -u hnew >/dev/null 2>&1; then
+  echo 'The route-free fixture account already exists' >&2
+  exit 1
+fi
+candidate new-user
+test "$(id -u hnew)" = 1001
+test "$(cat /home/hnew/native-new-user.txt)" = "created by Home Manager"
+test "$(app read | tail -1)" = reopened-record
+installed=$(readlink -f /run/current-system)
+
+# Candidate-only scoping would miss these affected incumbent rules.
+for variant in remove-routes remove-account; do
+  if candidate "$variant" > "/tmp/$variant.log" 2>&1; then
+    echo "$variant ignored existing incumbent data" >&2
+    exit 1
+  fi
+  grep -F 'removing a route with existing data' "/tmp/$variant.log"
+  test "$(readlink -f /run/current-system)" = "$installed"
+  test "$(app read | tail -1)" = reopened-record
+done
+
+mv "$home" "$home-unavailable"
+if candidate remove-routes > /tmp/unavailable-home.log 2>&1; then
+  echo 'The affected account was admitted while HOME was unavailable' >&2
+  exit 1
+fi
+mv "$home-unavailable" "$home"
+grep -F 'home migration stopped' /tmp/unavailable-home.log
+test "$(readlink -f /run/current-system)" = "$installed"
+test "$(app read | tail -1)" = reopened-record

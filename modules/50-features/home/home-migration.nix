@@ -176,7 +176,7 @@ in {
 
   perSystem = {pkgs, ...}: let
     migration = pkgs.callPackage ../../../assets/home-layout {};
-    crossMountFixture = pkgs.writeShellScript "home-migration-cross-mount-fixture" ''
+    recoveryFixture = pkgs.writeShellScript "home-migration-recovery-fixture" ''
       set -eu
       export PATH=${pkgs.lib.makeBinPath [pkgs.coreutils pkgs.rsync pkgs.acl]}
       export HOME=/home/hfixture TMPDIR=/var/tmp NIXFILES_CROSS_MOUNT=/migration-target
@@ -185,7 +185,7 @@ in {
       test -d "$NIXFILES_CROSS_MOUNT"
       test -w "$NIXFILES_CROSS_MOUNT"
       rsync --version >/dev/null
-      exec ${pkgs.python3}/bin/python3 ${../../../assets/home-layout/test_migrate.py} -k cross_mount -v
+      exec ${pkgs.python3}/bin/python3 ${../../../assets/home-layout/test_migrate.py} -k cross_mount -k home_group_recovery -v
     '';
     embedded = pkgs.testers.runNixOSTest {
       name = "home-migration-embedded";
@@ -197,14 +197,19 @@ in {
         ...
       }: let
         user = "hfixture";
+        newUser = "hnew";
         home = "/home/${user}";
-        owner = {
-          context = {
-            email = "fixture@example.invalid";
-            homeDirectory = home;
-            homeStateVersion = "26.05";
-          };
-          features = {};
+        featuresLib = import ../../_internal/configurations/lib/features.nix {inherit lib;};
+        usersLib = import ../../_internal/configurations/lib/users.nix {inherit lib featuresLib;};
+        optionsMaterializers = import ../../_internal/configurations/materializers/options.nix {
+          inherit lib featuresLib;
+          nixosFeatureNames = [];
+          homeFeatureNames = ["home-layout"];
+          composition = import ../../../lib/composition.nix {inherit lib;};
+        };
+        userMaterializers = import ../../_internal/configurations/materializers/users.nix {
+          inherit lib usersLib;
+          nixosModules = {};
         };
         profile = variant:
           pkgs.writeShellScriptBin "fixture-app" ''
@@ -217,9 +222,11 @@ in {
             esac
           '';
         variant = name: {
+          local.users.${user}.features.home-layout.enable = lib.mkForce (name != "remove-routes");
           home-manager.users.${user} = {lib, ...}: {
             local.homeMigration.legacyGroups =
-              lib.mkForce (lib.optional (!builtins.elem name ["intended" "redirected"]) "codex");
+              lib.mkForce (lib.optional (!builtins.elem name ["intended" "redirected" "new-user" "remove-routes"]) "codex");
+            local.homeMigration.adoptedRoutes = lib.mkIf (name == "remove-routes") (lib.mkForce {});
             xdg.dataHome = lib.mkIf (name == "redirected") (lib.mkForce "${home}/redirected-data");
             local.fixtureVariant = lib.mkForce name;
             home.file =
@@ -232,7 +239,7 @@ in {
                   force = name == "forced";
                 };
               }
-              // lib.optionalAttrs (name == "intended") {
+              // lib.optionalAttrs (builtins.elem name ["intended" "new-user"]) {
                 ".local/share/codex/new-link".text = "intended fragment";
               }
               // lib.optionalAttrs (name == "held") {
@@ -247,67 +254,74 @@ in {
       in {
         imports = [
           inputs.home-manager.nixosModules.home-manager
+          optionsMaterializers.nixosOptionsModule
+          userMaterializers.nixosUserAccountsModule
           (import ../../_internal/configurations/materializers/home-manager.nix {
-            homeFeatureOptionsModule = {
-              options.local = {
-                user = lib.mkOption {type = lib.types.attrs;};
-                context = lib.mkOption {type = lib.types.attrs;};
-                features.home-layout.enable = lib.mkEnableOption "fixture home layout";
-                fixtureVariant = lib.mkOption {
+            inherit (optionsMaterializers) homeFeatureOptionsModule;
+            homeModuleList = [
+              configModules.home-migration
+              configModules.home-layout
+              {
+                options.local.fixtureVariant = lib.mkOption {
                   type = lib.types.str;
                   default = "initial";
                 };
-              };
-            };
-            homeModuleList = [configModules.home-migration configModules.home-layout];
-            embeddedHomeFeatures = _: _: {home-layout.enable = true;};
-            enabledUsers = lib.id;
+              }
+            ];
+            inherit (featuresLib) embeddedHomeFeatures;
+            inherit (usersLib) enabledUsers;
           } {})
-          {
-            options.local = {
-              users = lib.mkOption {type = lib.types.attrs;};
-              context = lib.mkOption {type = lib.types.attrs;};
-            };
-          }
         ];
         _module.args.helpers = {};
         local = {
-          users.${user} = owner;
+          users.${user}.features.home-layout.enable = lib.mkDefault true;
           context = {
             flakePath = null;
             hostName = "machine";
             nixosConfigurationName = "machine";
           };
         };
-        users.users.${user} = {
-          isNormalUser = true;
-          uid = 1000;
-        };
-        home-manager.users.${user} = {
-          config,
-          lib,
-          ...
-        }: {
-          local.homeMigration = {
-            legacyGroups = ["codex"];
-            adoptedRoutes.codex = "legacy";
-            activationWrites.fixtureSentinel = ["reached-initial"];
-          };
-          home.packages = [(profile config.local.fixtureVariant)];
-          home.file.".codex/old-link".text = "old generation fragment";
-          home.activation.fixtureSentinel = lib.hm.dag.entryAfter ["linkGeneration"] ''
-            run ${pkgs.coreutils}/bin/touch "$HOME/reached-initial"
-          '';
-          systemd.user.services.fixture-read = {
-            Unit.Description = "Fixture consumer of the Home Manager user environment";
-            Service = {
-              Type = "oneshot";
-              ExecStart = "${config.home.profileDirectory}/bin/fixture-app read";
-              StandardOutput = "append:${home}/unit-read";
+        users.users = lib.mkIf config.local.users.${user}.enable {${user}.uid = 1000;};
+        home-manager.users = lib.mkIf config.local.users.${user}.enable {
+          ${user} = {
+            config,
+            lib,
+            ...
+          }: {
+            local.homeMigration = {
+              legacyGroups = ["codex"];
+              adoptedRoutes = lib.mkDefault {codex = "legacy";};
+              activationWrites.fixtureSentinel = ["reached-initial"];
+            };
+            home.packages = [(profile config.local.fixtureVariant)];
+            home.file.".codex/old-link".text = "old generation fragment";
+            home.activation.fixtureSentinel = lib.hm.dag.entryAfter ["linkGeneration"] ''
+              run ${pkgs.coreutils}/bin/touch "$HOME/reached-initial"
+            '';
+            systemd.user.services.fixture-read = {
+              Unit.Description = "Fixture consumer of the Home Manager user environment";
+              Service = {
+                Type = "oneshot";
+                ExecStart = "${config.home.profileDirectory}/bin/fixture-app read";
+                StandardOutput = "append:${home}/unit-read";
+              };
             };
           };
         };
-        specialisation = lib.genAttrs ["held" "intended" "redirected" "backup" "forced"] (name: {configuration = variant name;});
+        specialisation =
+          lib.genAttrs ["held" "intended" "redirected" "backup" "forced" "remove-routes"]
+          (name: {configuration = variant name;})
+          // {
+            new-user.configuration = lib.mkMerge [
+              (variant "new-user")
+              {
+                local.users.${newUser} = {};
+                users.users.${newUser}.uid = 1001;
+                home-manager.users.${newUser}.home.file."native-new-user.txt".text = "created by Home Manager";
+              }
+            ];
+            remove-account.configuration.local.users.${user}.enable = lib.mkForce false;
+          };
         environment.systemPackages = [pkgs.jq];
         boot.tmp.useTmpfs = false;
         virtualisation.fileSystems."/migration-target" = {
@@ -323,7 +337,7 @@ in {
         machine.wait_for_unit("home-manager-hfixture.service")
         machine.succeed("bash ${../../../assets/home-layout/test-activation.sh}")
         machine.succeed("${pkgs.util-linux}/bin/findmnt --noheadings --mountpoint /migration-target --types tmpfs")
-        machine.succeed("runuser -u hfixture -- ${crossMountFixture}")
+        machine.succeed("runuser -u hfixture -- ${recoveryFixture}")
       '';
     };
     engine =
