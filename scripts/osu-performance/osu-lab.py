@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fcntl
-import glob
 import html
 import json
 import math
@@ -17,31 +16,52 @@ import re
 import selectors
 import shutil
 import signal
-import statistics
+import stat
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "2026-11-13.1"
+VERSION = "2026-11-20.1"
 EVENT = struct.Struct("@llHHi")  # struct input_event on native 64-bit Linux
 EVIOCSCLOCKID = 0x400445A0  # _IOW('E', 0xA0, int), CLOCK_MONOTONIC=1
 MONITOR = "eDP-1"
 PATHS = [Path.home() / ".local/share/osu", Path.home() / ".local/share/osu-lazer", Path.home() / ".config/osu"]
 PERF_FILES = {"performance-input.log", "performance-update.log", "performance-draw.log", "performance-audio.log"}
 SENSITIVE = {"OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD", "SDL_VIDEODRIVER", "PIPEWIRE_LATENCY"}
-STOP = False
+STOP = None
+INPUT_COUNTS = ("key_up", "key_down", "key_repeat", "pen_touch_up", "pen_touch_down")
+MONOTONIC = "CLOCK_MONOTONIC"
+INCOMPLETE = "capture-incomplete"
 
 
 def stamp():
     return dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def write_json(path, data):
-    path = Path(path)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def write_file(path, content, *, new=False):
+    # Replacing the directory entry prevents following a symlink or writing through a hard link.
+    out = tempfile.NamedTemporaryFile(dir=path.parent, delete=False)
+    staged = Path(out.name)
+    try:
+        with out:
+            out.write(content.encode("utf-8") if isinstance(content, str) else content)
+            out.flush()
+            os.fsync(out.fileno())
+        if new:
+            os.link(staged, path)
+        else:
+            os.replace(staged, path)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def write_json(path, data, *, new=False):
+    write_file(path, json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n", new=new)
 
 
 def read(path):
@@ -97,7 +117,6 @@ def node_candidates():
 
 class InputObserver:
     def __init__(self, override_hidraw=None, override_event=None):
-        self.selector = selectors.DefaultSelector()
         devs = node_candidates()
         for kind, overrides in (("hidraw", override_hidraw or []), ("evdev", override_event or [])):
             for device in overrides:
@@ -105,91 +124,157 @@ class InputObserver:
                     raise ValueError(f"unsafe device path: {device}")
                 if not any(d["path"] == device for d in devs):
                     devs.append({"kind": kind, "path": device, "name": "manual selection", "auto": False})
+        self.selector = selectors.DefaultSelector()
+        self.owned = {}
         self.devices = []
         self.status = []
-        for d in devs:
-            record = {**d, "reports": 0, "key_down": 0, "key_up": 0, "key_repeat": 0,
-                      "pen_touch_down": 0, "pen_touch_up": 0, "syn_dropped": 0,
-                      "intervals_ms": [], "dispatch_delay_ms": [], "last_ns": None, "tail": b""}
+        try:
+            for device in devs:
+                self.open_device(device)
+        except BaseException:
+            self.close()
+            raise
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
+
+    def open_device(self, device):
+        d = {**device, **dict.fromkeys(INPUT_COUNTS, 0), "reads": 0, "reports": 0, "syn_dropped": 0,
+             "read_intervals_ms": [], "event_intervals_ms": [], "dispatch_delay_ms": [],
+             "last_read_ns": None, "last_event_ns": None, "tail": b"", "pending": Counter(),
+             "discarding": False, "in_frame": False, "read_ended": False, "kernel_clock": None}
+        fd = None
+        try:
+            fd = os.open(d["path"], os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+            self.owned[fd] = d
+            if d["kind"] == "evdev":
+                try:
+                    fcntl.ioctl(fd, EVIOCSCLOCKID, struct.pack("i", time.CLOCK_MONOTONIC))
+                    d["kernel_clock"] = MONOTONIC
+                except OSError as e:
+                    d["kernel_clock"] = f"unavailable ({e.strerror})"
+            self.selector.register(fd, selectors.EVENT_READ, d)
+        except OSError as e:
+            if fd is not None:
+                self.close_device(fd)
+            self.status.append({**device, "status": f"unavailable: {e.strerror}"})
+            return
+        self.devices.append(d)
+        self.status.append({**device, "status": "opened", "clock": d["kernel_clock"]})
+
+    def close_device(self, fd):
+        self.owned.pop(fd)
+        try:
+            self.selector.unregister(fd)
+        except (KeyError, OSError):
+            pass
+        finally:
+            # Linux releases the FD even if close reports an error. A retry could close a reused FD.
             try:
-                fd = os.open(d["path"], os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
-                if d["kind"] == "evdev":
-                    try:
-                        fcntl.ioctl(fd, EVIOCSCLOCKID, struct.pack("i", 1))
-                        record["kernel_clock"] = "CLOCK_MONOTONIC"
-                    except OSError as e:
-                        record["kernel_clock"] = f"unavailable ({e.strerror})"
-                self.selector.register(fd, selectors.EVENT_READ, record)
-                record["fd"] = fd
-                self.devices.append(record)
-                self.status.append({**d, "status": "opened", "clock": record.get("kernel_clock")})
+                os.close(fd)
             except OSError as e:
-                self.status.append({**d, "status": f"unavailable: {e.strerror}"})
+                self.status.append({"status": f"close error: {e.strerror}"})
+
+    def close(self):
+        if self.selector is None:
+            return
+        try:
+            for fd in list(self.owned):
+                self.close_device(fd)
+        finally:
+            self.selector.close()
+            self.selector = None
 
     def sample(self, timeout):
         for key, _mask in self.selector.select(timeout):
             d = key.data
             try:
                 chunk = os.read(key.fd, 8192)
-                now = time.monotonic_ns()
-                if not chunk:
-                    continue
-                if d["kind"] == "hidraw":
-                    # hidraw read() returns one report; no coordinates/button payload persisted.
-                    self.mark(d, now)
-                else:
-                    d["tail"] += chunk
-                    while len(d["tail"]) >= EVENT.size:
-                        packet, d["tail"] = d["tail"][:EVENT.size], d["tail"][EVENT.size:]
-                        sec, usec, typ, code, value = EVENT.unpack(packet)
-                        if typ == 0 and code == 0:  # SYN_REPORT (only on changed evdev state)
-                            event_ns = (sec * 1_000_000 + usec) * 1_000
-                            # Only calculate kernel-to-observer delay if clock match established.
-                            if d.get("kernel_clock") == "CLOCK_MONOTONIC" and 0 <= now-event_ns < 5_000_000_000:
-                                d["dispatch_delay_ms"].append((now-event_ns)/1_000_000)
-                            self.mark(d, event_ns if d.get("kernel_clock") == "CLOCK_MONOTONIC" else now)
-                        elif typ == 0 and code == 3:  # SYN_DROPPED: OUR evdev client queue overflowed.
-                            d["syn_dropped"] += 1
-                        elif typ == 1:
-                            if value in (0, 1, 2):
-                                d[{0: "key_up", 1: "key_down", 2: "key_repeat"}[value]] += 1
-                                if code == 330:  # BTN_TOUCH, if this evdev interface carries it
-                                    d["pen_touch_down" if value == 1 else "pen_touch_up"] += (value != 2)
             except BlockingIOError:
-                pass
+                continue
             except OSError as e:
-                self.status.append({"path": d["path"], "status": f"read error: {e.strerror}"})
-                try:
-                    self.selector.unregister(key.fd)
-                except (KeyError, ValueError):
-                    pass
+                status = f"read error: {e.strerror}"
+            else:
+                if chunk:
+                    now = time.monotonic_ns()
+                    self.mark(d, now, "last_read_ns", "read_intervals_ms")
+                    d["reads"] += 1
+                    if d["kind"] == "hidraw":
+                        # Each successful hidraw read returns one report.
+                        d["reports"] += 1
+                    else:
+                        self.consume_events(d, chunk, now)
+                    continue
+                status = "end of file"
+            self.status.append({"path": d["path"], "status": status})
+            d["read_ended"] = True
+            self.close_device(key.fd)
+
+    def consume_events(self, d, chunk, now):
+        packets = d["tail"] + chunk
+        boundary = len(packets) - len(packets) % EVENT.size
+        d["tail"] = packets[boundary:]
+        for sec, usec, typ, code, value in EVENT.iter_unpack(packets[:boundary]):
+            sync = typ == 0 and code == 0  # SYN_REPORT
+            if typ == 0 and code == 3:  # SYN_DROPPED in this client's queue
+                d["syn_dropped"] += 1
+                d["pending"].clear()
+                d["last_event_ns"] = None
+                d["discarding"] = True
+                d["in_frame"] = False
+            elif d["discarding"]:
+                if sync:
+                    d["discarding"] = False  # The recovery boundary itself is discarded.
+            elif sync:
+                d["reports"] += 1
+                for name, count in d["pending"].items():
+                    d[name] += count
+                d["pending"].clear()
+                d["in_frame"] = False
+                if d["kernel_clock"] == MONOTONIC and sec >= 0 and 0 <= usec < 1_000_000:
+                    event_ns = (sec * 1_000_000 + usec) * 1_000
+                    if event_ns <= now:
+                        self.mark(d, event_ns, "last_event_ns", "event_intervals_ms")
+                    else:
+                        d["last_event_ns"] = None
+                    if 0 <= now - event_ns < 5_000_000_000:
+                        d["dispatch_delay_ms"].append((now - event_ns) / 1_000_000)
+                else:
+                    d["last_event_ns"] = None
+            else:
+                d["in_frame"] = True
+                if typ == 1 and value in (0, 1, 2):
+                    d["pending"][INPUT_COUNTS[value]] += 1
+                    if code == 330 and value != 2:  # BTN_TOUCH
+                        d["pending"][INPUT_COUNTS[3 + value]] += 1
 
     @staticmethod
-    def mark(d, ns):
-        if d["last_ns"] is not None and ns >= d["last_ns"]:
-            d["intervals_ms"].append((ns - d["last_ns"]) / 1_000_000)
-        d["last_ns"] = ns
-        d["reports"] += 1
+    def mark(d, ns, previous, intervals):
+        last = d[previous]
+        if last is not None and ns > last:
+            d[intervals].append((ns - last) / 1_000_000)
+        d[previous] = ns
 
     def result(self):
         output = []
         for d in self.devices:
-            periods = d["intervals_ms"]
-            output.append({"kind": d["kind"], "path": d["path"], "name": d["name"],
-                           "reports": d["reports"], "key_down": d["key_down"], "key_up": d["key_up"],
-                           "key_repeat": d["key_repeat"], "pen_touch_down": d["pen_touch_down"],
-                           "pen_touch_up": d["pen_touch_up"], "syn_dropped": d["syn_dropped"],
+            hidraw = d["kind"] == "hidraw"
+            aligned = d["kernel_clock"] == MONOTONIC
+            periods = d["read_intervals_ms"] if hidraw else d["event_intervals_ms"]
+            source = "hidraw read completion" if hidraw else "evdev SYN_REPORT"
+            complete = not any((d["read_ended"], d["syn_dropped"], d["in_frame"], d["tail"]))
+            output.append({**{key: d[key] for key in ("kind", "path", "name", "reports", "syn_dropped", *INPUT_COUNTS)},
                            "period_ms": dist(periods), "observer_delay_ms": dist(d["dispatch_delay_ms"]),
                            "histogram": histogram(periods, 0, 12, 0.5),
-                           "interpretation": "hidraw userspace read intervals" if d["kind"] == "hidraw"
+                           "read_interval_ms": dist(d["read_intervals_ms"]), "reads": d["reads"],
+                           "timing": {"period_source": source, "period_clock": MONOTONIC if hidraw or aligned else None,
+                                      "read_clock": MONOTONIC, "dispatch_clock": MONOTONIC if aligned else None},
+                           "counts_complete": complete,
+                           "interpretation": "hidraw userspace read intervals" if hidraw
                            else "evdev SYN_REPORT intervals (state changes, not fixed USB poll)"})
-        for key in list(self.selector.get_map().values()):
-            try:
-                self.selector.unregister(key.fileobj)
-                os.close(key.fileobj)
-            except OSError:
-                pass
-        self.selector.close()
         return {"devices": output, "status": self.status}
 
 
@@ -291,7 +376,7 @@ def display_snapshot():
     active = command(["hyprctl", "-j", "activewindow"], parse_json=True)
     if not isinstance(monitors, list):
         return {"status": "hyprctl monitors unavailable", "monitor": None, "window": None}
-    mon = next((x for x in monitors if x.get("name") == MONITOR), None)
+    mon = next((x for x in monitors if isinstance(x, dict) and x.get("name") == MONITOR), None)
     return {"status": "ok" if mon else "eDP-1 missing", "monitor": mon, "window": active if isinstance(active, dict) else None}
 
 
@@ -334,10 +419,14 @@ def find_perf_logs(custom=None):
         for folder in (root, root / "logs", root / "Logs"):
             if not folder.is_dir():
                 continue
-            for name in PERF_FILES:
+            for name in sorted(PERF_FILES):
                 p = folder / name
-                if p.is_file():
-                    result[str(p)] = p.stat().st_size
+                try:
+                    info = p.stat(follow_symlinks=False)
+                except OSError:
+                    continue
+                if stat.S_ISREG(info.st_mode):
+                    result[str(p)] = info
     return result
 
 
@@ -345,39 +434,50 @@ def copy_perf_log_deltas(out, start, end):
     logdir = out / "performance-logs"
     logdir.mkdir(mode=0o700, exist_ok=True)
     results = []
-    for path, size in end.items():
+    for index, (path, end_info) in enumerate(end.items()):
         p = Path(path)
         try:
-            current = p.stat().st_size
-            offset = start.get(path, 0)
-            if current < offset:
-                offset = 0  # rotated/replaced
             cap = 2_000_000
-            truncated = current - offset > cap
-            if truncated:
-                offset = current - cap
-            if current <= offset:
+            offset = 0
+            start_info = start.get(path)
+            end_identity = (end_info.st_dev, end_info.st_ino)
+            if start_info and (start_info.st_dev, start_info.st_ino) == end_identity:
+                if start_info.st_size <= end_info.st_size:
+                    offset = start_info.st_size
+            count = end_info.st_size - offset
+            if count == 0:
                 continue
-            with p.open("rb") as source:
-                source.seek(offset)
-                payload = source.read(cap)
+            with open(p, "rb", opener=lambda path, flags: os.open(path, flags | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
+                info = os.fstat(source.fileno())
+                if not stat.S_ISREG(info.st_mode) or (info.st_dev, info.st_ino) != end_identity:
+                    raise OSError("log replaced before copy")
+                source.seek(end_info.st_size - min(count, cap))
+                payload = source.read(min(count, cap))
+                if len(payload) != min(count, cap):
+                    raise OSError("log shortened before copy finished")
             dest = logdir / p.name
-            dest.write_bytes(payload)
-            results.append({"source": str(p), "copied_bytes": len(payload), "truncated": truncated,
+            if dest.exists():
+                dest = logdir / str(index) / p.name
+                dest.parent.mkdir(mode=0o700)
+            write_file(dest, payload, new=True)
+            results.append({"source": str(p), "copied_bytes": len(payload), "truncated": count > cap,
                             "saved": str(dest.relative_to(out))})
         except OSError:
-            pass
+            results.append({"source": str(p), "status": "copy failed"})
     return results
 
 
 def parse_slow_logs(root):
     result = {}
-    for name in PERF_FILES:
-        p = Path(root) / "performance-logs" / name
-        if not p.is_file():
+    folder = Path(root) / "performance-logs"
+    for name in sorted(PERF_FILES):
+        paths = [p for p in (folder / name, *sorted(folder.glob(f"*/{name}"))) if p.is_file()]
+        if not paths:
             continue
-        content = p.read_text(errors="replace")
-        matches = [float(x.replace(",", "")) for x in re.findall(r"Frame length\s*:\s*([\d,.]+)\s*ms", content, re.I)]
+        matches = [float(x.replace(",", "")) for p in paths
+                   for x in re.findall(r"Frame length\s*:\s*(\d[\d,]*(?:\.\d+)?)\s*ms",
+                                       p.read_text(errors="replace"), re.I)]
+        matches = [x for x in matches if math.isfinite(x)]
         result[name] = {"slow_frame_count": len(matches), "slow_lengths_ms": dist(matches),
                         "note": "slow frames only; NOT all-frame p99"}
     return result
@@ -406,68 +506,125 @@ def parse_pw_top(path):
             rate = int(bits[3])
         except (ValueError, IndexError):
             quantum, rate = None, None
-        rows.setdefault(name, []).append({"err": err, "quantum": quantum, "rate": rate})
+        rows.setdefault(name, []).append({"id": bits[1], "err": err, "quantum": quantum, "rate": rate})
     return {"nodes": {name: {"observations": len(v), "first_err": v[0]["err"], "last_err": v[-1]["err"],
-                             "delta_err": max(0, v[-1]["err"] - v[0]["err"]),
+                             "delta_err": counter_delta([row["err"] for row in v]) if len({row["id"] for row in v}) == 1 else None,
                              "graph_quantum": v[-1]["quantum"], "graph_rate": v[-1]["rate"]} for name, v in rows.items()},
             "status": "parsed" if rows else "raw_capture_only"}
+
+
+def counter_delta(values):
+    if len(values) >= 2 and all(a <= b for a, b in zip(values, values[1:])):
+        return values[-1] - values[0]
+    return None
+
+
+def scanout_active(target):
+    if type(target) is int and target >= 0:
+        return target != 0
+    if isinstance(target, str) and re.fullmatch(r"(?:0[xX])?[\da-fA-F]+", target, re.ASCII):
+        return int(target, 16) != 0
+    return None
+
+
+def analyze_input(raw):
+    devices = []
+    clocks = {entry.get("path"): entry.get("clock") for entry in raw.get("status", [])
+              if entry.get("status") == "opened"}
+    for original in raw.get("devices", []):
+        d = dict(original)
+        if "timing" not in d:
+            hidraw = d.get("kind") == "hidraw"
+            aligned = clocks.get(d.get("path")) == MONOTONIC
+            intact = aligned and d.get("syn_dropped") == 0
+            d["timing"] = {"period_source": "hidraw read completion" if hidraw else "evdev SYN_REPORT",
+                           "period_clock": MONOTONIC if hidraw or aligned else None,
+                           "read_clock": MONOTONIC if hidraw else None,
+                           "dispatch_clock": MONOTONIC if aligned else None}
+            d["read_interval_ms"] = d["period_ms"] if hidraw else dist([])
+            d["counts_complete"] = None
+            if hidraw:
+                d["reads"] = d["reports"]
+            if not intact:
+                d["observer_delay_ms"] = dist([])
+            # Old aggregates cannot isolate intervals that were zero or crossed a drop.
+            if not hidraw and (not intact or d["period_ms"]["min"] == 0):
+                d["period_ms"] = dist([])
+                d["histogram"] = histogram([], 0, 12, 0.5)
+        devices.append(d)
+    return {**raw, "devices": devices}
+
+
+def analyze_pw_top(raw):
+    if not raw or "nodes" not in raw:
+        return raw
+    # Old data retained first/last counters, but used 0 for a single row or reset.
+    nodes = {name: {**row, "delta_err": row.get("delta_err") if
+                    row["observations"] >= 2 and row["first_err"] <= row["last_err"] else None}
+             for name, row in raw["nodes"].items()}
+    return {**raw, "nodes": nodes}
 
 
 def analyze(data):
     samples = data.get("samples", [])
     temps = [x["cpu"]["temp_C"] for x in samples if isinstance(x.get("cpu", {}).get("temp_C"), (int, float))]
-    throttles = [x["cpu"]["throttle_count"] for x in samples if isinstance(x.get("cpu", {}).get("throttle_count"), int)]
-    eligible, dso, torn = 0, 0, 0
+    throttles = [x["cpu"]["throttle_count"] for x in samples if type(x.get("cpu", {}).get("throttle_count")) is int]
+    eligible, dso_observed, dso, tearing_observed, torn = 0, 0, 0, 0, 0
     dso_blockers, tearing_blockers = Counter(), Counter()
     for item in samples:
         disp = item.get("display") or {}
         win, mon = disp.get("window") or {}, disp.get("monitor") or {}
-        if (win.get("class") in ("osu!", "osu-lazer") and win.get("fullscreen") == 2 and
-                win.get("fullscreenClient") == 0 and mon.get("name") == MONITOR):
-            eligible += 1
-            active_dso = str(mon.get("directScanoutTo", "0")) not in ("0", "", "None", "null")
-            if active_dso:
-                dso += 1
-                if mon.get("activelyTearing") is True:
-                    torn += 1
-            else:
-                for reason in mon.get("directScanoutBlockedBy") or []:
-                    dso_blockers[str(reason)] += 1
-            if mon.get("activelyTearing") is not True:
-                for reason in mon.get("tearingBlockedBy") or []:
-                    tearing_blockers[str(reason)] += 1
+        if (disp.get("status", "ok") != "ok" or win.get("class") not in ("osu!", "osu-lazer")
+                or win.get("fullscreen") != 2 or type(win.get("fullscreenClient")) is not int
+                or win["fullscreenClient"] != 0 or mon.get("name") != MONITOR):
+            continue
+        if None not in (win.get("monitor"), mon.get("id")) and win["monitor"] != mon["id"]:
+            continue
+        eligible += 1
+        active_dso = scanout_active(mon.get("directScanoutTo"))
+        tearing = mon.get("activelyTearing")
+        if active_dso is not None:
+            dso_observed += 1
+        if active_dso is True:
+            dso += 1
+            if isinstance(tearing, bool):
+                tearing_observed += 1
+                torn += tearing
+        elif active_dso is False:
+            for reason in mon.get("directScanoutBlockedBy") or []:
+                dso_blockers[str(reason)] += 1
+        if tearing is False:
+            for reason in mon.get("tearingBlockedBy") or []:
+                tearing_blockers[str(reason)] += 1
     tasks = {}
     for item in samples:
         for th in item.get("threads", []):
             tasks.setdefault((th["tid"], th["name"]), []).append(th)
     threads = []
     for (tid, name), rows in tasks.items():
-        if len(rows) < 2:
-            continue
-        a, b = rows[0], rows[-1]
-        waits, runs, slices = b["wait_ns"] - a["wait_ns"], b["run_ns"] - a["run_ns"], b["slices"] - a["slices"]
-        if waits >= 0 and runs >= 0 and slices >= 0:
+        waits, runs, slices = (counter_delta([row[key] for row in rows]) for key in ("wait_ns", "run_ns", "slices"))
+        if None not in (waits, runs, slices):
             threads.append({"tid": tid, "name": name, "run_ms": round(runs / 1e6, 3),
-                            "runqueue_wait_ms": round(waits / 1e6, 3), "slices": slices,
+                            "runqueue_wait_ms": round(waits / 1e6, 3), "slices": slices, "observations": len(rows),
                             "wait_per_slice_ms": round(waits / 1e6 / slices, 4) if slices else None,
                             "note": "runqueue wait / scheduling slices (not event-to-Update latency)"})
     threads.sort(key=lambda x: x["runqueue_wait_ms"], reverse=True)
-    input_data = data.get("input", {})
-    return {"input": input_data, "audio": {"alsa_start": data.get("alsa_start"),
+    return {"capture": data.get("capture", {"status": "unknown"}),
+            "input": analyze_input(data.get("input", {})), "audio": {"alsa_start": data.get("alsa_start"),
                                             "alsa_end": data.get("alsa_end"),
                                             "pw_start": data.get("pw_start"),
                                             "pw_end": data.get("pw_end"),
-                                            "pw_top": data.get("pw_top")},
+                                            "pw_top": analyze_pw_top(data.get("pw_top"))},
             "update": {"thread_sched": threads, "game_log": data.get("game_log", {}),
                        "note": "No per-frame Update latency histogram from procfs; only kernel scheduler aggregates and slow-frame logs."},
-            "draw": {"eligible_samples": eligible, "dso_samples": dso,
-                     "actively_tearing_samples": torn,
+            "draw": {"eligible_samples": eligible, "dso_observed_samples": dso_observed, "dso_samples": dso,
+                     "tearing_observed_dso_samples": tearing_observed, "actively_tearing_samples": torn,
                      "dso_blockers": dict(dso_blockers),
                      "tearing_blockers": dict(tearing_blockers),
-                     "dso_ratio": round(dso / eligible * 100, 1) if eligible else None,
-                     "tearing_ratio_among_dso": round(torn / dso * 100, 1) if dso else None,
+                     "dso_ratio": round(dso / dso_observed * 100, 1) if dso_observed else None,
+                     "tearing_ratio_among_dso": round(torn / tearing_observed * 100, 1) if tearing_observed else None,
                      "note": "Hyprland sampled state, not actual async KMS-flip success or optical latency."},
-            "system": {"temp_C": dist(temps), "throttle_delta": max(0, throttles[-1] - throttles[0]) if len(throttles) >= 2 else None,
+            "system": {"temp_C": dist(temps), "throttle_delta": counter_delta(throttles), "throttle_observations": len(throttles),
                        "cpu_kHz": dist([x["cpu"]["cpu_kHz"] for x in samples if isinstance(x.get("cpu", {}).get("cpu_kHz"), int)]),
                        "samples": len(samples), "proc": data.get("proc_start")}}
 
@@ -532,12 +689,20 @@ def html_report(data, summary):
     input_summary = summary["input"]
     devices = input_summary.get("devices", [])
     main_table = []
+    read_table = []
     hist = []
     for d in devices:
-        vals = d["period_ms"]
-        main_table.append((d["path"], d["kind"], d["reports"], fmt(vals["p50"], 3), fmt(vals["p95"], 3),
-                           fmt(vals["p99"], 3), fmt(vals["p99_9"], 3),
-                           d["syn_dropped"], d["key_down"], d["key_up"]))
+        vals, timing = d["period_ms"], d["timing"]
+        reads, dispatch = d["read_interval_ms"], d["observer_delay_ms"]
+        completeness = {True: "記録区間内の完了フレーム", False: "不完全", None: "不明"}[d["counts_complete"]]
+        counters = ("—", "—", "—") if d["kind"] == "hidraw" else (d["syn_dropped"], d["key_down"], d["key_up"])
+        main_table.append((d["path"], timing["period_source"], pill(timing["period_clock"]), d["reports"],
+                           vals["count"], fmt(vals["p50"], 3), fmt(vals["p95"], 3),
+                           fmt(vals["p99"], 3), fmt(vals["p99_9"], 3), *counters, completeness))
+        read_table.append((d["path"], pill(timing["read_clock"]), pill(d.get("reads")),
+                           reads["count"], fmt(reads["p50"], 3), fmt(reads["p95"], 3), fmt(reads["p99"], 3),
+                           pill(timing["dispatch_clock"]), dispatch["count"], fmt(dispatch["p50"], 3),
+                           fmt(dispatch["p95"], 3), fmt(dispatch["p99"], 3)))
         hist.append(f'<h3>{esc(d["name"] or d["path"])} — {esc(d["kind"])}</h3>{svg_hist(d["histogram"])}'
                     f'<p class="micro">区間外 {d["histogram"]["outside_range"]}件。停止/静止による長い間隔は欠落とは判定しません。</p>')
     if not devices:
@@ -548,64 +713,89 @@ def html_report(data, summary):
     env = proc.get("environ") or {}
     sleep = summary["update"].get("game_log") or {}
     rows = [(name, val.get("slow_frame_count"), fmt(val.get("slow_lengths_ms", {}).get("max"), 1)) for name,val in sleep.items()]
-    rows_sched = [(x["tid"], x["name"], fmt(x["run_ms"]), fmt(x["runqueue_wait_ms"]), x["slices"], fmt(x["wait_per_slice_ms"], 4))
+    rows_sched = [(x["tid"], x["name"], x["observations"], fmt(x["run_ms"]), fmt(x["runqueue_wait_ms"]),
+                   x["slices"], fmt(x["wait_per_slice_ms"], 4))
                   for x in summary["update"]["thread_sched"][:20]]
     alsa = summary["audio"].get("alsa_end") or {}
     pcm_rows = [(x["path"], x["params"].replace('\n', '; ')) for x in alsa.get("open_playback_pcms", [])]
     pw = summary["audio"].get("pw_top") or {}
-    pwrows = [(k, v["observations"], v.get("graph_quantum"), v.get("graph_rate"), v["delta_err"]) for k,v in pw.get("nodes", {}).items()]
+    pwrows = [(k, v["observations"], pill(v.get("graph_quantum")), pill(v.get("graph_rate")),
+               pill(v["delta_err"])) for k, v in pw.get("nodes", {}).items()]
     nodeprops = (summary["audio"].get("pw_end") or {}).get("nodes", [])
     prop_rows = [(x.get("id"), x.get("props", {}).get("node.name"), x.get("props", {}).get("api.alsa.period-size"),
                   x.get("props", {}).get("api.alsa.period-num"), x.get("props", {}).get("api.alsa.headroom")) for x in nodeprops]
-    gap = '無効' if not proc.get("pid") else '観測済み'
     warnings = ["生ログには端末名、スレッド名、アプリ情報が含まれます。公開前に確認してください。",
                 "単独の短時間計測では優劣を判定できません。8x/Unlimited、BASS -128/-256は同条件の別runで比較してください。",
                 "Input→Updateイベント別待機時間、BASS実効内部周期、音の物理的開始、DRM Flip時刻、光学的Input-to-photonは本キットでは未測定です。"]
     config = data.get('config', {})
+    outcome = summary["capture"]
     title = f'osu! latency lab | {config.get("label", "untitled")}'
     style = '''
 :root{color-scheme:dark;font-family:ui-sans-serif,system-ui,sans-serif;background:#0e1520;color:#e7edf3}
 body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header{border-bottom:1px solid #334155;padding:20px 0 28px}h1{letter-spacing:-.03em;font-size:2rem}h2{margin-top:0;font-size:1.25rem}h3{font-size:1rem;color:#bdd4e5}.intro,.muted,.micro{color:#a5b4c3}.micro{font-size:.79rem}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:14px}.metric{background:#182333;border:1px solid #334457;padding:17px;border-radius:12px;min-height:130px;display:flex;flex-direction:column}.mname{color:#aabacf;font-size:.85rem}.mvalue{font-size:1.8rem;font-weight:700;font-variant-numeric:tabular-nums}.kind{font:600 .66rem system-ui;color:#8dc8d4;margin-top:auto;letter-spacing:.03em;text-transform:uppercase}.kind.proxy{color:#eed09b}.kind.unknown{color:#d1a7a7}section{margin-top:22px;border:1px solid #304156;border-radius:15px;padding:22px;background:#111d2a}.tabwrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{padding:10px 12px;border-bottom:1px solid #304156;text-align:left;vertical-align:top}th{color:#95b3c4}svg{max-width:100%;height:auto}.warning{border-left:3px solid #c9a66b;padding:9px 14px;margin:10px 0;background:#202533}.tag{font-size:.74rem;color:#86c6d1;border:1px solid #447781;border-radius:5px;padding:3px 7px;margin-right:8px}code{color:#b9dbdf}ul{padding-left:20px}details{margin-top:8px}a{color:#92d6e7}'''
     body = [f'<header><span class="tag">MEASUREMENT / not a latency proof</span><span class="tag">{esc(config.get("label"))}</span><h1>{esc(title)}</h1>'
-            f'<p class="intro">{esc(data.get("started"))}〜{esc(data.get("ended"))} ／ 計測 {esc(config.get("seconds"))}秒 ／ '
+            f'<p class="intro">{esc(data.get("started"))}〜{esc(data.get("ended"))} ／ '
+            f'capture {esc(outcome["status"])} ／ 要求 {esc(pill(config.get("seconds")))} s ／ '
+            f'{esc(pill(outcome.get("clock")))} 観測時間 {fmt(outcome.get("elapsed_s"), 3)} s ／ '
             f'公式osu!無改変・root権限不要・Inputは読み取りのみ</p></header>']
+    if outcome.get("signal") or outcome.get("failures"):
+        body.append('<div class="warning">' + esc(json.dumps(outcome, ensure_ascii=False)) + '</div>')
+    dso_coverage = f'{dra["dso_samples"]}/{dra["dso_observed_samples"]} observed ／ {dra["eligible_samples"]} eligible'
+    tear_coverage = f'{dra["actively_tearing_samples"]}/{dra["tearing_observed_dso_samples"]} observed ／ {dra["dso_samples"]} DSO'
     body.append('<section><h2>結論の見取り図</h2><div class="grid">')
     body += [metric('Input: 接続済デバイス',f'{len(devices)} 台','hidrawとevdevを区別 / 実入力待ち時間は未知'),
              metric('Audio: BASS要求値', pill(env.get('OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD')),
                     'プロセス環境変数。実効内部periodではありません', 'proxy'),
              metric('Update: ゲームスレッド',pill(len(summary['update']['thread_sched']) if proc.get('pid') else None),'proc schedstat / 個別Update周期のp99ではありません','proxy'),
              metric('Draw: 既知条件でのDSO',fmt(dra['dso_ratio'],1)+'%' if dra['dso_ratio'] is not None else '未測定',
-                    f'{dra["dso_samples"]}/{dra["eligible_samples"]} samples | 1秒間隔'),
+                    dso_coverage, 'observed' if dra['dso_ratio'] is not None else 'unknown'),
              metric('Draw: tearing状態',fmt(dra['tearing_ratio_among_dso'],1)+'%' if dra['tearing_ratio_among_dso'] is not None else '未測定',
-                    'GPU非同期Flip成功の証拠ではありません','proxy'),
+                    tear_coverage, 'observed' if dra['tearing_ratio_among_dso'] is not None else 'unknown'),
              metric('CPU最大温度',fmt(sysd['temp_C']['max'])+'°C' if sysd['temp_C']['max'] is not None else '未測定',
-                    f'package throttle増分 {pill(sysd["throttle_delta"])}')]
+                    f'sysfs {sysd["temp_C"]["count"]}/{sysd["samples"]} samples',
+                    'observed' if sysd['temp_C']['count'] else 'unknown')]
     body.append('</div></section>')
     body.append('<section><h2>Input <span class="kind">device intervals</span></h2>')
-    body.append('<p class="intro">CTL-472は現在400Hzを目標（公称2.5ms）。ヒストグラムは実際に観測できた報告の間隔で、静止時の空白は取りこぼしの証拠ではありません。ペンクリック成功率やInput→Update遅延は測定できません。</p>')
-    body.append('<div class="tabwrap">'+simple_table(['デバイス','経路','報告数','p50 ms','p95 ms','p99 ms','p99.9 ms','SYN_DROPPED','press','release'],main_table)+'</div>')
+    body.append(f'<p class="intro">CTL-472の申告設定 {esc(pill(config.get("expected_tablet_hz")))} Hz。'
+                'hidraw間隔はユーザー空間の読み出し完了時刻、evdev間隔は整列済みカーネルのSYN_REPORT時刻。'
+                'evdevは状態変化を記録し、欠落をまたぐ区間を除外します。静止時の空白だけでは欠落を判定できません。</p>')
+    body.append('<div class="tabwrap">'+simple_table(['デバイス','間隔の由来','時計','報告数','間隔数','p50 ms','p95 ms','p99 ms',
+                'p99.9 ms','SYN_DROPPED','press','release','カウントの完全性'],main_table)+'</div>')
     body+=hist
+    body.append('<h3>読み出し完了間隔とevdev取得遅延</h3><p class="micro">成功したreadごとに時刻を記録。'
+                '取得遅延は整列済みSYN_REPORTから読み出し完了までの差（0以上5秒未満）。</p><div class="tabwrap">'+
+                simple_table(['デバイス','read時計','read数','間隔数','read p50 ms','read p95 ms','read p99 ms',
+                              '取得遅延の時計','報告数','遅延 p50 ms','遅延 p95 ms','遅延 p99 ms'],read_table)+'</div>')
     body.append('<details><summary>デバイスのアクセス状態</summary><pre>'+esc(json.dumps(input_summary.get('status'),ensure_ascii=False,indent=2))+'</pre></details></section>')
     body.append('<section><h2>Audio <span class="kind proxy">driver/proxy</span></h2>')
-    body.append('<p class="intro">BASSは要求値のみ確認。実効ALSA hw_paramsはPCMが開いている場合に限り取得。PipeWire ERRはXRunとその他のエラーの合計であり、ゼロ以外なら原因調査が必要です。</p>')
+    body.append(f'<p class="intro">比較ラベルのBASS要求値 {esc(pill(config.get("expected_bass")))}。'
+                '実効ALSA hw_paramsはPCMが開いている場合に限り取得。PipeWire ERRはXRunとその他のエラーの合計です。</p>')
     body.append('<h3>開いているALSA playback PCM</h3><div class="tabwrap">'+simple_table(['PCM','hw_params'],pcm_rows)+'</div>')
     body.append('<h3>PipeWireノードの要求値</h3><div class="tabwrap">'+simple_table(['ID','ノード','period-size','period-num','headroom'],prop_rows)+'</div>')
-    body.append('<h3>pw-top Graph / ERR</h3><div class="tabwrap">'+simple_table(['Node','観測行数','QUANT','RATE','ERR増分'],pwrows)+'</div><p class="micro">QUANT/RATEはPipeWire graph/streamの処理周期の観測値。BASS periodやALSA DMA bufferとは別です。</p></section>')
+    body.append('<h3>pw-top Graph / ERR</h3><p class="micro">'+esc(pill(pw.get('status')))+'</p><div class="tabwrap">'+
+                simple_table(['Node','観測行数','QUANT frames','RATE Hz','ERR増分'],pwrows)+
+                '</div><p class="micro">QUANT/RATEはPipeWire graph/streamの観測値。ERR増分は同一ノードの連続したカウンター観測から算出。</p></section>')
     body.append('<section><h2>Update <span class="kind proxy">scheduler/slow-frame</span></h2>')
     body.append('<p class="intro">procfsのschedstatで累積runqueue待機時間を記録します。Updateフレーム周期分布は別物です。Ctrl+F2のperformanceログは遅延フレームの選択的ログであり、全フレームp99は算出しません。</p>')
     body.append(f'<p class="micro">PID {esc(proc.get("pid"))} / cgroup {esc(proc.get("cgroup"))} / timerslack {esc(proc.get("timerslack_ns"))}ns / '
                 f'cpu.weight {esc(proc.get("scope_props",{}).get("cpu.weight"))} / cpu.uclamp.min {esc(proc.get("scope_props",{}).get("cpu.uclamp.min"))}</p>')
-    body.append('<div class="tabwrap">'+simple_table(['TID','name','CPU run ms','runqueue wait ms','slices','wait/slice ms'],rows_sched)+'</div>')
-    body.append('<h3>osu!公式performanceログのslow frame</h3><div class="tabwrap">'+simple_table(['ログ','slow frame数','最大ms（整数ログ値）'],rows)+'</div></section>')
+    body.append('<div class="tabwrap">'+simple_table(['TID','name','観測数','CPU run ms','runqueue wait ms','slices','wait/slice ms'],rows_sched)+'</div>')
+    log_capture = data.get("log_capture", [])
+    body.append(f'<p class="micro">保存ログ {sum("saved" in row for row in log_capture)}件 ／ '
+                f'上限で切り詰め {sum(row.get("truncated", False) for row in log_capture)}件 ／ '
+                f'コピー失敗 {sum(row.get("status") == "copy failed" for row in log_capture)}件</p>')
+    body.append('<h3>osu!公式performanceログのslow frame</h3><div class="tabwrap">'+simple_table(['ログ','slow frame数','最大 ms'],rows)+'</div></section>')
     body.append('<section><h2>Draw <span class="kind">DSO state</span></h2>')
-    body.append('<p class="intro">fullscreen 2/0が成立しているサンプルのみを母数にします。HyprlandのactivelyTearingはアプリの表示モード判断の状態で、i915の実flip時刻、描画フレーム時間、光学遅延は表しません。</p>')
-    body.append('<div class="grid">'+metric('2/0条件成立',dra['eligible_samples'],'1Hzの状態サンプル')+
-                metric('Direct Scanout',dra['dso_samples'],'2/0条件成立内')+
-                metric('activelyTearing',dra['actively_tearing_samples'],'DSO状態のうちtrue', 'proxy')+'</div>')
+    body.append('<p class="intro">対象はeDP-1で前面のosu!がfullscreen 2/0の点サンプル。'
+                'DSO率はdirectScanoutToを取得した対象サンプル、tearing率はactivelyTearingを取得したDSOサンプルから算出。'
+                'i915の実flip時刻、描画フレーム時間、光学遅延は未測定です。</p>')
+    body.append(f'<p class="micro">Hyprland samples {sysd["samples"]} ／ 要求間隔 {fmt(outcome.get("sample_interval_s"), 1)} s</p>')
     body.append('<h3>DSOが阻害された理由（既知2/0条件内）</h3>'+simple_table(['reason','samples'],list(dra.get('dso_blockers',{}).items())))
     body.append('<h3>Tearingが阻害された理由（既知2/0条件内）</h3>'+simple_table(['reason','samples'],list(dra.get('tearing_blockers',{}).items()))+'</section>')
     body.append('<section><h2>熱・P-state</h2>'+svg_temps(data.get('samples',[]))+
-                f'<p class="micro">温度p95 {fmt(sysd["temp_C"]["p95"])}°C ／ throttle増分 {pill(sysd["throttle_delta"])} ／ CPU周波数p50 {fmt(sysd["cpu_kHz"]["p50"],0)} kHz</p></section>')
+                f'<p class="micro">グラフ横軸はサンプル順。sysfs温度p95 {fmt(sysd["temp_C"]["p95"])} °C（{sysd["temp_C"]["count"]}件） ／ '
+                f'throttle増分 {pill(sysd["throttle_delta"])}（{sysd["throttle_observations"]}件） ／ '
+                f'CPU周波数p50 {fmt(sysd["cpu_kHz"]["p50"],0)} kHz（{sysd["cpu_kHz"]["count"]}件）</p></section>')
     body.append('<section><h2>測定の限界と次の比較</h2>')
     for message in warnings:
         body.append('<div class="warning">'+esc(message)+'</div>')
@@ -613,137 +803,262 @@ body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header
     return '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+style+'</style><body>'+''.join(body)+'</body></html>'
 
 
+def comparable(entries):
+    # Recorded metadata can rule out matching conditions, but cannot verify play/workload.
+    configs = [e["config"] for e in entries]
+    for key in ("seconds", "expected_tablet_hz", "expected_bass", "game_settings"):
+        values = [c.get(key) for c in configs]
+        if None in values or len(set(values)) != 1:
+            return False
+    if entries[0].get("version") is None or entries[0].get("version") != entries[1].get("version"):
+        return False
+    if entries[0].get("environment") != entries[1].get("environment"):
+        return False
+    windows = [e["analysis"].get("capture", {}) for e in entries]
+    if any(w.get("status") != "complete" or w.get("clock") != MONOTONIC for w in windows):
+        return False
+    first, second = windows
+    interval = first.get("sample_interval_s")
+    return (isinstance(interval, (int, float)) and interval > 0 and interval == second.get("sample_interval_s")
+            and abs(first["elapsed_s"] - second["elapsed_s"]) <= interval)
+
+
+def comparison_values(summary):
+    draw, system = summary["draw"], summary["system"]
+    update = next((t for t in summary["update"]["thread_sched"] if re.search("update", t["name"], re.I)), {})
+    hidraw = next((d["period_ms"] for d in summary["input"]["devices"] if d["kind"] == "hidraw"), dist([]))
+    pw = summary["audio"].get("pw_top") or {}
+    alsa = [r for k, r in pw.get("nodes", {}).items() if "alsa_output" in k]
+    errors = [r["delta_err"] for r in alsa if r["delta_err"] is not None]
+    return [
+        (hidraw["p50"], f'{hidraw["count"]} intervals'),
+        (sum(errors) if alsa and len(alsa) == len(errors) else None, f'{len(errors)}/{len(alsa)} nodes'),
+        (update.get("wait_per_slice_ms"), f'{pill(update.get("slices"))} slices'),
+        (draw["dso_ratio"], f'{draw.get("dso_samples", 0)}/{draw.get("dso_observed_samples", 0)} observed'),
+        (draw["tearing_ratio_among_dso"],
+         f'{draw.get("actively_tearing_samples", 0)}/{draw.get("tearing_observed_dso_samples", 0)} observed DSO'),
+        (system["temp_C"]["max"], f'{system["temp_C"].get("count", 0)} samples'),
+        (system["throttle_delta"], f'{system.get("throttle_observations", 0)} samples'),
+    ]
+
+
 def comparison_html(entries):
-    summaries = [x["analysis"] for x in entries]
-    labels = [x["config"]["label"] for x in entries]
-    def obtain(x, kind):
-        if kind == "dso":return x["draw"]["dso_ratio"]
-        if kind == "tear":return x["draw"]["tearing_ratio_among_dso"]
-        if kind == "temp":return x["system"]["temp_C"]["max"]
-        if kind == "throttle":return x["system"]["throttle_delta"]
-        if kind == "sched":
-            xs=[t for t in x["update"]["thread_sched"] if re.search("update",t["name"],re.I)]
-            return xs[0]["wait_per_slice_ms"] if xs else None
-        if kind == "err":
-            vals=[r["delta_err"] for k,r in x["audio"]["pw_top"].get("nodes",{}).items() if "alsa_output" in k]
-            return sum(vals) if vals else None
-        if kind == "input":
-            matches=[d for d in x["input"]["devices"] if d["kind"]=="hidraw"]
-            return matches[0]["period_ms"]["p50"] if matches else None
-    metrics=[("Input: hidraw中央値（ms）", "input", "測定した報告間隔。低い値だけでクリック品質を判定しない"),
-             ("Audio: ALSA ERR増分", "err", "XRun以外のエラーを含む。稼働時間をそろえる"),
-             ("Update: Update runqueue wait/slice（ms）", "sched", "スレッド名が特定できた場合の代理指標"),
-             ("Draw: DSO率（%）", "dso", "2/0条件が母数。高いほど安定"),
-             ("Draw: tearing状態率（%）", "tear", "高いことが低遅延の光学的証明とはならない"),
-             ("CPU最高温度（°C）", "temp", "温度負荷条件が同じか確認"),
-             ("スロットリング増分", "throttle", "0が望ましい")]
-    rows=[]
-    for title,key,note in metrics:
-        values=[obtain(x,key) for x in summaries]
-        columns=[fmt(v,3) for v in values]
-        if len(values)==2:
-            delta=round(values[1]-values[0],3) if all(isinstance(v,(int,float)) for v in values) else None
-            columns.append(f"{delta:+.3f}" if delta is not None else "未判定")
-        rows.append((title,*columns,note))
-    body=f'<header><h1>osu! latency lab · comparison</h1><p class="intro">実測可能な指標のみ横並び。数値が良くても入力→光学遅延改善を意味しません。</p></header>'
-    cols=['指標',*labels]+(['Δ（右−左）'] if len(labels)==2 else [])+['解釈']
-    body+='<section><h2>実行条件の比較</h2><div class="tabwrap">'+simple_table(cols,rows)+'</div></section>'
-    body+='<section><h2>採用判断</h2><p>CTL-472は400Hzを基準とし、1000Hzとの比較ではクリック反応の信頼性を優先してください。AudioはERR増分0、DrawはDSO維持が必要条件です。Updateの実効p99や物理的遅延は、この比較表では未知のままです。</p></section>'
+    labels = [x["config"].get("label", "untitled") for x in entries]
+    pair = len(entries) == 2
+    show_delta = pair and comparable(entries)
+    metrics = [
+        ("Input: hidraw中央値（ms）", "CLOCK_MONOTONICによるread完了間隔"),
+        ("Audio: ALSA ERR増分", "pw-topのALSA出力ノード。XRun以外のエラーを含む"),
+        ("Update: runqueue wait/slice（ms）", "procfs schedstatの代理指標"),
+        ("Draw: DSO率（%）", "Hyprlandの対象サンプルのうち、DSOを観測できた件数が母数"),
+        ("Draw: tearing状態率（%）", "HyprlandのDSOサンプルのうち、tearingを観測できた件数が母数"),
+        ("CPU最高温度（°C）", "sysfsの点サンプル"),
+        ("スロットリング増分", "sysfs package counterの観測差"),
+    ]
+    observations = [comparison_values(e["analysis"]) for e in entries]
+    rows = []
+    for (title, note), measured in zip(metrics, zip(*observations)):
+        columns = [f"{fmt(value, 3)} ({coverage})" for value, coverage in measured]
+        if pair:
+            left, right = (value for value, _ in measured)
+            columns.append(f"{right - left:+.3f}" if show_delta and None not in (left, right) else "未判定")
+        rows.append((title, *columns, note))
+    conditions = []
+    for cfg, summary, env in ((e["config"], e["analysis"], e.get("environment") or {}) for e in entries):
+        window = summary.get("capture", {})
+        draw = summary["draw"]
+        conditions.append((cfg.get("label"), window.get("status", "unknown"),
+                           pill(cfg.get("seconds")), fmt(window.get("elapsed_s"), 3),
+                           pill(cfg.get("expected_tablet_hz")), pill(cfg.get("expected_bass")),
+                           pill(env.get("bass")), pill(cfg.get("game_settings")), draw.get("eligible_samples", 0)))
+    body = '<header><h1>osu! latency lab · comparison</h1><p class="intro">記録された観測値をセッションごとに表示します。</p></header>'
+    body += '<section><h2>計測条件</h2><div class="tabwrap">' + simple_table(
+        ['セッション', 'capture', '要求 s', '経過 s', '申告 tablet Hz', 'BASSラベル', 'BASS環境変数', 'ゲーム設定ラベル',
+         '2/0対象件数'], conditions) + '</div></section>'
+    if pair and not show_delta:
+        body += '<p>記録条件が異なるか不明、または計測区間が不完全なため、Δは未判定。</p>'
+    cols = ['指標', *labels] + (['Δ（右−左）'] if pair else []) + ['由来']
+    body += '<section><h2>観測値</h2><div class="tabwrap">' + simple_table(cols, rows) + '</div></section>'
+    body += '<p>比較には同じ譜面、操作、周辺アプリと計測方法での反復が必要です。物理的な入力・発音・発光の遅延は未測定です。</p>'
     return '<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:15px/1.7 system-ui;color:#e9eff5;background:#101925;max-width:1150px;margin:auto;padding:24px}.intro{color:#99b2c9}section{background:#162333;border:1px solid #405064;border-radius:12px;padding:20px;margin-top:20px}.tabwrap{overflow:auto}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #314457;padding:11px;text-align:left}th{color:#9ad4df}</style><body>'+body+'</body></html>'
 
 
 def terminate(signum, _frame):
     global STOP
-    STOP = True
+    if STOP is None:
+        STOP = signum
+
+
+@contextmanager
+def capture_signals():
+    global STOP
+    STOP = None
+    previous = {}
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            previous[sig] = signal.signal(sig, terminate)
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+@contextmanager
+def pw_top_capture(out, seconds, status):
+    if STOP is not None or not shutil.which("pw-top"):
+        status["status"] = "unavailable"
+        yield
+        return
+    try:
+        stream = open(out / "pw-top-batch.txt", "xb", opener=lambda path, flags: os.open(path, flags, 0o600))
+    except OSError:
+        status["status"] = "output unavailable"
+        yield
+        return
+    with stream:
+        try:
+            process = subprocess.Popen(["pw-top", "-b", "-n", str(seconds + 3)],
+                                       stdout=stream, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            status["status"] = "launch failed"
+            yield
+            return
+        try:
+            yield
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
+                    status["status"] = "forced stop"
+            elif process.returncode != 0:
+                status["status"] = "exited early"
+            status["returncode"] = process.returncode
+
+
+def capture_window(args, out, data, outcome, pw_status):
+    if STOP is not None:
+        return
+    observer = InputObserver(args.hidraw, args.event)
+    try:
+        with pw_top_capture(out, args.seconds, pw_status):
+            if STOP is not None:
+                return
+            start = time.monotonic()
+            next_tick = start
+            end = start + args.seconds
+            try:
+                while STOP is None and (now := time.monotonic()) < end:
+                    if now >= next_tick:
+                        data["samples"].append({"elapsed_s": round(now - start, 3),
+                                                "display": display_snapshot(), "cpu": cpu_snapshot(),
+                                                "threads": task_snapshot(data["proc_start"]["pid"])})
+                        next_tick += 1.0
+                        if next_tick < now:
+                            next_tick = now + 1.0
+                    if STOP is None:
+                        observer.sample(max(0, min(0.05, next_tick - time.monotonic(), end - time.monotonic())))
+            except Exception as e:
+                note_failure(outcome, "sampling", e)
+            finally:
+                outcome["elapsed_s"] = round(time.monotonic() - start, 3)
+    finally:
+        observer.close()
+        data["input"] = observer.result()
+
+
+def note_failure(outcome, stage, error):
+    outcome["failures"].append({"stage": stage, "type": type(error).__name__})
+    print(f"osu-lab: {stage}: {error}", file=sys.stderr)
+
+
+def collect_capture(args, out):
+    outcome = {"clock": MONOTONIC, "elapsed_s": 0.0, "sample_interval_s": 1.0, "failures": []}
+    data = {"version": VERSION, "started": stamp(), "capture": outcome,
+            "config": {"label": args.label, "seconds": args.seconds, "expected_tablet_hz": args.tablet_hz,
+                       "game_settings": args.game_settings, "expected_bass": args.bass,
+                       "note": args.note}, "samples": []}
+    start_log = None
+    pw_status = {}
+    try:
+        if STOP is None:
+            start_log = find_perf_logs(args.logs)
+            data["proc_start"] = proc_snapshot(proc_pid(args.pid))
+            data["alsa_start"] = alsa_snapshot()
+        if STOP is None:
+            data["pw_start"] = pw_dump_snapshot()
+    except Exception as e:
+        note_failure(outcome, "setup", e)
+    else:
+        capture_window(args, out, data, outcome, pw_status)
+    data["ended"] = stamp()
+    try:
+        if STOP is None:
+            data["alsa_end"] = alsa_snapshot()
+        if STOP is None:
+            data["pw_end"] = pw_dump_snapshot()
+        data["pw_top"] = {**parse_pw_top(out / "pw-top-batch.txt"), **pw_status}
+        if start_log is not None:
+            data["log_capture"] = copy_perf_log_deltas(out, start_log, find_perf_logs(args.logs))
+            data["game_log"] = parse_slow_logs(out)
+    except Exception as e:
+        note_failure(outcome, "finalization", e)
+    received = STOP
+    outcome["signal"] = signal.Signals(received).name if received is not None else None
+    outcome["status"] = "partial" if received is not None or outcome["failures"] else "complete"
+    return data
+
+
+def render_report(root, data):
+    summary = analyze(data)
+    report_html = html_report(data, summary)
+    write_json(root / "analysis.json", summary)
+    write_file(root / "report.html", report_html)
 
 
 def capture(args):
-    global STOP
-    STOP = False
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,60}", args.label):
         raise SystemExit("label must be 1..61 safe ASCII letters/digits/._-")
     if args.seconds < 10 or args.seconds > 600:
         raise SystemExit("--seconds must be 10..600")
     root = Path(args.out).expanduser().resolve()
-    if not root.exists():
-        root.mkdir(parents=True, mode=0o700)
-    elif not root.is_dir():
-        raise SystemExit(f"--out is not a directory: {root}")
-    # Do not change permissions on a pre-existing directory, including Downloads.
-    # New per-session directories are always private (0700).
+    root.mkdir(parents=True, mode=0o700, exist_ok=True)
+    # A fresh private session leaves the surrounding directory's permissions intact.
     out = root / f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{args.label}"
-    out.mkdir(mode=0o700, exist_ok=False)
-    start_s = stamp()
-    start_log = find_perf_logs(args.logs)
-    observer = InputObserver(args.hidraw, args.event)
-    pid = proc_pid(args.pid)
-    proc = proc_snapshot(pid)
-    data = {"version": VERSION, "started": start_s,
-            "config": {"label": args.label, "seconds": args.seconds, "expected_tablet_hz": args.tablet_hz,
-                       "game_settings": args.game_settings, "expected_bass": args.bass,
-                       "note": args.note}, "proc_start": proc,
-            "alsa_start": alsa_snapshot(), "pw_start": pw_dump_snapshot(), "samples": []}
-    pw_process = None
-    pw_file = None
-    if shutil.which("pw-top"):
-        try:
-            pw_file = (out / "pw-top-batch.txt").open("w", encoding="utf-8")
-            pw_process = subprocess.Popen(["pw-top", "-b", "-n", str(args.seconds+3)],
-                                          stdout=pw_file, stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            if pw_file: pw_file.close()
-            pw_file = None
-    for s in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(s, terminate)
-    print(f"osu-lab capture → {out}\n"
-          f"Keep osu! foreground for {args.seconds}s; input is passive read-only.\n"
-          f"Expected CTL-472 setting: {args.tablet_hz}Hz (metadata, not assumed measured).", file=sys.stderr, flush=True)
-    start = time.monotonic()
-    next_tick = start
-    end = start+args.seconds
-    try:
-        while not STOP and time.monotonic() < end:
-            now = time.monotonic()
-            if now >= next_tick:
-                data["samples"].append({"elapsed_s": round(now-start, 3),
-                                        "display": display_snapshot(), "cpu": cpu_snapshot(),
-                                        "threads": task_snapshot(pid)})
-                next_tick += 1.0
-                if next_tick < now:
-                    next_tick = now + 1.0
-            observer.sample(max(0, min(0.05, next_tick-time.monotonic(), end-time.monotonic())))
-    finally:
-        data["input"] = observer.result()
-        if pw_process:
-            try:
-                pw_process.terminate()
-                pw_process.wait(timeout=2)
-            except (OSError, subprocess.TimeoutExpired):
-                pw_process.kill()
-                pw_process.wait(timeout=2)
-        if pw_file: pw_file.close()
-        data["ended"] = stamp()
-        data["alsa_end"] = alsa_snapshot()
-        data["pw_end"] = pw_dump_snapshot()
-        data["pw_top"] = parse_pw_top(out / "pw-top-batch.txt")
-        data["log_capture"] = copy_perf_log_deltas(out, start_log, find_perf_logs(args.logs))
-        data["game_log"] = parse_slow_logs(out)
-        write_json(out / "data.json", data)
-        ana = analyze(data)
-        write_json(out / "analysis.json", ana)
-        (out / "report.html").write_text(html_report(data, ana), encoding="utf-8")
-        print(f"Saved {len(data['samples'])} system samples; "
+    with capture_signals():
+        out.mkdir(mode=0o700)
+        marker = out / INCOMPLETE
+        write_file(marker, "Capture in progress or stopped before data.json was published.\n", new=True)
+        print(f"osu-lab capture → {out}\n"
+              f"Keep osu! foreground for {args.seconds}s; input is passive read-only.\n"
+              f"Expected CTL-472 setting: {args.tablet_hz}Hz (metadata, not assumed measured).", file=sys.stderr, flush=True)
+        data = collect_capture(args, out)
+        write_json(out / "data.json", data, new=True)
+        marker.unlink()
+        render_report(out, data)
+        print(f"Capture {data['capture']['status']}: {len(data['samples'])} system samples; "
               f"report: {out/'report.html'}\n"
               f"Private raw evidence: {out/'data.json'}", file=sys.stderr)
-    return 130 if STOP else 0
+    return 128 + STOP if STOP is not None else int(data["capture"]["status"] != "complete")
+
+
+def load_capture(root):
+    path = root / "data.json"
+    if (root / INCOMPLETE).exists() and not path.is_file():
+        raise ValueError(f"incomplete capture: {root}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if (not isinstance(data, dict) or not isinstance(data.get("config"), dict)
+            or not isinstance(data.get("samples"), list) or not all(isinstance(x, dict) for x in data["samples"])):
+        raise ValueError(f"invalid capture schema: {path}")
+    return data
 
 
 def report(args):
-    root = Path(args.session)
-    data = json.loads((root / "data.json").read_text(encoding="utf-8"))
-    ana = analyze(data)
-    write_json(root / "analysis.json", ana)
-    (root / "report.html").write_text(html_report(data, ana), encoding="utf-8")
+    root = Path(args.session).expanduser()
+    render_report(root, load_capture(root))
     print(root / "report.html")
     return 0
 
@@ -751,13 +1066,21 @@ def report(args):
 def compare(args):
     entries = []
     for folder in args.sessions:
-        root = Path(folder).expanduser().resolve()
-        data = json.loads((root / "data.json").read_text(encoding="utf-8"))
-        entries.append({"config": data["config"], "analysis": analyze(data)})
+        data = load_capture(Path(folder).expanduser().resolve())
+        proc = data.get("proc_start") or {}
+        monitors = set()
+        for sample in data["samples"]:
+            mon = (sample.get("display") or {}).get("monitor") or {}
+            if mon.get("name") == MONITOR:
+                monitors.add(tuple(mon.get(key) for key in ("width", "height", "refreshRate", "vrr")))
+        environment = {"bass": (proc.get("environ") or {}).get("OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD"),
+                       "monitor_modes": sorted(monitors, key=repr)}
+        entries.append({"config": data["config"], "analysis": analyze(data), "version": data.get("version"),
+                        "environment": environment})
     root = Path(args.out).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     dest = root / "comparison.html"
-    dest.write_text(comparison_html(entries), encoding="utf-8")
+    write_file(dest, comparison_html(entries))
     write_json(root / "comparison.json", entries)
     print(dest)
     return 0

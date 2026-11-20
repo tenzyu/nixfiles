@@ -38,7 +38,7 @@ osu-lab capture --label 400hz-8x-bass128-sync --seconds 90 \
   --tablet-hz 400 --game-settings 8x-sync --bass=-128
 ```
 
-`~/osu-lab-results/YYYYMMDD-HHMMSS-400hz-8x-bass128-sync/report.html`が作られる。ローカルHTMLをFirefox等で開ける。ディレクトリ権限は0700。生ログにはアプリ・端末情報が含まれるため公開前に確認する。
+`~/osu-lab-results/YYYYMMDD-HHMMSS-400hz-8x-bass128-sync/report.html`が作られる。ローカルHTMLをFirefox等で開ける。セッションディレクトリは0700。生ログにはアプリ・端末情報が含まれるため公開前に確認する。
 
 `osu-lab capture`はゲームを起動/停止しない。オーディオ設定、fps limiter、ファームウェア、tearing、kernel、NixOS設定を変えない。`--bass`や`--game-settings`は**比較用ラベルで、設定が本当に変わったという主張ではない**。BASSはゲームプロセスから取得できた要求値を別途表示する。
 
@@ -60,14 +60,20 @@ osu-lab compare ~/osu-lab-results/*-400hz-8x-bass128-sync \
 
 比較に`*`を使う場合、対象のセッションが1件ずつであることを確認すること。複数試行がある場合はディレクトリを明示的に指定する。
 
+比較表は各セッションの観測値、観測件数、申告条件を横に並べる。2件の差分は、両方が完了し、記録された設定・バージョン・表示モード・BASS環境変数が一致し、実測した経過時間の差がサンプル間隔以内の場合に表示する。条件変更を含む比較では個別の観測値を見る。同一条件での反復と実際の操作条件の確認は操作者が行う。
+
 ## 取得できるデータの由来
 
 | 軸 | データ | 観測の限界 |
 |---|---|---|
-| Input | `hidraw`からのCTL-472レポート到着間隔ヒストグラム（p50/p95/p99/p99.9）、evdevの変更イベント間隔、`SYN_DROPPED`、イベントpress/release数、evdev取得までのOS側待ち | `hidraw`は**ユーザー空間で読み出した時刻**。センサー内部レートは測れない。evdevは状態が変わった時だけイベントが来る。停止時のギャップは欠落の証拠ではない。`SYN_DROPPED`はこの観測者のevdevキュー損失であり、osu!側の損失を証明しない。Input→Updateをイベントごとに追跡はできない。 |
-| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodとDAC/耳への発音開始は不可視。ERRはXRun＋他のエラー。ALSA hw_paramsとPipeWireノードの対応は型・パスで追加確認が必要。 |
-| Update | `/proc/$pid/cgroup`と`cpu.weight/uclamp`、`timerslack_ns`、`task/*/schedstat` runqueue累積待機時間、CPU温度/周波数、slow-frameログ | `schedstat`のwait/sliceは**Update間隔ではない**。全Updateのp99/p99.9や入力→Update待ち時間にはin-process instrumentationが必要。プロセス名が判別できなければ`--pid`を使う。 |
-| Draw | 前面・2/0・DSOの一致率、`activelyTearing`、熱、slow-frameログ | DSOとtearingのHyprland状態は1秒毎の点サンプル。Per-frame KMS flip、GPU完了、パネルの発光、input-to-photonは測れない。|
+| Input | `hidraw`の報告1件ごとの読み出し完了間隔、`evdev`の整列済み`SYN_REPORT`間隔、取得遅延、`SYN_DROPPED`、完了フレーム内のpress/release数 | 時間の分布はms。各分布の`count`は採用した間隔または遅延の件数。申告tablet Hz、センサー内部レート、入力→Update時間は別の値。 |
+| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（プロセスが受け取った**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodと物理的な発音開始は未測定。ERRはXRunを含む。同一ノードで2回以上観測しカウンターが減少しない場合に増分を算出する。ALSAとPipeWireノードの対応は型・パスで追加確認が必要。 |
+| Update | `/proc/$pid/cgroup`と`cpu.weight/uclamp`、`timerslack_ns`、`task/*/schedstat` runqueue累積待機時間、CPU温度/周波数、アプリ報告のslow-frameログ | `schedstat`のwait/sliceはスケジューラの代理指標（ms/slice）。全Updateのp99/p99.9や入力→Update待ち時間にはin-process instrumentationが必要。プロセス名が判別できなければ`--pid`を使う。 |
+| Draw | 前面のosu!がeDP-1のfullscreen 2/0を満たす点サンプル、`directScanoutTo`、`activelyTearing`、阻害理由 | DSO率の母数は対象サンプルのうちDSO状態が取得できた件数。tearing率の母数はDSOが有効でtearing状態も取得できた件数。母数0は未測定、観測した全件がfalseなら0%。Per-frame KMS flip、GPU完了、光学遅延は未測定。 |
+
+- `evdev`の時刻は`EVIOCSCLOCKID`で`CLOCK_MONOTONIC`を選択できた場合に使用する。報告間隔は連続する正の差、取得遅延はカーネル時刻からread完了までの0以上5秒未満の差。1回のreadに複数報告が入る場合も、read時刻は1件として`read_interval_ms`へ別に集計する。時計が未確認ならevdev報告間隔と取得遅延は未測定。
+- `SYN_DROPPED`から次の`SYN_REPORT`までを集計対象外とし、欠落をまたぐ間隔を除外する。カウントの完全性を`false`として残す。切断・read失敗・末尾の未完了フレームでも完全性は`false`。生のキーIDや座標は保存しない。
+- サンプルの`elapsed_s`は計測ループの開始からのmonotonic秒。要求間隔は1秒。各点の取得にはコマンド実行時間がかかる。
 
 ### 公式osu!の詳細診断
 
@@ -81,7 +87,8 @@ osu-lab compare ~/osu-lab-results/*-400hz-8x-bass128-sync \
 - SayoDevice O3Cなど`/dev/input/eventN`への読み取りは権限が必要。`--event /dev/input/eventN`でも指定可能。**このツールはEVIOCGRABを使用せず、書き込み・キー注入・firmware更新をしない**。生の座標やキーコードは保存しない。
 - 標準では1HzでHyprland/CPU/スレッドを照会し、`pw-top`を非対話batchで動作させる。これはプロファイリングによる負荷を加えるため、試行間で条件をそろえること。レイテンシに厳密なA/Bでは同じ計測方法を両群へ適用する。
 - マルチセッションでnixfilesを更新した場合、比較前にバージョンや起動世代の差を確認すること。
-- 早期終了は`Ctrl+C`でレポートを保存。ドライバ/音声/Hyprlandが応答しない場合は各指標を欠測として表示し、成功扱いにしない。
+- `Ctrl+C`またはSIGTERMで計測を中断した場合は、保存できた観測を`capture.status = partial`として記録する。シグナルによる終了コードは130または143。完全に書き終えた`data.json`を公開し、公開前に停止または失敗したセッションには`capture-incomplete`が残る。必須の計測処理に失敗した場合も保存できたデータは`partial`となる。個々のデバイスやコマンドの欠測は各観測に残る。
+- `osu-lab report SESSION`は`data.json`から`analysis.json`と`report.html`を再生成する。`compare`は指定の出力先に比較結果を書く。両コマンドで`data.json`と生ログの内容は保存時のまま。旧版では完了状態や集計の由来を復元できない場合は不明として表示する。旧evdevデータの期間分布は、時計の整列と欠落がないことが記録され、正の間隔のみだった場合に表示する。
 - 保存先はデフォルト`~/osu-lab-results/`、生ログは非公開扱い。`report.html`と`analysis.json`の内容を確認してから共有すること。
 
 ## 計測できないものの別ルート
