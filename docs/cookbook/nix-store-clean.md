@@ -52,10 +52,12 @@ sudo nix-env --profile /nix/var/nix/profiles/system --delete-generations +3 --dr
 | `runtime` | Running processes can keep store paths live; never remove here. |
 | `profile` | Nix profiles and Home Manager; never remove here. |
 | `direnv` | Persistent dev-shell GC roots; show for investigation, do not remove automatically. |
-| `build-result` | Only plain `result` / `result-N` symlinks under the invoking user's home directory are eligible for **interactive review**. |
+| `build-result` | Review shows owned `result` / `result-N` symlinks under the invoking user's home, outside hidden directories, whose resolved targets still match the root inventory. |
 | `other` | Unclassified root; preserve. |
 
-`review-results` runs without sudo and requires an interactive terminal. It lists eligible user-owned links and lets you shortlist items by number. The shortlist is a snapshot, not permission to remove a link. A build or another process running as your user can change the entry after inspection. The cleaner no longer asks for `UNLINK`, emits removal commands, or changes any link, profile, or store path in this mode.
+Run `review-results` without sudo, either directly on a terminal or in a pipeline. Menu option 2 prints the same read-only list without a second prompt. Each entry shows the project link and its observed store target. The display uses Python string quoting to make spaces and control characters visible.
+
+A build or another process can retarget or remove a link after inspection. In the owning project, resolve the current link again with `readlink -e -- ./result` (use the actual basename, such as `result-2`). Check whether the project still uses that output. If you decide to retire the link, use the project's cleanup workflow, then rerun `nix-store-clean-current-system audit` or `nix-store --gc --print-roots` for a fresh inventory.
 
 ## After the earlier unsafe 11 GiB deletion
 

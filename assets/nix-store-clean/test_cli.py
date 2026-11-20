@@ -1,6 +1,6 @@
 """No Nix daemon or privileged NixOS VM required for these deterministic tests."""
 import importlib.util
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import json
 import os
@@ -98,34 +98,92 @@ class ResultSymlinkTests(unittest.TestCase):
         other.symlink_to(self.output)
         self.assertFalse(MOD.eligible_result(MOD.Root(str(other), str(self.output), 'build-result', ''), home=self.home, uid=os.getuid()))
 
-    def test_selected_result_is_advisory_even_with_old_confirmation(self):
-        roots_str = f'{self.link} -> {self.output}\n'
-        fake = subprocess.CompletedProcess([], 0, stdout=roots_str)
+    def test_review_is_sorted_read_only_and_never_reads_stdin(self):
+        unusual = self.home / " a 'quoted' \x1b -> project" / 'result-2'
+        unusual.parent.mkdir()
+        unusual.symlink_to(self.output)
+        hidden = self.home / '.direnv' / 'result'
+        hidden.parent.mkdir()
+        hidden.symlink_to(self.output)
+        roots = [self.link, hidden, unusual]
+        fake = subprocess.CompletedProcess([], 0, stdout=''.join(f'{p} -> {self.output}\n' for p in roots))
         before = self.link.lstat()
-        with mock.patch.object(MOD, 'run_command', return_value=fake) as run, \
-             mock.patch.object(MOD.Path, 'home', return_value=self.home), \
-             mock.patch.object(MOD.os, 'geteuid', return_value=1000), \
-             mock.patch.object(MOD.sys, 'stdin') as stdin, \
-             mock.patch('builtins.input', side_effect=['1', 'UNLINK']) as ask, \
-             redirect_stdout(StringIO()) as output:
-            stdin.isatty.return_value = True
-            self.assertEqual(MOD.main(['review-results', '--yes']), 0)
-        ask.assert_called_once()
-        self.assertIn('Numbers to review', ask.call_args.args[0])
-        run.assert_called_once_with('nix-store', '--gc', '--print-roots')
-        self.assertIn('Selected symlinks (advisory only)', output.getvalue())
-        self.assertIn('Nothing was changed.', output.getvalue())
-        self.assertNotIn('UNLINK', output.getvalue())
+        for isatty in (False, True):
+            with self.subTest(isatty=isatty), \
+                 mock.patch.object(MOD.subprocess, 'run', return_value=fake) as run, \
+                 mock.patch.object(MOD.Path, 'home', return_value=self.home), \
+                 mock.patch.object(MOD.os, 'geteuid', return_value=1000), \
+                 mock.patch.object(MOD.sys, 'stdin') as stdin, \
+                 mock.patch('builtins.input', side_effect=AssertionError('unexpected prompt')), \
+                 redirect_stdout(StringIO()) as output:
+                stdin.isatty.return_value = isatty
+                output.isatty = lambda: isatty
+                self.assertEqual(MOD.main(['review-results', '--yes']), 0)
+            self.assertEqual(stdin.mock_calls, [])
+            run.assert_called_once_with(('nix-store', '--gc', '--print-roots'),
+                                        text=True, check=True, capture_output=True)
+            report = output.getvalue()
+            observed = f'  Observed target: {str(self.output)!r}'
+            self.assertEqual([line for line in report.splitlines() if line.startswith('  ')], [
+                f'  Link: {str(unusual)!r}', observed, f'  Link: {str(self.link)!r}', observed,
+            ])
+            self.assertNotIn('\x1b', report)
+            self.assertIn('readlink -e', report)
+            self.assertIn('check whether the project still needs that output', report)
+            self.assertIn('nix-store --gc --print-roots', report)
         self.assertEqual(self.link.lstat().st_ino, before.st_ino)
         self.assertEqual(self.link.readlink(), self.output)
         self.assertTrue(self.output.exists())
 
-    def test_cancellation_leaves_symlink(self):
-        with mock.patch.object(MOD, 'get_result_roots', return_value=[self.root]), \
-             mock.patch.object(MOD.sys, 'stdin') as stdin:
-            stdin.isatty.return_value = True
-            self.assertEqual(MOD.review_results(ask=lambda prompt: ''), 0)
-        self.assertTrue(self.link.is_symlink())
+    def test_review_excludes_links_changed_after_inventory(self):
+        gone = self.link.with_name('result-2')
+        gone.symlink_to(self.output)
+        replacement = self.store / 'replacement'
+        replacement.mkdir()
+
+        def inventory(argv, **kwargs):
+            output = f'{self.link} -> {self.output}\n{gone} -> {self.output}\n'
+            self.link.unlink()
+            self.link.symlink_to(replacement)
+            gone.unlink()
+            return subprocess.CompletedProcess(argv, 0, stdout=output)
+
+        with mock.patch.object(MOD.subprocess, 'run', side_effect=inventory), \
+             mock.patch.object(MOD.Path, 'home', return_value=self.home), \
+             mock.patch.object(MOD.os, 'geteuid', return_value=1000), \
+             redirect_stdout(StringIO()) as output:
+            self.assertEqual(MOD.main(['review-results']), 0)
+        self.assertIn('No eligible user-owned result symlinks found.', output.getvalue())
+        self.assertNotIn('Observed target:', output.getvalue())
+        self.assertIn('nix-store --gc --print-roots', output.getvalue())
+        self.assertEqual(self.link.readlink(), replacement)
+        self.assertFalse(gone.is_symlink())
+
+    def test_review_reports_native_inventory_failure(self):
+        failure = subprocess.CalledProcessError(1, ['nix-store'], stderr='inventory unavailable')
+        with mock.patch.object(MOD.subprocess, 'run', side_effect=failure), \
+             mock.patch.object(MOD.Path, 'home', return_value=self.home), \
+             mock.patch.object(MOD.os, 'geteuid', return_value=1000), \
+             redirect_stdout(StringIO()) as output, redirect_stderr(StringIO()) as errors:
+            self.assertEqual(MOD.main(['review-results']), 1)
+        self.assertEqual(output.getvalue(), '')
+        self.assertIn('inventory unavailable', errors.getvalue())
+
+    def test_review_refuses_root_before_inventory(self):
+        with mock.patch.object(MOD.os, 'geteuid', return_value=0), \
+             mock.patch.object(MOD.subprocess, 'run') as run, redirect_stderr(StringIO()) as errors:
+            self.assertEqual(MOD.main(['review-results']), 1)
+        run.assert_not_called()
+        self.assertIn('without sudo', errors.getvalue())
+
+    def test_menu_review_returns_to_main_menu_without_second_prompt(self):
+        with mock.patch.object(MOD, 'audit'), mock.patch.object(MOD, 'pretty_audit'), \
+             mock.patch.object(MOD, 'get_result_roots', return_value=[self.root]), \
+             mock.patch('builtins.input', side_effect=['2', '0']) as ask, \
+             redirect_stdout(StringIO()) as output:
+            MOD.interactive()
+        self.assertEqual(ask.call_args_list, [mock.call('Select [0-4]: ')] * 2)
+        self.assertIn(f'Link: {str(self.link)!r}', output.getvalue())
 
 
 class DestructiveOperationTests(unittest.TestCase):
@@ -139,11 +197,20 @@ class DestructiveOperationTests(unittest.TestCase):
             run.assert_called_once_with('nix-store', '--gc', capture=False)
 
     def test_no_confirmation_no_mutation(self):
-        with mock.patch.object(MOD, 'run_command') as run:
-            with self.assertRaises(MOD.SafetyError):
+        with mock.patch.object(MOD.os, 'geteuid', return_value=0), \
+             mock.patch.object(MOD, 'run_command') as run:
+            with self.assertRaisesRegex(MOD.SafetyError, 'requires --yes'):
                 MOD.native_gc(confirmed=False)
-            with self.assertRaises(MOD.SafetyError):
+            with self.assertRaisesRegex(MOD.SafetyError, 'requires --yes'):
                 MOD.prune_system(keep=3, confirmed=False)
+            run.assert_not_called()
+
+    def test_gc_requires_valid_system_references(self):
+        with mock.patch.object(MOD.os, 'geteuid', return_value=0), \
+             mock.patch.object(MOD, 'system_state', return_value=self.good_system | {'booted': None}), \
+             mock.patch.object(MOD, 'run_command') as run:
+            with self.assertRaisesRegex(MOD.SafetyError, 'system references missing'):
+                MOD.native_gc(confirmed=True)
             run.assert_not_called()
 
     def test_prune_pending_boot_is_blocked(self):
@@ -174,6 +241,18 @@ class DestructiveOperationTests(unittest.TestCase):
                 mock.call('nix-env', '--profile', str(MOD.SYSTEM_PROFILE), '--delete-generations', '+3', capture=False),
             ])
 
+    def test_prune_refuses_system_change_after_preview(self):
+        next_system = dict.fromkeys(self.good_system, '/nix/store/system-b')
+        with mock.patch.object(MOD.os, 'geteuid', return_value=0), \
+             mock.patch.object(MOD, 'system_state', side_effect=[self.good_system, next_system]), \
+             mock.patch.object(MOD, 'run_command') as run:
+            with self.assertRaisesRegex(MOD.SafetyError, 'system changed while preparing'):
+                MOD.prune_system(keep=3, confirmed=True)
+        self.assertEqual(run.call_args_list, [
+            mock.call('nix-env', '--profile', str(MOD.SYSTEM_PROFILE), '--list-generations', capture=False),
+            mock.call('nix-env', '--profile', str(MOD.SYSTEM_PROFILE), '--delete-generations', '+3', '--dry-run', capture=False),
+        ])
+
     def test_nonroot_fails_closed(self):
         with mock.patch.object(MOD.os, 'geteuid', return_value=1000):
             with self.assertRaises(MOD.SafetyError):
@@ -184,7 +263,7 @@ class DestructiveOperationTests(unittest.TestCase):
     def test_audit_is_read_only(self):
         def fake(*args, **kwargs):
             if args[-1] == '--print-roots':
-                out = '/run/current-system -> /nix/store/system-a\n/home/test/result -> /nix/store/output\n'
+                out = '/run/current-system -> /nix/store/system-a\n/home/test/result -> /nix/store/output\nunparsed\n'
             elif args[-1] == '--print-dead':
                 out = '/nix/store/dead\n'
             else:
@@ -196,6 +275,7 @@ class DestructiveOperationTests(unittest.TestCase):
         self.assertEqual(report['gc_dead_paths'], 1)
         self.assertEqual(report['gc_root_counts'], {'build-result': 1, 'system': 1})
         self.assertEqual(json.loads(json.dumps(report))['schema_version'], 1)
+        self.assertEqual(report['unparsed_roots'], ['unparsed'])
         self.assertEqual(run.call_count, 2)
 
 
