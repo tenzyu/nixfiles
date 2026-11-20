@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 30
     env:
       # For multi-commit pushes use the event's before SHA; PRs use merge-parent.
-      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^' }}
+      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^1' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -65,20 +65,23 @@ jobs:
       - name: Test selective-check mapping
         run: python3 -m unittest discover -v -s scripts/ci -p 'test_select_checks.py'
 
-      # The standard three focused checks above always run. These additional
-      # checks run only when their implementation or lock input changes.
+      - name: Select focused checks from the event diff
+        id: selection
+        run: python3 scripts/ci/select-checks.py --github-output >> "$GITHUB_OUTPUT"
+
       - name: Build affected feature checks
+        if: steps.selection.outputs.checks != ''
         shell: bash
+        env:
+          SELECTED_CHECKS: ${{ steps.selection.outputs.checks }}
         run: |
           set -euo pipefail
-          selected="$(python3 scripts/ci/select-checks.py)"
-          if [[ -z "$selected" ]]; then
-            echo "No extra feature-specific checks for this diff"
-          else
-            mapfile -t attrs <<< "$selected"
-            printf 'Selected additional checks: %s\n' "${attrs[*]}"
-            nix build -L --no-link "${attrs[@]}"
-          fi
+          read -r -a attrs <<< "$SELECTED_CHECKS"
+          nix build -L --no-link "${attrs[@]}"
+
+      - name: Exercise the offline osu! lab fixture
+        if: steps.selection.outputs.osu_lab == 'yes'
+        run: python3 scripts/osu-performance/test-osu-lab.py
 
       - name: Validate SplitCast cache audit CLI
         run: |
@@ -90,14 +93,8 @@ jobs:
           fi
 
       - name: Audit SplitCast cache paths when inputs or consumers change
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$(python3 scripts/ci/select-checks.py --cache-only)" == yes ]]; then
-            bash scripts/ci/audit-splitcast-cache.sh
-          else
-            echo "SplitCast cache inputs unchanged; skipping read-only probe"
-          fi
+        if: steps.selection.outputs.cache_probe == 'yes'
+        run: bash scripts/ci/audit-splitcast-cache.sh
 
       - name: Exercise the neko7 Serve route without a daemon
         run: bash scripts/test-t3code-tailnet.sh
