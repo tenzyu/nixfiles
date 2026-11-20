@@ -18,6 +18,7 @@
       ];
     };
     inherit (home.config.home.activation) parsecConfig parsecTouchpadGpmap;
+    review = lib.findFirst (package: lib.getName package == "parsec-activation-review") (throw "missing Parsec review command") home.config.home.packages;
     fixtures = ../../assets/parsec-activation/test_activation.py;
     # Execute the production DAG fragments with HM's actual `run` function,
     # without invoking any unrelated activation, profiles, or Parsec package.
@@ -37,7 +38,7 @@
         '';
   in {
     checks.parsec-activation = pkgs.runCommand "parsec-activation-tests" {} ''
-      ${pkgs.python3}/bin/python3 -I ${fixtures} ${activation}
+      ${pkgs.python3}/bin/python3 -I ${fixtures} ${activation} ${review}/bin/parsec-activation-review
       touch "$out"
     '';
   };
