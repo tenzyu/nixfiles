@@ -8,7 +8,7 @@ sources:
     resource: https://github.com/tenzyu/nixfiles/blob/4cfbd041f0fd821984e16dfc2ef0834e12f3c8ba/assets/nix-store-clean/cli.py
     title: "Nix store cleaner"
   - id: home
-    resource: https://github.com/tenzyu/nixfiles/blob/6abc6541a2abc19a75bcd42ff72dddc6b6f4f4d2/modules/50-features/home/home-migration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/a4f28f25b24ed0a498a6828ca9144406499867dc/modules/50-features/home/home-migration.nix
     title: "Home holding and cutover candidate"
   - id: game
     resource: https://github.com/tenzyu/nixfiles/blob/f9040cf828fc99f95d749c7d5024e11ad6075075/modules/50-features/game-servers/_internal/minecraft-backup/operator.sh
@@ -32,7 +32,7 @@ Nix module implementation and exact host configuration supersede old README asse
 
 ## D2 — Data and rollback safety
 
-Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the #65 candidate, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. The preliminary candidate has two release-blocking counterexamples in route admission and retirement recovery. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Candidate and evidence](../adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
+Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the #65 candidate, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. Replacement fixtures reject an unverified redirect away from a populated incumbent and stop interrupted retirement if a published target changed. Independent recheck is pending. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Candidate and evidence](../adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
 
 When both roots contain user data, preserve both and hold the group while authority is unresolved. Apparent equality conveys no authority to mutate either copy. Apply requires a separate approved offline window. Retiring a named copy requires its own authorization and a reversible recovery path. Existing links and references need operator review. After interruption, reconcile the journal with the actual entries and preserve ambiguous copies. A generation rollback does not undo a data move.
 
