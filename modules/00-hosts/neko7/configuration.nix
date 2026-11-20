@@ -1,5 +1,13 @@
 {...}: {
   configurations.nixos.neko7.module = {
+    # First admission keeps the paths already used by the shell and user services.
+    home-manager.users.tenzyu.local.homeMigration.adoptedRoutes = {
+      node-history = "intended";
+      npm = "intended";
+      rust = "intended";
+      zsh = "intended";
+    };
+
     # Keep the T3 user service running after logout and across reboots.
     users.users.tenzyu.linger = true;
 
