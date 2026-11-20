@@ -97,6 +97,76 @@ class MigrationTest(unittest.TestCase):
             migrate.activation_gate(self.manifest, migrate.MoveBoundary(), Path("/fixture-generation"),
                                     None, incumbent, False)
 
+    def zsh_history_rule(self, *, held=False):
+        state_home = self.home / ".local/state"
+        self.manifest.update(version=2, stateHome=str(state_home), state=str(migrate.journal_state(state_home)))
+        rule = self.rule(".zsh_history", ".local/state/zsh/history", owner="zsh")
+        rule["route"] = rule["source"] if held else rule["target"]
+        return rule
+
+    def test_home_group_recovery_unavailable_history_cannot_make_zsh_fresh(self):
+        old = self.file(".zsh_history", "history-marker\n")
+        rule = self.zsh_history_rule(held=True)
+        held = self.installed_manifest("installed-held")
+        original_inode = old.stat().st_ino
+        migrate.apply(self.manifest)
+        rule["route"] = rule["target"]
+        self.admit(held)
+        intended = self.installed_manifest("installed-intended")
+        self.admit(intended)
+        target = Path(rule["target"])
+        self.assertEqual(target.stat().st_ino, original_inode)
+
+        state_home = Path(self.manifest["stateHome"])
+        journal, = Path(self.manifest["state"]).glob("*/operations.jsonl")
+        journal_bytes = journal.read_bytes()
+        locator = migrate.JournalDomain.address(self.home)
+        locator_bytes = locator.read_bytes()
+        kept = self.home / "kept-state"
+        state_home.rename(kept)
+
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            with self.assertRaisesRegex(migrate.Conflict, "resolve migration history before routing"):
+                self.admit(intended)
+        self.assertIn("A recorded migration journal directory is unavailable", errors.getvalue())
+        self.assertNotIn("[zsh] migration assessment: fresh", errors.getvalue())
+        self.assertFalse(old.exists() or target.exists())
+        preserved = kept / target.relative_to(state_home)
+        self.assertEqual(preserved.read_text(), "history-marker\n")
+        self.assertEqual(preserved.stat().st_ino, original_inode)
+        self.assertEqual((kept / journal.relative_to(state_home)).read_bytes(), journal_bytes)
+        self.assertEqual(locator.read_bytes(), locator_bytes)
+
+    def test_home_group_recovery_admits_fresh_zsh_with_complete_discovery(self):
+        self.zsh_history_rule()
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            self.admit(None)
+            self.admit(self.installed_manifest())
+        self.assertIn("[zsh] migration assessment: fresh", errors.getvalue())
+        self.assertFalse(migrate.JournalDomain.address(self.home).exists())
+        self.assertFalse(Path(self.manifest["stateHome"]).exists())
+
+    def test_home_group_recovery_admits_held_zsh_with_records_and_safe_writes(self):
+        old = self.file(".zsh_history", "held-marker\n")
+        before = old.stat()
+        self.zsh_history_rule(held=True)
+        incumbent = self.installed_manifest()
+        locator = migrate.JournalDomain.address(self.home)
+        self.file(locator.name, json.dumps({"version": 1, "locations": [self.manifest["state"]]}))
+        self.manifest["activationWrites"] = [str(self.home / "unrelated")]
+        errors = io.StringIO()
+        with redirect_stderr(errors):
+            self.admit(incumbent)
+            with self.assertRaisesRegex(migrate.Conflict, "Home Manager link would displace protected data"):
+                self.admit(incumbent, candidate_files={old: {"/nix/store/fixture-home-manager-files/history"}})
+        self.assertIn("A recorded migration journal directory is unavailable", errors.getvalue())
+        self.assertIn("[zsh] runtime continuity: legacy held", errors.getvalue())
+        self.assertEqual(old.read_text(), "held-marker\n")
+        self.assertEqual(old.stat().st_ino, before.st_ino)
+        self.assertFalse((self.home / "unrelated").exists())
+
     def test_counterexample_go_fixed_paths_survive_gopath_cutover_and_inverse(self):
         binary = self.file("go/custom-bin/record", "binary")
         module = self.file("go/custom-mod/record", "module")
