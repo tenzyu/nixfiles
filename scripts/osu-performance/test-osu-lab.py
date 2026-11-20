@@ -23,6 +23,8 @@ spec.loader.exec_module(lab)
 
 
 EVDEV = {"kind": "evdev", "path": "/dev/input/event77", "name": "synthetic"}
+PW_HEADER = "S   ID  QUANT   RATE    WAIT    BUSY   W/Q   B/Q  ERR FORMAT           NAME\n"
+PW_LEGACY_HEADER = "S ID QUANT RATE WAIT BUSY W/Q B/Q ERR NAME\n"
 
 
 def event(usec, typ=0, code=0, value=0):
@@ -31,8 +33,15 @@ def event(usec, typ=0, code=0, value=0):
 
 def display_sample(monitor=None, *, fullscreen=2, client=0, window="osu!", status="ok"):
     return {"display": {"status": status,
-                        "window": {"class": window, "fullscreen": fullscreen, "fullscreenClient": client},
-                        "monitor": None if monitor is None else {"name": lab.MONITOR, **monitor}}}
+                        "window": {"class": window, "fullscreen": fullscreen, "fullscreenClient": client, "monitor": 0},
+                        "monitor": None if monitor is None else {"name": lab.MONITOR, "id": 0, **monitor}}}
+
+
+def pw_row(node, err, name, format_field="S32LE 2 48000"):
+    prefix = f"R {node:4}    256  48000   1.0us   2.0us  0.20  0.10  {err:>3}"
+    if format_field is None:
+        return f"{prefix} {name}\n"
+    return f"{prefix} {format_field:>16} {name}\n"
 
 
 @contextmanager
@@ -210,12 +219,30 @@ class TestLatencyLab(unittest.TestCase):
     def test_pw_top_parser(self):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / "top.txt"
-            p.write_text('S ID QUANT RATE WAIT BUSY W/Q B/Q ERR NAME\nR 32 256 48000 1us 2us 0.2 0.1 3 alsa_output.pci-0000_00_1f.3.analog-stereo\nR 32 256 48000 1us 2us 0.2 0.1 6 alsa_output.pci-0000_00_1f.3.analog-stereo\n')
-            parsed = lab.parse_pw_top(p)
-            analysis = lab.analyze({"pw_top": parsed})
-            row = next(iter(analysis["audio"]["pw_top"]["nodes"].values()))
-            self.assertEqual((row["first_err"], row["last_err"], row["delta_err"]), (3, 6, 3))
-            self.assertEqual(row["delta_err_source"], lab.PW_ERR_SOURCE)
+            for header, format_field in ((PW_HEADER, "S32LE 2 48000"), (PW_HEADER, ""), (PW_LEGACY_HEADER, None)):
+                with self.subTest(header=header, format_field=format_field):
+                    p.write_text(header + "".join(pw_row(32, err, "+ alsa_output.fixture", format_field) for err in (3, 6)))
+                    analysis = lab.analyze({"pw_top": lab.parse_pw_top(p)})
+                    row = analysis["audio"]["pw_top"]["nodes"]["alsa_output.fixture"]
+                    self.assertEqual((row["first_err"], row["last_err"], row["delta_err"]), (3, 6, 3))
+                    self.assertEqual(row["delta_err_source"], lab.PW_ERR_SOURCE)
+
+    def test_pw_top_unsupported_header_and_unavailable_err(self):
+        with tempfile.TemporaryDirectory() as root:
+            p = Path(root) / "top.txt"
+            p.write_text(PW_HEADER.replace("ERR FORMAT", "FORMAT ERR") +
+                         pw_row(32, 3, "alsa_output.fixture") + pw_row(32, 6, "alsa_output.fixture"))
+            self.assertEqual(lab.parse_pw_top(p), {"status": "raw_capture_only", "nodes": {}})
+            p.write_text(PW_HEADER + "".join(pw_row(32, err, "alsa_output.fixture") for err in (3, "---", 6)))
+            row = lab.parse_pw_top(p)["nodes"]["alsa_output.fixture"]
+            self.assertEqual((row["first_err"], row["last_err"], row["delta_err"]), (3, 6, None))
+
+    def test_display_snapshot_keeps_independent_responses(self):
+        item = display_sample({"directScanoutTo": "1"})["display"]
+        with mock.patch.object(lab, "command", side_effect=[None, item["window"]]):
+            self.assertEqual(lab.display_snapshot()["window"], item["window"])
+        with mock.patch.object(lab, "command", side_effect=[[item["monitor"]], None]):
+            self.assertEqual(lab.display_snapshot()["monitor"], item["monitor"])
 
     def test_draw_denominators_include_only_observed_eligible_samples(self):
         data = {"samples": [
@@ -228,6 +255,7 @@ class TestLatencyLab(unittest.TestCase):
             display_sample({"directScanoutTo": "1"}),
             display_sample({"directScanoutTo": "5ae", "activelyTearing": False}),
             display_sample({"directScanoutTo": "0xabc", "activelyTearing": True}),
+            display_sample({"id": None, "directScanoutTo": "1", "activelyTearing": True}),
             display_sample({"directScanoutTo": "1", "activelyTearing": True}, client=2),
             display_sample({"directScanoutTo": "1", "activelyTearing": True}, window="other"),
         ]}
@@ -240,6 +268,8 @@ class TestLatencyLab(unittest.TestCase):
         self.assertEqual(draw["actively_tearing_samples"], 1)
         self.assertEqual(draw["tearing_ratio_among_dso"], 50)
         self.assertEqual(draw["dso_blockers"], {"TRANSFORM": 1})
+        self.assertEqual(draw["monitor_observations"], {"samples": 10, "dso_observed": 7, "dso_active": 6,
+                                                        "tearing_observed": 7, "tearing_active": 5})
 
     def test_unavailable_monitor_fields_are_distinct_from_observed_zero(self):
         for mon, dso, tear in ((None, None, None), ({}, None, None),
@@ -251,12 +281,23 @@ class TestLatencyLab(unittest.TestCase):
                 self.assertEqual(draw["dso_ratio"], dso)
                 self.assertEqual(draw["tearing_ratio_among_dso"], tear)
 
-    def test_game_focused_on_a_different_monitor_is_ineligible(self):
-        item = display_sample({"id": 0, "directScanoutTo": "1"})
-        item["display"]["window"]["monitor"] = 1
-        draw = lab.analyze({"samples": [item]})["draw"]
-        self.assertEqual(draw["eligible_samples"], 0)
-        self.assertIsNone(draw["dso_ratio"])
+    def test_foreground_game_requires_matching_monitor_ids(self):
+        for output, foreground in ((0, 1), (None, 0), (0, None), (None, None), (0, False), (-1, -1)):
+            with self.subTest(output=output, foreground=foreground):
+                item = display_sample({"id": output, "directScanoutTo": "1", "activelyTearing": True})
+                if output is None:
+                    del item["display"]["monitor"]["id"]
+                window = item["display"]["window"]
+                if foreground is None:
+                    del window["monitor"]
+                else:
+                    window["monitor"] = foreground
+                draw = lab.analyze({"samples": [item]})["draw"]
+                self.assertEqual(draw["eligible_samples"], 0)
+                self.assertIsNone(draw["dso_ratio"])
+                self.assertIsNone(draw["tearing_ratio_among_dso"])
+                self.assertEqual(draw["monitor_observations"]["dso_active"], 1)
+                self.assertEqual(draw["monitor_observations"]["tearing_active"], 1)
 
     def test_report_generation_and_unknown(self):
         data={"config":{"label":"400hz-8x-sync", "seconds":90},"started":"2026-11-13T12:00:00+09:00","ended":"2026-11-13T12:01:30+09:00",
@@ -281,14 +322,9 @@ class TestLatencyLab(unittest.TestCase):
     def test_pw_top_requires_nondecreasing_samples_from_one_observed_node(self):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / "top.txt"
-            p.write_text("R 32 256 48000 1us 2us 0.2 0.1 0 alsa_output.single\n"
-                         "R 33 256 48000 1us 2us 0.2 0.1 3 alsa_output.reset\n"
-                         "R 33 256 48000 1us 2us 0.2 0.1 0 alsa_output.reset\n"
-                         "R 33 256 48000 1us 2us 0.2 0.1 4 alsa_output.reset\n"
-                         "R 35 256 48000 1us 2us 0.2 0.1 3 alsa_output.replaced\n"
-                         "R 36 256 48000 1us 2us 0.2 0.1 4 alsa_output.replaced\n"
-                         "R 34 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n"
-                         "R 34 256 48000 1us 2us 0.2 0.1 2 alsa_output.zero\n")
+            samples = [(32, 0, "single"), (33, 3, "reset"), (33, 0, "reset"), (33, 4, "reset"),
+                       (35, 3, "replaced"), (36, 4, "replaced"), (34, 2, "zero"), (34, 2, "zero")]
+            p.write_text(PW_HEADER + "".join(pw_row(node, err, f"alsa_output.{name}") for node, err, name in samples))
             nodes = lab.analyze({"pw_top": lab.parse_pw_top(p)})["audio"]["pw_top"]["nodes"]
             for name in ("single", "reset", "replaced"):
                 self.assertIsNone(nodes[f"alsa_output.{name}"]["delta_err"])
@@ -372,7 +408,7 @@ class TestLatencyLab(unittest.TestCase):
             comparison = json.loads((root / "comparison.json").read_text())[0]["analysis"]
             for result in (summary, comparison):
                 self.assertEqual(result["audio"]["pw_top"]["nodes"],
-                                 {name: {**row, "delta_err": None} for name, row in old_nodes.items()})
+                                 {name: {**row, "err_source": None, "delta_err": None} for name, row in old_nodes.items()})
             html = (root / "comparison.html").read_text()
             self.assertIn("Δは未判定", html)
             self.assertIn("未測定 (0/0 observed)", html)
@@ -387,6 +423,59 @@ class TestLatencyLab(unittest.TestCase):
             result = lab.analyze_input({"devices": [{**device, **changed}], "status": status})["devices"][0]
             self.assertEqual(result["period_ms"]["p50"], expected_period)
             self.assertEqual(result["observer_delay_ms"]["p50"], expected_delay)
+
+    def test_cli_replays_legacy_format_rows_and_preserves_unlinked_output_observation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archived, incomplete = root / "linked", root / "unlinked"
+            name = "alsa_output.fixture"
+            row = {"observations": 2, "first_err": 48000, "last_err": 48000, "delta_err": 0,
+                   "delta_err_source": "pw-top same observed node ID and nondecreasing ERR samples"}
+            mode = {"width": 1366, "height": 768, "refreshRate": 60.003, "vrr": False}
+            evidence = []
+            for session, linked in ((archived, True), (incomplete, False)):
+                session.mkdir()
+                sample = display_sample({**mode, "directScanoutTo": "0" if linked else "1",
+                                         "activelyTearing": not linked})
+                if not linked:
+                    del sample["display"]["monitor"]["id"]
+                data_path = session / "data.json"
+                data_path.write_text(json.dumps({
+                    "version": "2026-11-20.2", "samples": [sample],
+                    "config": {"label": session.name, "seconds": 10, "expected_tablet_hz": 400,
+                               "expected_bass": "-128", "game_settings": "8x-sync"},
+                    "proc_start": {"environ": {"OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD": "-128"}},
+                    "capture": {"status": "complete", "clock": lab.MONOTONIC, "elapsed_s": 10, "sample_interval_s": 1},
+                    "pw_top": {"status": "parsed", "nodes": {name: row}},
+                }))
+                evidence.append(data_path)
+            raw = archived / "pw-top-batch.txt"
+            raw.write_text(PW_HEADER + pw_row(32, 3, name) + pw_row(32, 6, name))
+            evidence.append(raw)
+            before = [hashlib.sha256(path.read_bytes()).digest() for path in evidence]
+
+            for session in (archived, incomplete):
+                subprocess.run([sys.executable, "-B", source, "report", session], check=True, capture_output=True)
+            subprocess.run([sys.executable, "-B", source, "compare", archived, incomplete, "--out", root],
+                           check=True, capture_output=True)
+            reports = [json.loads((session / "analysis.json").read_text()) for session in (archived, incomplete)]
+            comparison = json.loads((root / "comparison.json").read_text())
+            self.assertEqual([entry["analysis"] for entry in comparison], reports)
+            linked_row, unlinked_row = [report["audio"]["pw_top"]["nodes"][name] for report in reports]
+            self.assertEqual((linked_row["first_err"], linked_row["last_err"], linked_row["delta_err"]), (3, 6, 3))
+            self.assertEqual((unlinked_row["first_err"], unlinked_row["last_err"]), (48000, 48000))
+            self.assertIsNone(unlinked_row["err_source"])
+            self.assertIsNone(unlinked_row["delta_err"])
+            self.assertIsNone(unlinked_row["delta_err_source"])
+            self.assertIn("保存値・ERR列未確認", (incomplete / "report.html").read_text())
+            self.assertEqual(reports[0]["draw"]["dso_ratio"], 0)
+            self.assertIsNone(reports[1]["draw"]["dso_ratio"])
+            self.assertEqual(reports[1]["draw"]["monitor_observations"]["dso_active"], 1)
+            html = (root / "comparison.html").read_text()
+            self.assertIn("0.000 (0/1 observed)", html)
+            self.assertIn("未測定 (0/0 observed)", html)
+            self.assertNotIn("+100.000", html)
+            self.assertEqual(before, [hashlib.sha256(path.read_bytes()).digest() for path in evidence])
 
     def test_atomic_publication_refuses_to_replace_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:

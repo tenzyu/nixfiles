@@ -67,13 +67,14 @@ osu-lab compare ~/osu-lab-results/*-400hz-8x-bass128-sync \
 | 軸 | データ | 観測の限界 |
 |---|---|---|
 | Input | `hidraw`の報告1件ごとの読み出し完了間隔、`evdev`の整列済み`SYN_REPORT`間隔、取得遅延、`SYN_DROPPED`、完了フレーム内のpress/release数 | 時間の分布はms。各分布の`count`は採用した間隔または遅延の件数。申告tablet Hz、センサー内部レート、入力→Update時間は別の値。 |
-| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（プロセスが受け取った**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodと物理的な発音開始は未測定。ERRはXRunを含む。同じノードIDで2回以上取得し、観測したカウンターが減少しない場合に増分を算出する。観測上の連続性の記録がない旧版の増分は未測定とし、最初と最後の読み値を表示する。ALSAとPipeWireノードの対応は型・パスで追加確認が必要。 |
+| Audio | `OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD`（プロセスが受け取った**要求**）、ALSA playback `hw_params`、WirePlumber/PipeWire node props、`pw-top -b` ERR増分 | BASSの実効内部periodと物理的な発音開始は未測定。ERRはXRunを含む。既知ヘッダーのERR列を読み、同じノードIDで2回以上取得してカウンターが減少しない場合に増分を算出する。ALSAとPipeWireノードの対応は型・パスで追加確認が必要。 |
 | Update | `/proc/$pid/cgroup`と`cpu.weight/uclamp`、`timerslack_ns`、`task/*/schedstat` runqueue累積待機時間、CPU温度/周波数、アプリ報告のslow-frameログ | `schedstat`のwait/sliceはスケジューラの代理指標（ms/slice）。全Updateのp99/p99.9や入力→Update待ち時間にはin-process instrumentationが必要。プロセス名が判別できなければ`--pid`を使う。 |
-| Draw | 前面のosu!がeDP-1のfullscreen 2/0を満たす点サンプル、`directScanoutTo`、`activelyTearing`、阻害理由 | DSO率の母数は対象サンプルのうちDSO状態が取得できた件数。tearing率の母数はDSOが有効でtearing状態も取得できた件数。母数0は未測定、観測した全件がfalseなら0%。Per-frame KMS flip、GPU完了、光学遅延は未測定。 |
+| Draw | 前面のosu!がfullscreen 2/0で、ウィンドウとeDP-1の出力IDが一致する点サンプル、`directScanoutTo`、`activelyTearing`、阻害理由 | DSO率の母数は対象サンプルのうちDSO状態が取得できた件数。tearing率の母数はDSOが有効でtearing状態も取得できた件数。母数0は未測定、観測した全件がfalseなら0%。出力の状態と前面ウィンドウは別々に問い合わせ、前面のゲームに紐付けられないeDP-1単体の観測も別に表示する。Per-frame KMS flip、GPU完了、光学遅延は未測定。 |
 
 - `evdev`の時刻は`EVIOCSCLOCKID`で`CLOCK_MONOTONIC`を選択できた場合に使用する。報告間隔は連続する正の差、取得遅延はカーネル時刻からread完了までの0以上5秒未満の差。1回のreadに複数報告が入る場合も、read時刻は1件として`read_interval_ms`へ別に集計する。時計が未確認ならevdev報告間隔と取得遅延は未測定。
 - `SYN_DROPPED`から次の`SYN_REPORT`までを集計対象外とし、欠落をまたぐ間隔を除外する。カウントの完全性を`false`として残す。切断・read失敗・末尾の未完了フレームでも完全性は`false`。生のキーIDや座標は保存しない。
 - サンプルの`elapsed_s`は計測ループの開始からのmonotonic秒。要求間隔は1秒。各点の取得にはコマンド実行時間がかかる。
+- `report`と`compare`で旧版のERR集計を開いた場合は、読み取り可能な`pw-top-batch.txt`を既知の列配置（`FORMAT`の有無）で再集計する。列を確認できない場合、保存値を未確認として表示し、増分は未測定とする。
 
 ### 公式osu!の詳細診断
 
@@ -101,5 +102,5 @@ osu-lab compare ~/osu-lab-results/*-400hz-8x-bass128-sync \
 一次資料：
 - [Linux evdev input](https://docs.kernel.org/input/input.html)、[event codes (SYN_DROPPED)](https://docs.kernel.org/input/event-codes.html)、[hidraw](https://docs.kernel.org/hid/hidraw.html)
 - [osu! Client Menu tips](https://osu.ppy.sh/wiki/en/Client/Menu_tips)、[osu!framework PerformanceMonitor.cs](https://github.com/ppy/osu-framework/blob/0d5edae7264553239183f38ea32fdb5ef2a98dd9/osu.Framework/Statistics/PerformanceMonitor.cs)、[BackgroundStackTraceCollector.cs](https://github.com/ppy/osu-framework/blob/0d5edae7264553239183f38ea32fdb5ef2a98dd9/osu.Framework/Statistics/BackgroundStackTraceCollector.cs)
-- [PipeWire pw-top](https://docs.pipewire.org/page_man_pw_top_1.html)、[ALSA WirePlumber](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/alsa.html)
+- [PipeWire pw-top](https://docs.pipewire.org/page_man_pw_top_1.html)、[PipeWire 1.6.6の出力形式](https://github.com/PipeWire/pipewire/blob/1.6.6/src/tools/pw-top.c#L504-L525)、[ALSA WirePlumber](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/alsa.html)
 - [Hyprland v0.57.2 Monitor.cpp](https://github.com/hyprwm/Hyprland/blob/v0.57.2/src/output/Monitor.cpp)、[DRM UAPI](https://docs.kernel.org/gpu/drm-uapi.html)

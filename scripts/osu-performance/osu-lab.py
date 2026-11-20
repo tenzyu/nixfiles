@@ -26,7 +26,7 @@ from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "2026-11-20.2"
+VERSION = "2026-11-20.3"
 EVENT = struct.Struct("@llHHi")  # struct input_event on native 64-bit Linux
 EVIOCSCLOCKID = 0x400445A0  # _IOW('E', 0xA0, int), CLOCK_MONOTONIC=1
 MONITOR = "eDP-1"
@@ -37,7 +37,19 @@ STOP = None
 INPUT_COUNTS = ("key_up", "key_down", "key_repeat", "pen_touch_up", "pen_touch_down")
 MONOTONIC = "CLOCK_MONOTONIC"
 INCOMPLETE = "capture-incomplete"
-PW_ERR_SOURCE = "pw-top same observed node ID and nondecreasing ERR samples"
+PW_ERR_COLUMN = "pw-top validated ERR column"
+PW_ERR_SOURCE = "pw-top validated ERR column, same observed node ID and nondecreasing samples"
+PW_TOP_COLUMNS = "S ID QUANT RATE WAIT BUSY W/Q B/Q ERR"
+PW_TOP_LEGACY_HEADER = (PW_TOP_COLUMNS + " NAME").split()
+PW_TOP_FORMAT_HEADER = (PW_TOP_COLUMNS + " FORMAT NAME").split()
+PW_TOP_TIME = r"(?:[0-9]+(?:[.,][0-9]+)?(?:us|ms|s)|---|\+\+\+)"
+PW_TOP_FRACTION = r"(?:[0-9]+(?:[.,][0-9]+)?|---|\+\+\+|\?\?\?)"
+PW_TOP_ROW = re.compile(
+    rf"\s*[ECSIRtT!]\s+(?P<id>[0-9]{{1,10}})\s+(?P<quantum>[0-9]{{1,10}})\s+(?P<rate>[0-9]{{1,10}})\s+"
+    rf"{PW_TOP_TIME}\s+{PW_TOP_TIME}\s+{PW_TOP_FRACTION}\s+{PW_TOP_FRACTION}\s+"
+    r"(?P<err>\S+)[ \t](?P<tail>.*)"
+)
+PW_TOP_FORMAT = r"(?:[A-Za-z][A-Za-z0-9_]*\s+[0-9]+\s+[0-9]+|DSD[0-9]+\s+[0-9]+|IEC958\s+\w+\s+[0-9]+|\w+\s+[0-9]+x[0-9]+|CONTROL)"
 
 
 def stamp():
@@ -375,10 +387,11 @@ def cpu_snapshot():
 def display_snapshot():
     monitors = command(["hyprctl", "-j", "monitors"], parse_json=True)
     active = command(["hyprctl", "-j", "activewindow"], parse_json=True)
+    window = active if isinstance(active, dict) else None
     if not isinstance(monitors, list):
-        return {"status": "hyprctl monitors unavailable", "monitor": None, "window": None}
+        return {"status": "hyprctl monitors unavailable", "monitor": None, "window": window}
     mon = next((x for x in monitors if isinstance(x, dict) and x.get("name") == MONITOR), None)
-    return {"status": "ok" if mon else "eDP-1 missing", "monitor": mon, "window": active if isinstance(active, dict) else None}
+    return {"status": "ok" if mon else "eDP-1 missing", "monitor": mon, "window": window}
 
 
 def alsa_snapshot():
@@ -485,36 +498,57 @@ def parse_slow_logs(root):
 
 
 def parse_pw_top(path):
-    """Best-effort parser for pw-top -b; raw stdout is retained for audit."""
-    if not Path(path).is_file():
+    """Validate a known batch header and the fields leading to ERR."""
+    try:
+        with open(path, encoding="utf-8", errors="replace",
+                  opener=lambda p, flags: os.open(p, flags | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                return {"status": "unavailable"}
+            content = re.sub(r"\x1b\[[0-9;]*m", "", source.read())
+    except OSError:
         return {"status": "unavailable"}
-    content = re.sub(r"\x1b\[[0-9;]*m", "", Path(path).read_text(errors="replace"))
     rows = {}
+    header = None
+    uncertain = False
     for line in content.splitlines():
-        bits = line.strip().split()
-        if len(bits) < 10:
+        columns = line.split()
+        if len(columns) >= 2 and columns[1] == "ID":
+            header = columns if columns in (PW_TOP_LEGACY_HEADER, PW_TOP_FORMAT_HEADER) else None
             continue
-        name = bits[-1]
-        if "alsa_output" not in name and "osu" not in name.lower():
+        if "alsa_output" not in line and "osu" not in line.lower():
             continue
-        # S ID QUANT RATE WAIT BUSY W/Q B/Q ERR NAME, actual columns vary.
-        try:
-            err = int(bits[-2])
-        except ValueError:
+        fields = PW_TOP_ROW.fullmatch(line) if header else None
+        if fields is None:
+            uncertain = True
             continue
-        try:
-            quantum = int(bits[2])
-            rate = int(bits[3])
-        except (ValueError, IndexError):
-            quantum, rate = None, None
-        rows.setdefault(name, []).append({"id": bits[1], "err": err, "quantum": quantum, "rate": rate})
+        tail = fields["tail"]
+        if header == PW_TOP_FORMAT_HEADER:
+            # pw-top 1.6.6 reserves 16 characters for FORMAT, including when it is blank.
+            format_field = tail[:16].strip()
+            if tail[16:17] == " " and (not format_field or re.fullmatch(PW_TOP_FORMAT, format_field)):
+                tail = tail[17:]
+            else:
+                # Also accept known formats when a saved transcript has collapsed padding.
+                tail = re.sub(rf"^\s*{PW_TOP_FORMAT}\s+", "", tail, count=1)
+        name = re.sub(r"^\s*[+=]\s+", "", tail).strip()
+        if not name.startswith("alsa_output") and "osu" not in name.split(" ", 1)[0].lower():
+            uncertain = True
+            continue
+        value = fields["err"]
+        err = int(value) if re.fullmatch(r"[0-9]{1,10}", value) else None
+        if err is not None and err > 0xFFFFFFFF:
+            err = None
+        rows.setdefault(name, []).append({"id": int(fields["id"]), "err": err,
+                                          "quantum": int(fields["quantum"]), "rate": int(fields["rate"])})
     nodes = {}
     for name, observations in rows.items():
         first, last = observations[0], observations[-1]
         ids = {row["id"] for row in observations}
-        delta = counter_delta([row["err"] for row in observations]) if len(ids) == 1 else None
+        values = [row["err"] for row in observations]
+        delta = counter_delta(values) if not uncertain and len(ids) == 1 and None not in values else None
         nodes[name] = {"observations": len(observations), "first_err": first["err"], "last_err": last["err"],
-                       "delta_err": delta, "delta_err_source": PW_ERR_SOURCE if delta is not None else None,
+                       "err_source": PW_ERR_COLUMN, "delta_err": delta,
+                       "delta_err_source": PW_ERR_SOURCE if delta is not None else None,
                        "graph_quantum": last["quantum"], "graph_rate": last["rate"]}
     return {"nodes": nodes, "status": "parsed" if nodes else "raw_capture_only"}
 
@@ -561,33 +595,51 @@ def analyze_input(raw):
     return {**raw, "devices": devices}
 
 
-def analyze_pw_top(raw):
-    if not raw or "nodes" not in raw:
+def analyze_pw_top(raw, raw_path=None):
+    recorded = (raw or {}).get("nodes", {})
+    missing_provenance = not recorded or any(row.get("err_source") != PW_ERR_COLUMN for row in recorded.values())
+    replay = parse_pw_top(raw_path) if raw_path is not None and missing_provenance else {}
+    recovered = replay.get("nodes", {})
+    if not recorded and not recovered:
         return raw
-    # Endpoints alone cannot identify a reset or a replacement under the same node name.
-    nodes = {name: {**row, "delta_err": row.get("delta_err") if row.get("delta_err_source") == PW_ERR_SOURCE else None}
-             for name, row in raw["nodes"].items()}
-    return {**raw, "nodes": nodes}
+    nodes = dict(recovered)
+    for name, row in recorded.items():
+        valid_delta = row.get("err_source") == PW_ERR_COLUMN and row.get("delta_err_source") == PW_ERR_SOURCE
+        if not valid_delta and name in recovered:
+            nodes[name] = {**row, **recovered[name]}
+            continue
+        nodes[name] = {**row, "err_source": PW_ERR_COLUMN if row.get("err_source") == PW_ERR_COLUMN else None,
+                       "delta_err": row.get("delta_err") if valid_delta else None}
+        if "delta_err_source" in row and not valid_delta:
+            nodes[name]["delta_err_source"] = None
+    return {**(raw or {}), **({"status": "parsed"} if recovered and not recorded else {}), "nodes": nodes}
 
 
-def analyze(data):
+def analyze(data, *, pw_top_path=None):
     samples = data.get("samples", [])
     temps = [x["cpu"]["temp_C"] for x in samples if isinstance(x.get("cpu", {}).get("temp_C"), (int, float))]
     throttles = [x["cpu"]["throttle_count"] for x in samples if type(x.get("cpu", {}).get("throttle_count")) is int]
     eligible, dso_observed, dso, tearing_observed, torn = 0, 0, 0, 0, 0
+    monitor_observations = dict.fromkeys(("samples", "dso_observed", "dso_active", "tearing_observed", "tearing_active"), 0)
     dso_blockers, tearing_blockers = Counter(), Counter()
     for item in samples:
         disp = item.get("display") or {}
         win, mon = disp.get("window") or {}, disp.get("monitor") or {}
-        if (disp.get("status", "ok") != "ok" or win.get("class") not in ("osu!", "osu-lazer")
-                or win.get("fullscreen") != 2 or type(win.get("fullscreenClient")) is not int
-                or win["fullscreenClient"] != 0 or mon.get("name") != MONITOR):
+        if disp.get("status", "ok") != "ok" or mon.get("name") != MONITOR:
             continue
-        if None not in (win.get("monitor"), mon.get("id")) and win["monitor"] != mon["id"]:
-            continue
-        eligible += 1
         active_dso = scanout_active(mon.get("directScanoutTo"))
         tearing = mon.get("activelyTearing")
+        monitor_observations["samples"] += 1
+        monitor_observations["dso_observed"] += active_dso is not None
+        monitor_observations["dso_active"] += active_dso is True
+        monitor_observations["tearing_observed"] += isinstance(tearing, bool)
+        monitor_observations["tearing_active"] += tearing is True
+        window_output, output = win.get("monitor"), mon.get("id")
+        if (type(window_output) is not int or type(output) is not int or output < 0 or window_output != output
+                or win.get("class") not in ("osu!", "osu-lazer") or win.get("fullscreen") != 2
+                or type(win.get("fullscreenClient")) is not int or win["fullscreenClient"] != 0):
+            continue
+        eligible += 1
         if active_dso is not None:
             dso_observed += 1
         if active_dso is True:
@@ -619,10 +671,11 @@ def analyze(data):
                                             "alsa_end": data.get("alsa_end"),
                                             "pw_start": data.get("pw_start"),
                                             "pw_end": data.get("pw_end"),
-                                            "pw_top": analyze_pw_top(data.get("pw_top"))},
+                                            "pw_top": analyze_pw_top(data.get("pw_top"), pw_top_path)},
             "update": {"thread_sched": threads, "game_log": data.get("game_log", {}),
                        "note": "No per-frame Update latency histogram from procfs; only kernel scheduler aggregates and slow-frame logs."},
-            "draw": {"eligible_samples": eligible, "dso_observed_samples": dso_observed, "dso_samples": dso,
+            "draw": {"eligible_samples": eligible, "monitor_observations": monitor_observations,
+                     "dso_observed_samples": dso_observed, "dso_samples": dso,
                      "tearing_observed_dso_samples": tearing_observed, "actively_tearing_samples": torn,
                      "dso_blockers": dict(dso_blockers),
                      "tearing_blockers": dict(tearing_blockers),
@@ -725,7 +778,9 @@ def html_report(data, summary):
     pcm_rows = [(x["path"], x["params"].replace('\n', '; ')) for x in alsa.get("open_playback_pcms", [])]
     pw = summary["audio"].get("pw_top") or {}
     pwrows = [(k, v["observations"], pill(v.get("graph_quantum")), pill(v.get("graph_rate")),
-               pill(v.get("first_err")), pill(v.get("last_err")), pill(v["delta_err"])) for k, v in pw.get("nodes", {}).items()]
+               pill(v.get("first_err")), pill(v.get("last_err")), pill(v["delta_err"]),
+               "ERR列確認済み" if v.get("err_source") == PW_ERR_COLUMN else "保存値・ERR列未確認")
+              for k, v in pw.get("nodes", {}).items()]
     nodeprops = (summary["audio"].get("pw_end") or {}).get("nodes", [])
     prop_rows = [(x.get("id"), x.get("props", {}).get("node.name"), x.get("props", {}).get("api.alsa.period-size"),
                   x.get("props", {}).get("api.alsa.period-num"), x.get("props", {}).get("api.alsa.headroom")) for x in nodeprops]
@@ -778,7 +833,7 @@ body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header
     body.append('<h3>開いているALSA playback PCM</h3><div class="tabwrap">'+simple_table(['PCM','hw_params'],pcm_rows)+'</div>')
     body.append('<h3>PipeWireノードの要求値</h3><div class="tabwrap">'+simple_table(['ID','ノード','period-size','period-num','headroom'],prop_rows)+'</div>')
     body.append('<h3>pw-top Graph / ERR</h3><p class="micro">'+esc(pill(pw.get('status')))+'</p><div class="tabwrap">'+
-                simple_table(['Node','観測行数','QUANT frames','RATE Hz','最初のERR','最後のERR','ERR増分'],pwrows)+
+                simple_table(['Node','観測行数','QUANT frames','RATE Hz','最初のERR','最後のERR','ERR増分','由来'],pwrows)+
                 '</div><p class="micro">QUANT/RATEはPipeWire graph/streamの観測値。ERR増分には同一ノードIDで減少しないERR観測の記録が必要です。</p></section>')
     body.append('<section><h2>Update <span class="kind proxy">scheduler/slow-frame</span></h2>')
     body.append('<p class="intro">procfsのschedstatで累積runqueue待機時間を記録します。Updateフレーム周期分布は別物です。Ctrl+F2のperformanceログは遅延フレームの選択的ログであり、全フレームp99は算出しません。</p>')
@@ -791,10 +846,14 @@ body{max-width:1170px;margin:auto;padding:24px 24px 75px;line-height:1.65}header
                 f'コピー失敗 {sum(row.get("status") == "copy failed" for row in log_capture)}件</p>')
     body.append('<h3>osu!公式performanceログのslow frame</h3><div class="tabwrap">'+simple_table(['ログ','slow frame数','最大 ms'],rows)+'</div></section>')
     body.append('<section><h2>Draw <span class="kind">DSO state</span></h2>')
-    body.append('<p class="intro">対象はeDP-1で前面のosu!がfullscreen 2/0の点サンプル。'
+    body.append('<p class="intro">対象はeDP-1と同じ出力IDを持つ前面のosu!がfullscreen 2/0の点サンプル。'
                 'DSO率はdirectScanoutToを取得した対象サンプル、tearing率はactivelyTearingを取得したDSOサンプルから算出。'
                 'i915の実flip時刻、描画フレーム時間、光学遅延は未測定です。</p>')
     body.append(f'<p class="micro">Hyprland samples {sysd["samples"]} ／ 要求間隔 {fmt(outcome.get("sample_interval_s"), 1)} s</p>')
+    monitor = dra["monitor_observations"]
+    body.append(f'<p class="micro">eDP-1単体の観測 {monitor["samples"]}件 ／ '
+                f'DSO有効 {monitor["dso_active"]}/{monitor["dso_observed"]} ／ '
+                f'tearing有効 {monitor["tearing_active"]}/{monitor["tearing_observed"]}</p>')
     body.append('<h3>DSOが阻害された理由（既知2/0条件内）</h3>'+simple_table(['reason','samples'],list(dra.get('dso_blockers',{}).items())))
     body.append('<h3>Tearingが阻害された理由（既知2/0条件内）</h3>'+simple_table(['reason','samples'],list(dra.get('tearing_blockers',{}).items()))+'</section>')
     body.append('<section><h2>熱・P-state</h2>'+svg_temps(data.get('samples',[]))+
@@ -1043,7 +1102,7 @@ def collect_capture(args, out):
 
 
 def render_report(root, data):
-    summary = analyze(data)
+    summary = analyze(data, pw_top_path=root / "pw-top-batch.txt")
     report_html = html_report(data, summary)
     write_json(root / "analysis.json", summary)
     write_file(root / "report.html", report_html)
@@ -1096,7 +1155,8 @@ def report(args):
 def compare(args):
     entries = []
     for folder in args.sessions:
-        data = load_capture(Path(folder).expanduser().resolve())
+        session = Path(folder).expanduser().resolve()
+        data = load_capture(session)
         proc = data.get("proc_start") or {}
         monitors = set()
         for sample in data["samples"]:
@@ -1106,7 +1166,8 @@ def compare(args):
                 monitors.add(tuple(mon.get(key) for key in ("width", "height", "refreshRate", "vrr")))
         environment = {"bass": (proc.get("environ") or {}).get("OSU_TEMP_TESTING_BASS_CONFIG_DEV_PERIOD"),
                        "monitor_modes": sorted(monitors, key=repr)}
-        entries.append({"config": data["config"], "analysis": analyze(data), "version": data.get("version"),
+        entries.append({"config": data["config"], "analysis": analyze(data, pw_top_path=session / "pw-top-batch.txt"),
+                        "version": data.get("version"),
                         "environment": environment})
     root = Path(args.out).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
