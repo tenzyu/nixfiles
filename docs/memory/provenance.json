@@ -66,7 +66,7 @@
       ],
       "reviewed_revision": "8fdb01054bcb9854a8da82dad2399cb880d4b1e0",
       "source_blobs": {
-        "assets/home-layout/migrate.py": "ab4909422d9444335ee411f84a30834b6da54dad",
+        "assets/home-layout/migrate.py": "d4a6d4cd841e2f6873e5af968b7a2b5edbef35bc",
         "assets/home-layout/move_boundary.py": "737aef82824af1ed410f396f6dc192d90e7578e7",
         "assets/nix-store-clean/cli.py": "40bbbefe492958760c73670516a943f54d4bcf0c",
         "assets/parsec-activation/activate.py": "ec6def29cd56354fea20daf6f11a8f51301a4ee7",
