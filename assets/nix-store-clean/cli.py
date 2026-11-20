@@ -17,7 +17,6 @@ import re
 import stat
 import subprocess
 import sys
-from typing import Callable
 
 SYSTEM_PROFILE = Path('/nix/var/nix/profiles/system')
 CURRENT_SYSTEM = Path('/run/current-system')
@@ -229,29 +228,17 @@ def input_choice(prompt: str) -> str:
         return ''
 
 
-def review_results(*, ask: Callable[[str], str] = input_choice) -> int:
-    if not sys.stdin.isatty():
-        raise SafetyError('review-results is interactive only (requires a terminal)')
+def review_results() -> int:
     roots = get_result_roots()
-    if not roots:
-        print('No eligible user-owned result symlinks. direnv/profile roots remain untouched.')
-        return 0
-    print('User-owned build result links (read-only snapshot, not removal recommendations):')
-    for i, r in enumerate(roots, 1):
-        print(f'  {i:>3}. {r.path!r}\n       -> {r.target!r}')
-    selected = ask('Numbers to review (e.g. 1,3) or Enter to cancel: ')
-    if not selected:
-        return 0
-    if not re.fullmatch(r'\d+(?:\s*,\s*\d+)*', selected):
-        raise SafetyError('invalid selection; expected comma-separated item numbers')
-    indexes = sorted(set(int(n) for n in selected.split(',')))
-    if not indexes or any(n < 1 or n > len(roots) for n in indexes):
-        raise SafetyError('selection out of range')
-    print('Selected symlinks (advisory only):')
-    for i in indexes:
-        r = roots[i-1]
-        print(f'  Link: {r.path!r} -> {r.target!r}')
-    print('Builds can change these links after inspection. Nothing was changed.')
+    if roots:
+        print('User-owned build result links (read-only snapshot):')
+        for root in roots:
+            print(f'  Link: {root.path!r}\n  Observed target: {root.target!r}')
+        print('Builds can change these links. In the owning project, use readlink -e on the current link')
+        print('and check whether the project still needs that output before using its cleanup workflow.')
+    else:
+        print('No eligible user-owned result symlinks found.')
+    print('Refresh the native root inventory with: nix-store --gc --print-roots')
     return 0
 
 
@@ -291,7 +278,7 @@ def interactive() -> None:
     while True:
         print('\nActions (all deletion requires separate confirmation):')
         print('  1. Refresh read-only audit')
-        print('  2. Review own build result symlinks (read-only; no sudo)')
+        print('  2. Show own build result links and observed targets (read-only; no sudo)')
         print('  3. Native garbage collection (sudo)')
         print('  4. Prune system generations, keep 3 (sudo; requires rebooted/current/profile match)')
         print('  0. Exit')
@@ -318,7 +305,7 @@ def interactive() -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='Safe root audit and interactive Nix GC (never bypasses liveness).')
     parser.add_argument('command', nargs='?', choices=['audit', 'gc', 'prune-system', 'review-results'],
-                        default=None, help='review-results lists eligible symlinks without changing them')
+                        default=None, help='review-results inspects user-owned build result links without prompting')
     parser.add_argument('--json', action='store_true', help='machine-readable read-only audit')
     parser.add_argument('--yes', action='store_true', help='acknowledge the specified gc/prune-system operation')
     parser.add_argument('--keep-generations', type=int, default=3, metavar='N')
