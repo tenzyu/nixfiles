@@ -84,8 +84,8 @@ class MigrationTest(unittest.TestCase):
         run = self.journal()[0]["run"]
         migrate.mutate(self.manifest, "recover", group, {}, shutil.which("rsync"), run_id=run)
 
-    def installed_manifest(self):
-        generation = self.home / "installed-generation"
+    def installed_manifest(self, name="installed-generation"):
+        generation = self.home / name
         generation.mkdir(exist_ok=True)
         (generation / "home-layout-manifest.json").write_text(json.dumps(self.manifest))
         return generation
@@ -362,6 +362,55 @@ class MigrationTest(unittest.TestCase):
         self.assertFalse((self.home / "xdg/go").exists())
         self.assertFalse((self.home / "state").exists())
 
+    def test_go_fixed_link_keeps_every_intermediate_path_reachable(self):
+        payload = self.file("payload")
+        fixed = self.home / "go/bin"
+        fixed.mkdir(parents=True)
+        tool = fixed / "tool"
+        launcher = self.home / "go/src/launcher"
+        launcher.parent.mkdir()
+        launcher.symlink_to(payload)
+        bridge = self.home / "bridge"
+        bridge.symlink_to(launcher)
+        tool.symlink_to(bridge)
+        self.rule("go", "xdg/go", group="go", independentRoutes={"GOBIN": str(fixed)})
+        with self.assertRaisesRegex(migrate.Conflict, "Fixed consumer link depends on a moved path"):
+            migrate.apply(self.manifest)
+        self.assertEqual(tool.read_text(), "credentials")
+        self.assertFalse((self.home / "state").exists())
+
+    def test_go_cutover_requires_a_previously_populated_fixed_slot(self):
+        self.file("go/src/project")
+        fixed = self.file("go/bin/tool").parent
+        rule = self.rule("go", "xdg/go", group="go", route=str(self.home / "go"),
+                         independentRoutes={"GOBIN": str(fixed)})
+        incumbent = self.installed_manifest()
+        migrate.apply(self.manifest)
+        saved = self.home / "displaced-fixed"
+        fixed.rename(saved)
+        rule["route"] = rule["target"]
+        with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+            self.admit(incumbent)
+        self.assertEqual((saved / "tool").read_text(), "credentials")
+        saved.rename(fixed)
+        self.admit(incumbent)
+
+    def test_go_rollback_preserves_a_fixed_link_into_the_intended_route(self):
+        self.file("go/src/project")
+        fixed = self.file("go/bin/original").parent
+        rule = self.rule("go", "xdg/go", group="go", independentRoutes={"GOBIN": str(fixed)})
+        migrate.apply(self.manifest)
+        link = fixed / "tool"
+        target = Path(rule["target"]) / "src/project"
+        link.symlink_to(target)
+        run = self.journal()[0]["run"]
+        with self.assertRaisesRegex(migrate.Conflict, "Fixed consumer link depends on a moved path"):
+            migrate.mutate(self.manifest, "rollback", "go", {}, None, run_id=run)
+        self.assertEqual(link.read_text(), "credentials")
+        self.assertFalse((self.home / "go/src").exists())
+        self.assertEqual(self.journal()[-1]["event"], "finished")
+        self.admit(self.installed_manifest())
+
     def test_disappeared_publication_is_never_a_fresh_consumer(self):
         old = self.file(".old/record")
         rule = self.rule(".old", "xdg/new", route=str(old.parent))
@@ -369,13 +418,16 @@ class MigrationTest(unittest.TestCase):
         migrate.apply(self.manifest)
         rule["route"] = rule["target"]
         self.admit(incumbent)
+        intended = self.installed_manifest("installed-intended")
+        rule["processes"] = ["changed-fixture-writer-pattern"]
+        self.admit(intended)
         target = Path(rule["target"])
         displaced = self.home / "displaced"
         target.rename(displaced)
         with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
             self.admit(incumbent)
         with self.assertRaisesRegex(migrate.Conflict, "legacy state remains or route is split"):
-            self.admit(self.installed_manifest())
+            self.admit(intended)
         self.assertEqual((displaced / "record").read_text(), "credentials")
         self.assertFalse(old.exists())
 

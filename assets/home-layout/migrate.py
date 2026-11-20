@@ -392,6 +392,31 @@ class GroupPaths:
                 for path, roots in ((source, self.legacy), (target, self.intended))]
 
 
+def reference_names(path):
+    """Visit each name a link lookup depends on, including intermediate aliases."""
+    pending = list(reversed(path.parts[1:]))
+    current = Path("/")
+    followed = 0
+    while pending:
+        component = pending.pop()
+        if component == "..":
+            current = current.parent
+            continue
+        current /= component
+        yield current
+        try:
+            info = current.lstat()
+        except (FileNotFoundError, NotADirectoryError):
+            return
+        if stat.S_ISLNK(info.st_mode):
+            followed += 1
+            if followed > 40:  # Linux cannot resolve the existing link chain.
+                return
+            target = Path(os.readlink(current))
+            current = Path("/") if target.is_absolute() else current.parent
+            pending.extend(reversed(target.parts[1:] if target.is_absolute() else target.parts))
+
+
 def check_fixed_links(boundary, scope, sources):
     if not sources:
         return
@@ -401,11 +426,9 @@ def check_fixed_links(boundary, scope, sources):
             continue
         boundary.reject_mounts(path)
         for entry in tree(path):
-            if entry.is_symlink():
-                lexical = Path(os.path.abspath(entry.parent / os.readlink(entry)))
-                referent = entry.resolve()
-                if any(lexical.is_relative_to(source) or referent.is_relative_to(source) for source in sources):
-                    raise Conflict(f"Fixed consumer link depends on a moved path: {entry}")
+            if entry.is_symlink() and any(name.is_relative_to(source) for name in reference_names(entry)
+                                          for source in sources):
+                raise Conflict(f"Fixed consumer link depends on a moved path: {entry}")
 
 
 @dataclass(frozen=True)
@@ -969,7 +992,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
     for group, rules in current.items():
         incumbent_rules = old.get(group, [])
         scope = GroupPaths.from_rules(rules)
-        transfers = completed_transfers(manifest, group, runs)
+        transfers = completed_transfers(manifest, group, runs, same_rules=False)
         selected = [member.selected for member in scope.members]
         legacy = [member.source for member in scope.members]
         intended = [member.target for member in scope.members]
@@ -1023,6 +1046,8 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
             assessment = "incumbent roots outside the candidate require assessment"
         elif has_old and has_new:
             assessment = "both locations need assessment"
+        elif transfers and not (has_old or has_new):
+            assessment = "recorded publication needs assessment"
         else:
             assessment = "legacy pending" if has_old else "target present" if has_new else "fresh"
         print(f"[{group}] migration assessment: {assessment}", file=sys.stderr)
@@ -1054,8 +1079,9 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                               and not has_old and has_new
                               and not plan({**manifest, "rules": rules}, boundary, activation=True,
                                            generated=generated))
+                scoped = tuple(run for run in transfers if matches_run(manifest, group, run))
                 if not (reconciled or (old_routes == legacy and not incumbent_pending
-                                       and verify_transfer(scope, transfers, runs, boundary, generated))):
+                                       and verify_transfer(scope, scoped, runs, boundary, generated))):
                     raise Conflict(f"[{group}] runtime continuity: intended route requires a verified transfer")
             elif has_old or transfers:
                 # An unchanged intended route may already be split. Do not
@@ -1162,9 +1188,13 @@ def run_context(manifest, group, state=None):
             "rules": digest(rules)}
 
 
-def matches_run(manifest, group, run):
+def matches_run(manifest, group, run, *, same_rules=True):
     header = run["header"]
-    return header["group"] == group and header["context"] == run_context(manifest, group, run["path"].parent)
+    expected = run_context(manifest, group, run["path"].parent)
+    current = header["context"]
+    if not same_rules:
+        expected["rules"] = current.get("rules")
+    return header["group"] == group and current == expected
 
 
 def journal_data(boundary, run, *, append=False):
@@ -1495,7 +1525,7 @@ def check_completed_operation(boundary, operation, complete, replacement):
             raise Conflict(f"Earlier committed step has an unexpected legacy entry: {source}")
 
 
-def preflight_run(boundary, journal, rsync):
+def preflight_run(boundary, journal, rsync, scope, generated, history):
     operations = journal["header"]["operations"]
     steps = journal["steps"]
     intents = {op["target"]: (index, list(step.ready[1]) if step.ready else op["entry"])
@@ -1523,12 +1553,12 @@ def preflight_run(boundary, journal, rsync):
                     current.state is PublicationState.NEEDS_STAGE, operation["right"]))
         preflight.append((operation, evidence, replacement))
     check_staging_capacity(boundary, unstaged_copies)
-    return preflight, projection
-
-
-def execute_run(boundary, journal, log, rsync, scope, generated, history, *, domain=None):
-    steps, projection = preflight_run(boundary, journal, rsync)
     check_run_coverage(boundary, journal["header"], scope, generated, history, projection)
+    return preflight
+
+
+def execute_run(boundary, journal, log, rsync, scope, generated, history, *, prepared=None, domain=None):
+    steps = prepared if prepared is not None else preflight_run(boundary, journal, rsync, scope, generated, history)
     if domain is not None:
         domain.bind(boundary)
     for index, (operation, evidence, replacement) in enumerate(steps):
@@ -1544,7 +1574,7 @@ def quarantine_target(run, operation):
     return str(private_parent(operation, 0) / f".home-layout-{run}-{operation['sibling']}/payload")
 
 
-def commit_batch(boundary, state, header, rsync, scope, generated, history):
+def commit_batch(boundary, domain, state, header, rsync, scope, generated, history):
     name = datetime.datetime.now().strftime("%Y%m%dT%H%M%S-") + uuid.uuid4().hex
     run = state / name
     header = {"event": "begin", "version": 2, "run": name, **header}
@@ -1554,6 +1584,8 @@ def commit_batch(boundary, state, header, rsync, scope, generated, history):
     ]
     steps, finished = journal_prefix(header, ())
     journal = {"path": run, "header": header, "events": [], "steps": steps, "finished": finished}
+    prepared = preflight_run(boundary, journal, rsync, scope, generated, history)
+    domain.bind(boundary)
     print(f"Migration journal: {run}", file=sys.stderr, flush=True)
     with boundary.directory(state, create=True) as parent:
         os.mkdir(name, mode=0o700, dir_fd=parent)
@@ -1563,7 +1595,7 @@ def commit_batch(boundary, state, header, rsync, scope, generated, history):
             with os.fdopen(fd, "w", encoding="utf-8") as log:
                 os.fsync(directory)
                 write_journal(log, header)
-                execute_run(boundary, journal, log, rsync, scope, generated, history)
+                execute_run(boundary, journal, log, rsync, scope, generated, history, prepared=prepared)
 
 
 def done_entry(run, index):
@@ -1605,10 +1637,11 @@ def verify_authoritative(boundary, operation, proof, *, unchanged=False, app_sav
             raise Conflict(f"Authoritative target has changed: {target}")
 
 
-def completed_transfers(manifest, group, runs):
+def completed_transfers(manifest, group, runs, *, same_rules=True):
     return tuple(run for run in reversed(runs)
                  if run["finished"] and run["header"]["mode"] in ("apply", "retire-equal")
-                 and matches_run(manifest, group, run) and not disposition(runs, run, "rollback"))
+                 and matches_run(manifest, group, run, same_rules=same_rules)
+                 and not disposition(runs, run, "rollback"))
 
 
 def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=False, retained_only=False):
@@ -1621,6 +1654,8 @@ def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=Fa
         if retained_only and not coverage.legacy:
             continue
         try:
+            if not retained_only and "fixed" in header:
+                check_fixed_continuity(scope, boundary, generated, header["fixed"], unchanged)
             if not (unchanged or retained_only):
                 check_fixed_links(boundary, scope, tuple(member.source for member in members))
             for member in members:
@@ -1654,6 +1689,7 @@ def verified_rollback(manifest, group, runs, boundary, generated=None):
             continue
         members = TransferMember.from_operations(header["operations"])
         try:
+            check_fixed_links(boundary, scope, tuple(member.target for member in members if not member.equal))
             scaffolds = set()
             for op in header["operations"]:
                 if op["kind"] == "scaffold":
@@ -1784,6 +1820,18 @@ def fixed_witnesses(scope, boundary, generated):
     return witnesses
 
 
+def check_fixed_continuity(scope, boundary, generated, recorded, unchanged):
+    current = fixed_witnesses(scope, boundary, generated)
+    for before, after in zip(recorded, current, strict=True):
+        path, mount, entry = before
+        if after[:2] != [path, mount]:
+            raise Conflict(f"Fixed consumer mount changed after publication: {path}")
+        if entry is not None:
+            found = after[2]
+            if found is None or entry[2] != found[2] or (not unchanged and entry != found):
+                raise Conflict(f"Fixed consumer path changed after publication: {path}")
+
+
 def check_run_coverage(boundary, header, scope, generated, history, projection):
     if "fixed" in header and header["fixed"] != fixed_witnesses(scope, boundary, generated):
         raise Conflict("A fixed consumer path changed after planning")
@@ -1803,8 +1851,7 @@ def check_run_coverage(boundary, header, scope, generated, history, projection):
         original = parent_headers[parent]
 
     members = TransferMember.from_operations(original["operations"])
-    if not reversed_transfer:
-        check_fixed_links(boundary, scope, tuple(member.source for member in members))
+    check_fixed_links(boundary, scope, tuple(Path(op["source"]) for op in header["operations"]))
     for member in members:
         if not reversed_transfer and not scope.allows_transfer(member.source, member.target):
             raise Conflict(f"Transfer conflicts with consumer path ownership: {member.source} -> {member.target}")
@@ -1942,8 +1989,7 @@ def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None,
                       "routes": [str(member.selected) for member in scope.members]}
             if scope.fixed and mode in ("apply", "retire-equal"):
                 header["fixed"] = fixed_witnesses(scope, boundary, generated)
-            domain.bind(boundary)
-            commit_batch(boundary, state, header, rsync, scope, generated, runs)
+            commit_batch(boundary, domain, state, header, rsync, scope, generated, runs)
     return actions
 
 
