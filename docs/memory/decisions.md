@@ -3,19 +3,24 @@ type: Decision Record
 title: "Safety, ownership and acceptance"
 description: "Durable configuration constraints and explicit operational gates"
 status: stable
-source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
 sources:
   - id: gc
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/nix/nix-store-clean.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/2fc7eda8beb95be233255483e8da14bbe48882b6/assets/nix-store-clean/cli.py
     title: "Nix store cleaner"
   - id: home
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/home/home-migration.nix
-    title: "Home migration"
+    resource: https://github.com/tenzyu/nixfiles/blob/3cea74d0db3dc6409045470f8be76688146216de/modules/50-features/home/home-migration.nix
+    title: "Reviewed Home holding and cutover declaration"
   - id: game
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/game-servers/minecraft.nix
-    title: "Minecraft"
+    resource: https://github.com/tenzyu/nixfiles/blob/2137ae82047d11c5f81b22f39b846e74dc3b191f/modules/50-features/game-servers/_internal/minecraft-backup/operator.sh
+    title: "Minecraft admission and backup"
+  - id: parsec
+    resource: https://github.com/tenzyu/nixfiles/blob/ca9e7ea1af584d27979de583b69e9425310172db/modules/50-features/services/parsec.nix
+    title: "Parsec seeding and review"
+  - id: osu
+    resource: https://github.com/tenzyu/nixfiles/blob/8fdb01054bcb9854a8da82dad2399cb880d4b1e0/scripts/osu-performance/osu-lab.py
+    title: "osu! measurement"
   - id: secret
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/50-features/security/sops-nix.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/security/sops-nix.nix
     title: "SOPS provider"
 ---
 
@@ -27,9 +32,11 @@ Nix module implementation and exact host configuration supersede old README asse
 
 ## D2 — Data and rollback safety
 
-The XDG migration includes data movement, collision checks and journals. Home Manager activation is strictly check-only. Data moves require a separate, explicitly approved `home-layout-migrate apply`. A planned existing link or reference repair requires operator review and blocks the whole apply batch. After interruption, reconcile the actual source, destination and backup with the journal. NixOS generation rollback **does not reverse renames of user data**. `neko5` contains an unresolved migration TODO. See [home migration runbook](../../assets/home-layout/README.md).
+Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the landed #65 implementation, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. The prior VM verified incumbent-route protection and whole-group retirement recovery. The replacement also preflights the whole group when resuming ordinary apply or rollback. Switch admission leaves route-free account creation to NixOS and checks affected incumbent accounts before removing a route or account. Refuse while affected data remains or an affected HOME is unavailable. The 2026-11-20 R4 inspection failed group-resume capacity at `2ecf45d`. The capacity repair checks aggregate bytes by destination mount for copies needing a stage before any action advances, with a second check before staging each copy. R4's 2026-11-20 scoped capacity recheck passed at Home `e5b62b4` on `25a70b3`, using source inspection and the maintained direct and native VM fixture results. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Landed Home source and evidence](../adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
 
-The Nix store cleaner does not ignore GC roots; `prune-system` needs explicit confirmation and full staged-boot/rollback VM acceptance. Reclaiming a large amount of space is not evidence of safe deletion. See [Nix store cleanup](../cookbook/nix-store-clean.md).
+When both roots contain user data, preserve both and hold the group while authority is unresolved. Apparent equality conveys no authority to mutate either copy. Apply requires a separate approved offline window. Retiring a named copy requires its own authorization and a reversible recovery path. Existing links and references need operator review. After interruption, reconcile the journal with the actual entries and preserve ambiguous copies. A generation rollback does not undo a data move.
+
+The #68 implementation makes `review-results` a read-only report of user-owned result links and their observed targets. Re-inspect through the owning project and refresh the native root inventory before deciding whether to retire a link. Native GC and generation pruning retain their confirmation and liveness checks. Staged boot and rollback acceptance remains **NOT RUN**. [Nix store cleanup](../cookbook/nix-store-clean.md).
 
 ## D3 — One persistent service writer
 
@@ -41,7 +48,7 @@ SplitCast source, package tests and PoC acceptance belong to its independent rep
 
 ## D5 — Measurement scope
 
-`osu-lab` samples OS and compositor telemetry. It cannot by itself establish event-to-photon or physical audio-onset latency. Any optimization remains a hypothesis until controlled A/B and independently verified output. See [latency lab](../../scripts/osu-performance/README-lab.md).
+The #69 `osu-lab` implementation distinguishes observed compositor and kernel telemetry, requested BASS or tablet settings, proxies and unknowns. Foreground Direct Scanout rates require eligible samples with matching window and monitor IDs and observed scanout state. Independent monitor readings stay visible. Missing observations stay unknown. Old PipeWire ERR deltas require validated column and node continuity evidence, recovered from a reliable raw transcript when available. The lab does not measure event-to-photon or physical audio-onset latency. Preserve the dated native Direct Scanout baseline and require controlled runtime evidence before claiming a performance change. See [latency lab](../../scripts/osu-performance/README-lab.md).
 
 ## D6 — Native semantics over a private configuration language
 
@@ -54,6 +61,14 @@ For neko7, `game-srv.enable = true` declares Minecraft data under `/srv/minecraf
 ## D8 — A secrets provider is not a provisioned secret
 
 Both neko5 and neko7 select `sops-nix`. An age key, encrypted manifest, permission boundary, successful decryption and service reload are **separate** operational facts. Do not assert them from the host feature flag. Preserve `tailscaled` state across reconfiguration; avoid accidental node re-enrollment or token exposure. See [secrets](../cookbook/secrets-and-tailscale.md).
+
+## D9 — App-owned settings and uncertain service outcomes
+
+Parsec owns its saved settings and controller mappings. The #64 implementation seeds missing files independently and skips an incumbent without opening it. The review command inspects saved values and modes. A legacy entry suppresses JSON seeding when observed before publication. Where legacy import precedence matters, seed with Parsec stopped. A saved-value match does not establish effective client behavior. [Landed Parsec source](../adr/0002-invariant-safety.md#parsec) · [Parsec runbook](../../assets/parsec-activation/README.md).
+
+The #63 Minecraft operator keeps the same-boot admission guard after a manager job whose result is unconfirmed. Diagnose both managers, then clear the guard only after reconciliation while holding the original lock. A failed post-stop backup never requests an automatic restart. Use the reported archive target to verify any candidate archive separately from service recovery. Keep ARK and Rust disabled on neko7 and leave updates, retention and sharing with their existing owners. [Minecraft runbook](../../modules/50-features/game-servers/_internal/minecraft-backup/README.md#diagnose-and-recover).
+
+The local Safety Core operations follow real consumers. Keep Python for the Home mover, Shell for Minecraft publication, Parsec's anonymous stage, and the separate TypeScript process boundaries. Keep Rust as an opt-in lookup fixture outside host closures. No proposed implementation or packaged fixture substitutes for host acceptance. [Consumer and port decisions](../adr/0002-invariant-safety.md#q8--safety-core-and-rust).
 
 ## Evidence requirements
 
