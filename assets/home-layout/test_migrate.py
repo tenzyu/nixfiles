@@ -431,6 +431,26 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual((displaced / "record").read_text(), "credentials")
         self.assertFalse(old.exists())
 
+    def test_alternate_candidate_receipt_does_not_block_an_intact_incumbent(self):
+        source = self.file(".old/record", "installed")
+        rule = self.rule(".old", "xdg/new")
+        with patch.object(migrate.datetime, "datetime") as clock:
+            clock.now.return_value.strftime.return_value = "20261120T000000-"
+            migrate.apply(self.manifest)
+        incumbent = self.installed_manifest()
+        self.file(".old/record", "alternate")
+        installed = Path(rule["target"])
+        alternate = self.home / "alternate/new"
+        rule["target"] = str(alternate)
+        with patch.object(migrate.datetime, "datetime") as clock:
+            clock.now.return_value.strftime.return_value = "20261120T000001-"
+            migrate.apply(self.manifest)
+        rule["target"] = str(installed)
+        self.admit(incumbent)
+        self.assertFalse(source.exists())
+        self.assertEqual((installed / "record").read_text(), "installed")
+        self.assertEqual((alternate / "record").read_text(), "alternate")
+
     def test_cross_mount_nested_target_staging_does_not_change_published_parent(self):
         target = self.cross_mount()
         self.file(".old/settings", "config")

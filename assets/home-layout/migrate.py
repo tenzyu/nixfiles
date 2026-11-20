@@ -1070,6 +1070,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                 raise Conflict(f"[{group}] runtime continuity: legacy route would expose an incomplete group")
         else:
             changed = old_routes is not None and selected != old_routes
+            selected_history = tuple(run for run in transfers if touches_intended_route(scope, run))
             if changed and not journals_known:
                 raise Conflict(f"[{group}] runtime continuity: resolve migration history before cutover")
             if changed and pending:
@@ -1083,10 +1084,10 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                 if not (reconciled or (old_routes == legacy and not incumbent_pending
                                        and verify_transfer(scope, scoped, runs, boundary, generated))):
                     raise Conflict(f"[{group}] runtime continuity: intended route requires a verified transfer")
-            elif has_old or transfers:
+            elif has_old or selected_history:
                 # An unchanged intended route may already be split. Do not
                 # start more writers against an unresolved target.
-                if not verify_transfer(scope, transfers, runs, boundary, generated,
+                if not verify_transfer(scope, selected_history, runs, boundary, generated,
                                        unchanged=group in old and old_routes == selected):
                     raise Conflict(f"[{group}] runtime continuity: legacy state remains or route is split")
         print(f"[{group}] runtime continuity: {'legacy held' if held else 'intended route admitted'}",
@@ -1644,11 +1645,16 @@ def completed_transfers(manifest, group, runs, *, same_rules=True):
                  and not disposition(runs, run, "rollback"))
 
 
+def touches_intended_route(scope, run):
+    members = TransferMember.from_operations(run["header"]["operations"])
+    return any(overlaps(member.target, root) for member in members for root in scope.intended)
+
+
 def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=False, retained_only=False):
     for run in transfers:
         header = run["header"]
         members = TransferMember.from_operations(header["operations"])
-        if not members:
+        if not members or any(not scope.allows_transfer(member.source, member.target) for member in members):
             continue
         coverage = ConsumerCoverage.after(members, retired=disposition(runs, run, "retire") is not None)
         if retained_only and not coverage.legacy:
@@ -1661,8 +1667,6 @@ def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=Fa
             for member in members:
                 op = header["operations"][member.index]
                 proof = op.get("proof") or retirement_proof(run, member.index, op)
-                if not scope.allows_transfer(member.source, member.target):
-                    return False
                 verify_authoritative(boundary, op, proof, unchanged=unchanged or retained_only, app_save=unchanged)
                 if member.source in coverage.legacy:
                     if observe(boundary, member.source, op["left"]) != op["entry"]:
