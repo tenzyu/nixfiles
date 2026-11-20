@@ -352,6 +352,76 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual((target / "key").read_text(), "legacy")
         self.assertEqual(len(list(target.parent.glob(".home-layout-*-stage/payload/partial"))), 1)
 
+    def test_cross_mount_recovery_preflights_remaining_capacity(self):
+        published = self.cross_mount()
+        self.file(".old/key", "published")
+        self.file(".ready/key", "staged")
+        original = self.file(".same-mount", "rename")
+        self.file(".pending/config/key", "pending parent")
+        self.file(".later", "pending child")
+        ready_target = published.with_name("ready")
+        pending_target = published.with_name("pending")
+        later_target = published.with_name("later-area") / "config/child"
+        self.rule(".ready", ".unused")["target"] = str(ready_target)
+        self.rule(".same-mount", "renamed")
+        self.rule(".pending", ".unused")["target"] = str(pending_target)
+        self.rule(".later", ".unused")["target"] = str(later_target)
+        rsync = shutil.which("rsync")
+        write = migrate.write_journal
+
+        def stop_after_staging(log, event):
+            write(log, event)
+            if event["event"] == "ready" and event["index"] == 1:
+                raise OSError("after durable staged copy")
+
+        with (patch.object(migrate, "write_journal", side_effect=stop_after_staging),
+              self.assertRaisesRegex(OSError, "after durable staged copy")):
+            migrate.apply(self.manifest, rsync=rsync)
+        events = self.journal()
+        header, ready = events[0], events[-1]
+        self.assertEqual((ready["event"], ready["index"]), ("ready", 1))
+        pending = header["operations"][3:]
+        journal = self.home / "state" / header["run"] / "operations.jsonl"
+        before = journal.read_bytes()
+        staged = Path(ready["stage"])
+        staged_inode = staged.stat().st_ino
+        published_inode = published.stat().st_ino
+        original_inode = original.stat().st_ino
+        total = sum(op["bytes"] for op in pending)
+        available = total - 1
+        requests = []
+
+        def capacity(boundary, path, required):
+            self.assertEqual(boundary.mount_at(path), pending[0]["right"])
+            requests.append(required)
+            consumed = sum(op["bytes"] for op in pending if Path(op["target"]).exists())
+            if required > available - consumed:
+                raise migrate.Unsupported("Insufficient staging capacity in fixture")
+
+        with patch.object(migrate.MoveBoundary, "check_capacity", capacity):
+            with self.assertRaisesRegex(migrate.Unsupported, "Insufficient staging capacity"):
+                migrate.mutate(self.manifest, "recover", "fixture", {}, rsync, run_id=header["run"])
+            self.assertFalse(ready_target.exists(), "Recovery published an earlier stage")
+            self.assertEqual(staged.stat().st_ino, staged_inode)
+            self.assertEqual(published.stat().st_ino, published_inode)
+            self.assertEqual(original.stat().st_ino, original_inode)
+            self.assertFalse((self.home / "renamed").exists())
+            self.assertFalse(pending_target.exists())
+            self.assertFalse(later_target.parent.exists())
+            self.assertEqual(journal.read_bytes(), before)
+            self.assertEqual(requests, [total])
+
+            available = total
+            requests.clear()
+            migrate.mutate(self.manifest, "recover", "fixture", {}, rsync, run_id=header["run"])
+        self.assertEqual(requests, [total, *(op["bytes"] for op in pending)])
+        self.assertEqual(ready_target.stat().st_ino, staged_inode)
+        self.assertEqual(published.stat().st_ino, published_inode)
+        self.assertEqual((self.home / "renamed").stat().st_ino, original_inode)
+        self.assertEqual((pending_target / "config/key").read_text(), "pending parent")
+        self.assertEqual(later_target.read_text(), "pending child")
+        self.assertEqual(self.journal()[-1]["event"], "finished")
+
     def test_cross_mount_external_hardlink_fails_preflight(self):
         target = self.cross_mount()
         original = self.file(".old/key")

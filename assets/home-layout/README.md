@@ -143,7 +143,9 @@ group の runner に表示された run ID を渡す。
 apply、rollback、退避の再開では、グループ全体の元、公開先、staging、退避先の記録と実物を、
 未完了の先行操作が作るパスも含めて確認してから journal とファイルを更新する。公開済みで完了記録だけが
 欠ける場合は identity と内容を再検証して続行する。中断した staging は保持し、新しい staging
-を作る。矛盾、破損記録、旧版 journal、mount identity の変化は現物とバックアップを照合して
+を作る。再開前に、新たに staging が必要なコピーの容量を対象ファイルシステムごとに合計して確認する。
+検証済みの staging と公開済みのコピーは追加容量に含めず、新しい staging の作成直前にも空き容量を検査する。
+矛盾、破損記録、旧版 journal、mount identity の変化は現物とバックアップを照合して
 別途対応する。旧版 journal を退ける場合も証拠を保持し、修復後のルートを再検証する。
 
 `retire --group GROUP --offline --run RUN_ID` は検証済み cross-mount 移行の旧側を可逆退避する。

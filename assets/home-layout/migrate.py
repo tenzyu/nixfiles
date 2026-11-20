@@ -852,7 +852,6 @@ def read_runs(boundary, state):
 
 def approved_operations(actions, boundary):
     operations = []
-    storage = {}
     moves = [item for item in actions if item["action"] == "move"]
     for index, action in enumerate(moves):
         source, target = Path(action["source"]), Path(action["target"])
@@ -876,15 +875,10 @@ def approved_operations(actions, boundary):
                                "left": right, "right": right, "payload": fingerprint,
                                "exclude": [], "targetExclude": [], "mutable": []})
         fingerprint, size = payload(boundary, source, left, excludes, mutable, copy=copy)
-        if copy:
-            _, required = storage.get(right, (target.parent, 0))
-            storage[right] = (target.parent, required + size)
         operations.append({"op": "copy" if copy else "rename", "kind": "legacy",
                            "source": str(source), "target": str(target), "entry": list(action["entry"]),
                            "left": left, "right": right, "payload": fingerprint, "bytes": size,
                            "exclude": excludes, "targetExclude": target_excludes, "mutable": mutable})
-    for path, size in storage.values():
-        boundary.check_capacity(path, size)
     return operations
 
 
@@ -910,6 +904,20 @@ def pin_operation_parents(operations, boundary):
             parents[index] = boundary.anchor(parent)
         op["anchors"] = parents
     return operations
+
+
+def check_staging_capacity(boundary, copies):
+    storage = {}
+    for operation in copies:
+        # A projected parent may still be on the source mount. Use the
+        # existing destination-side ancestor for the filesystem check.
+        path, _, mount = operation["anchors"][1]
+        if mount != operation["right"]:
+            raise Conflict(f"Destination mount changed after planning: {operation['target']}")
+        parent, size = storage.get(mount, (Path(path), 0))
+        storage[mount] = (parent, size + operation["bytes"])
+    for parent, size in storage.values():
+        boundary.check_capacity(parent, size)
 
 
 def check_payload(boundary, op, path, *, target=False, sync=False):
@@ -1064,7 +1072,7 @@ def preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
         after = observe(boundary, target, operation["right"])
 
     move_from, move_entry, staged = source, operation["entry"], before
-    retained = False
+    needs_stage = False
     if operation["op"] == "copy":
         if before != move_entry:
             raise Conflict(f"Copy source changed after planning: {source}")
@@ -1075,12 +1083,12 @@ def preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
                 raise Conflict(f"Copy target is already occupied: {target}")
             if not rsync:
                 raise Unsupported("Cross-mount transfer requires the packaged rsync")
-            retained = True
+            needs_stage = True
         else:
             move_from, move_entry = Path(ready["stage"]), ready["entry"]
             staged = observe(boundary, move_from, operation["right"])
 
-    if not retained:
+    if not needs_stage:
         check_move_entries(boundary, operation, move_from, move_entry, staged, after, prior)
         # An unlogged publication still needs this parent for the recovery fsync.
         with boundary.directory(move_from.parent) as left:
@@ -1088,7 +1096,8 @@ def preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
                 boundary.writable(left, move_from.parent)
     if after is None:
         check_destination_parent(boundary, target.parent, operation["right"], pending_moves)
-        pending_moves.append((move_from, target, retained, operation["right"]))
+        pending_moves.append((move_from, target, needs_stage, operation["right"]))
+    return needs_stage
 
 
 def execute_run(boundary, journal, log, rsync):
@@ -1097,6 +1106,7 @@ def execute_run(boundary, journal, log, rsync):
     intents = {event["target"]: (event["index"], event["entry"])
                for event in events if event["event"] == "intent"}
     pending_moves = []
+    unstaged_copies = []
     steps = []
     for index, operation in enumerate(operations):
         for anchor in operation["anchors"]:
@@ -1111,10 +1121,12 @@ def execute_run(boundary, journal, log, rsync):
         later_index, entry = intents.get(operation["source"], (-1, None))
         replacement = entry if later_index > index else None
         if complete is None:
-            preflight_pending_step(boundary, operation, prior, pending_moves, rsync)
+            if preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
+                unstaged_copies.append(operation)
         else:
             check_completed_operation(boundary, operation, complete, replacement)
         steps.append((operation, prior, complete, replacement))
+    check_staging_capacity(boundary, unstaged_copies)
     for index, (operation, prior, complete, replacement) in enumerate(steps):
         if complete is None:
             execute_operation(boundary, log, run, index, operation, prior, rsync)
@@ -1247,8 +1259,11 @@ def plan_group(manifest, group, boundary, generated, *, retire_equal=False):
             if (rule["source"] not in moves and rule["source"] != rule["target"]
                     and route_state(boundary, Path(rule["target"]), generated) == "data"):
                 raise Conflict(f"[{group}] group is already split; verify an authoritative route before applying")
-    operations = approved_operations(actions, boundary) if all(action["action"] == "move" for action in actions) else []
-    return actions, pin_operation_parents(operations, boundary)
+    operations = []
+    if all(action["action"] == "move" for action in actions):
+        operations = pin_operation_parents(approved_operations(actions, boundary), boundary)
+        check_staging_capacity(boundary, (op for op in operations if op["op"] == "copy"))
+    return actions, operations
 
 
 def authority(manifest, group, operations, mode="apply"):
