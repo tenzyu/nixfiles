@@ -25,6 +25,16 @@ candidate() {
 
 test -f "$home/reached-initial"
 test -L "$home/.codex/old-link"
+as_user chmod 0710 "$home/.codex"
+if candidate held > /tmp/cleanup.log 2>&1; then
+  echo 'Home Manager cleanup admitted removal of a protected directory' >&2
+  exit 1
+fi
+grep -F 'cleanup would remove a protected directory' /tmp/cleanup.log
+test "$(readlink -f /run/current-system)" = "$base"
+test -L "$home/.codex/old-link"
+test "$(stat -c %a "$home/.codex")" = 710
+test ! -e "$home/reached-held"
 as_user bash -c 'printf "legacy-record\n" > "$HOME/.codex/record"'
 inode=$(stat -c %i "$home/.codex/record")
 test "$(app read)" = legacy-record
@@ -60,6 +70,7 @@ systemctl is-active home-manager-hfixture.service
 test -f "$home/reached-held"
 test "$(cat "$home/unrelated.txt.hm-backup")" = unmanaged
 test ! -e "$home/.codex/old-link"
+test "$(stat -c %a "$home/.codex")" = 710
 test "$(app version)" = held
 test "$(app read)" = legacy-record
 test ! -e "$home/.local/share/codex/record"

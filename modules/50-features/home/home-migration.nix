@@ -50,6 +50,7 @@ in {
       host = config.local.context.hostName or null;
       stateHome = config.xdg.stateHome;
       state = "${config.xdg.stateHome}/home-cleanup/bronze/activation";
+      legacyStateHomes = map absolute cfg.legacyStateHomes;
       externalBases = with config.xdg; [cacheHome configHome dataHome stateHome];
       rules = map (rule:
         rule
@@ -93,6 +94,11 @@ in {
         default = [];
         type = lib.types.listOf lib.types.str;
         description = "Groups with independently approved app-native reconciliation and reversible retirement of their legacy names.";
+      };
+      legacyStateHomes = lib.mkOption {
+        default = [];
+        type = lib.types.listOf lib.types.str;
+        description = "Earlier XDG state bases with Home migration journals, relative to HOME or absolute.";
       };
       activationWrites = lib.mkOption {
         default = {};

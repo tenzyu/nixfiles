@@ -2,7 +2,9 @@
 
 import argparse
 from contextlib import contextmanager
+from dataclasses import dataclass, replace
 import datetime
+from enum import Enum, auto
 import fcntl
 import hashlib
 import fnmatch
@@ -141,18 +143,58 @@ def describe_collision(boundary, source, target, *, compare):
     return "Both paths contain data and differ"
 
 
-def virtual(path, moves):
-    """Read the future layout without making it (e.g. Claude's nested JSON)."""
-    for source, target in reversed(moves):
-        if path.is_relative_to(target):
-            path = source / path.relative_to(target)
-        elif path.is_relative_to(source):
-            return None
-    return path
+@dataclass(frozen=True)
+class Publication:
+    source: Path
+    target: Path
+    retained: bool = False
+    mount: str | None = None
 
 
-def present(path):
-    return path is not None and exists(path)
+@dataclass(frozen=True)
+class PathProjection:
+    """Read a future namespace through an ordered set of allowed publications."""
+
+    moves: tuple[Publication, ...] = ()
+
+    def after(self, move):
+        return PathProjection((*self.moves, move))
+
+    def lookup(self, path):
+        mount = None
+        for move in reversed(self.moves):
+            if path.is_relative_to(move.target):
+                path = move.source / path.relative_to(move.target)
+                mount = mount or move.mount
+            elif not move.retained and path.is_relative_to(move.source):
+                return None, None
+        return path, mount
+
+    def redirect(self, path):
+        """The intended home of a legacy reference, following the deepest claim."""
+        for move in sorted(self.moves, key=lambda move: -len(move.source.parts)):
+            if path.is_relative_to(move.source):
+                if move.source != move.target:
+                    return move.target / path.relative_to(move.source)
+                return None
+        return None
+
+    def parent(self, boundary, path, *, expected_mount=None):
+        while True:
+            actual, mount = self.lookup(path)
+            if actual is not None:
+                try:
+                    with boundary.directory(actual) as fd:
+                        actual_mount = boundary.mount(fd, actual)
+                        if expected_mount is not None and (mount or actual_mount) != expected_mount:
+                            raise Conflict(f"Mount changed after planning: {path}")
+                        boundary.writable(fd, actual)
+                        return actual, mount or actual_mount
+                except FileNotFoundError:
+                    pass
+            if path == path.parent:
+                raise Conflict("Migration destination has no available parent")
+            path = path.parent
 
 
 def mounts(path):
@@ -209,27 +251,18 @@ def replace_references(text, source, target, home):
     return text
 
 
-def relocated_absolute(value, rules):
-    """Map legacy absolute paths using the most specific migration rule."""
-    if not os.path.isabs(value):
-        return None
-    path = Path(os.path.normpath(value))
-    matches = []
-    for rule in rules:
-        source, target = Path(rule["source"]), Path(rule["target"])
-        if source != target and (path == source or path.is_relative_to(source)):
-            matches.append((len(source.parts), target / path.relative_to(source)))
-    return max(matches, key=lambda item: item[0])[1] if matches else None
+def relocated_absolute(value, routes):
+    return routes.redirect(Path(os.path.normpath(value))) if os.path.isabs(value) else None
 
 
-def link_repairs(root, destination, manifest, excluded=()):
+def link_repairs(root, destination, routes, excluded=()):
     """Plan link changes, including resumption after a successful directory rename."""
     actions = []
     for link in tree(root, excluded):
         if not link.is_symlink():
             continue
         original = os.readlink(link)
-        relocated = relocated_absolute(original, manifest["rules"])
+        relocated = relocated_absolute(original, routes)
         if relocated is None:
             continue
         new_link = destination / link.relative_to(root)
@@ -254,6 +287,138 @@ def overlaps(first, second):
     return first.is_relative_to(second) or second.is_relative_to(first)
 
 
+@dataclass(frozen=True)
+class RouteMember:
+    source: Path
+    target: Path
+    selected: Path
+
+
+@dataclass(frozen=True)
+class GroupPaths:
+    """All consumer paths, including fixed claims inside movable roots."""
+
+    members: tuple[RouteMember, ...]
+    fixed: frozenset[Path]
+
+    @classmethod
+    def from_rules(cls, rules):
+        return cls(tuple(RouteMember(absolute(rule["source"]), absolute(rule["target"]),
+                                     absolute(rule.get("route", rule["target"]))) for rule in rules),
+                   frozenset(absolute(path) for rule in rules
+                             for path in rule.get("independentRoutes", {}).values()))
+
+    @property
+    def roots(self):
+        return self.fixed | {path for member in self.members
+                             for path in (member.source, member.target, member.selected)}
+
+    @property
+    def redirects(self):
+        return PathProjection(tuple(Publication(path, path) for path in sorted(self.fixed))
+                              + tuple(Publication(member.source, member.target) for member in self.members))
+
+    def regions(self, boundary, root, covered=(), projection=PathProjection(), carriers=()):
+        """Largest regions left after subtracting fixed and already covered claims."""
+        excluded = self.fixed.union(covered)
+
+        def descend(path):
+            if any(path.is_relative_to(claim) for claim in excluded):
+                return
+            if path not in carriers and not any(claim.is_relative_to(path) for claim in excluded):
+                yield path
+                return
+            actual, _ = projection.lookup(path)
+            if actual is None:
+                return
+            try:
+                with boundary.directory(actual) as directory:
+                    names = sorted(os.listdir(directory))
+            except FileNotFoundError:
+                return
+            for name in names:
+                yield from descend(path / name)
+
+        return tuple(descend(root))
+
+    def state(self, boundary, root, generated, *, covered=(), projection=PathProjection(), carriers=()):
+        try:
+            states = {route_state(boundary, actual, generated)
+                      for path in self.regions(boundary, root, covered, projection, carriers)
+                      if (actual := projection.lookup(path)[0]) is not None}
+        except (Conflict, OSError):
+            return "unknown"
+        return next((state for state in ("data", "scaffold") if state in states), "absent")
+
+    def uncovered(self, boundary, roots, generated, *, covered=(), projection=PathProjection(), carriers=()):
+        return tuple(path for path in roots
+                     if self.state(boundary, path, generated, covered=covered,
+                                   projection=projection, carriers=carriers) in ("data", "unknown"))
+
+    @property
+    def legacy(self):
+        return tuple(member.source for member in self.members if member.source != member.target)
+
+    @property
+    def intended(self):
+        return tuple(member.target for member in self.members if member.source != member.target)
+
+    def allows_transfer(self, source, target):
+        return (self.redirects.redirect(source) == target
+                and not any(overlaps(root, path) for root in (source, target) for path in self.fixed))
+
+    def planned_parts(self, boundary, source, target):
+        if any(source.is_relative_to(path) or target.is_relative_to(path) for path in self.fixed):
+            if boundary.entry(source) is not None:
+                raise Unsupported(f"A fixed consumer owns a migration root: {source} -> {target}")
+            return
+        for part in self.regions(boundary, source):
+            destination = target / part.relative_to(source)
+            if any(overlaps(destination, path) for path in self.fixed):
+                if boundary.entry(part) is not None:
+                    raise Conflict(f"Migration would write a fixed consumer path: {destination}")
+                continue
+            yield part, destination
+
+
+@dataclass(frozen=True)
+class TransferMember:
+    index: int
+    source: Path
+    target: Path
+    copied: bool
+    equal: bool
+
+    @classmethod
+    def from_operations(cls, operations):
+        return tuple(cls(index, Path(op["source"]),
+                         Path(op["proof"]["target"] if op["kind"] == "equal-retirement" else op["target"]),
+                         op["op"] == "copy", op["kind"] == "equal-retirement")
+                     for index, op in enumerate(operations) if op["kind"] != "scaffold")
+
+
+@dataclass(frozen=True)
+class ConsumerCoverage:
+    legacy: frozenset[Path]
+    intended: frozenset[Path]
+    carriers: frozenset[Path]
+
+    @classmethod
+    def after(cls, members, *, restored=False, retired=False, scaffolds=()):
+        return cls(
+            frozenset(member.source for member in members if restored or (member.copied and not retired)),
+            frozenset(member.target for member in members if not restored or member.equal).union(scaffolds),
+            frozenset(parent for member in members if restored and not member.equal for parent in member.target.parents),
+        )
+
+    def uncovered(self, scope, boundary, generated, *, projection=PathProjection(), intended=True):
+        legacy = scope.uncovered(boundary, scope.legacy, generated, covered=self.legacy, projection=projection)
+        if not intended:
+            return legacy
+        return legacy + scope.uncovered(boundary, scope.intended, generated, covered=self.intended,
+                                        projection=projection, carriers=self.carriers)
+
+
 def manifest_paths(manifest):
     home, state = absolute(manifest["home"]), absolute(manifest["state"])
     if home.is_relative_to(state):
@@ -265,7 +430,9 @@ def manifest_paths(manifest):
         group = rule.get("group", rule["owner"])
         for (earlier_source, earlier_target), earlier_rule in entries[:index]:
             earlier_group = earlier_rule.get("group", earlier_rule["owner"])
-            if (overlaps(source, earlier_source) or overlaps(target, earlier_target)) and group != earlier_group:
+            if (group != earlier_group and any(overlaps(left, right)
+                                               for left in protected_roots([rule])
+                                               for right in protected_roots([earlier_rule]))):
                 raise Unsupported(f"Overlapping migration groups: {earlier_group} and {group}")
             if source.is_relative_to(earlier_source):
                 raise Unsupported(f"Nested sources must precede their parents and occur once: {source}")
@@ -291,15 +458,6 @@ def manifest_paths(manifest):
     return home, state
 
 
-def future_parent(path, moves):
-    """Find a directory that will contain this path after earlier moves."""
-    while True:
-        actual = virtual(path, moves)
-        if present(actual):
-            return actual
-        path = path.parent
-
-
 def check_state(boundary, state):
     with boundary.directory(state, nearest=True) as fd:
         mount = boundary.mount(fd, state)
@@ -310,6 +468,93 @@ def check_state(boundary, state):
             info = os.fstat(fd)
             if info.st_uid != boundary.uid or info.st_mode & 0o077:
                 raise Unsupported(f"Migration state must be private and owned by the HOME owner: {state}")
+
+
+def journal_state(state_home):
+    return state_home / "home-cleanup/bronze/activation"
+
+
+def declared_states(manifest):
+    return {absolute(manifest["state"]),
+            *(journal_state(absolute(base)) for base in manifest.get("legacyStateHomes", []))}
+
+
+def generation_manifests(home, generations):
+    for generation in sorted(generations):
+        path = generation / "home-layout-manifest.json"
+        if path.is_file():
+            manifest = json.loads(path.read_text())
+            if manifest["home"] != str(home):
+                raise Unsupported("The Home Manager generation has a different HOME")
+            yield manifest
+
+
+@dataclass(frozen=True)
+class JournalDomain:
+    """Stable HOME-relative discovery for journals that stay in their v2 directories."""
+
+    locator: Path
+    primary: Path
+    locations: tuple[Path, ...]
+    recorded: tuple[Path, ...]
+
+    @classmethod
+    def discover(cls, boundary, manifest, *previous):
+        home, declared = manifest_paths(manifest)
+        default = journal_state(home / ".local/state")
+        locator = default.with_name("journal-domain.json")
+        recorded = ()
+        if boundary.entry(locator) is not None:
+            with boundary.directory(locator.parent) as directory:
+                fd = os.open(locator.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                with os.fdopen(fd, encoding="utf-8") as stream:
+                    info = os.fstat(stream.fileno())
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != boundary.uid
+                            or info.st_mode & 0o077 or info.st_nlink != 1):
+                        raise Unsupported(f"Untrusted migration journal domain: {locator}")
+                    record = json.load(stream)
+            recorded = tuple(absolute(path) for path in record["locations"])
+            if record["version"] != 1 or not recorded or len(set(recorded)) != len(recorded):
+                raise Conflict(f"Preserve and review the migration journal domain: {locator}")
+        candidates = {default, declared, *recorded}
+        claims = set()
+        for declaration in (manifest, *previous):
+            candidates.update(declared_states(declaration))
+            claims.update(protected_roots(declaration["rules"]))
+        for path in (*candidates, locator):
+            if (home.is_relative_to(path) or any(overlaps(path, claim) for claim in claims)
+                    or (path != locator and overlaps(path, locator))):
+                raise Unsupported(f"Journal discovery overlaps a protected path: {path}")
+        present = {path for path in candidates if boundary.entry(path) is not None}
+        missing = set(recorded) - present
+        if missing:
+            raise Conflict(f"A recorded migration journal directory is unavailable: {min(missing)}")
+        primary = recorded[0] if recorded else declared
+        return cls(locator, primary, (primary, *sorted(present - {primary})), recorded)
+
+    def runs(self, boundary):
+        runs = [run for location in self.locations for run in read_runs(boundary, location)]
+        if len({run["header"]["run"] for run in runs}) != len(runs):
+            raise Conflict("Duplicate migration run IDs in the journal domain")
+        return sorted(runs, key=lambda run: run["header"]["run"])
+
+    def bind(self, boundary):
+        # Called under the HOME inode flock, before the durable begin.
+        if self.locations == self.recorded:
+            return
+        check_state(boundary, self.locator.parent / "activation")
+        with boundary.directory(self.primary, create=True):
+            pass
+        with boundary.directory(self.locator.parent, create=True) as directory:
+            temporary = f".{self.locator.name}-{uuid.uuid4().hex}"
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            fd = os.open(temporary, flags, 0o600, dir_fd=directory)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump({"version": 1, "locations": list(map(str, self.locations))}, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.locator.name, src_dir_fd=directory, dst_dir_fd=directory)
+            os.fsync(directory)
 
 
 def resolve_external(boundary, manifest, path):
@@ -342,34 +587,46 @@ def check_reference(actual, dest, source, target, home):
     return True
 
 
-def plan(manifest, boundary=None, *, activation=False, compare_collisions=False, generated=None):
-    home, state = manifest_paths(manifest)
-    boundary = boundary or MoveBoundary()
-    moves, actions, patterns = [], [], []
-    generated = generated or {}
-    managed_paths = set(generated) if generated else set(map(absolute, manifest.get("managed", [])))
+def planned_rules(manifest, boundary, scope):
     for rule in manifest["rules"]:
-        source, target = Path(rule["source"]), Path(rule["target"])
+        source, target = absolute(rule["source"]), absolute(rule["target"])
         owner = rule["owner"]
         if not isinstance(owner, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", owner):
             raise Unsupported("Migration rule requires a valid feature owner")
+        home = absolute(manifest["home"])
         if not source.is_relative_to(home) or source == home:
             raise Conflict(f"Source must be below HOME: {source}")
         if source == target:
             continue
-        actual_source, actual_target = virtual(source, moves), virtual(target, moves)
+        for part, destination in scope.planned_parts(boundary, source, target):
+            if part != source and rule.get("references"):
+                raise Unsupported(f"Splitting a root with legacy references requires operator review: {source}")
+            yield rule, part, destination
+
+
+def plan(manifest, boundary=None, *, activation=False, compare_collisions=False, generated=None, state=None):
+    home, declared = manifest_paths(manifest)
+    boundary = boundary or MoveBoundary()
+    scope = GroupPaths.from_rules(manifest["rules"])
+    redirects = scope.redirects
+    projection = PathProjection()
+    actions, patterns = [], []
+    generated = generated or {}
+    managed_paths = set(generated) if generated else set(map(absolute, manifest.get("managed", [])))
+    for rule, source, target in planned_rules(manifest, boundary, scope):
+        owner = rule["owner"]
+        actual_source, _ = projection.lookup(source)
+        actual_target, _ = projection.lookup(target)
         source_info = boundary.entry(actual_source) if actual_source is not None else None
         if source_info is not None:
             resolve_external(boundary, manifest, target)
             source_entry = identity(source_info)
             if source_entry[2] not in (stat.S_IFDIR, stat.S_IFREG):
                 raise Conflict(f"Unsupported legacy file type: {source}")
-            parent = future_parent(target.parent, moves)
-            with (boundary.directory(actual_source.parent) as left, boundary.directory(parent) as right):
+            _, target_mount = projection.parent(boundary, target.parent)
+            with boundary.directory(actual_source.parent) as left:
                 source_mount = boundary.mount(left, actual_source.parent)
-                target_mount = boundary.mount(right, parent)
                 boundary.writable(left, actual_source.parent)
-                boundary.writable(right, parent)
             boundary.reject_mounts(actual_source)
             backup = None
             target_info = boundary.entry(actual_target) if actual_target is not None else None
@@ -383,12 +640,13 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                     raise Conflict(f"{detail} ({owner}): {source} -> {target}. "
                                    "Preserve both trees and review the collision in the migration runbook.")
                 backup = backup_entry
+            detached = [move.source for move in projection.moves if not move.retained]
             if source_entry[2] == stat.S_IFDIR:
-                for link in tree(actual_source, [old for old, _ in moves]):
+                for link in tree(actual_source, detached):
                     if not link.is_symlink():
                         continue
                     value = os.readlink(link)
-                    if relocated_absolute(value, manifest["rules"]) is not None:
+                    if relocated_absolute(value, redirects) is not None:
                         if not rule.get("repairAbsoluteLinks", False):
                             raise Conflict(f"Absolute legacy-root symlink requires repair: {link}")
                     if not os.path.isabs(value):
@@ -396,7 +654,7 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                         # including cargo -> rustup -> /nix/store/... chains.
                         lexical = Path(os.path.abspath(link.parent / value))
                         if lexical.is_relative_to(actual_source):
-                            translated = relocated_absolute(str(lexical), manifest["rules"])
+                            translated = relocated_absolute(str(lexical), redirects)
                             expected = target / lexical.relative_to(actual_source)
                             if translated is not None and translated != expected:
                                 raise Conflict(f"Relative symlink crosses a separately moved root: {link}")
@@ -415,22 +673,26 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                         raise Conflict(f"Legacy file would collide with a managed file ({owner}): "
                                        f"{old} -> {managed}. Review the Home Manager declaration and "
                                        "preserve the legacy file before applying.")
-            actions.append({"action": "move", "source": str(source), "target": str(target),
-                            "owner": owner, "entry": source_entry, "backup": backup,
-                            "sourceMount": source_mount, "targetMount": target_mount})
-            moves.append((source, target))
+            action = {"action": "move", "source": str(source), "target": str(target),
+                      "owner": owner, "entry": source_entry, "backup": backup,
+                      "sourceMount": source_mount, "targetMount": target_mount,
+                      "observedTarget": actual_target}
+            if source != Path(rule["source"]):
+                # Leave private stages and quarantines outside the shared carrier.
+                action["privateParents"] = [str(Path(rule[key]).parent) for key in ("source", "target")]
+            actions.append(action)
+            projection = projection.after(Publication(source, target, source_mount != target_mount, target_mount))
             patterns.extend(rule.get("processes", []))
             if rule.get("repairAbsoluteLinks", False) and source_entry[2] == stat.S_IFDIR:
                 actions.extend({**repair, "owner": owner, "legacy": str(source), "root": str(target)}
-                               for repair in link_repairs(actual_source, target, manifest,
-                                                          [old for old, _ in moves[:-1]]))
+                               for repair in link_repairs(actual_source, target, redirects, detached))
         elif (rule.get("repairAbsoluteLinks", False) and actual_target is not None
               and (info := boundary.entry(actual_target)) is not None and stat.S_ISDIR(info.st_mode)):
             # Diagnose legacy links even if an earlier version already moved the tree.
             with boundary.directory(actual_target):
                 pass
             boundary.reject_mounts(actual_target)
-            repairs = link_repairs(actual_target, target, manifest)
+            repairs = link_repairs(actual_target, target, redirects)
             actions.extend({**repair, "owner": owner, "legacy": str(source), "root": str(target)}
                            for repair in repairs)
             if repairs:
@@ -442,7 +704,7 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
         # Diagnose residual references even if the directory already moved.
         for relative in rule.get("references", []):
             dest = target / relative
-            actual = virtual(dest, moves)
+            actual, _ = projection.lookup(dest)
             if actual is None or boundary.entry(actual) is None:
                 continue
             with boundary.directory(actual.parent):
@@ -452,8 +714,8 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                     actions.append({"action": "rewrite", "current": str(actual), "target": str(dest),
                                     "legacy": str(source), "root": str(target), "owner": owner})
                     patterns.extend(rule.get("processes", []))
-    if moves:
-        check_state(boundary, state)
+    if projection.moves:
+        check_state(boundary, state or declared)
     paths = [Path(rule[key]) for rule in manifest["rules"] for key in ("source", "target")]
     pids = busy(patterns, paths) if patterns and not activation else []
     if pids:
@@ -503,9 +765,21 @@ def owned_link(path, generated):
 
 
 def protected_roots(rules):
-    roots = {absolute(rule[key]) for rule in rules for key in ("source", "target", "route") if key in rule}
-    roots.update(absolute(path) for rule in rules for path in rule.get("independentRoutes", {}).values())
-    return roots
+    return GroupPaths.from_rules(rules).roots
+
+
+def check_cleanup_parents(boundary, home, removed, previous, roots):
+    # Native HM unlinks orphaned generation leaves, then runs rmdir -p.
+    # Test the children remaining after all such unlinks, from the bottom up.
+    parents = {parent for path in removed for parent in path.parents
+               if parent != home and parent.is_relative_to(home)}
+    for parent in sorted(parents, key=lambda path: (-len(path.parts), path)):
+        with boundary.directory(parent) as directory:
+            if any(parent / name not in removed for name in os.listdir(directory)):
+                continue
+        if any(parent.is_relative_to(root) for root in roots) and not generated_tree(parent, previous):
+            raise Conflict(f"Home Manager cleanup would remove a protected directory: {parent}")
+        removed.add(parent)
 
 
 def project_writes(manifest, boundary, candidate, previous, roots):
@@ -521,6 +795,7 @@ def project_writes(manifest, boundary, candidate, previous, roots):
              for path in previous.keys() | candidate.keys()}
     backup_ext = os.environ.get("HOME_MANAGER_BACKUP_EXT", "")
     backup_command = os.environ.get("HOME_MANAGER_BACKUP_COMMAND", "")
+    removed = set()
     for path in sorted(known):
         # Even an unrelated lexical path can reach protected data via a parent
         # symlink. Never let embedded HM use such an unproven write path.
@@ -542,9 +817,14 @@ def project_writes(manifest, boundary, candidate, previous, roots):
                     backup = absolute(str(path) + "." + backup_ext)
                     if any(overlaps(backup, root) for root in roots):
                         raise Conflict(f"Home Manager backup would write a protected location: {backup}")
-        elif (path.is_symlink() and re.match(r"/nix/store/[^/]+-home-manager-files/", os.readlink(path))
-              and any(overlaps(path, root) for root in roots) and not owned_link(path, previous)):
-            raise Conflict(f"Home Manager cleanup could remove an unproven protected link: {path}")
+        if (path in previous and stat.S_ISLNK(info.st_mode)
+                and re.match(r"/nix/store/[^/]+-home-manager-files/", os.readlink(path))
+                and not any(Path(leaf).exists() for leaf in candidate.get(path, ()))
+                and not any(leaf != path and leaf.is_relative_to(path) for leaf in candidate)):
+            if any(overlaps(path, root) for root in roots) and not owned_link(path, previous):
+                raise Conflict(f"Home Manager cleanup could remove an unproven protected link: {path}")
+            removed.add(path)
+    check_cleanup_parents(boundary, absolute(manifest["home"]), removed, previous, roots)
     return known
 
 
@@ -579,7 +859,7 @@ def inspect_routes(manifest, boundary, generated):
 
 
 def activation_gate(manifest, boundary, generation, previous, incumbent, sessions_active):
-    home, state = manifest_paths(manifest)
+    home, _ = manifest_paths(manifest)
     if generation is None and manifest["rules"]:
         raise Unsupported("Activation requires a realised candidate Home Manager generation")
     old_manifest = {}
@@ -597,22 +877,29 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
 
     # HM uses its current-home GC root for cleanup. Account for it separately
     # from the installed system profile, which can already have changed.
-    old_generations = active_generations(home, manifest.get("stateHome"), old_manifest.get("stateHome"))
+    old_generations = active_generations(home, manifest.get("stateHome"), old_manifest.get("stateHome"),
+                                         *manifest.get("legacyStateHomes", []), *old_manifest.get("legacyStateHomes", []))
     old_generations.update(path for path in (previous, incumbent) if path)
     old_files = {}
     merge_generation_files(old_files, home, old_generations)
 
-    roots = protected_roots(manifest["rules"] + old_manifest.get("rules", []))
-    generated = project_writes(manifest, boundary, generation_files(home, generation), old_files, roots)
-    print("Home migration activation writes: safe for protected roots", file=sys.stderr)
-
+    default = journal_state(home / ".local/state")
+    roots = {*protected_roots(manifest["rules"] + old_manifest.get("rules", [])),
+             default, default.with_name("journal-domain.json")}
+    declarations = tuple(generation_manifests(home, old_generations))
+    for declaration in (manifest, *declarations):
+        roots.update(declared_states(declaration))
     try:
-        runs = read_runs(boundary, state)
+        domain = JournalDomain.discover(boundary, manifest, *declarations)
+        roots.update(domain.locations)
+        runs = domain.runs(boundary)
         journals_known = True
-    except (Conflict, OSError) as error:
+    except (Conflict, OSError, ValueError, KeyError, TypeError) as error:
         print(f"Home migration journals need review: {error}", file=sys.stderr)
         runs = []
         journals_known = False
+    generated = project_writes(manifest, boundary, generation_files(home, generation), old_files, roots)
+    print("Home migration activation writes: safe for protected roots", file=sys.stderr)
     for group, rules in old.items():
         if group not in current and any(route_state(boundary, path, generated) == "data"
                                         for path in protected_roots(rules)):
@@ -620,9 +907,10 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
 
     for group, rules in current.items():
         incumbent_rules = old.get(group, [])
-        selected = [absolute(rule.get("route", rule["target"])) for rule in rules]
-        legacy = [absolute(rule["source"]) for rule in rules]
-        intended = [absolute(rule["target"]) for rule in rules]
+        scope = GroupPaths.from_rules(rules)
+        selected = [member.selected for member in scope.members]
+        legacy = [member.source for member in scope.members]
+        intended = [member.target for member in scope.members]
         if selected not in (legacy, intended):
             raise Conflict(f"[{group}] runtime continuity: unknown or mixed selected route")
         for path in selected:
@@ -638,6 +926,10 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                 raise Conflict("[claude] runtime continuity: legacy account state requires unsetting CLAUDE_CONFIG_DIR")
         if group in old:
             before = {rule["source"]: rule for rule in incumbent_rules}
+            removed = [rule for path, rule in before.items() if absolute(path) not in legacy]
+            if any(assess_root(boundary, path, generated) in ("data", "unknown")
+                   for path in protected_roots(removed)):
+                raise Conflict(f"[{group}] runtime continuity: removing a consumer with existing data")
             old_routes = [absolute(before[str(path)].get("route", before[str(path)]["target"]))
                           if str(path) in before else None for path in legacy]
             if any(rule.get("independentRoutes", {}) != before.get(rule["source"], {}).get("independentRoutes", {})
@@ -649,18 +941,17 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
 
         # An obstruction on an unselected path can prevent migration without
         # preventing an unrelated activation on a verified incumbent route.
-        source_states = [assess_root(boundary, path, generated) for path in legacy]
-        target_states = [assess_root(boundary, path, generated) for path in intended]
-        incumbent_only = protected_roots(incumbent_rules) - protected_roots(rules)
+        source_states = [scope.state(boundary, path, generated) for path in legacy]
+        target_states = [scope.state(boundary, path, generated) for path in intended]
+        incumbent_only = protected_roots(incumbent_rules) - scope.roots
         incumbent_states = {assess_root(boundary, path, generated) for path in incumbent_only}
         data = {"data", "unknown"}
         has_old = any(state in data and source != target
                       for state, source, target in zip(source_states, legacy, intended))
         has_new = bool(data.intersection(target_states))
-        independent = {absolute(path) for rule in rules for path in rule.get("independentRoutes", {}).values()}
-        independent_states = {assess_root(boundary, path, generated) for path in independent}
+        independent_states = {assess_root(boundary, path, generated) for path in scope.fixed}
         incumbent_pending = bool(data.intersection(incumbent_states))
-        pending = has_old or has_new or incumbent_pending or bool(data.intersection(independent_states))
+        pending = has_old or has_new or incumbent_pending
         if "unknown" in independent_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe independent consumer root")
         selected_states = source_states if held else target_states
@@ -684,7 +975,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
             if pending and old_routes == intended and selected_has_data:
                 if sessions_active:
                     raise Conflict(f"[{group}] runtime continuity: exclude active sessions and writers before rollback")
-                if not verified_rollback(manifest, group, runs, boundary):
+                if not verified_rollback(manifest, group, runs, boundary, generated):
                     raise Conflict(f"[{group}] runtime continuity: legacy route requires a verified rollback")
             elif pending and (old_routes != selected or not selected_has_data):
                 raise Conflict(f"[{group}] runtime continuity: no verified legacy incumbent")
@@ -692,18 +983,23 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                 raise Conflict(f"[{group}] runtime continuity: legacy route would expose an incomplete group")
         else:
             changed = old_routes is not None and selected != old_routes
+            if changed and not journals_known:
+                raise Conflict(f"[{group}] runtime continuity: resolve migration history before cutover")
             if changed and pending:
                 if sessions_active:
                     raise Conflict(f"[{group}] runtime continuity: exclude active sessions and writers before cutover")
-                reconciled = (journals_known and group in manifest.get("reconciled", []) and not has_old and has_new
+                reconciled = (group in manifest.get("reconciled", []) and not incumbent_pending
+                              and not has_old and has_new
                               and not plan({**manifest, "rules": rules}, boundary, activation=True,
                                            generated=generated))
-                if old_routes != legacy or not (reconciled or verified_transfer(manifest, group, runs, boundary)):
+                if not (reconciled or (old_routes == legacy and not incumbent_pending
+                                       and verified_transfer(manifest, group, runs, boundary, generated))):
                     raise Conflict(f"[{group}] runtime continuity: intended route requires a verified transfer")
             elif has_old:
                 # An unchanged intended route may already be split. Do not
                 # start more writers against an unresolved target.
-                if not verified_transfer(manifest, group, runs, boundary, unchanged=True):
+                if not verified_transfer(manifest, group, runs, boundary, generated,
+                                         unchanged=group in old and old_routes == selected):
                     raise Conflict(f"[{group}] runtime continuity: legacy state remains or route is split")
         print(f"[{group}] runtime continuity: {'legacy held' if held else 'intended route admitted'}",
               file=sys.stderr)
@@ -793,14 +1089,20 @@ def write_journal(log, event):
     os.fsync(log.fileno())
 
 
-def run_context(manifest, group):
+def run_context(manifest, group, state=None):
     # The completed transfer also applies to the generation selecting the
     # other route. Moving roots or changing reference policy invalidates it.
     rules = [{k: v for k, v in rule.items() if k not in ("route", "consumers", "serviceRoutes")}
              for rule in groups(manifest)[group]]
     return {"host": manifest.get("host") or socket.gethostname(), "machine": socket.gethostname(),
-            "uid": os.geteuid(), "home": manifest["home"], "state": manifest["state"],
+            "uid": os.geteuid(), "home": manifest["home"],
+            "state": str(state) if state is not None else manifest["state"],
             "rules": digest(rules)}
+
+
+def matches_run(manifest, group, run):
+    header = run["header"]
+    return header["group"] == group and header["context"] == run_context(manifest, group, run["path"].parent)
 
 
 def journal_data(boundary, run, *, append=False):
@@ -820,6 +1122,57 @@ def journal_data(boundary, run, *, append=False):
     return open_log()
 
 
+@dataclass(frozen=True)
+class StepEvidence:
+    staging: Path | None = None
+    ready: tuple[Path, tuple[int, ...]] | None = None
+    intended: bool = False
+    done: tuple[int, ...] | None = None
+
+
+def journal_prefix(header, events):
+    """Decode the single active step of a v2 journal and its finished prefix."""
+    operations = header["operations"]
+    steps = [StepEvidence() for _ in operations]
+    index = 0
+    finished = False
+    for event in events:
+        kind = event["event"]
+        if not finished and kind == "finished" and index == len(operations):
+            finished = True
+            continue
+        if finished or index >= len(operations) or event.get("index") != index:
+            raise ValueError("Journal advanced out of order")
+        op, step = operations[index], steps[index]
+        if kind == "staging" and op["op"] == "copy" and step.ready is None:
+            stage = absolute(event["stage"])
+            prefix = f".home-layout-{header['run']}-{index}-"
+            if (stage.parent != private_parent(op, 1)
+                    or not re.fullmatch(re.escape(prefix) + r"[0-9a-f]{12}-stage", stage.name)):
+                raise ValueError("Unexpected copy stage")
+            steps[index] = replace(step, staging=stage)
+        elif kind == "ready" and step.staging is not None and step.ready is None:
+            stage = absolute(event["stage"])
+            entry = tuple(event["entry"])
+            if stage != step.staging / "payload" or len(entry) != 3 or entry[2] != op["entry"][2]:
+                raise ValueError("Unexpected ready stage")
+            steps[index] = replace(step, ready=(stage, entry))
+        elif kind == "intent" and (op["op"] == "rename" or step.ready is not None):
+            source, entry = step.ready or (Path(op["source"]), tuple(op["entry"]))
+            if (event["source"], event["target"], tuple(event["entry"])) != (str(source), op["target"], entry):
+                raise ValueError("Unexpected publication intent")
+            steps[index] = replace(step, intended=True)
+        elif kind == "done" and step.intended:
+            expected = step.ready[1] if step.ready else tuple(op["entry"])
+            if tuple(event["entry"]) != expected:
+                raise ValueError("Unexpected publication identity")
+            steps[index] = replace(step, done=expected)
+            index += 1
+        else:
+            raise ValueError("Unexpected journal event")
+    return tuple(steps), finished
+
+
 def read_runs(boundary, state):
     if boundary.entry(state) is None:
         return []
@@ -833,20 +1186,20 @@ def read_runs(boundary, state):
             raise Conflict(f"Unexpected entry in migration journal directory: {run}")
         try:
             with journal_data(boundary, run) as log:
-                events = [json.loads(line) for line in log]
+                lines = log.readlines()
+            if any(not line.endswith("\n") for line in lines):
+                raise ValueError("Torn migration record")
+            events = [json.loads(line) for line in lines]
             for event in events:
                 if event.pop("recordHash", None) != digest(event):
                     raise ValueError()
             header = events[0]
             if header.get("version") != 2 or header.get("event") != "begin" or header.get("run") != name:
                 raise ValueError()
-            finished = events[-1].get("event") == "finished"
-            if finished and {event.get("index") for event in events[1:] if event["event"] == "done"} != set(
-                    range(len(header["operations"]))):
-                raise ValueError()
+            steps, finished = journal_prefix(header, events[1:])
         except (FileNotFoundError, ValueError, IndexError, AttributeError, KeyError, TypeError) as error:
             raise Conflict(f"Preserve and review an incomplete or older migration journal: {run}") from error
-        result.append({"path": run, "header": header, "events": events[1:], "finished": finished})
+        result.append({"path": run, "header": header, "events": events[1:], "steps": steps, "finished": finished})
     return result
 
 
@@ -869,16 +1222,22 @@ def approved_operations(actions, boundary):
         excludes = list(map(str, source_exclude))
         target_excludes = list(map(str, target_children))
         if action["backup"]:
-            fingerprint, _ = payload(boundary, target, right)
-            operations.append({"op": "rename", "kind": "scaffold", "source": str(target),
-                               "target": None, "sibling": f"scaffold-{index}", "entry": list(action["backup"]),
-                               "left": right, "right": right, "payload": fingerprint,
-                               "exclude": [], "targetExclude": [], "mutable": []})
+            fingerprint, _ = payload(boundary, action["observedTarget"], right)
+            scaffold = {"op": "rename", "kind": "scaffold", "source": str(target),
+                        "target": None, "sibling": f"scaffold-{index}", "entry": list(action["backup"]),
+                        "left": right, "right": right, "payload": fingerprint,
+                        "exclude": [], "targetExclude": [], "mutable": []}
+            if "privateParents" in action:
+                scaffold["privateParents"] = [action["privateParents"][1]] * 2
+            operations.append(scaffold)
         fingerprint, size = payload(boundary, source, left, excludes, mutable, copy=copy)
-        operations.append({"op": "copy" if copy else "rename", "kind": "legacy",
-                           "source": str(source), "target": str(target), "entry": list(action["entry"]),
-                           "left": left, "right": right, "payload": fingerprint, "bytes": size,
-                           "exclude": excludes, "targetExclude": target_excludes, "mutable": mutable})
+        op = {"op": "copy" if copy else "rename", "kind": "legacy",
+              "source": str(source), "target": str(target), "entry": list(action["entry"]),
+              "left": left, "right": right, "payload": fingerprint, "bytes": size,
+              "exclude": excludes, "targetExclude": target_excludes, "mutable": mutable}
+        if "privateParents" in action:
+            op["privateParents"] = action["privateParents"]
+        operations.append(op)
     return operations
 
 
@@ -943,17 +1302,24 @@ def commit_move(boundary, source, target, entry, mount):
         safety.execute_move(intent, confirmed=True)
 
 
+def private_parent(operation, side):
+    if "privateParents" in operation:
+        return absolute(operation["privateParents"][side])
+    return Path(operation[("source", "target")[side]]).parent
+
+
 def new_stage(boundary, log, run, index, op, source, target, rsync):
     if not rsync:
         raise Unsupported("Cross-mount transfer requires the packaged rsync")
-    boundary.check_capacity(target.parent, op["bytes"])
-    stage = target.parent / f".home-layout-{run.name}-{index}-{uuid.uuid4().hex[:12]}-stage"
+    parent = private_parent(op, 1)
+    boundary.check_capacity(parent, op["bytes"])
+    stage = parent / f".home-layout-{run.name}-{index}-{uuid.uuid4().hex[:12]}-stage"
     write_journal(log, {"event": "staging", "index": index, "stage": str(stage)})
-    with boundary.directory(target.parent, create=True) as parent:
-        if boundary.mount(parent, target) != op["right"]:
+    with boundary.directory(stage.parent, create=True) as parent_fd:
+        if boundary.mount(parent_fd, target) != op["right"]:
             raise Conflict(f"Destination mount changed before staging: {target}")
-        os.mkdir(stage.name, mode=0o700, dir_fd=parent)
-        os.fsync(parent)
+        os.mkdir(stage.name, mode=0o700, dir_fd=parent_fd)
+        os.fsync(parent_fd)
     staged = stage / "payload"
     with (boundary.directory(source.parent) as left, boundary.directory(stage) as right):
         if boundary.mount(left, source) != op["left"] or boundary.mount(right, target) != op["right"]:
@@ -973,53 +1339,89 @@ def new_stage(boundary, log, run, index, op, source, target, rsync):
     return ready
 
 
-def check_move_entries(boundary, op, move_from, move_entry, staged, after, events, *, sync=False):
-    target = Path(op["target"])
-    if after is not None:
-        intended = any(event["event"] == "intent" for event in events)
-        if not intended or after != move_entry or staged is not None:
-            raise Conflict(f"Cannot reconcile existing destination without replacing data: {target}")
-        check_payload(boundary, op, target, target=True, sync=sync)
-    else:
-        if staged != move_entry:
-            raise Conflict(f"Migration source changed or is missing: {move_from}")
-        check_payload(boundary, op, move_from, target=op["op"] == "copy", sync=sync)
+class PublicationState(Enum):
+    NEEDS_STAGE = auto()
+    READY = auto()
+    PUBLISHED = auto()
 
 
-def execute_operation(boundary, log, run, index, op, events, rsync):
+@dataclass(frozen=True)
+class PublicationCheck:
+    state: PublicationState
+    source: Path
+    entry: tuple[int, ...]
+
+
+def classify_publication(boundary, op, evidence, projection, *, rsync, sync=False):
+    """Check a pending effect at its projected address or at the live boundary."""
     source, target = Path(op["source"]), Path(op["target"])
-    before = observe(boundary, source, op["left"])
-    after = observe(boundary, target, op["right"])
-    if op["op"] == "copy":
+    observed_source, source_mount = projection.lookup(source)
+    if source_mount is not None and source_mount != op["left"]:
+        raise Conflict(f"Mount changed after planning: {source}")
+    before = observe(boundary, observed_source, op["left"]) if observed_source is not None else None
+    if projection.moves:
+        actual, _ = projection.lookup(target)
+        info = boundary.entry(actual) if actual is not None else None
+        after = list(identity(info)) if info is not None else None
+    else:
+        after = observe(boundary, target, op["right"])
+
+    copy = op["op"] == "copy"
+    if copy:
         if before != op["entry"]:
             raise Conflict(f"Copy source changed after planning: {source}")
-        check_payload(boundary, op, source)
-        ready = next((event for event in reversed(events) if event["event"] == "ready"), None)
-        if ready is None:
-            if after:
+        check_payload(boundary, op, observed_source)
+        if evidence.ready is None:
+            if after is not None:
                 raise Conflict(f"Copy target is already occupied: {target}")
-            ready = new_stage(boundary, log, run, index, op, source, target, rsync)
-        move_from, move_entry = Path(ready["stage"]), ready["entry"]
-        staged = observe(boundary, move_from, op["right"])
-    else:
-        move_from, move_entry, staged = source, op["entry"], before
+            if not rsync:
+                raise Unsupported("Cross-mount transfer requires the packaged rsync")
+            projection.parent(boundary, target.parent, expected_mount=op["right"])
+            return PublicationCheck(PublicationState.NEEDS_STAGE, source, tuple(op["entry"]))
 
-    check_move_entries(boundary, op, move_from, move_entry, staged, after, events, sync=True)
+    move_from, entry = evidence.ready or (source, tuple(op["entry"]))
+    staged = observe(boundary, move_from, op["right"]) if copy else before
     if after is not None:
+        if not evidence.intended or after != list(entry) or staged is not None:
+            raise Conflict(f"Cannot reconcile existing destination without replacing data: {target}")
+        check_payload(boundary, op, target, target=True, sync=sync)
+        with boundary.directory(move_from.parent):
+            pass  # Recovery must still be able to reflush both parents.
+        return PublicationCheck(PublicationState.PUBLISHED, move_from, entry)
+
+    if staged != list(entry):
+        raise Conflict(f"Migration source changed or is missing: {move_from}")
+    actual = move_from if copy else observed_source
+    check_payload(boundary, op, actual, target=copy, sync=sync)
+    with boundary.directory(actual.parent) as left:
+        boundary.writable(left, actual.parent)
+    projection.parent(boundary, target.parent, expected_mount=op["right"])
+    return PublicationCheck(PublicationState.READY, move_from, entry)
+
+
+def execute_operation(boundary, log, run, index, op, evidence, rsync):
+    target = Path(op["target"])
+    current = classify_publication(boundary, op, evidence, PathProjection(), rsync=rsync, sync=True)
+    if current.state is PublicationState.NEEDS_STAGE:
+        ready = new_stage(boundary, log, run, index, op, current.source, target, rsync)
+        evidence = replace(evidence, ready=(Path(ready["stage"]), tuple(ready["entry"])))
+        current = classify_publication(boundary, op, evidence, PathProjection(), rsync=rsync, sync=True)
+    move_from, entry = current.source, list(current.entry)
+    if current.state is PublicationState.PUBLISHED:
         with boundary.directory(move_from.parent) as left:
             os.fsync(left)
     else:
         write_journal(log, {"event": "intent", "index": index, "source": str(move_from),
-                            "target": str(target), "entry": move_entry})
+                            "target": str(target), "entry": entry})
         if proof := op.get("proof"):
             verify_authoritative(boundary, op, proof)
-        commit_move(boundary, move_from, target, move_entry, op["right"])
-    write_journal(log, {"event": "done", "index": index, "entry": move_entry})
+        commit_move(boundary, move_from, target, entry, op["right"])
+    write_journal(log, {"event": "done", "index": index, "entry": entry})
 
 
 def check_completed_operation(boundary, operation, complete, replacement):
     target = Path(operation["target"])
-    if observe(boundary, target, operation["right"]) != complete["entry"]:
+    if observe(boundary, target, operation["right"]) != list(complete):
         raise Conflict(f"Earlier committed step changed before recovery: {target}")
     check_payload(boundary, operation, target, target=True)
     if operation["kind"] != "scaffold":
@@ -1031,121 +1433,65 @@ def check_completed_operation(boundary, operation, complete, replacement):
             raise Conflict(f"Earlier committed step has an unexpected legacy entry: {source}")
 
 
-def projected_destination(path, pending_moves):
-    mount = None
-    for source, target, retained, right in reversed(pending_moves):
-        if path.is_relative_to(target):
-            path = source / path.relative_to(target)
-            if mount is None:
-                mount = right
-        elif not retained and path.is_relative_to(source):
-            return None, None
-    return path, mount
-
-
-def check_destination_parent(boundary, parent, mount, pending_moves):
-    while True:
-        actual, projected_mount = projected_destination(parent, pending_moves)
-        if actual is not None:
-            try:
-                with boundary.directory(actual) as fd:
-                    actual_mount = boundary.mount(fd, actual)
-                    if (projected_mount or actual_mount) != mount:
-                        raise Conflict(f"Mount changed after planning: {parent}")
-                    boundary.writable(fd, actual)
-                    return
-            except FileNotFoundError:
-                pass
-        if parent == parent.parent:
-            raise Conflict("Migration destination has no available parent")
-        parent = parent.parent
-
-
-def preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
-    source, target = Path(operation["source"]), Path(operation["target"])
-    before = observe(boundary, source, operation["left"])
-    if pending_moves:
-        actual, _ = projected_destination(target, pending_moves)
-        info = boundary.entry(actual) if actual is not None else None
-        after = list(identity(info)) if info is not None else None
-    else:
-        after = observe(boundary, target, operation["right"])
-
-    move_from, move_entry, staged = source, operation["entry"], before
-    needs_stage = False
-    if operation["op"] == "copy":
-        if before != move_entry:
-            raise Conflict(f"Copy source changed after planning: {source}")
-        check_payload(boundary, operation, source)
-        ready = next((event for event in reversed(prior) if event["event"] == "ready"), None)
-        if ready is None:
-            if after is not None:
-                raise Conflict(f"Copy target is already occupied: {target}")
-            if not rsync:
-                raise Unsupported("Cross-mount transfer requires the packaged rsync")
-            needs_stage = True
-        else:
-            move_from, move_entry = Path(ready["stage"]), ready["entry"]
-            staged = observe(boundary, move_from, operation["right"])
-
-    if not needs_stage:
-        check_move_entries(boundary, operation, move_from, move_entry, staged, after, prior)
-        # An unlogged publication still needs this parent for the recovery fsync.
-        with boundary.directory(move_from.parent) as left:
-            if after is None:
-                boundary.writable(left, move_from.parent)
-    if after is None:
-        check_destination_parent(boundary, target.parent, operation["right"], pending_moves)
-        pending_moves.append((move_from, target, needs_stage, operation["right"]))
-    return needs_stage
-
-
-def execute_run(boundary, journal, log, rsync):
-    run, header, events = journal["path"], journal["header"], journal["events"]
-    operations = header["operations"]
-    intents = {event["target"]: (event["index"], event["entry"])
-               for event in events if event["event"] == "intent"}
-    pending_moves = []
+def preflight_run(boundary, journal, rsync):
+    operations = journal["header"]["operations"]
+    steps = journal["steps"]
+    intents = {op["target"]: (index, list(step.ready[1]) if step.ready else op["entry"])
+               for index, (op, step) in enumerate(zip(operations, steps)) if step.intended}
+    projection = PathProjection()
     unstaged_copies = []
-    steps = []
-    for index, operation in enumerate(operations):
+    preflight = []
+    for index, (operation, evidence) in enumerate(zip(operations, steps)):
         for anchor in operation["anchors"]:
             if boundary.anchor(Path(anchor[0])) != anchor:
                 raise Conflict(f"Planned parent or mount changed: {anchor[0]}")
         if proof := operation.get("proof"):
             verify_authoritative(boundary, operation, proof)
-        prior = [event for event in events if event.get("index") == index]
-        if pending_moves and prior:
-            raise Conflict("Migration journal advanced past an unpublished operation")
-        complete = next((event for event in prior if event["event"] == "done"), None)
         later_index, entry = intents.get(operation["source"], (-1, None))
         replacement = entry if later_index > index else None
-        if complete is None:
-            if preflight_pending_step(boundary, operation, prior, pending_moves, rsync):
+        if evidence.done is not None:
+            check_completed_operation(boundary, operation, evidence.done, replacement)
+        else:
+            current = classify_publication(boundary, operation, evidence, projection, rsync=rsync)
+            if current.state is PublicationState.NEEDS_STAGE:
                 unstaged_copies.append(operation)
-        else:
-            check_completed_operation(boundary, operation, complete, replacement)
-        steps.append((operation, prior, complete, replacement))
+            if current.state is not PublicationState.PUBLISHED:
+                projection = projection.after(Publication(
+                    current.source, Path(operation["target"]),
+                    current.state is PublicationState.NEEDS_STAGE, operation["right"]))
+        preflight.append((operation, evidence, replacement))
     check_staging_capacity(boundary, unstaged_copies)
-    for index, (operation, prior, complete, replacement) in enumerate(steps):
-        if complete is None:
-            execute_operation(boundary, log, run, index, operation, prior, rsync)
+    return preflight, projection
+
+
+def execute_run(boundary, journal, log, rsync, scope, generated, history, *, domain=None):
+    steps, projection = preflight_run(boundary, journal, rsync)
+    check_run_coverage(boundary, journal["header"], scope, generated, history, projection)
+    if domain is not None:
+        domain.bind(boundary)
+    for index, (operation, evidence, replacement) in enumerate(steps):
+        if evidence.done is None:
+            execute_operation(boundary, log, journal["path"], index, operation, evidence, rsync)
         else:
-            check_completed_operation(boundary, operation, complete, replacement)
+            check_completed_operation(boundary, operation, evidence.done, replacement)
+    check_run_coverage(boundary, journal["header"], scope, generated, history, PathProjection())
     write_journal(log, {"event": "finished"})
 
 
-def quarantine_target(run, source, sibling):
-    return str(Path(source).parent / f".home-layout-{run}-{sibling}/payload")
+def quarantine_target(run, operation):
+    return str(private_parent(operation, 0) / f".home-layout-{run}-{operation['sibling']}/payload")
 
 
-def commit_batch(boundary, state, header, rsync):
+def commit_batch(boundary, state, header, rsync, scope, generated, history):
     name = datetime.datetime.now().strftime("%Y%m%dT%H%M%S-") + uuid.uuid4().hex
     run = state / name
     header = {"event": "begin", "version": 2, "run": name, **header}
-    for op in header["operations"]:
-        if op["target"] is None:
-            op["target"] = quarantine_target(name, op["source"], op["sibling"])
+    header["operations"] = [
+        {**op, "target": op["target"] or quarantine_target(name, op)}
+        for op in header["operations"]
+    ]
+    steps, finished = journal_prefix(header, ())
+    journal = {"path": run, "header": header, "events": [], "steps": steps, "finished": finished}
     print(f"Migration journal: {run}", file=sys.stderr, flush=True)
     with boundary.directory(state, create=True) as parent:
         os.mkdir(name, mode=0o700, dir_fd=parent)
@@ -1155,110 +1501,119 @@ def commit_batch(boundary, state, header, rsync):
             with os.fdopen(fd, "w", encoding="utf-8") as log:
                 os.fsync(directory)
                 write_journal(log, header)
-                execute_run(boundary, {"path": run, "header": header, "events": []}, log, rsync)
+                execute_run(boundary, journal, log, rsync, scope, generated, history)
 
 
 def done_entry(run, index):
-    return next((event["entry"] for event in reversed(run["events"])
-                 if event.get("index") == index and event["event"] == "done"), None)
+    entry = run["steps"][index].done
+    return list(entry) if entry is not None else None
 
 
-def disposition(runs, parent, mode):
-    return next((run for run in runs if run["finished"] and run["header"].get("parent") == parent["header"]["run"]
-                 and run["header"]["mode"] == mode), None)
+def disposition(runs, parent, mode, ancestors=frozenset()):
+    parent_id = parent["header"]["run"]
+    if parent_id in ancestors:
+        raise Conflict("Cyclic migration dispositions")
+    active = [run for run in runs
+              if run["finished"] and run["header"].get("parent") == parent_id
+              and run["header"]["mode"] == mode
+              and not disposition(runs, run, "rollback", ancestors | {parent_id})]
+    if len(active) > 1:
+        raise Conflict(f"Multiple effective {mode} runs for the same migration")
+    return active[0] if active else None
 
 
-def verify_authoritative(boundary, operation, proof, *, unchanged=False):
+def verify_authoritative(boundary, operation, proof, *, unchanged=False, app_save=False):
     target = Path(proof["target"])
-    if observe(boundary, target, proof["mount"]) != proof["entry"]:
-        raise Conflict(f"Authoritative target identity has changed: {target}")
+    if boundary.mount_at(target.parent) != proof["mount"]:
+        raise Conflict(f"Mount changed after planning: {target}")
+    info = boundary.entry(target)
+    if info is None or list(identity(info)) != proof["entry"]:
+        # Only an installed, unchanged route can accept a replacement in a
+        # private regular-file slot. It grants no authority over a frozen copy.
+        if not (app_save and info and proof["entry"][2] == stat.S_IFREG
+                and stat.S_ISREG(info.st_mode) and info.st_uid == boundary.uid
+                and not info.st_mode & 0o022 and info.st_nlink == 1):
+            raise Conflict(f"Authoritative target identity has changed: {target}")
+        boundary.reject_mounts(target)
     if not unchanged:
         fingerprint, _ = payload(boundary, target, proof["mount"], proof.get("exclude", ()),
-                                 operation["mutable"], copy=True)
+                                 operation["mutable"], copy=operation["op"] == "copy"
+                                 or operation["kind"] != "legacy")
         if fingerprint != operation["payload"]:
             raise Conflict(f"Authoritative target has changed: {target}")
 
 
-def verified_transfer(manifest, group, runs, boundary, *, unchanged=False, retained_only=False):
-    context = run_context(manifest, group)
+def verified_transfer(manifest, group, runs, boundary, generated=None, *, unchanged=False, retained_only=False):
+    scope = GroupPaths.from_rules(groups(manifest)[group])
+    generated = generated or {}
     for run in reversed(runs):
         header = run["header"]
-        if (not run["finished"] or header["mode"] not in ("apply", "retire-equal") or header["group"] != group
-                or header["context"] != context or disposition(runs, run, "rollback")):
+        if (not run["finished"] or header["mode"] not in ("apply", "retire-equal")
+                or not matches_run(manifest, group, run) or disposition(runs, run, "rollback")):
             continue
-        if header["mode"] == "retire-equal":
-            if retained_only:
-                continue
-            try:
-                for op in header["operations"]:
-                    if boundary.entry(Path(op["source"])) is not None:
-                        return False
-                    verify_authoritative(boundary, op, op["proof"], unchanged=unchanged)
-            except (Conflict, OSError):
-                return False
-            return True
-        retired = disposition(runs, run, "retire")
-        if retired and disposition(runs, retired, "rollback"):
-            retired = None
-        operations = [(index, op) for index, op in enumerate(header["operations"]) if op["kind"] == "legacy"]
-        if not operations:
+        members = TransferMember.from_operations(header["operations"])
+        if not members:
             continue
-        # A run must account for every incumbent root still present. A separate
-        # newly created legacy root remains a split even if another was copied.
-        copies = {op["source"] for _, op in operations if op["op"] == "copy" and not retired}
-        if retained_only and not copies:
+        coverage = ConsumerCoverage.after(members, retired=disposition(runs, run, "retire") is not None)
+        if retained_only and not coverage.legacy:
             continue
         try:
-            if any(boundary.entry(Path(rule["source"])) is not None and rule["source"] not in copies
-                   for rule in groups(manifest)[group]):
-                return False
-            for index, op in operations:
-                source, target = Path(op["source"]), Path(op["target"])
-                if observe(boundary, target, op["right"]) != done_entry(run, index):
+            for member in members:
+                op = header["operations"][member.index]
+                proof = op.get("proof") or retirement_proof(run, member.index, op)
+                if not scope.allows_transfer(member.source, member.target):
                     return False
-                if not unchanged:
-                    check_payload(boundary, op, target, target=True)
-                if op["source"] in copies:
+                verify_authoritative(boundary, op, proof, unchanged=unchanged or retained_only, app_save=unchanged)
+                if member.source in coverage.legacy:
+                    if observe(boundary, member.source, op["left"]) != op["entry"]:
+                        return False
+                    check_payload(boundary, op, member.source)
+            return not coverage.uncovered(scope, boundary, generated, intended=not (unchanged or retained_only))
+        except (Conflict, OSError):
+            return False
+    return False
+
+
+def verified_rollback(manifest, group, runs, boundary, generated=None):
+    scope = GroupPaths.from_rules(groups(manifest)[group])
+    for original in reversed(runs):
+        header = original["header"]
+        if (header["mode"] not in ("apply", "retire-equal")
+                or not matches_run(manifest, group, original) or not disposition(runs, original, "rollback")):
+            continue
+        members = TransferMember.from_operations(header["operations"])
+        try:
+            scaffolds = set()
+            for op in header["operations"]:
+                if op["kind"] == "scaffold":
+                    source = Path(op["source"])
                     if observe(boundary, source, op["left"]) != op["entry"]:
                         return False
                     check_payload(boundary, op, source)
-        except (Conflict, OSError):
-            return False
-        return True
-    return False
-
-
-def verified_rollback(manifest, group, runs, boundary):
-    context = run_context(manifest, group)
-    for original in reversed(runs):
-        header = original["header"]
-        if (header["mode"] not in ("apply", "retire-equal") or header["group"] != group
-                or header["context"] != context or not disposition(runs, original, "rollback")):
-            continue
-        try:
-            for op in header["operations"]:
-                if op["kind"] == "scaffold":
-                    continue
-                source = Path(op["source"])
-                if observe(boundary, source, op["left"]) != op["entry"]:
+                    scaffolds.add(source)
+            for member in members:
+                op = header["operations"][member.index]
+                if observe(boundary, member.source, op["left"]) != op["entry"]:
                     return False
-                check_payload(boundary, op, source)
+                check_payload(boundary, op, member.source)
+                if proof := op.get("proof"):
+                    verify_authoritative(boundary, op, proof)
+            coverage = ConsumerCoverage.after(members, restored=True, scaffolds=scaffolds)
+            return not coverage.uncovered(scope, boundary, generated or {})
         except (Conflict, OSError):
             return False
-        return True
     return False
 
 
-def plan_group(manifest, group, boundary, generated, *, retire_equal=False):
+def plan_group(manifest, group, boundary, generated, *, retire_equal=False, state=None):
     subset = {**manifest, "rules": groups(manifest)[group]}
     if retire_equal:
         return [], pin_operation_parents(plan_equal_retirement(subset, boundary), boundary)
-    actions = plan(subset, boundary, generated=generated, compare_collisions=True)
-    if moves := {action["source"] for action in actions if action["action"] == "move"}:
-        for rule in subset["rules"]:
-            if (rule["source"] not in moves and rule["source"] != rule["target"]
-                    and route_state(boundary, Path(rule["target"]), generated) == "data"):
-                raise Conflict(f"[{group}] group is already split; verify an authoritative route before applying")
+    actions = plan(subset, boundary, generated=generated, compare_collisions=True, state=state)
+    scope = GroupPaths.from_rules(subset["rules"])
+    destinations = {Path(action["target"]) for action in actions if action["action"] == "move"}
+    if destinations and scope.uncovered(boundary, scope.intended, generated, covered=destinations):
+        raise Conflict(f"[{group}] group is already split; verify an authoritative route before applying")
     operations = []
     if all(action["action"] == "move" for action in actions):
         operations = pin_operation_parents(approved_operations(actions, boundary), boundary)
@@ -1266,18 +1621,22 @@ def plan_group(manifest, group, boundary, generated, *, retire_equal=False):
     return actions, operations
 
 
-def authority(manifest, group, operations, mode="apply"):
-    return digest({"context": run_context(manifest, group), "manifest": digest(manifest),
+def authority(manifest, group, operations, mode="apply", *, state=None):
+    return digest({"context": run_context(manifest, group, state), "manifest": digest(manifest),
                    "group": group, "operations": operations, "mode": mode})
 
 
 def plan_equal_retirement(manifest, boundary):
     operations = []
     rules = manifest["rules"]
+    scope = GroupPaths.from_rules(rules)
+    redirects = scope.redirects
     for index, rule in enumerate(rules):
         source, target = Path(rule["source"]), Path(rule["target"])
         if source == target:
             continue
+        if any(overlaps(path, fixed) for path in (source, target) for fixed in scope.fixed):
+            raise Unsupported("Matching copies with fixed consumer paths require a topology-specific retirement plan")
         if any(index != other_index and (overlaps(source, Path(other["source"]))
                                          or overlaps(target, Path(other["target"])))
                for other_index, other in enumerate(rules)):
@@ -1296,7 +1655,7 @@ def plan_equal_retirement(manifest, boundary):
             for path in tree(target):
                 if path.is_symlink():
                     link = os.readlink(path)
-                    if (relocated_absolute(link, rules) is not None or
+                    if (relocated_absolute(link, redirects) is not None or
                             (not os.path.isabs(link) and not (path.parent / link).resolve().is_relative_to(target))):
                         raise Conflict(f"Review the link before retiring the legacy copy: {path}")
         for relative in rule.get("references", []):
@@ -1322,10 +1681,13 @@ def other_operation(boundary, op, source, target, entry, mount, kind, sibling=No
     source_exclude, target_exclude = op["exclude"], op["targetExclude"]
     if reverse:
         source_exclude, target_exclude = target_exclude, source_exclude
-    return {**op, "op": "rename", "kind": kind, "source": str(source),
+    result = {**op, "op": "rename", "kind": kind, "source": str(source),
             "target": str(target) if target is not None else None, "sibling": sibling,
             "entry": entry, "left": mount, "right": mount,
             "exclude": source_exclude, "targetExclude": target_exclude}
+    if reverse and "privateParents" in op:
+        result["privateParents"] = list(reversed(op["privateParents"]))
+    return result
 
 
 def retirement_sources(parent, runs):
@@ -1339,6 +1701,46 @@ def retirement_sources(parent, runs):
 def retirement_proof(parent, index, operation):
     return {"target": operation["target"], "mount": operation["right"],
             "entry": done_entry(parent, index), "exclude": operation["targetExclude"]}
+
+
+def fixed_witnesses(scope, boundary, generated):
+    witnesses = []
+    for path in sorted(scope.fixed):
+        if assess_root(boundary, path, generated) == "unknown":
+            raise Conflict(f"Unsafe fixed consumer path: {path}")
+        mount = boundary.mount_at(path.parent)
+        witnesses.append([str(path), mount, observe(boundary, path, mount)])
+    return witnesses
+
+
+def check_run_coverage(boundary, header, scope, generated, history, projection):
+    if "fixed" in header and header["fixed"] != fixed_witnesses(scope, boundary, generated):
+        raise Conflict("A fixed consumer path changed after planning")
+    parent_headers = {run["header"]["run"]: run["header"] for run in history if run["finished"]}
+    original, reversed_transfer, retired = header, False, False
+    seen = set()
+    while original["mode"] in ("rollback", "retire"):
+        parent = original.get("parent")
+        if parent not in parent_headers or parent in seen:
+            raise Conflict("Missing or cyclic migration history")
+        seen.add(parent)
+        if original["mode"] == "retire":
+            retired = not reversed_transfer
+            reversed_transfer = False
+        else:
+            reversed_transfer = not reversed_transfer
+        original = parent_headers[parent]
+
+    members = TransferMember.from_operations(original["operations"])
+    for member in members:
+        if not reversed_transfer and not scope.allows_transfer(member.source, member.target):
+            raise Conflict(f"Transfer conflicts with consumer path ownership: {member.source} -> {member.target}")
+    scaffolds = {Path(op["source"]) for op in original["operations"]
+                 if reversed_transfer and op["kind"] == "scaffold"}
+    coverage = ConsumerCoverage.after(members, restored=reversed_transfer, retired=retired, scaffolds=scaffolds)
+    unexpected = coverage.uncovered(scope, boundary, generated, projection=projection)
+    if unexpected:
+        raise Conflict(f"Unaccounted consumer path in the migration group: {unexpected[0]}")
 
 
 def validate_retirement_recovery(journal, runs):
@@ -1355,7 +1757,9 @@ def validate_retirement_recovery(journal, runs):
         sibling = f"retired-{index}"
         expected = {key: operation[key] for key in ("source", "entry", "left", "payload", "exclude", "mutable")}
         expected.update(op="rename", kind="retirement", sibling=sibling, right=operation["left"],
-                        target=quarantine_target(header["run"], operation["source"], sibling))
+                        target=quarantine_target(header["run"], {**operation, "sibling": sibling}))
+        if "privateParents" in operation:
+            expected["privateParents"] = operation["privateParents"]
         if (any(recorded.get(key) != value for key, value in expected.items())
                 or recorded.get("proof", proof) != proof):
             raise Conflict("The interrupted retirement does not match the completed transfer")
@@ -1381,7 +1785,7 @@ def disposition_operations(boundary, parent, runs, mode):
         return result
 
     retired = disposition(runs, parent, "retire")
-    if retired and not disposition(runs, retired, "rollback"):
+    if retired:
         raise Conflict("Restore the separately retired source before reversing the transfer")
     result = []
     cleared = set()
@@ -1404,8 +1808,8 @@ def disposition_operations(boundary, parent, runs, mode):
     return result
 
 
-def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None, require_token=True):
-    home, state = manifest_paths(manifest)
+def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None, require_token=True, previous=()):
+    home, _ = manifest_paths(manifest)
     if group not in groups(manifest):
         raise Conflict(f"Unknown migration group: {group}")
     boundary = MoveBoundary()
@@ -1418,46 +1822,55 @@ def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None,
         except BlockingIOError as error:
             raise Conflict(f"Another migration holds the HOME lock: {home}") from error
         rules = groups(manifest)[group]
+        scope = GroupPaths.from_rules(rules)
         pids = busy({pattern for rule in rules for pattern in rule.get("processes", [])},
                     protected_roots(rules))
         if pids:
             raise Conflict(f"Close applications before migration (PIDs: {', '.join(pids)})")
-        runs = read_runs(boundary, state)
+        domain = JournalDomain.discover(boundary, manifest, *previous)
+        runs = domain.runs(boundary)
         unfinished = [run for run in runs if not run["finished"]]
-        context = run_context(manifest, group)
         if mode == "recover":
             if (len(unfinished) != 1 or unfinished[0]["header"]["run"] != run_id
-                    or unfinished[0]["header"]["group"] != group or unfinished[0]["header"]["context"] != context
+                    or not matches_run(manifest, group, unfinished[0])
                     or unfinished[0]["header"]["manifest"] != digest(manifest)):
                 raise Conflict("Recovery requires the outstanding run, original generation and group")
             journal = unfinished[0]
             if journal["header"]["mode"] == "retire":
                 validate_retirement_recovery(journal, runs)
             with journal_data(boundary, journal["path"], append=True) as log:
-                execute_run(boundary, journal, log, rsync)
+                execute_run(boundary, journal, log, rsync, scope, generated, runs, domain=domain)
             return []
         if unfinished:
             raise Conflict(f"Recover outstanding run before starting a new one: {unfinished[0]['path']}")
         actions, parent = [], None
+        state = domain.primary
         if mode in ("apply", "retire-equal"):
-            if mode == "apply" and verified_transfer(manifest, group, runs, boundary, unchanged=True, retained_only=True):
+            if mode == "apply" and verified_transfer(manifest, group, runs, boundary, generated, retained_only=True):
                 return []
-            actions, operations = plan_group(manifest, group, boundary, generated, retire_equal=mode == "retire-equal")
+            actions, operations = plan_group(manifest, group, boundary, generated,
+                                             retire_equal=mode == "retire-equal", state=state)
             if any(action["action"] != "move" for action in actions):
                 raise Unsupported("Replacement requires exclusive ownership and operator repair; batch refused")
-            if operations and require_token and expect != authority(manifest, group, operations, mode):
+            if operations and require_token and expect != authority(manifest, group, operations, mode, state=state):
                 raise Conflict("The plan changed or has no matching --expect token")
         else:
             parent = next((item for item in runs if item["header"]["run"] == run_id
-                           and item["header"]["group"] == group and item["header"]["context"] == context), None)
+                           and matches_run(manifest, group, item)), None)
             if parent is None:
                 raise Conflict("Select a matching run from the same group and storage declaration")
             operations = pin_operation_parents(disposition_operations(boundary, parent, runs, mode), boundary)
+            state = parent["path"].parent
         if operations:
-            commit_batch(boundary, state, {"mode": mode, "group": group, "context": context,
-                                          "manifest": digest(manifest), "operations": operations,
-                                          "parent": parent["header"]["run"] if parent else None,
-                                          "routes": [rule.get("route", rule["target"]) for rule in rules]}, rsync)
+            check_state(boundary, state)
+            header = {"mode": mode, "group": group, "context": run_context(manifest, group, state),
+                      "manifest": digest(manifest), "operations": operations,
+                      "parent": parent["header"]["run"] if parent else None,
+                      "routes": [str(member.selected) for member in scope.members]}
+            if scope.fixed and mode in ("apply", "retire-equal"):
+                header["fixed"] = fixed_witnesses(scope, boundary, generated)
+            domain.bind(boundary)
+            commit_batch(boundary, state, header, rsync, scope, generated, runs)
     return actions
 
 
@@ -1472,7 +1885,8 @@ def apply(manifest, *, generated=None, rsync=None):
 def display_actions(actions):
     for action in actions:
         if action["action"] == "move":
-            action = {key: value for key, value in action.items() if key != "entry"}
+            action = {key: value for key, value in action.items()
+                      if key not in ("entry", "observedTarget", "privateParents")}
             action["backup"] = "scaffolding" if action["backup"] else None
             action["transfer"] = "rename" if action.pop("sourceMount") == action.pop("targetMount") else "copy"
         yield action
@@ -1539,7 +1953,7 @@ def main():
             activation_gate(manifest, boundary, generation, previous, incumbent, args.sessions_active)
             return 0
         generated = generation_files(home, generation)
-        active = active_generations(home, manifest.get("stateHome"))
+        active = active_generations(home, manifest.get("stateHome"), *manifest.get("legacyStateHomes", []))
         if previous and previous not in active:
             raise Unsupported("The supplied previous generation is absent from the active Home Manager GC roots")
         merge_generation_files(generated, home, active)
@@ -1547,40 +1961,45 @@ def main():
             subset = {**manifest, "rules": groups(manifest)[args.group]} if args.group else manifest
             print(json.dumps(inspect_routes(subset, boundary, generated), indent=2))
             return 0
+        declarations = tuple(generation_manifests(home, active))
         if changing:
             actions = mutate(manifest, args.mode, args.group, generated, args.rsync,
-                             expect=args.expect, run_id=args.run)
+                             expect=args.expect, run_id=args.run, previous=declarations)
         elif args.mode == "plan":
             operation = "retire-equal" if args.retire_equal else "apply"
-            runs = read_runs(boundary, state)
+            domain = JournalDomain.discover(boundary, manifest, *declarations)
+            runs = domain.runs(boundary)
             if unfinished := [run for run in runs if not run["finished"]]:
                 raise Conflict(f"Recover outstanding run: {unfinished[0]['path']}")
-            if not args.retire_equal and verified_transfer(manifest, args.group, runs, boundary,
-                                                           unchanged=True, retained_only=True):
+            if not args.retire_equal and verified_transfer(manifest, args.group, runs, boundary, generated,
+                                                           retained_only=True):
                 actions, operations = [], []
             else:
-                actions, operations = plan_group(manifest, args.group, boundary, generated, retire_equal=args.retire_equal)
-            print(json.dumps({"group": args.group, "context": run_context(manifest, args.group),
+                actions, operations = plan_group(manifest, args.group, boundary, generated,
+                                                 retire_equal=args.retire_equal, state=domain.primary)
+            print(json.dumps({"group": args.group, "context": run_context(manifest, args.group, domain.primary),
                               "operation": operation,
                               "actions": list(display_actions(actions)),
                               "transfers": [{"kind": op["kind"], "source": op["source"], "target": op["target"],
                                              "mounts": [op["left"], op["right"]], "sibling": op.get("sibling")}
                                             for op in operations],
-                              "expect": authority(manifest, args.group, operations, operation) if operations else None},
+                              "expect": authority(manifest, args.group, operations, operation,
+                                                  state=domain.primary) if operations else None},
                              indent=2))
             return 0
         else:
-            runs = read_runs(boundary, state)
+            domain = JournalDomain.discover(boundary, manifest, *declarations)
+            runs = domain.runs(boundary)
             unfinished = [run for run in runs if not run["finished"]]
             if unfinished:
                 raise Conflict(f"Recover outstanding run: {unfinished[0]['path']}")
             selected_groups = [args.group] if args.group else groups(manifest)
             subset = {**manifest, "rules": [
                 rule for group in selected_groups
-                if not verified_transfer(manifest, group, runs, boundary, unchanged=True, retained_only=True)
+                if not verified_transfer(manifest, group, runs, boundary, generated, retained_only=True)
                 for rule in groups(manifest)[group]
             ]}
-            actions = plan(subset, boundary, compare_collisions=True, generated=generated)
+            actions = plan(subset, boundary, compare_collisions=True, generated=generated, state=domain.primary)
     except subprocess.CalledProcessError as error:
         print(f"home migration stopped: staged copy failed (rsync exit {error.returncode}); preserve the journal",
               file=sys.stderr)

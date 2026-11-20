@@ -116,10 +116,13 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual([path.read_text() for path in (binary, module, moved)], ["binary", "module", "project"])
         self.assertEqual([path.stat().st_ino for path in (binary, module, moved, carrier)], original)
         self.assertEqual(carrier.stat().st_mode & 0o777, 0o710)
-        self.admit(self.installed_manifest())  # A subsequent generation keeps the same routes.
+        intended = self.installed_manifest()
+        self.admit(intended)
         migrate.mutate(self.manifest, "rollback", "go", {}, None, run_id=self.journal()[0]["run"])
         self.assertEqual([path.stat().st_ino for path in (binary, module, ordinary, carrier)], original)
         self.assertFalse(moved.exists())
+        rule["route"] = rule["source"]
+        self.admit(intended)
 
     def test_counterexample_equal_retirement_cannot_certify_uncovered_rustup(self):
         old = self.file(".cargo/record")
@@ -219,6 +222,98 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual((target / "record").read_text(), "credentials")
         runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
         self.assertEqual(len([item for item in runs if item["header"]["mode"] == "retire"]), 2)
+
+    def test_home_group_recovery_checks_passive_roots_before_publication(self):
+        old = self.file(".cargo/record")
+        self.rule(".cargo", "xdg/cargo", group="rust")
+        self.rule(".rustup", "xdg/rustup", group="rust")
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
+              self.assertRaisesRegex(OSError, "after durable group header")):
+            migrate.apply(self.manifest)
+        journal, = (self.home / "state").glob("*/operations.jsonl")
+        receipt = journal.read_bytes()
+        late = self.file(".rustup/record", "late")
+        refused = self.invoke("recover", "--group", "rust", "--offline", "--run", journal.parent.name)
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("Unaccounted consumer path", refused.stderr)
+        self.assertEqual(journal.read_bytes(), receipt)
+        self.assertEqual([old.read_text(), late.read_text()], ["credentials", "late"])
+        self.assertFalse((self.home / "xdg/cargo").exists())
+        late.parent.rename(self.home / "preserved-rustup")
+        self.recover("rust")
+        self.assertEqual((self.home / "xdg/cargo/record").read_text(), "credentials")
+
+    def test_home_group_recovery_rejects_a_valid_hash_with_the_wrong_intent(self):
+        old = self.file(".old/record")
+        self.rule(".old", "xdg/new")
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
+              self.assertRaisesRegex(OSError, "after durable group header")):
+            migrate.apply(self.manifest)
+        journal, = (self.home / "state").glob("*/operations.jsonl")
+        op = self.journal()[0]["operations"][0]
+        with journal.open("a") as log:
+            migrate.write_journal(log, {"event": "intent", "index": 0, "source": op["source"],
+                                        "target": op["target"] + "-other", "entry": op["entry"]})
+        receipt = journal.read_bytes()
+        refused = self.invoke("recover", "--group", "fixture", "--offline", "--run", journal.parent.name)
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertEqual(journal.read_bytes(), receipt)
+        self.assertEqual(old.read_text(), "credentials")
+        self.assertFalse((self.home / "xdg/new").exists())
+
+    def test_home_group_recovery_discovers_and_keeps_a_prior_custom_v2_location(self):
+        self.file(".old/record")
+        self.rule(".old", "xdg/new")
+        prior = self.home / "previous-xdg-state"
+        state = migrate.journal_state(prior)
+        self.manifest.update(version=2, stateHome=str(prior), state=str(state))
+        with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
+              self.assertRaisesRegex(OSError, "after durable group header")):
+            migrate.apply(self.manifest)
+        locator = migrate.journal_state(self.home / ".local/state").with_name("journal-domain.json")
+        locator.unlink()  # Model a pre-locator v2 installation in the disposable HOME.
+        original = dict(self.manifest)
+        journal, = state.glob("*/operations.jsonl")
+        self.manifest.update(state=str(self.home / "state-b"), legacyStateHomes=[str(prior)])
+        refused = self.invoke("plan", "--group", "fixture")
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn(str(journal.parent), refused.stderr)
+        self.assertFalse(locator.exists())
+        self.manifest = original
+        result = self.invoke("recover", "--group", "fixture", "--offline", "--run", journal.parent.name)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.home / "xdg/new/record").read_text(), "credentials")
+        self.manifest.update(state=str(self.home / "state-c"), stateHome=str(self.home / "candidate-state"))
+        result = self.invoke("plan", "--group", "fixture")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["context"]["state"], str(state))
+        self.assertFalse((self.home / "state-c").exists())
+
+    def test_cross_mount_go_partitions_fixed_roots_and_keeps_quarantine_outside_them(self):
+        target = self.cross_mount()
+        fixed = self.file(".old/bin/fixed")
+        ordinary = self.file(".old/src/project")
+        rule = self.manifest["rules"][0]
+        rule.update(group="go", route=rule["source"], independentRoutes={"GOBIN": str(fixed.parent)})
+        incumbent = self.installed_manifest()
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
+        intended = self.installed_manifest()
+        run = self.journal()[0]["run"]
+        migrate.mutate(self.manifest, "retire", "go", {}, None, run_id=run)
+        self.assertFalse(ordinary.exists())
+        self.assertEqual(fixed.read_text(), "credentials")
+        self.assertEqual(set(target.iterdir()), {target / "src"})
+        self.assertEqual(set(fixed.parent.parent.iterdir()), {fixed.parent})
+        retired, = [item for item in migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+                    if item["header"]["mode"] == "retire"]
+        migrate.mutate(self.manifest, "rollback", "go", {}, None, run_id=retired["header"]["run"])
+        migrate.mutate(self.manifest, "rollback", "go", {}, None, run_id=run)
+        rule["route"] = rule["source"]
+        self.admit(intended)
+        self.assertEqual([ordinary.read_text(), fixed.read_text()], ["credentials", "credentials"])
+        self.assertEqual(list(target.iterdir()), [])
 
     def test_fresh_home_and_repeat_are_noops(self):
         self.rule(".old", ".local/share/new")
