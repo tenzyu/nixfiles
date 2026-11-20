@@ -1,5 +1,6 @@
 """Exercise the packaged operator and writer against isolated policy and mocks."""
 
+import fcntl
 import os
 import shutil
 import signal
@@ -15,6 +16,7 @@ control = root / "control"
 source = root / "data/survival"
 destination = root / "data/backups"
 lock = root / "run/minecraft.lock"
+guard = lock.with_suffix(".lock.job")
 final = destination / "minecraft-20261119-113355.tar.gz"
 world = b"minecraft world fixture\x00\xff"
 real = identity == "real"
@@ -53,7 +55,7 @@ def setup(guest: str = "running", host: str = "running") -> None:
         os.chown(path, archive_uid, archive_gid)
     for name, value in {
         "events": "", "host": host, "guest": guest, "stop": "inactive",
-        "resume": "running", "io": "ok", "transition": "inherit", "admin": "normal",
+        "resume": "running", "host-start": "running", "io": "ok", "transition": "inherit", "admin": "normal",
     }.items():
         set_control(name, value)
     (control / "events").chmod(0o666)
@@ -73,6 +75,12 @@ def events() -> list[str]:
 
 def guest_state() -> str:
     return (control / "guest").read_text()
+
+
+def finish_manager_job(side: str, unit_state: str) -> None:
+    # The harness represents the manager, independently of the waiter process group.
+    set_control(side, unit_state)
+    (control / f"{side}-job").unlink()
 
 
 def no_publication():
@@ -101,6 +109,20 @@ def start(action: str, *args: str):
 def await_result(process, status):
     out, err = process.communicate(timeout=10)
     assert process.returncode == status, (process.returncode, status, out, err, events())
+    return out, err
+
+
+setup(host="inactive", guest="inactive")
+identity_before = lock.stat().st_ino
+run("start")
+assert guest_state() == "running" and not guard.exists()
+run("stop")
+assert guest_state() == "inactive" and not guard.exists()
+run("restart")
+assert guest_state() == "running" and not guard.exists()
+assert events() == ["host start", "guest start", "host show", "guest stop", "host start", "guest restart"]
+assert lock.stat().st_ino == identity_before
+print("LIFECYCLE-01: managed start, stop and restart clear each confirmed native job guard")
 
 
 setup()
@@ -111,7 +133,9 @@ old_info = observe(old)
 identity_before = lock.stat().st_ino
 result = run("backup", output="Resume: guest running")
 assert "Archive: published" in result.stdout
+assert f"Archive target: {final}\n" in result.stderr
 assert guest_state() == "running"
+assert not guard.exists()
 assert observe(old) == old_info
 assert lock.stat().st_ino == identity_before
 assert stat.S_IMODE(final.stat().st_mode) == 0o600
@@ -214,19 +238,25 @@ for fault, status in (("enospc", 28), ("bad-gzip", 1), ("bad-tar", 2), ("missing
     ) else "Archive: unconfirmed")
     assert "Resume: skipped" in result.stderr and "guest start" not in events()
     assert guest_state() == "inactive"
-    if fault == "directory-sync":
+    if fault in ("file-sync", "link", "directory-sync"):
         assert "OutcomeUnknown" in result.stderr
+    if fault == "directory-sync":
         assert final.is_file() and len(list(destination.glob(".safety-stage.*"))) == 1
     else:
         no_publication()
 
-for state, status in (("return-failure", 32), ("failed", 69)):
+for state, status in (("return-failure", 32), ("disconnect", 32), ("failed", 69)):
     setup()
     set_control("resume", state)
     result = run("backup", status=status, output="Resume: failed")
     assert "Archive: published" in result.stdout and final.is_file()
-    if state == "return-failure":
+    if state != "failed":
         run("start", status=69, output="previous native job unconfirmed")
+    if state == "disconnect":
+        run("diagnose", output="minecraft-server-survival.service start running")
+        assert guest_state() == "inactive"
+        finish_manager_job("guest", "running")
+        assert guard.is_dir() and guest_state() == "running"
 print("PUBLISH-02 / RECOVERY-01: clean stop evidence, I/O failures, uncertain sync and separate resume result")
 
 setup()
@@ -241,7 +271,8 @@ try:
     process.kill()
     run("restart", status=73, output="lifecycle lock")
     set_control("tar-release", "")
-    await_result(process, -signal.SIGKILL)
+    out, err = await_result(process, -signal.SIGKILL)
+    assert out == "" and f"Archive target: {final}\n" in err
     assert guest_state() == "inactive" and final.is_file()
     run("start", output="")
 finally:
@@ -272,9 +303,10 @@ try:
     wait_ready("stop")
     os.killpg(process.pid, signal.SIGTERM)
     run("send", "list", status=73, output="lifecycle lock")
+    run("diagnose", output="minecraft-server-survival.service stop running")
     set_control("stop-release", "")
     await_result(process, 143)
-    assert guest_state() == "inactive" and "tar" not in events()
+    assert guest_state() == "inactive" and "tar" not in events() and not guard.exists()
     no_publication()
 finally:
     set_control("stop-release", "")
@@ -286,7 +318,65 @@ wait_ready("stop")
 os.killpg(process.pid, signal.SIGKILL)
 await_result(process, -signal.SIGKILL)
 run("start", status=69, output="previous native job unconfirmed")
-assert lock.with_suffix(".lock.job").is_dir() and guest_state() == "running"
+assert guard.is_dir() and guest_state() == "running"
+run("diagnose", output="minecraft-server-survival.service stop running")
+finish_manager_job("guest", "inactive")
+run("restart", status=69, output="previous native job unconfirmed")
+assert guest_state() == "inactive" and "tar" not in events()
+no_publication()
+
+setup()
+set_control("stop", "disconnect")
+result = run("backup", status=31, output="OutcomeUnknown: guest stop")
+assert "Archive: not attempted" in result.stderr and "guest start" not in events()
+assert guest_state() == "running" and guard.is_dir()
+run("diagnose", output="minecraft-server-survival.service stop running")
+finish_manager_job("guest", "inactive")
+before = observe(guard)
+guard_ctime = guard.stat().st_ctime_ns
+result = run("diagnose", output="Admission: guard present")
+assert result.stdout.count("No jobs running.") == 2, result.stdout
+assert "Reconcile the previous request under the lifecycle lock" in result.stdout
+assert "Archive publication requires separate verification" in result.stdout
+run("status", output="container up / server inactive")
+event_count = len(events())
+for action, args in (("start", ()), ("restart", ()), ("stop", ()), ("backup", ()),
+                     ("send", ("list",)), ("console", ()), ("exec", ("admin",)), ("update", ())):
+    run(action, *args, status=69, output="game diagnose minecraft")
+assert len(events()) == event_count and guest_state() == "inactive"
+assert observe(guard) == before and guard.stat().st_ctime_ns == guard_ctime
+no_publication()
+
+# The operator can clear only the empty guard after reconciling the settled
+# fixture job under the same flock. This does not resume a failed backup.
+with lock.open("rb") as descriptor:
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    run("diagnose", output="Admission: guard present")
+    run("start", status=73, output="lifecycle lock")
+    guard.rmdir()
+    assert lock.stat().st_ino == os.fstat(descriptor.fileno()).st_ino
+assert guest_state() == "inactive" and "guest start" not in events()
+run("diagnose", output="Admission: no guard observed")
+run("start")
+assert guest_state() == "running"
+
+setup(host="inactive", guest="unknown")
+set_control("host-start", "disconnect")
+run("start", status=33, output="OutcomeUnknown: host start")
+result = run("diagnose", status=69, output="container@fixture-mc.service start running")
+assert "guest unit properties unavailable" in result.stderr and "guest job queue unavailable" in result.stderr
+finish_manager_job("host", "running")
+run("backup", status=69, output="previous native job unconfirmed")
+assert guard.is_dir() and "guest start" not in events() and "guest stop" not in events()
+no_publication()
+
+setup()
+missing = root / "outside/missing"
+guard.symlink_to(missing, target_is_directory=True)
+run("diagnose", output="type=symbolic link")
+run("backup", status=69, output="previous native job unconfirmed")
+assert guard.is_symlink() and not missing.exists() and "guest stop" not in events()
+print("ADMISSION-01: both manager queues, lost replies, hard kill, read-only diagnostics, and explicit recovery")
 
 setup()
 set_control("admin", "block")

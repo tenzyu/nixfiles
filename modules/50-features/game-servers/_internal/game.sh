@@ -6,6 +6,7 @@ usage() {
 Usage:
   game list | status [ark|rust|minecraft|all]
   game start|stop|restart|logs|ip|console|backup|update GAME
+  game diagnose minecraft
   game send minecraft 'COMMAND'
   game exec GAME COMMAND [ARGS...]
 
@@ -99,7 +100,7 @@ case "$action" in
     shift || true
     if [[ $game == minecraft ]]; then
       case "$action" in
-        start|stop|restart|send|console|exec|update|backup)
+        start|stop|restart|send|console|exec|update|backup|diagnose)
           minecraft_operation "$action" "$@"
           exit "$?"
           ;;
@@ -131,6 +132,9 @@ case "$action" in
         ;;
       send)
         echo "Usage: game send minecraft 'COMMAND'" >&2; exit 2
+        ;;
+      diagnose)
+        echo 'Usage: game diagnose minecraft' >&2; exit 2
         ;;
       exec)
         if (($# == 0)); then echo 'Usage: game exec GAME COMMAND [ARGS...]' >&2; exit 2; fi
