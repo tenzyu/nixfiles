@@ -41,6 +41,13 @@ The wiki-assisted arm added context on cases already answered correctly at the s
 
 ## 2026-11-20 narrow rerun
 
-A fresh isolated pair for cases 4 and 7 is pending on functional commit `bfbfbe28afb9f2771bfafac20334a2cccd906593`, tree `7ff5c8ac7ff05d2b30020cce82a5aed530dbc0b7`, and the docs candidate overlaid on that source. It covers the reopened Home recovery and osu! evidence cases only.
+The scoped pair used functional commit `bfbfbe28afb9f2771bfafac20334a2cccd906593`, tree `7ff5c8ac7ff05d2b30020cce82a5aed530dbc0b7`, trial docs `482f47aaa136f7ddb9756ec1a412fd232cf1bed0` and overlay tree `03d31a6ce97db52403b6e6429f9056f4491eb1fb`. The two existing Sol Medium readers reused their provider and effort settings with fresh contexts, identical copied primary inputs and a four-command budget that included failures. The wiki-assisted arm also received the frozen router, index and decision page. The evaluation history and log pages were outside both input sets.
 
-The eight-case scores above remain attached to their frozen inputs. The case 7 source assessment distinguishes foreground eligibility from independent monitor observations. A matching foreground sample with unavailable scanout state still has an unknown foreground scanout result. Samples with absent or mismatched display IDs are ineligible for foreground rates. The formatted PipeWire replay has separate offline fixture evidence. The assessment supplies no new paired result. [Exact lab analyzer](https://github.com/tenzyu/nixfiles/blob/245f266e6b614f4ca4f6132c8ed59fd6f51ef715/scripts/osu-performance/osu-lab.py).
+Both arms used exactly four calls and met both reopened cases.
+
+| Case | Applicability on the replacement source |
+| --- | --- |
+| 4 · Interrupted Home migration | Both preserved the copies and journal, required a separately approved offline window, reconciled journal entries with observed paths, preflighted the whole group before resuming, and kept equal-copy retirement separate. The replacement adds ordinary apply and rollback recovery fixtures that refuse a changed later member while preserving pending paths and journal bytes. |
+| 7 · osu! measurement | Both distinguished batched observer reads from event timing, left intervals and dispatch unknown when clock selection failed, required a window-to-output match for foreground eligibility, and omitted missing scanout from the DSO and tearing denominators. Independent monitor observations remain visible. |
+
+The formatted PipeWire replay has separate offline evidence. The other six cases were outside this rerun. The original eight-case inputs, scores and no-gain result remain as recorded above. This scoped result establishes applicability to the repaired source for the two reopened cases. Timing, tokens and broader improvement remain unmeasured. [Exact Home fixtures](https://github.com/tenzyu/nixfiles/blob/2ecf45de6781f9e6fa9018018e4732e8a9d2f34d/assets/home-layout/test_migrate.py#L641-L695) · [Exact lab analyzer](https://github.com/tenzyu/nixfiles/blob/245f266e6b614f4ca4f6132c8ed59fd6f51ef715/scripts/osu-performance/osu-lab.py).
