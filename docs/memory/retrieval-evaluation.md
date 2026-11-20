@@ -38,3 +38,9 @@ Both arms used exactly eight calls and each finished six cases with two partial 
 - **Semantic memory.** Both covered pinned corrections and blinded grading, but omitted a requirement to prune a genuine duplicate while retaining its provenance.
 
 The wiki-assisted arm added context on cases already answered correctly at the same budget. The pair demonstrated no comparative gain under the acceptance gate. Timing and tokens were not compared. Retain the factual corrections, the duplicate consolidation with its archive link, and the previous validated startup memory. The final docs add this receipt after the trial freeze. [Reviewed source and evidence](../adr/0002-invariant-safety.md#convergence-decisions).
+
+## 2026-11-20 narrow rerun
+
+A fresh isolated pair for cases 4 and 7 is pending on functional commit `bfbfbe28afb9f2771bfafac20334a2cccd906593`, tree `7ff5c8ac7ff05d2b30020cce82a5aed530dbc0b7`, and the docs candidate overlaid on that source. It covers the reopened Home recovery and osu! evidence cases only.
+
+The eight-case scores above remain attached to their frozen inputs. The case 7 source assessment distinguishes foreground eligibility from independent monitor observations. A matching foreground sample with unavailable scanout state still has an unknown foreground scanout result. Samples with absent or mismatched display IDs are ineligible for foreground rates. The formatted PipeWire replay has separate offline fixture evidence. The assessment supplies no new paired result. [Exact lab analyzer](https://github.com/tenzyu/nixfiles/blob/245f266e6b614f4ca4f6132c8ed59fd6f51ef715/scripts/osu-performance/osu-lab.py).

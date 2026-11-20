@@ -8,7 +8,7 @@ sources:
     resource: https://github.com/tenzyu/nixfiles/blob/4cfbd041f0fd821984e16dfc2ef0834e12f3c8ba/assets/nix-store-clean/cli.py
     title: "Nix store cleaner"
   - id: home
-    resource: https://github.com/tenzyu/nixfiles/blob/4762c513cbae92492c103f9ec293f348f16a3375/modules/50-features/home/home-migration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/2ecf45de6781f9e6fa9018018e4732e8a9d2f34d/modules/50-features/home/home-migration.nix
     title: "Reviewed Home holding and cutover declaration"
   - id: game
     resource: https://github.com/tenzyu/nixfiles/blob/f9040cf828fc99f95d749c7d5024e11ad6075075/modules/50-features/game-servers/_internal/minecraft-backup/operator.sh
@@ -17,7 +17,7 @@ sources:
     resource: https://github.com/tenzyu/nixfiles/blob/e2f9cafea8f6bdf21b22700236f026a3399847c0/modules/50-features/services/parsec.nix
     title: "Parsec seeding and review candidate"
   - id: osu
-    resource: https://github.com/tenzyu/nixfiles/blob/5e0b686428a0bc4c1a15ea734439cd37c875a3dc/scripts/osu-performance/osu-lab.py
+    resource: https://github.com/tenzyu/nixfiles/blob/245f266e6b614f4ca4f6132c8ed59fd6f51ef715/scripts/osu-performance/osu-lab.py
     title: "osu! measurement candidate"
   - id: secret
     resource: https://github.com/tenzyu/nixfiles/blob/9638f84d5b5e8f2de1de4af401f0bbb1cd35d707/modules/50-features/security/sops-nix.nix
@@ -32,7 +32,7 @@ Nix module implementation and exact host configuration supersede old README asse
 
 ## D2 — Data and rollback safety
 
-Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the #65 candidate, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. The embedded VM rejected a redirect from a populated incumbent. Independent recheck passed the whole-group retirement preflight, including refusal before advancing when a later retained source or quarantine conflicts, and recovery after a rename without a completion record. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Candidate and evidence](../adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
+Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the #65 candidate, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. The prior VM verified incumbent-route protection and whole-group retirement recovery. The replacement also preflights the whole group when resuming ordinary apply or rollback. Switch admission leaves route-free account creation to NixOS and checks affected incumbent accounts before removing a route or account. Refuse while affected data remains or an affected HOME is unavailable. Combined verification of the replacement is pending. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Candidate and evidence](../adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
 
 When both roots contain user data, preserve both and hold the group while authority is unresolved. Apparent equality conveys no authority to mutate either copy. Apply requires a separate approved offline window. Retiring a named copy requires its own authorization and a reversible recovery path. Existing links and references need operator review. After interruption, reconcile the journal with the actual entries and preserve ambiguous copies. A generation rollback does not undo a data move.
 
@@ -48,7 +48,7 @@ SplitCast source, package tests and PoC acceptance belong to its independent rep
 
 ## D5 — Measurement scope
 
-The #69 `osu-lab` candidate distinguishes observed compositor and kernel telemetry, requested BASS or tablet settings, proxies and unknowns. Direct Scanout uses eligible samples with an observation. Missing observations stay unknown. The lab does not measure event-to-photon or physical audio-onset latency. Preserve the dated native Direct Scanout baseline and require controlled runtime evidence before claiming a performance change. See [latency lab](../../scripts/osu-performance/README-lab.md).
+The #69 `osu-lab` candidate distinguishes observed compositor and kernel telemetry, requested BASS or tablet settings, proxies and unknowns. Foreground Direct Scanout rates require eligible samples with matching window and monitor IDs and observed scanout state. Independent monitor readings stay visible. Missing observations stay unknown. Old PipeWire ERR deltas require validated column and node continuity evidence, recovered from a reliable raw transcript when available. The lab does not measure event-to-photon or physical audio-onset latency. Preserve the dated native Direct Scanout baseline and require controlled runtime evidence before claiming a performance change. See [latency lab](../../scripts/osu-performance/README-lab.md).
 
 ## D6 — Native semantics over a private configuration language
 
