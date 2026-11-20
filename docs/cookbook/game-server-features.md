@@ -12,6 +12,12 @@ The host now chooses `game-ark = false`, `game-rust = false`, `game-minecraft = 
 - A `game-srv` state change needs an offline data inventory; do **not** run the historical first-cutover copy on an already populated `/srv/minecraft`.
 - Source-only evaluation does not prove that an existing container restarts safely or that backups and game updates are transactional. Those operations still require separate validation.
 
+## Backups and recovery
+
+Use `game diagnose minecraft` to inspect an unconfirmed Minecraft operation. It shows the admission guard, the host and guest unit properties, and the current jobs for each manager. Follow the lock-held recovery procedure before clearing a guard. Inspect archive publication separately before deciding whether to resume a stopped server. [Minecraft backup and recovery runbook](../../modules/50-features/game-servers/_internal/minecraft-backup/README.md#diagnose-and-recover)
+
+ARK and Rust remain disabled on neko7. Their guest units use `SIGINT` for shutdown. A successful systemd stop alone does not establish that each game flushed a restorable save. ARK archives `ShooterGame/Saved`. Rust's guest updater archives the configured identity under `server/`, while the host backup covers the `server/` subtree. Both guest updaters run their own backup and retention before SteamCMD. Reusing the Minecraft admission and publication code would require fixtures for each game's clean stop, archive contents and restore, plus coordination with the independent updater and retention paths. [ARK unit and updater](../../modules/50-features/game-servers/ark.nix), [Rust unit and updater](../../modules/50-features/game-servers/rust.nix), [host backup path](../../modules/50-features/game-servers/_internal/game.sh)
+
 ## Review
 
 Run `nix run .#framework-test` and evaluate `nixosConfigurations.neko7.config.system.build.toplevel.drvPath`. Confirm that the game-server feature tests report only `neko7-mc`, its veth interface, and `system.stateVersion = "26.05"`; verify ARK/Rust and their veth entries are absent. Before a host switch, independently diff the evaluated container names, UID/GID, bind mounts, network identity, persistent roots, and systemd service names against the active generation. Do not wipe or re-create game-state directories. A rollback is the prior NixOS generation; it does not reverse any out-of-band SteamCMD game update.

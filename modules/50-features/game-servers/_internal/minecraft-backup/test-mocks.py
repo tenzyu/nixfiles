@@ -32,9 +32,12 @@ def block(kind: str) -> None:
 
 def unit(guest: bool, command: str, *flags: str) -> None:
     side = "guest" if guest else "host"
+    queue = root / f"control/{side}-job"
+    service = "minecraft-server-survival.service" if guest else "container@fixture-mc.service"
     event(f"{side} {command}")
     state = read(side)
     if command == "show":
+        assert flags[-1] == service
         if state == "unknown":
             sys.exit(5)
         active = state in ("running", "running-job")
@@ -44,7 +47,7 @@ def unit(guest: bool, command: str, *flags: str) -> None:
             "ActiveState": "active" if active else "inactive" if inactive else "failed" if state == "failed" else "deactivating",
             "SubState": "running" if active else "dead" if inactive else "stop-sigterm",
             "Result": "timeout" if state == "failed" else "success",
-            "Job": "48" if state in ("running-job", "transition") else "0",
+            "Job": "48" if queue.exists() or state in ("running-job", "transition") else "0",
             "MainPID": "123" if active else "0",
             "ControlPID": "0",
             "ControlGroup": "/system.slice/minecraft.service" if active or state == "inactive-tasks" else "",
@@ -55,20 +58,38 @@ def unit(guest: bool, command: str, *flags: str) -> None:
         }
         for key, value in props.items():
             print(f"{key}={value}")
+    elif command == "list-jobs":
+        assert flags == ("--no-pager", "--full")
+        if state == "unknown":
+            sys.exit(5)
+        if queue.exists():
+            print(f"48 {service} {queue.read_text()} running")
+        else:
+            print("No jobs running.")
     elif command == "stop":
+        assert flags == (service,)
+        assert (root / "run/minecraft.lock.job").is_dir()
         behavior = read("stop")
-        if behavior == "block":
+        if behavior in ("block", "disconnect"):
+            queue.write_text(command)
+            if behavior == "disconnect":
+                sys.exit(31)
             block("stop")
             behavior = "inactive"
+            queue.unlink()
         (root / f"control/{side}").write_text(behavior)
         if behavior == "unknown":
             sys.exit(31)
     elif command in ("start", "restart"):
-        behavior = read("resume") if guest else "running"
-        if behavior != "return-failure":
-            (root / f"control/{side}").write_text(behavior)
-        else:
+        assert flags == (service,)
+        assert (root / "run/minecraft.lock.job").is_dir()
+        behavior = read("resume" if guest else "host-start")
+        if behavior == "disconnect":
+            queue.write_text(command)
+            sys.exit(32 if guest else 33)
+        if behavior == "return-failure":
             sys.exit(32)
+        (root / f"control/{side}").write_text(behavior)
     else:
         sys.exit(64)
 
