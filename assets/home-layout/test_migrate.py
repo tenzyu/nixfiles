@@ -263,7 +263,7 @@ class MigrationTest(unittest.TestCase):
 
     def test_home_group_recovery_discovers_and_keeps_a_prior_custom_v2_location(self):
         self.file(".old/record")
-        self.rule(".old", "xdg/new")
+        rule = self.rule(".old", "xdg/new", route=str(self.home / ".old"))
         prior = self.home / "previous-xdg-state"
         state = migrate.journal_state(prior)
         self.manifest.update(version=2, stateHome=str(prior), state=str(state))
@@ -273,8 +273,13 @@ class MigrationTest(unittest.TestCase):
         locator = migrate.JournalDomain.address(self.home)
         locator.unlink()  # Model a pre-locator v2 installation in the disposable HOME.
         original = dict(self.manifest)
+        incumbent = self.installed_manifest()
         journal, = state.glob("*/operations.jsonl")
-        self.manifest.update(state=str(self.home / "state-b"), legacyStateHomes=[str(prior)])
+        self.manifest.update(state=str(self.home / "state-b"), stateHome=str(self.home / "candidate-state"))
+        with self.assertRaisesRegex(migrate.Conflict, "Keep historical journals discoverable"):
+            self.admit(incumbent)
+        self.manifest["legacyStateHomes"] = [str(prior)]
+        self.admit(incumbent)
         refused = self.invoke("plan", "--group", "fixture")
         self.assertEqual(refused.returncode, 1, refused.stderr)
         self.assertIn(str(journal.parent), refused.stderr)
@@ -284,10 +289,25 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.home / "xdg/new/record").read_text(), "credentials")
         self.manifest.update(state=str(self.home / "state-c"), stateHome=str(self.home / "candidate-state"))
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
         result = self.invoke("plan", "--group", "fixture")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["context"]["state"], str(state))
         self.assertFalse((self.home / "state-c").exists())
+
+    def test_custom_journal_location_with_unused_conventional_state_symlink(self):
+        self.file(".old/record")
+        self.rule(".old", "xdg/new")
+        conventional = self.home / ".local/state"
+        conventional.parent.mkdir()
+        alternate = self.home / "user-state"
+        alternate.mkdir()
+        conventional.symlink_to(alternate)
+        migrate.apply(self.manifest)
+        self.assertEqual((self.home / "xdg/new/record").read_text(), "credentials")
+        self.assertEqual(conventional.readlink(), alternate)
+        self.assertTrue(migrate.JournalDomain.address(self.home).is_file())
 
     def test_cross_mount_go_partitions_fixed_roots_and_keeps_quarantine_outside_them(self):
         target = self.cross_mount()

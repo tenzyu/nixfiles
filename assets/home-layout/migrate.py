@@ -403,7 +403,8 @@ def check_fixed_links(boundary, scope, sources):
         for entry in tree(path):
             if entry.is_symlink():
                 lexical = Path(os.path.abspath(entry.parent / os.readlink(entry)))
-                if any(lexical.is_relative_to(source) or entry.resolve().is_relative_to(source) for source in sources):
+                referent = entry.resolve()
+                if any(lexical.is_relative_to(source) or referent.is_relative_to(source) for source in sources):
                     raise Conflict(f"Fixed consumer link depends on a moved path: {entry}")
 
 
@@ -550,16 +551,25 @@ class JournalDomain:
             recorded = tuple(absolute(path) for path in record["locations"])
             if record["version"] != 1 or not recorded or len(set(recorded)) != len(recorded):
                 raise Conflict(f"Preserve and review the migration journal domain: {locator}")
-        candidates = {default, declared, *recorded}
+        candidates = {declared, *recorded}
         claims = set()
         for declaration in (manifest, *previous):
             candidates.update(declared_states(declaration))
             claims.update(protected_roots(declaration["rules"]))
-        for path in (*candidates, locator):
+        for path in (*candidates, default, locator):
             if (home.is_relative_to(path) or any(overlaps(path, claim) for claim in claims)
                     or (path != locator and overlaps(path, locator))):
                 raise Unsupported(f"Journal discovery overlaps a protected path: {path}")
         present = {path for path in candidates if boundary.entry(path) is not None}
+        if default not in candidates:
+            try:
+                if boundary.entry(default) is not None:
+                    present.add(default)
+            except Unsupported:
+                # An unused conventional symlink is not a writable v2 domain.
+                # If it still reaches a journal directory, require diagnosis.
+                if default.resolve() == default or exists(default):
+                    raise
         missing = set(recorded) - present
         if missing:
             raise Conflict(f"A recorded migration journal directory is unavailable: {min(missing)}")
@@ -589,6 +599,17 @@ class JournalDomain:
                 os.fsync(stream.fileno())
             os.replace(temporary, self.locator.name, src_dir_fd=directory, dst_dir_fd=directory)
             os.fsync(directory)
+
+
+def check_journal_handoff(boundary, manifest, previous, recorded):
+    inherited = set().union(*(declared_states(old) for old in previous))
+    retained = declared_states(manifest) | {journal_state(Path(manifest["home"]) / ".local/state"), *recorded}
+    for location in sorted(inherited - retained):
+        if boundary.entry(location) is None:
+            continue
+        with boundary.directory(location) as directory:
+            if os.listdir(directory):
+                raise Conflict(f"Keep historical journals discoverable through legacyStateHomes: {location}")
 
 
 def resolve_external(boundary, manifest, path):
@@ -925,6 +946,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
     declarations = tuple(generation_manifests(home, old_generations))
     for declaration in (manifest, *declarations):
         roots.update(declared_states(declaration))
+    domain = None
     try:
         domain = JournalDomain.discover(boundary, manifest, *declarations)
         roots.update(domain.locations)
@@ -934,12 +956,15 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         print(f"Home migration journals need review: {error}", file=sys.stderr)
         runs = []
         journals_known = False
+    check_journal_handoff(boundary, manifest, declarations, domain.recorded if domain else ())
     generated = project_writes(manifest, boundary, generation_files(home, generation), old_files, roots)
     print("Home migration activation writes: safe for protected roots", file=sys.stderr)
     for group, rules in old.items():
-        if group not in current and any(route_state(boundary, path, generated) == "data"
-                                        for path in protected_roots(rules)):
-            raise Conflict(f"[{group}] runtime continuity: removing a route with existing data")
+        if group not in current:
+            if not journals_known or any(run["header"]["group"] == group and not run["finished"] for run in runs):
+                raise Conflict(f"[{group}] runtime continuity: resolve migration history before removing a route")
+            if any(route_state(boundary, path, generated) == "data" for path in protected_roots(rules)):
+                raise Conflict(f"[{group}] runtime continuity: removing a route with existing data")
 
     for group, rules in current.items():
         incumbent_rules = old.get(group, [])
@@ -1596,7 +1621,8 @@ def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=Fa
         if retained_only and not coverage.legacy:
             continue
         try:
-            check_fixed_links(boundary, scope, tuple(member.source for member in members))
+            if not (unchanged or retained_only):
+                check_fixed_links(boundary, scope, tuple(member.source for member in members))
             for member in members:
                 op = header["operations"][member.index]
                 proof = op.get("proof") or retirement_proof(run, member.index, op)
