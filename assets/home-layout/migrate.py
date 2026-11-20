@@ -992,7 +992,6 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
     for group, rules in current.items():
         incumbent_rules = old.get(group, [])
         scope = GroupPaths.from_rules(rules)
-        transfers = completed_transfers(manifest, group, runs, same_rules=False)
         selected = [member.selected for member in scope.members]
         legacy = [member.source for member in scope.members]
         intended = [member.target for member in scope.members]
@@ -1036,12 +1035,21 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         has_new = bool(data.intersection(target_states))
         independent_states = {assess_root(boundary, path, generated) for path in scope.fixed}
         incumbent_pending = bool(data.intersection(incumbent_states))
-        pending = has_old or has_new or incumbent_pending or bool(transfers)
         if "unknown" in independent_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe independent consumer root")
         selected_states = source_states if held else target_states
         if "unknown" in selected_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe selected root")
+        same_installed_route = group in old and old_routes == selected
+        # With unavailable history, only independently observed records on
+        # every installed held route can establish continuity.
+        if not journals_known and not (
+            held and same_installed_route and set(selected_states).union(independent_states) == {"data"}
+        ):
+            raise Conflict(f"[{group}] runtime continuity: resolve migration history before routing")
+
+        transfers = completed_transfers(manifest, group, runs, same_rules=False)
+        pending = has_old or has_new or incumbent_pending or bool(transfers)
         if incumbent_pending:
             assessment = "incumbent roots outside the candidate require assessment"
         elif has_old and has_new:
@@ -1071,8 +1079,6 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         else:
             changed = old_routes is not None and selected != old_routes
             selected_history = tuple(run for run in transfers if touches_intended_route(scope, run))
-            if changed and not journals_known:
-                raise Conflict(f"[{group}] runtime continuity: resolve migration history before cutover")
             if changed and pending:
                 if sessions_active:
                     raise Conflict(f"[{group}] runtime continuity: exclude active sessions and writers before cutover")
@@ -1088,7 +1094,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                 # An unchanged intended route may already be split. Do not
                 # start more writers against an unresolved target.
                 if not verify_transfer(scope, selected_history, runs, boundary, generated,
-                                       unchanged=group in old and old_routes == selected):
+                                       unchanged=same_installed_route):
                     raise Conflict(f"[{group}] runtime continuity: legacy state remains or route is split")
         print(f"[{group}] runtime continuity: {'legacy held' if held else 'intended route admitted'}",
               file=sys.stderr)
