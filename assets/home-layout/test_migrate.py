@@ -270,7 +270,7 @@ class MigrationTest(unittest.TestCase):
         with (patch.object(migrate, "execute_run", side_effect=OSError("after durable group header")),
               self.assertRaisesRegex(OSError, "after durable group header")):
             migrate.apply(self.manifest)
-        locator = migrate.journal_state(self.home / ".local/state").with_name("journal-domain.json")
+        locator = migrate.JournalDomain.address(self.home)
         locator.unlink()  # Model a pre-locator v2 installation in the disposable HOME.
         original = dict(self.manifest)
         journal, = state.glob("*/operations.jsonl")
@@ -314,6 +314,70 @@ class MigrationTest(unittest.TestCase):
         self.admit(intended)
         self.assertEqual([ordinary.read_text(), fixed.read_text()], ["credentials", "credentials"])
         self.assertEqual(list(target.iterdir()), [])
+
+    def test_go_fixed_destination_branch_allows_disjoint_movable_siblings(self):
+        old = self.file("go/src/project")
+        fixed = self.file("xdg/go/bin/tool")
+        rule = self.rule("go", "xdg/go", group="go", route=str(self.home / "go"),
+                         independentRoutes={"GOBIN": str(fixed.parent)})
+        incumbent = self.installed_manifest()
+        original = fixed.stat().st_ino
+        migrate.apply(self.manifest)
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
+        self.assertFalse(old.exists())
+        self.assertEqual((self.home / "xdg/go/src/project").read_text(), "credentials")
+        self.assertEqual(fixed.stat().st_ino, original)
+
+    def test_go_fixed_link_into_a_movable_region_blocks_before_writes(self):
+        source = self.file("go/src/project")
+        fixed = self.home / "go/bin"
+        fixed.mkdir()
+        link = fixed / "tool"
+        link.symlink_to("../src/project")
+        self.rule("go", "xdg/go", group="go", independentRoutes={"GOBIN": str(fixed)})
+        with self.assertRaisesRegex(migrate.Conflict, "Fixed consumer link depends on a moved path"):
+            migrate.apply(self.manifest)
+        self.assertEqual(link.read_text(), source.read_text())
+        self.assertFalse((self.home / "xdg/go").exists())
+        self.assertFalse((self.home / "state").exists())
+
+    def test_disappeared_publication_is_never_a_fresh_consumer(self):
+        old = self.file(".old/record")
+        rule = self.rule(".old", "xdg/new", route=str(old.parent))
+        incumbent = self.installed_manifest()
+        migrate.apply(self.manifest)
+        rule["route"] = rule["target"]
+        self.admit(incumbent)
+        target = Path(rule["target"])
+        displaced = self.home / "displaced"
+        target.rename(displaced)
+        with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+            self.admit(incumbent)
+        with self.assertRaisesRegex(migrate.Conflict, "legacy state remains or route is split"):
+            self.admit(self.installed_manifest())
+        self.assertEqual((displaced / "record").read_text(), "credentials")
+        self.assertFalse(old.exists())
+
+    def test_cross_mount_nested_target_staging_does_not_change_published_parent(self):
+        target = self.cross_mount()
+        self.file(".old/settings", "config")
+        self.file(".account", "account")
+        self.rule(".account", "unused")["target"] = str(target / ".account")
+        write = migrate.write_journal
+
+        def interrupt(log, event):
+            if event["event"] == "intent" and event["index"] == 1:
+                raise OSError("after sealing the nested entry")
+            write(log, event)
+
+        with (patch.object(migrate, "write_journal", side_effect=interrupt),
+              self.assertRaisesRegex(OSError, "after sealing the nested entry")):
+            migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        self.recover()
+        self.assertEqual(set(target.iterdir()), {target / "settings", target / ".account"})
+        self.assertEqual((target / ".account").read_text(), "account")
+        self.assertEqual(migrate.apply(self.manifest, rsync=shutil.which("rsync")), [])
 
     def test_fresh_home_and_repeat_are_noops(self):
         self.rule(".old", ".local/share/new")

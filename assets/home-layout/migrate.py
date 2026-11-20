@@ -344,7 +344,8 @@ class GroupPaths:
     def state(self, boundary, root, generated, *, covered=(), projection=PathProjection(), carriers=()):
         try:
             states = {route_state(boundary, actual, generated)
-                      for path in self.regions(boundary, root, covered, projection, carriers)
+                      for path in self.regions(boundary, root, covered, projection,
+                                               self.source_carriers(root).union(carriers))
                       if (actual := projection.lookup(path)[0]) is not None}
         except (Conflict, OSError):
             return "unknown"
@@ -367,18 +368,43 @@ class GroupPaths:
         return (self.redirects.redirect(source) == target
                 and not any(overlaps(root, path) for root in (source, target) for path in self.fixed))
 
+    def source_carriers(self, root):
+        # A target-side fixed branch also sets subdivision points in the source.
+        return {parent for member in self.members if member.source == root
+                for claim in self.fixed if claim != member.target and claim.is_relative_to(member.target)
+                for parent in (root / claim.relative_to(member.target)).parents if parent.is_relative_to(root)}
+
     def planned_parts(self, boundary, source, target):
         if any(source.is_relative_to(path) or target.is_relative_to(path) for path in self.fixed):
             if boundary.entry(source) is not None:
                 raise Unsupported(f"A fixed consumer owns a migration root: {source} -> {target}")
             return
-        for part in self.regions(boundary, source):
+        for part in self.regions(boundary, source, carriers=self.source_carriers(source)):
             destination = target / part.relative_to(source)
             if any(overlaps(destination, path) for path in self.fixed):
                 if boundary.entry(part) is not None:
                     raise Conflict(f"Migration would write a fixed consumer path: {destination}")
                 continue
             yield part, destination
+
+    def private_parents(self, source, target):
+        return [str(min((root for root in roots if path.is_relative_to(root)), key=lambda root: len(root.parts)).parent)
+                for path, roots in ((source, self.legacy), (target, self.intended))]
+
+
+def check_fixed_links(boundary, scope, sources):
+    if not sources:
+        return
+    for path in sorted(scope.fixed):
+        info = boundary.entry(path)
+        if info is None or not stat.S_ISDIR(info.st_mode):
+            continue
+        boundary.reject_mounts(path)
+        for entry in tree(path):
+            if entry.is_symlink():
+                lexical = Path(os.path.abspath(entry.parent / os.readlink(entry)))
+                if any(lexical.is_relative_to(source) or entry.resolve().is_relative_to(source) for source in sources):
+                    raise Conflict(f"Fixed consumer link depends on a moved path: {entry}")
 
 
 @dataclass(frozen=True)
@@ -458,12 +484,16 @@ def manifest_paths(manifest):
     return home, state
 
 
+def check_journal_storage(boundary, fd, path):
+    mount = boundary.mount(fd, path)
+    if boundary.mounts[mount][-1] == "tmpfs":
+        raise Unsupported(f"Migration journal needs durable storage: {path}")
+    boundary.writable(fd, path)
+
+
 def check_state(boundary, state):
     with boundary.directory(state, nearest=True) as fd:
-        mount = boundary.mount(fd, state)
-        if boundary.mounts[mount][-1] == "tmpfs":
-            raise Unsupported(f"Migration journal needs durable storage: {state}")
-        boundary.writable(fd, state)
+        check_journal_storage(boundary, fd, state)
         if exists(state):
             info = os.fstat(fd)
             if info.st_uid != boundary.uid or info.st_mode & 0o077:
@@ -498,11 +528,15 @@ class JournalDomain:
     locations: tuple[Path, ...]
     recorded: tuple[Path, ...]
 
+    @staticmethod
+    def address(home):
+        return home / ".home-layout-journal-domain.json"
+
     @classmethod
     def discover(cls, boundary, manifest, *previous):
         home, declared = manifest_paths(manifest)
         default = journal_state(home / ".local/state")
-        locator = default.with_name("journal-domain.json")
+        locator = cls.address(home)
         recorded = ()
         if boundary.entry(locator) is not None:
             with boundary.directory(locator.parent) as directory:
@@ -542,10 +576,10 @@ class JournalDomain:
         # Called under the HOME inode flock, before the durable begin.
         if self.locations == self.recorded:
             return
-        check_state(boundary, self.locator.parent / "activation")
-        with boundary.directory(self.primary, create=True):
-            pass
-        with boundary.directory(self.locator.parent, create=True) as directory:
+        with boundary.directory(self.locator.parent) as directory:
+            check_journal_storage(boundary, directory, self.locator)
+            with boundary.directory(self.primary, create=True):
+                pass
             temporary = f".{self.locator.name}-{uuid.uuid4().hex}"
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
             fd = os.open(temporary, flags, 0o600, dir_fd=directory)
@@ -677,9 +711,10 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                       "owner": owner, "entry": source_entry, "backup": backup,
                       "sourceMount": source_mount, "targetMount": target_mount,
                       "observedTarget": actual_target}
-            if source != Path(rule["source"]):
-                # Leave private stages and quarantines outside the shared carrier.
-                action["privateParents"] = [str(Path(rule[key]).parent) for key in ("source", "target")]
+            parents = scope.private_parents(source, target)
+            if parents != [str(source.parent), str(target.parent)]:
+                # Keep private stages and quarantines outside a protected carrier.
+                action["privateParents"] = parents
             actions.append(action)
             projection = projection.after(Publication(source, target, source_mount != target_mount, target_mount))
             patterns.extend(rule.get("processes", []))
@@ -715,6 +750,7 @@ def plan(manifest, boundary=None, *, activation=False, compare_collisions=False,
                                     "legacy": str(source), "root": str(target), "owner": owner})
                     patterns.extend(rule.get("processes", []))
     if projection.moves:
+        check_fixed_links(boundary, scope, tuple(move.source for move in projection.moves))
         check_state(boundary, state or declared)
     paths = [Path(rule[key]) for rule in manifest["rules"] for key in ("source", "target")]
     pids = busy(patterns, paths) if patterns and not activation else []
@@ -885,7 +921,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
 
     default = journal_state(home / ".local/state")
     roots = {*protected_roots(manifest["rules"] + old_manifest.get("rules", [])),
-             default, default.with_name("journal-domain.json")}
+             default, JournalDomain.address(home)}
     declarations = tuple(generation_manifests(home, old_generations))
     for declaration in (manifest, *declarations):
         roots.update(declared_states(declaration))
@@ -908,6 +944,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
     for group, rules in current.items():
         incumbent_rules = old.get(group, [])
         scope = GroupPaths.from_rules(rules)
+        transfers = completed_transfers(manifest, group, runs)
         selected = [member.selected for member in scope.members]
         legacy = [member.source for member in scope.members]
         intended = [member.target for member in scope.members]
@@ -951,7 +988,7 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
         has_new = bool(data.intersection(target_states))
         independent_states = {assess_root(boundary, path, generated) for path in scope.fixed}
         incumbent_pending = bool(data.intersection(incumbent_states))
-        pending = has_old or has_new or incumbent_pending
+        pending = has_old or has_new or incumbent_pending or bool(transfers)
         if "unknown" in independent_states:
             raise Conflict(f"[{group}] runtime continuity: unsafe independent consumer root")
         selected_states = source_states if held else target_states
@@ -993,13 +1030,13 @@ def activation_gate(manifest, boundary, generation, previous, incumbent, session
                               and not plan({**manifest, "rules": rules}, boundary, activation=True,
                                            generated=generated))
                 if not (reconciled or (old_routes == legacy and not incumbent_pending
-                                       and verified_transfer(manifest, group, runs, boundary, generated))):
+                                       and verify_transfer(scope, transfers, runs, boundary, generated))):
                     raise Conflict(f"[{group}] runtime continuity: intended route requires a verified transfer")
-            elif has_old:
+            elif has_old or transfers:
                 # An unchanged intended route may already be split. Do not
                 # start more writers against an unresolved target.
-                if not verified_transfer(manifest, group, runs, boundary, generated,
-                                         unchanged=group in old and old_routes == selected):
+                if not verify_transfer(scope, transfers, runs, boundary, generated,
+                                       unchanged=group in old and old_routes == selected):
                     raise Conflict(f"[{group}] runtime continuity: legacy state remains or route is split")
         print(f"[{group}] runtime continuity: {'legacy held' if held else 'intended route admitted'}",
               file=sys.stderr)
@@ -1543,14 +1580,15 @@ def verify_authoritative(boundary, operation, proof, *, unchanged=False, app_sav
             raise Conflict(f"Authoritative target has changed: {target}")
 
 
-def verified_transfer(manifest, group, runs, boundary, generated=None, *, unchanged=False, retained_only=False):
-    scope = GroupPaths.from_rules(groups(manifest)[group])
-    generated = generated or {}
-    for run in reversed(runs):
+def completed_transfers(manifest, group, runs):
+    return tuple(run for run in reversed(runs)
+                 if run["finished"] and run["header"]["mode"] in ("apply", "retire-equal")
+                 and matches_run(manifest, group, run) and not disposition(runs, run, "rollback"))
+
+
+def verify_transfer(scope, transfers, runs, boundary, generated, *, unchanged=False, retained_only=False):
+    for run in transfers:
         header = run["header"]
-        if (not run["finished"] or header["mode"] not in ("apply", "retire-equal")
-                or not matches_run(manifest, group, run) or disposition(runs, run, "rollback")):
-            continue
         members = TransferMember.from_operations(header["operations"])
         if not members:
             continue
@@ -1558,6 +1596,7 @@ def verified_transfer(manifest, group, runs, boundary, generated=None, *, unchan
         if retained_only and not coverage.legacy:
             continue
         try:
+            check_fixed_links(boundary, scope, tuple(member.source for member in members))
             for member in members:
                 op = header["operations"][member.index]
                 proof = op.get("proof") or retirement_proof(run, member.index, op)
@@ -1572,6 +1611,12 @@ def verified_transfer(manifest, group, runs, boundary, generated=None, *, unchan
         except (Conflict, OSError):
             return False
     return False
+
+
+def verified_retained_copy(manifest, group, runs, boundary, generated):
+    scope = GroupPaths.from_rules(groups(manifest)[group])
+    return verify_transfer(scope, completed_transfers(manifest, group, runs), runs, boundary, generated,
+                           retained_only=True)
 
 
 def verified_rollback(manifest, group, runs, boundary, generated=None):
@@ -1732,6 +1777,8 @@ def check_run_coverage(boundary, header, scope, generated, history, projection):
         original = parent_headers[parent]
 
     members = TransferMember.from_operations(original["operations"])
+    if not reversed_transfer:
+        check_fixed_links(boundary, scope, tuple(member.source for member in members))
     for member in members:
         if not reversed_transfer and not scope.allows_transfer(member.source, member.target):
             raise Conflict(f"Transfer conflicts with consumer path ownership: {member.source} -> {member.target}")
@@ -1846,7 +1893,7 @@ def mutate(manifest, mode, group, generated, rsync, *, expect=None, run_id=None,
         actions, parent = [], None
         state = domain.primary
         if mode in ("apply", "retire-equal"):
-            if mode == "apply" and verified_transfer(manifest, group, runs, boundary, generated, retained_only=True):
+            if mode == "apply" and verified_retained_copy(manifest, group, runs, boundary, generated):
                 return []
             actions, operations = plan_group(manifest, group, boundary, generated,
                                              retire_equal=mode == "retire-equal", state=state)
@@ -1971,8 +2018,7 @@ def main():
             runs = domain.runs(boundary)
             if unfinished := [run for run in runs if not run["finished"]]:
                 raise Conflict(f"Recover outstanding run: {unfinished[0]['path']}")
-            if not args.retire_equal and verified_transfer(manifest, args.group, runs, boundary, generated,
-                                                           retained_only=True):
+            if not args.retire_equal and verified_retained_copy(manifest, args.group, runs, boundary, generated):
                 actions, operations = [], []
             else:
                 actions, operations = plan_group(manifest, args.group, boundary, generated,
@@ -1996,7 +2042,7 @@ def main():
             selected_groups = [args.group] if args.group else groups(manifest)
             subset = {**manifest, "rules": [
                 rule for group in selected_groups
-                if not verified_transfer(manifest, group, runs, boundary, generated, retained_only=True)
+                if not verified_retained_copy(manifest, group, runs, boundary, generated)
                 for rule in groups(manifest)[group]
             ]}
             actions = plan(subset, boundary, compare_collisions=True, generated=generated, state=domain.primary)
