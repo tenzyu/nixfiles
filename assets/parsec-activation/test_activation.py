@@ -99,7 +99,7 @@ class Activation(unittest.TestCase):
             self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
             os.utime(path, (1, 2))
         before = [metadata(path) for path in (self.parent, self.config, self.mapping)]
-        self.assertEqual("", self.invoke().stderr)
+        self.assertEqual(2, self.invoke().stderr.count("existing entry preserved; skipped the seed"))
         review = self.invoke(review=True)
         self.assertIn("config.json: client_vsync=0 [present]", review.stdout)
         self.assertIn("config.txt: missing", review.stdout)
@@ -117,12 +117,13 @@ class Activation(unittest.TestCase):
         write(self.mapping, data)
         write(self.legacy, b"do not touch")
         before = [metadata(path) for path in (self.mapping, self.legacy)]
-        self.assertEqual("", self.invoke().stderr)
+        self.assertEqual(2, self.invoke().stderr.count("existing entry preserved; skipped the seed"))
+        self.assertIn("declared controller row for 06cb,83d7 present exactly once", self.invoke(review=True).stdout)
         self.assertEqual(before, [metadata(path) for path in (self.mapping, self.legacy)])
         self.assertEqual(data, contents(self.mapping))
         self.assertEqual(b"do not touch", contents(self.legacy))
 
-    def test_existing_differences_warn_without_replacing(self):
+    def test_existing_differences_are_reported_by_review_only(self):
         self.parent.mkdir()
         config_data = b'{"unrelated": {"value": "private config sentinel"}}'
         write(self.config, config_data)
@@ -131,16 +132,17 @@ class Activation(unittest.TestCase):
                 write(self.mapping, data)
                 before = [metadata(path) for path in (self.config, self.mapping)]
                 result = self.invoke()
-                self.assertIn("existing config differs", result.stderr)
-                self.assertIn("exactly one declared controller row", result.stderr)
-                self.assertIn("independent backup", result.stderr)
-                self.assertNotIn("private config sentinel", result.stderr)
+                self.assertEqual(2, result.stderr.count("existing entry preserved; skipped the seed"))
+                review = self.invoke(1, review=True)
+                self.assertIn("config.json: client_vsync=0 [missing]", review.stdout)
+                self.assertIn("expected one exact row", review.stdout)
+                self.assertNotIn("private config sentinel", review.stdout + review.stderr)
                 self.assertEqual(before, [metadata(path) for path in (self.config, self.mapping)])
                 self.assertEqual(config_data, contents(self.config))
                 self.assertEqual(data, contents(self.mapping))
                 self.mapping.unlink()
         write(self.mapping, ROW, 0o644)
-        self.assertIn("file mode differs", self.invoke().stderr)
+        self.assertIn("gpmap.txt: mode 0644, expected 0600", self.invoke(1, review=True).stdout)
         self.assertEqual(0o644, stat.S_IMODE(self.mapping.stat().st_mode))
 
     def test_review_legacy_differences_and_duplicate_rows_without_disclosing_data(self):
@@ -166,7 +168,9 @@ class Activation(unittest.TestCase):
     def test_app_modified_json_and_cleared_legacy_file_remain_untouched(self):
         config = APP_CONFIG.replace(b'"client_vsync": {"value": 0}', b'"client_vsync": {"value": 1}')
         self.assertEqual("", self.invoke().stderr)
-        self.config.write_bytes(config)
+        saved_config = self.parent / "app-save.json"
+        write(saved_config, config, 0o640)
+        saved_config.replace(self.config)
         write(self.legacy_config, b"")  # Parsec clears old assignments after migrating them.
         original_mapping = b"0001,0002 custom controls\n" + ROW
         self.mapping.write_bytes(original_mapping)
@@ -174,10 +178,11 @@ class Activation(unittest.TestCase):
         before = [metadata(path) for path in paths]
         for _ in range(2):
             activation = self.invoke()
-            self.assertIn("existing config differs from the declaration", activation.stderr)
+            self.assertEqual(2, activation.stderr.count("existing entry preserved; skipped the seed"))
             self.assertIn("parsec-activation-review", activation.stderr)
             review = self.invoke(1, review=True)
             self.assertIn("config.json: client_vsync=0 [different value]", review.stdout)
+            self.assertIn("config.json: mode 0640, expected 0600", review.stdout)
             self.assertIn("config.txt: no declared legacy assignments", review.stdout)
             self.assertNotIn("private JSON sentinel", review.stdout + review.stderr)
         self.assertEqual(before, [metadata(path) for path in paths])
@@ -189,7 +194,7 @@ class Activation(unittest.TestCase):
         self.parent.mkdir()
         write(self.config, APP_CONFIG)
         before = metadata(self.config)
-        self.assertEqual("", self.invoke().stderr)
+        self.assertEqual(1, self.invoke().stderr.count("existing entry preserved; skipped the seed"))
         self.assertEqual({"config.json", "gpmap.txt"}, {path.name for path in self.parent.iterdir()})
         self.assertEqual(ROW, contents(self.mapping))
         review = self.invoke(review=True)
@@ -209,7 +214,7 @@ class Activation(unittest.TestCase):
         malformed = b'{"client_vsync": 0, "client_vsync": 1, "private malformed sentinel": 2}'
         self.config.write_bytes(malformed)
         before = metadata(self.config)
-        self.assertIn("expected a valid Parsec JSON object with unique keys", self.invoke().stderr)
+        self.assertIn("existing entry preserved; skipped the seed", self.invoke().stderr)
         review = self.invoke(1, review=True)
         self.assertIn("config.json: Conflict: expected a valid Parsec JSON object with unique keys", review.stderr)
         self.assertNotIn("private malformed sentinel", review.stdout + review.stderr)
@@ -256,17 +261,29 @@ class Activation(unittest.TestCase):
         self.legacy_config.mkdir()
         check_refusal()
 
-    def test_real_read_error_is_not_missing_or_empty(self):
+    def test_unreadable_app_config_does_not_block_missing_mapping_seed(self):
         self.parent.mkdir()
-        write(self.config, APP_CONFIG)
-        write(self.mapping, b"read denied", 0)
-        write(self.legacy, b"legacy sentinel")
-        before = [metadata(path) for path in (self.mapping, self.legacy)]
-        self.assertIn("IOError: errno 13", self.invoke(74).stderr)
-        self.assertIn("gpmap.txt: IOError: errno 13", self.invoke(74, review=True).stderr)
-        self.assertEqual(before, [metadata(path) for path in (self.mapping, self.legacy)])
-        self.mapping.chmod(0o600)
-        self.assertEqual(b"read denied", contents(self.mapping))
+        write(self.config, APP_CONFIG, 0)
+        before = metadata(self.config)
+        self.assertIn("existing entry preserved; skipped the seed", self.invoke().stderr)
+        self.assertIn("config.json: IOError: errno 13", self.invoke(74, review=True).stderr)
+        self.assertEqual(before, metadata(self.config))
+        self.assertEqual(ROW, contents(self.mapping))
+        self.config.chmod(0o600)
+        self.assertEqual(APP_CONFIG, contents(self.config))
+
+    def test_older_home_manager_store_link_is_preserved(self):
+        self.parent.mkdir()
+        # This fixture is supplied by Nix as a read-only store path.
+        target = Path(__file__).resolve()
+        self.legacy_config.symlink_to(target)
+        before = metadata(self.legacy_config)
+        self.assertIn("config.txt exists; skipped the native config seed", self.invoke().stderr)
+        self.assertFalse(self.config.exists())
+        self.assertEqual(ROW, contents(self.mapping))
+        self.assertIn("config.txt: Conflict", self.invoke(1, review=True).stderr)
+        self.assertEqual(before, metadata(self.legacy_config))
+        self.assertEqual(target, self.legacy_config.readlink())
 
     def test_unsafe_parent_does_not_write_through_symlink(self):
         target = self.home / "other"
@@ -310,7 +327,7 @@ class Activation(unittest.TestCase):
         self.assertEqual(ROW, contents(self.mapping))
         self.assertEqual({"config.json", "gpmap.txt"}, {path.name for path in self.parent.iterdir()})
         before = metadata(self.config)
-        self.assertIn("file mode differs", self.invoke().stderr)
+        self.assertIn("existing entry preserved; skipped the seed", self.invoke().stderr)
         review = self.invoke(1, review=True)
         self.assertIn("config.json: mode 0640, expected 0600", review.stdout)
         self.assertEqual(before, metadata(self.config))
@@ -324,7 +341,9 @@ class Activation(unittest.TestCase):
         self.assertEqual(ROW, contents(self.mapping))
 
     def test_legacy_input_created_at_link_remains_user_owned(self):
-        self.assertEqual("", self.invoke(fault="legacy-at-link").stderr)
+        activation = self.invoke(fault="legacy-at-link")
+        self.assertIn("config.json seeded; config.txt appeared during publication", activation.stderr)
+        self.assertIn("Both entries were preserved", activation.stderr)
         self.assertEqual(SEED, json.loads(contents(self.config)))
         self.assertEqual(LEGACY_INPUT, contents(self.legacy_config))
         self.assertEqual(0o640, stat.S_IMODE(self.legacy_config.stat().st_mode))
@@ -369,8 +388,9 @@ class Activation(unittest.TestCase):
         self.assertEqual(SEED, json.loads(contents(self.config)))
         before = metadata(self.config)
         self.assertFalse(self.mapping.exists())
-        self.assertEqual("", self.invoke().stderr)
+        self.assertIn("existing entry preserved; skipped the seed", self.invoke().stderr)
         self.assertEqual(before, metadata(self.config))
+        self.assertEqual(ROW, contents(self.mapping))
 
 
 def inject():

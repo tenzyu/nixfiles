@@ -49,6 +49,9 @@ numeric settings at mode `0600`. Existing `config.json` remains app-owned.
 Any observed `config.txt` entry suppresses the JSON seed. That includes empty
 files, symlinks, and special files. Parsec retains control of legacy imports.
 The `gpmap.txt` seed runs independently when its destination is absent.
+An incumbent at either seed destination is sufficient to skip that seed.
+Activation reports the skip without opening the file. The review command
+compares contents and modes and reports read errors.
 
 ## Review an existing installation
 
@@ -69,6 +72,11 @@ The `gpmap.txt` seed runs independently when its destination is absent.
    and review again after it saves. Verify client settings and controller
    behavior separately in the app. [Parsec configuration and migration](https://support.parsec.app/hc/en-us/articles/32381346632596-Accessing-Your-Advanced-Settings)
 
+An older Home Manager store link can still block Parsec from writing or
+clearing the linked file. Activation preserves it. Reconcile the link
+separately with a verified backup and all writers stopped before expecting
+Parsec to write the file.
+
 The command exits `0` when the compared settings, mapping and applicable
 modes match. It exits `1` for differences, missing required data, ambiguous
 legacy input or an unsafe entry, and `74` for I/O errors. JSON comparison uses
@@ -85,8 +93,8 @@ descriptors for canonical, user-owned `HOME` and `.parsec` directories without
 group or other write access. It can create `.parsec` with mode `0700` when
 it is missing. Symlinks, non-directory parents, or an unsupported staging or
 link operation warn and skip the affected seed. Existing leaf symlinks and
-special files warn without following them. Read failures and pre-publication
-I/O failures return nonzero, not empty data.
+special files warn without following them. A failed presence check or
+pre-publication I/O failure returns nonzero.
 
 The [Shell core](../safety/shell/README.md) requires a trusted named stage and
 lock entry. Neither is established in Parsec's writable directory. Instead
@@ -108,9 +116,10 @@ name fails and the app's file wins. If activation publishes first, Parsec can
 edit the seed as it would any saved configuration. The adapter checks for
 `config.txt` before staging and again just before the link. A legacy entry
 that arrives after the last check remains the user's input for Parsec to
-import. Activation only publishes JSON and the controller mapping. Review
-reports observations of individual files that can change independently while
-the app is running.
+import. If activation observes that entry immediately after linking, it
+reports both names and directs the user to review. Seed with Parsec fully
+stopped if legacy import must take precedence. Review reports observations
+of individual files that can change independently while the app is running.
 
 After `OutcomeUnknown` or process interruption, inspect both final leaves
 before retrying. A final file may already be visible. Do not delete it to
@@ -126,8 +135,9 @@ the evaluated Home Manager hooks with the pinned `run` function and the
 packaged review command in isolated `HOME` directories. The fixtures check
 `INTENT-01` dry-run, `BOUNDARY-01` symlink and parent
 refusal, `PUBLISH-01` new files and concurrent collision, `PUBLISH-02` failures
-before and after link, `OWNED-01` preservation of existing and app-modified
-files, and `RECOVERY-01` repeat behavior. A separate process creates app-owned
+before and after link, `OWNED-01` preservation of unreadable files, legacy
+store links and simulated app saves, and `RECOVERY-01` repeat behavior.
+A separate process creates app-owned
 JSON just before the kernel link. The fixture checks that the winner's bytes
 and mode survive and no `config.txt` is created. Legacy entries are tested
 before and at publication. Review fixtures check diagnostics, exit status,

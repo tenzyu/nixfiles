@@ -94,12 +94,15 @@ def flush(native, fd):
     subprocess.run([sys.executable, "-I", native, "fsync", str(fd)], pass_fds=(fd,), check=True)
 
 
+def existing_entry(parent, leaf):
+    try:
+        return os.stat(leaf, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+
+
 def guard_legacy_config(parent, operation):
-    if operation == "config":
-        try:
-            os.stat(LEGACY_CONFIG, dir_fd=parent, follow_symlinks=False)
-        except FileNotFoundError:
-            return
+    if operation == "config" and existing_entry(parent, LEGACY_CONFIG) is not None:
         raise Refusal("AppOwned", f"{LEGACY_CONFIG} exists; skipped the native config seed")
 
 
@@ -138,6 +141,7 @@ def publish(native, home, parent, path, operation, leaf, expected, mode):
             os.close(proc)
 
         try:
+            legacy_arrived = operation == "config" and existing_entry(parent, LEGACY_CONFIG) is not None
             flush(native, parent)
             # Also persist the .parsec entry, even if another activation created it.
             flush(native, home)
@@ -146,6 +150,12 @@ def publish(native, home, parent, path, operation, leaf, expected, mode):
                 raise Refusal("OutcomeUnknown", "published inode no longer at final name")
         except (OSError, Refusal, subprocess.CalledProcessError) as error:
             raise Refusal("OutcomeUnknown", "final may be visible; could not confirm publication") from error
+        if legacy_arrived:
+            print(
+                f"parsec-activation: {leaf} seeded; {LEGACY_CONFIG} appeared during publication. "
+                "Both entries were preserved. Run parsec-activation-review to check for legacy import.",
+                file=sys.stderr,
+            )
 
 
 @contextmanager
@@ -176,37 +186,20 @@ def directories(directory, *, create):
 
 def activate(native, data, operation, leaf):
     os.umask(0o077)
-    mode = int(data["mode"], 8)
-    mapping_id = data["mappingId"].encode()
-    if operation == "mapping":
-        expected = (data["mappingRow"] + "\n").encode()
-
-        def matches(stream):
-            return mapping_match(stream, expected, mapping_id) == (1, True)
-
-        difference = "existing mapping does not contain exactly one declared controller row"
-    else:
-        settings = data["configSettings"]
-        document = {key: {"value": value} for key, value in settings.items()}
-        expected = (json.dumps(document, indent=2) + "\n").encode()
-
-        def matches(stream):
-            observed = json_settings(stream, settings)
-            return all(observed.get(key) == [str(value).encode()] for key, value in settings.items())
-
-        difference = "existing config differs from the declaration"
-
     with directories(data["directory"], create=True) as (home, parent, path):
-        observed = inspect_file(parent, path, leaf, matches)
-        if observed is None:
-            guard_legacy_config(parent, operation)
-            publish(native, home, parent, path, operation, leaf, expected, mode)
+        entry = existing_entry(parent, leaf)
+        if entry is not None:
+            if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid():
+                raise Refusal("Conflict", "existing entry is not a user-owned regular file; skipped the seed")
+            raise Refusal("AppOwned", "existing entry preserved; skipped the seed")
+
+        guard_legacy_config(parent, operation)
+        if operation == "mapping":
+            expected = (data["mappingRow"] + "\n").encode()
         else:
-            identical, actual_mode = observed
-            if actual_mode != mode:
-                raise Refusal("Conflict", "existing file mode differs from the declared 0600")
-            if not identical:
-                raise Refusal("Conflict", difference)
+            document = {key: {"value": value} for key, value in data["configSettings"].items()}
+            expected = (json.dumps(document, indent=2) + "\n").encode()
+        publish(native, home, parent, path, operation, leaf, expected, int(data["mode"], 8))
 
 
 def unique_object(pairs):
