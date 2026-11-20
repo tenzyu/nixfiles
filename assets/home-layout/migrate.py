@@ -965,11 +965,23 @@ def new_stage(boundary, log, run, index, op, source, target, rsync):
     return ready
 
 
+def check_move_entries(boundary, op, move_from, move_entry, staged, after, events, *, sync=False):
+    target = Path(op["target"])
+    if after is not None:
+        intended = any(event["event"] == "intent" for event in events)
+        if not intended or after != move_entry or staged is not None:
+            raise Conflict(f"Cannot reconcile existing destination without replacing data: {target}")
+        check_payload(boundary, op, target, target=True, sync=sync)
+    else:
+        if staged != move_entry:
+            raise Conflict(f"Migration source changed or is missing: {move_from}")
+        check_payload(boundary, op, move_from, target=op["op"] == "copy", sync=sync)
+
+
 def execute_operation(boundary, log, run, index, op, events, rsync):
     source, target = Path(op["source"]), Path(op["target"])
     before = observe(boundary, source, op["left"])
     after = observe(boundary, target, op["right"])
-    intended = any(event["event"] == "intent" for event in events)
     if op["op"] == "copy":
         if before != op["entry"]:
             raise Conflict(f"Copy source changed after planning: {source}")
@@ -984,16 +996,11 @@ def execute_operation(boundary, log, run, index, op, events, rsync):
     else:
         move_from, move_entry, staged = source, op["entry"], before
 
-    if after:
-        if not intended or after != move_entry or staged is not None:
-            raise Conflict(f"Cannot reconcile existing destination without replacing data: {target}")
-        check_payload(boundary, op, target, target=True, sync=True)
+    check_move_entries(boundary, op, move_from, move_entry, staged, after, events, sync=True)
+    if after is not None:
         with boundary.directory(move_from.parent) as left:
             os.fsync(left)
     else:
-        if staged != move_entry:
-            raise Conflict(f"Migration source changed or is missing: {move_from}")
-        check_payload(boundary, op, move_from, target=op["op"] == "copy", sync=True)
         write_journal(log, {"event": "intent", "index": index, "source": str(move_from),
                             "target": str(target), "entry": move_entry})
         if proof := op.get("proof"):
@@ -1002,31 +1009,59 @@ def execute_operation(boundary, log, run, index, op, events, rsync):
     write_journal(log, {"event": "done", "index": index, "entry": move_entry})
 
 
+def check_completed_operation(boundary, operation, complete):
+    target = Path(operation["target"])
+    if observe(boundary, target, operation["right"]) != complete["entry"]:
+        raise Conflict(f"Earlier committed step changed before recovery: {target}")
+    check_payload(boundary, operation, target, target=True)
+    if operation["kind"] != "scaffold":
+        source = Path(operation["source"])
+        remaining = observe(boundary, source, operation["left"])
+        if operation["op"] == "copy" and remaining == operation["entry"]:
+            check_payload(boundary, operation, source)
+        elif remaining is not None or operation["op"] == "copy":
+            raise Conflict(f"Earlier committed step has an unexpected legacy entry: {source}")
+
+
+def preflight_retirement_step(boundary, operation, prior, complete):
+    if complete is not None:
+        check_completed_operation(boundary, operation, complete)
+        return
+    source, target = Path(operation["source"]), Path(operation["target"])
+    before = observe(boundary, source, operation["left"])
+    after = observe(boundary, target, operation["right"])
+    check_move_entries(boundary, operation, source, operation["entry"], before, after, prior)
+    # A published move without a completion record still needs its source
+    # parent to be available for the recovery fsync.
+    with boundary.directory(source.parent) as left:
+        if after is None:
+            boundary.writable(left, source.parent)
+            with boundary.directory(target.parent, nearest=True) as right:
+                boundary.writable(right, target.parent)
+
+
 def execute_run(boundary, journal, log, rsync):
     run, header, events = journal["path"], journal["header"], journal["events"]
-    for operation in header["operations"]:
+    retiring = header["mode"] in ("retire", "retire-equal")
+    steps = []
+    for index, operation in enumerate(header["operations"]):
         for anchor in operation["anchors"]:
             if boundary.anchor(Path(anchor[0])) != anchor:
                 raise Conflict(f"Planned parent or mount changed: {anchor[0]}")
         if proof := operation.get("proof"):
             verify_authoritative(boundary, operation, proof)
-    for index, operation in enumerate(header["operations"]):
         prior = [event for event in events if event.get("index") == index]
         complete = next((event for event in prior if event["event"] == "done"), None)
+        # Retirement moves independent roots into private quarantine paths.
+        # Check the whole group's observed state before advancing any step.
+        if retiring:
+            preflight_retirement_step(boundary, operation, prior, complete)
+        steps.append((operation, prior, complete))
+    for index, (operation, prior, complete) in enumerate(steps):
         if complete is None:
             execute_operation(boundary, log, run, index, operation, prior, rsync)
         else:
-            target = Path(operation["target"])
-            if observe(boundary, target, operation["right"]) != complete["entry"]:
-                raise Conflict(f"Earlier committed step changed before recovery: {target}")
-            check_payload(boundary, operation, target, target=True)
-            if operation["kind"] != "scaffold":
-                source = Path(operation["source"])
-                remaining = observe(boundary, source, operation["left"])
-                if operation["op"] == "copy" and remaining == operation["entry"]:
-                    check_payload(boundary, operation, source)
-                elif remaining is not None or operation["op"] == "copy":
-                    raise Conflict(f"Earlier committed step has an unexpected legacy entry: {source}")
+            check_completed_operation(boundary, operation, complete)
     write_journal(log, {"event": "finished"})
 
 

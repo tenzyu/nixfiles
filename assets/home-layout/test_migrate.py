@@ -425,6 +425,107 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(original.read_text(), "initial payload")
         self.assertEqual((target / "key").read_text(), "later payload")
 
+    def test_cross_mount_retirement_recovery_preflights_all_pending_sources(self):
+        target = self.cross_mount()
+        first = self.file(".old/key", "first payload")
+        middle = self.file(".middle-old/key", "middle payload")
+        later = self.file(".later-old/key", "original later")
+        for group_member in ("middle", "later"):
+            rule = self.rule(f".{group_member}-old", ".unused")
+            rule["target"] = str(target.with_name(group_member))
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        transfer = self.journal()[0]["run"]
+        write = migrate.write_journal
+
+        def stop_after_first_retirement(log, event):
+            write(log, event)
+            if event["event"] == "done" and event["index"] == 0:
+                raise OSError("after first retirement")
+
+        with (patch.object(migrate, "write_journal", side_effect=stop_after_first_retirement),
+              self.assertRaisesRegex(OSError, "after first retirement")):
+            migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=transfer)
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        pending, = [run for run in runs if not run["finished"]]
+        header = pending["header"]
+        archives = [Path(op["target"]) for op in header["operations"]]
+        journal = pending["path"] / "operations.jsonl"
+        before = journal.read_bytes()
+        self.assertEqual([event["event"] for event in pending["events"]], ["intent", "done"])
+        self.assertFalse(first.exists())
+        self.assertEqual((archives[0] / "key").read_text(), "first payload")
+        middle_inode = middle.stat().st_ino
+        later_info = later.stat()
+        later.write_text("modified later")
+        os.utime(later, ns=(later_info.st_atime_ns, later_info.st_mtime_ns))
+        recovery = ("recover", "--group", "fixture", "--offline", "--run", header["run"])
+
+        refused = self.launch(*recovery)
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("Payload changed after planning", refused.stderr)
+        self.assertTrue(middle.exists(), "Recovery moved another legacy source before refusing")
+        self.assertEqual(middle.read_text(), "middle payload")
+        self.assertEqual(middle.stat().st_ino, middle_inode)
+        self.assertEqual(later.read_text(), "modified later")
+        self.assertEqual((target.with_name("later") / "key").read_text(), "original later")
+        self.assertFalse(archives[1].exists())
+        self.assertFalse(archives[2].exists())
+        self.assertEqual(journal.read_bytes(), before)
+
+        later.write_text("original later")
+        os.utime(later, ns=(later_info.st_atime_ns, later_info.st_mtime_ns))
+        archives[2].mkdir(parents=True)
+        (archives[2] / "collision").write_text("leave untouched")
+        refused = self.launch(*recovery)
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("Cannot reconcile existing destination", refused.stderr)
+        self.assertEqual(middle.stat().st_ino, middle_inode)
+        self.assertEqual(later.read_text(), "original later")
+        self.assertFalse(archives[1].exists())
+        self.assertEqual((archives[2] / "collision").read_text(), "leave untouched")
+        self.assertEqual(journal.read_bytes(), before)
+
+        archives[2].rename(self.home / "preserved-collision")
+        resumed = self.launch(*recovery)
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertFalse(middle.exists())
+        self.assertFalse(later.exists())
+        self.assertEqual([(archive / "key").read_text() for archive in archives],
+                         ["first payload", "middle payload", "original later"])
+        self.assertIn('"event": "finished"', journal.read_text())
+
+    def test_cross_mount_retirement_recovery_accepts_unlogged_quarantine(self):
+        target = self.cross_mount()
+        source = self.file(".old/key", "original payload")
+        inode = source.stat().st_ino
+        migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        transfer = self.journal()[0]["run"]
+        write = migrate.write_journal
+
+        def stop_before_completion(log, event):
+            if event["event"] == "done":
+                raise OSError("after retirement rename")
+            write(log, event)
+
+        with (patch.object(migrate, "write_journal", side_effect=stop_before_completion),
+              self.assertRaisesRegex(OSError, "after retirement rename")):
+            migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=transfer)
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        pending, = [run for run in runs if not run["finished"]]
+        header = pending["header"]
+        archive = Path(header["operations"][0]["target"]) / "key"
+        self.assertEqual([event["event"] for event in pending["events"]], ["intent"])
+        self.assertFalse(source.exists())
+        self.assertEqual(archive.stat().st_ino, inode)
+
+        resumed = self.launch("recover", "--group", "fixture", "--offline", "--run", header["run"])
+        self.assertEqual(resumed.returncode, 0, resumed.stderr)
+        self.assertFalse(source.exists())
+        self.assertEqual(archive.stat().st_ino, inode)
+        self.assertEqual((target / "key").read_text(), "original payload")
+        runs = migrate.read_runs(migrate.MoveBoundary(), self.home / "state")
+        self.assertTrue(all(run["finished"] for run in runs))
+
     def test_equal_copies_require_separate_plan_and_can_be_restored(self):
         old = self.file(".old", "authoritative bytes")
         new = self.file(".new", "authoritative bytes")

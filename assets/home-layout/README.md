@@ -144,8 +144,9 @@ group の runner に表示された run ID を渡す。
 別途対応する。旧版 journal を退ける場合も証拠を保持し、修復後のルートを再検証する。
 
 `retire --group GROUP --offline --run RUN_ID` は検証済み cross-mount 移行の旧側を可逆退避する。
-退避開始時と復旧時は、完了した転送 journal から権限を確認し、公開先の identity と内容を
-グループ全体で再検証してから退避する。公開先に後から書き込まれたデータがあれば両側を保全する。
+退避開始時と復旧時は、完了した転送 journal から権限を確認し、公開先、残っている旧側、
+退避先、既に完了した操作をグループ全体で照合してから次の操作に進む。identity や内容が
+記録と異なる場合は、追加の退避を始めずに現存するデータを保全する。
 既に同等に見える二つのコピーには、採用先への承認を得て別途の `plan --group GROUP --retire-equal`
 と `retire-equal --group GROUP --offline --expect TOKEN` を使う。いずれも通常 apply と別の承認が必要。
 `rollback --group GROUP --offline --run RUN_ID` は検証できた移動や退避を逆順に戻す。
