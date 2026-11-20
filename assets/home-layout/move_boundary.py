@@ -42,8 +42,12 @@ def identity(info):
 class MoveBoundary:
     def __init__(self):
         self.uid = os.geteuid()
-        self.mounts = {number: (path, fs) for number, _, _, path, fs
-                       in mountinfo(Path("/proc/self/mountinfo"))}
+        self.mounts = self.mount_table()
+
+    @staticmethod
+    def mount_table():
+        return {number: (device, root, path, fs) for number, device, root, path, fs
+                in mountinfo(Path("/proc/self/mountinfo"))}
 
     @contextmanager
     def directory(self, path, *, nearest=False, create=False):
@@ -89,19 +93,45 @@ class MoveBoundary:
             raise Unsupported(f"Migration directory permits untrusted entry changes: {path}")
         return shared
 
-    def mount(self, fd, path):
+    def mount(self, fd, path, *, refresh=True):
         number = next((line.split()[1] for line in Path(f"/proc/self/fdinfo/{fd}").read_text().splitlines()
                        if line.startswith("mnt_id:")), None)
-        if number not in self.mounts:
+        if number not in self.mounts or (refresh and self.mount_table().get(number) != self.mounts[number]):
             raise Unsupported(f"Cannot identify migration filesystem: {path}")
-        fs = self.mounts[number][1]
+        device, root, mountpoint, fs = self.mounts[number]
         if fs not in LOCAL_FILESYSTEMS:
             raise Unsupported(f"Unsupported migration filesystem {fs}: {path}")
+        if root != Path("/") or any(
+                key != number and entry[:2] == (device, root) for key, entry in self.mounts.items()):
+            raise Unsupported(f"Bind or non-root filesystem view requires manual review: {mountpoint}")
         return number
 
     def reject_mounts(self, path):
-        if any(mount.is_relative_to(path) for mount, _ in self.mounts.values()):
+        if any(mount.is_relative_to(path) for _, _, mount, _ in self.mount_table().values()):
             raise Unsupported(f"Migration entry is or contains a mount point: {path}")
+
+    def entry(self, path):
+        """Resolve a leaf without following any symlink; distinguish missing parents."""
+        try:
+            with self.directory(path.parent) as fd:
+                return os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+
+    def mount_at(self, path):
+        with self.directory(path, nearest=True) as fd:
+            return self.mount(fd, path)
+
+    def anchor(self, path):
+        with self.directory(path, nearest=True) as fd:
+            resolved = os.readlink(f"/proc/self/fd/{fd}")
+            return [resolved, list(identity(os.fstat(fd))), self.mount(fd, path)]
+
+    def check_capacity(self, path, bytes_needed):
+        with self.directory(path, nearest=True) as fd:
+            fs = os.fstatvfs(fd)
+            if fs.f_bavail * fs.f_frsize < bytes_needed or fs.f_favail == 0:
+                raise Unsupported(f"Insufficient staging capacity: {path}")
 
     def writable(self, fd, path):
         if not os.access(".", os.W_OK | os.X_OK, dir_fd=fd, effective_ids=True):
@@ -112,10 +142,3 @@ class MoveBoundary:
         target_mount = self.mount(target_fd, target)
         return (source_mount == target_mount
                 and os.fstat(source_fd).st_dev == entry_device == os.fstat(target_fd).st_dev)
-
-    def same_mount(self, source, target, entry_device):
-        with self.directory(source) as source_fd, self.directory(target, nearest=True) as target_fd:
-            if not self.matches(source_fd, source, target_fd, target, entry_device):
-                raise Unsupported(f"Cross-filesystem or cross-mount rename requires manual migration: {source} -> {target}")
-            self.writable(source_fd, source)
-            self.writable(target_fd, target)

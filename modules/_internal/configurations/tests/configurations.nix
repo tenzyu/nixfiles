@@ -360,7 +360,78 @@ in {
       };
     };
 
-    testNhFlakePathFollowsUserFeature = {
+    testHeldHomeRoutesKeepIntendedTargets = {
+        expr = let
+          routed =
+            (active.extendModules {
+              modules = [
+                {
+                  local.users.alice.features = {
+                    common.enable = true;
+                    home-layout.enable = true;
+                    codex.enable = false;
+                    firefox.enable = true;
+                    zsh.enable = true;
+                    android-mic.enable = true;
+                  };
+                  home-manager.users.alice = {
+                    xdg = {
+                      configHome = "/fixture/alice/settings";
+                      dataHome = "/fixture/alice/data";
+                      stateHome = "/fixture/alice/history";
+                    };
+                    local.homeMigration.legacyGroups = ["codex" "claude" "go" "zsh" "android-mic"];
+                    home.sessionVariables.GOBIN = "/fixture/alice/go/custom-bin";
+                    home.sessionVariables.GOMODCACHE = "/fixture/alice/go/custom-mod";
+                  };
+                }
+              ];
+            }).config;
+          user = routed.home-manager.users.alice;
+          rules = user.local.homeMigration.paths;
+          rule = group: lib.findFirst (item: item.group == group) null rules;
+          route = group: [(rule group).route (rule group).target];
+          vars = user.home.sessionVariables;
+        in {
+          codex = route "codex";
+          manualCodex = !user.local.features.codex.enable && vars.CODEX_HOME == "/fixture/alice/.codex";
+          claude = route "claude";
+          claudeExports = vars ? CLAUDE_CONFIG_DIR || user.systemd.user.sessionVariables ? CLAUDE_CONFIG_DIR;
+          go = route "go";
+          goConsumers = (rule "go").independentRoutes;
+          goBinInPath = builtins.elem vars.GOBIN user.home.sessionPath;
+          firefox = route "firefox";
+          zsh = route "zsh";
+          android = route "android-mic";
+          adbHome = vars.ANDROID_USER_HOME;
+          codexService = user.systemd.user.sessionVariables.CODEX_HOME;
+          hasPreSwitch = routed.system.preSwitchChecks ? home-migration-alice;
+          useUserPackages = routed.home-manager.useUserPackages;
+          backup = routed.home-manager.backupFileExtension;
+        };
+        expected = {
+          codex = ["/fixture/alice/.codex" "/fixture/alice/data/codex"];
+          manualCodex = true;
+          claude = ["/fixture/alice/.claude" "/fixture/alice/settings/claude"];
+          claudeExports = false;
+          go = ["/fixture/alice/go" "/fixture/alice/data/go"];
+          goConsumers = {
+            GOBIN = "/fixture/alice/go/custom-bin";
+            GOMODCACHE = "/fixture/alice/go/custom-mod";
+          };
+          goBinInPath = true;
+          firefox = ["/fixture/alice/settings/mozilla/firefox" "/fixture/alice/settings/mozilla/firefox"];
+          zsh = ["/fixture/alice/.zsh_history" "/fixture/alice/history/zsh/history"];
+          android = ["/fixture/alice/.android" "/fixture/alice/data/android/.android"];
+          adbHome = "/fixture/alice";
+          codexService = "/fixture/alice/.codex";
+          hasPreSwitch = true;
+          useUserPackages = true;
+          backup = "hm-backup";
+        };
+      };
+
+      testNhFlakePathFollowsUserFeature = {
       expr = let
         withNh =
           (active.extendModules {

@@ -6,6 +6,7 @@ import fcntl
 import io
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -39,6 +40,14 @@ class MigrationTest(unittest.TestCase):
                 return trust(boundary, fd, path, **options)
 
             self.enterContext(patch.object(migrate.MoveBoundary, "trust", trust_sandbox_root))
+        if build_dir:
+            mount_table = migrate.MoveBoundary.mount_table
+
+            def fixture_mount_table():
+                return {number: (device, Path("/") if path == Path(build_dir) else root, path, filesystem)
+                        for number, (device, root, path, filesystem) in mount_table().items()}
+
+            self.enterContext(patch.object(migrate.MoveBoundary, "mount_table", staticmethod(fixture_mount_table)))
         self.sandbox_xattr_listing = False
         if build_dir:
             try:
@@ -70,6 +79,10 @@ class MigrationTest(unittest.TestCase):
     def journal(self):
         journal, = (self.home / "state").glob("*/operations.jsonl")
         return [json.loads(line) for line in journal.read_text().splitlines()]
+
+    def recover(self, group="fixture"):
+        run = self.journal()[0]["run"]
+        migrate.mutate(self.manifest, "recover", group, {}, shutil.which("rsync"), run_id=run)
 
     def test_fresh_home_and_repeat_are_noops(self):
         self.rule(".old", ".local/share/new")
@@ -132,9 +145,11 @@ class MigrationTest(unittest.TestCase):
         scaffolding.symlink_to("/nix/store/nonexistent-home-manager-files/user.js")
         self.rule(".mozilla/firefox", ".config/mozilla/firefox")
         self.manifest["managed"] = [str(scaffolding)]
-        migrate.apply(self.manifest)
+        with self.assertRaises(migrate.Conflict):
+            migrate.apply(self.manifest)  # A matching store-name shape is insufficient.
+        migrate.apply(self.manifest, generated={scaffolding: {str(scaffolding.readlink())}})
         self.assertEqual((scaffolding.parent / "places.sqlite").read_text(), "bookmarks")
-        saved = list((self.home / "state").glob("*/scaffolding/0/default/user.js"))
+        saved = list((self.home / ".config/mozilla").glob(".home-layout-*-scaffold-0/payload/default/user.js"))
         self.assertEqual(len(saved), 1)
         self.assertTrue(saved[0].is_symlink())
 
@@ -251,19 +266,160 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(source.read_text(), "credentials")
         self.assertEqual(target.stat().st_ino, self.late_inode)
         self.assertEqual(list(target.iterdir()), [])
-        self.assertEqual([e["action"] for e in self.journal()], ["move-intent"])
+        self.assertEqual([e["event"] for e in self.journal()], ["begin", "intent"])
 
-    def test_cross_filesystem_requires_manual_migration(self):
-        self.file(".old/key")
-        self.rule(".old", "other-disk/new")
-        # Simulate a separate mount ID, including a same-device bind mount.
-        other_disk = self.home / "other-disk"
-        other_disk.mkdir()
-        with patch.object(migrate.MoveBoundary, "mount",
-                          side_effect=lambda fd, path: "2" if path == other_disk else "1"):
-            with self.assertRaisesRegex(migrate.Conflict, "Cross-filesystem"):
-                migrate.apply(self.manifest)
+    def cross_mount(self):
+        def unavailable(reason):
+            if os.environ.get("NIXFILES_REQUIRE_CROSS_MOUNT"):
+                self.fail(reason)
+            self.skipTest(reason)
+
+        if os.environ.get("NIX_BUILD_TOP"):
+            unavailable("cross-mount coverage runs on the disposable VM's two real filesystems")
+        mount = Path(os.environ.get("NIXFILES_CROSS_MOUNT", "/dev/shm"))
+        if not shutil.which("rsync"):
+            unavailable("real cross-mount fixture could not find rsync on PATH")
+        if not mount.is_dir():
+            unavailable(f"real cross-mount fixture mount is missing: {mount}")
+        if not os.access(mount, os.W_OK | os.X_OK):
+            unavailable(f"real cross-mount fixture mount is not writable by the fixture UID: {mount}")
+        try:
+            destination = self.enterContext(tempfile.TemporaryDirectory(dir=mount))
+        except OSError as error:
+            unavailable(f"real cross-mount fixture unavailable: {error}")
+        target = Path(destination) / "new"
+        if self.home.stat().st_dev == target.parent.stat().st_dev:
+            unavailable("fixture requires two distinct filesystems")
+        self.manifest.update(version=2, externalBases=[destination])
+        self.rule(".old", ".unused")["target"] = str(target)
+        return target
+
+    def test_cross_mount_copy_and_separately_reversible_retirement(self):
+        target = self.cross_mount()
+        original = self.file(".old/key", "legacy-record")
+        os.link(original, original.with_name("hardlink"))
+        original.with_name("alias").symlink_to("key")
+        sparse = original.with_name("sparse")
+        with sparse.open("wb") as stream:
+            stream.seek(1024 * 1024)
+            stream.write(b"end")
+        if shutil.which("setfacl"):
+            subprocess.run(["setfacl", "-m", "u:65534:r--", original], check=True)
+        os.setxattr(original, "user.fixture", b"metadata")
+        inode = original.stat().st_ino
+        actions = migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        self.assertEqual(actions[0]["action"], "move")
+        first = self.journal()[0]["run"]
+        self.assertEqual(migrate.apply(self.manifest, rsync=shutil.which("rsync")), [])
+        self.assertEqual(original.stat().st_ino, inode)
+        self.assertEqual((target / "alias").read_text(), "legacy-record")
+        self.assertEqual((target / "key").stat().st_ino, (target / "hardlink").stat().st_ino)
+        self.assertEqual(os.getxattr(target / "key", "user.fixture"), b"metadata")
+        self.assertLess((target / "sparse").stat().st_blocks * 512, sparse.stat().st_size)
+        if shutil.which("getfacl"):
+            self.assertEqual(subprocess.check_output(["getfacl", "-cp", original]),
+                             subprocess.check_output(["getfacl", "-cp", target / "key"]))
+        migrate.mutate(self.manifest, "retire", "fixture", {}, None, run_id=first)
+        self.assertFalse(original.exists())
+        retired = migrate.disposition(migrate.read_runs(migrate.MoveBoundary(), self.home / "state"),
+                                       {"header": {"run": first}}, "retire")
+        migrate.mutate(self.manifest, "rollback", "fixture", {}, None, run_id=retired["header"]["run"])
+        self.assertEqual(original.stat().st_ino, inode)
+        migrate.mutate(self.manifest, "rollback", "fixture", {}, None, run_id=first)
+        self.assertFalse(target.exists())
+        self.assertEqual(original.read_text(), "legacy-record")
+        self.assertEqual(len(list(target.parent.glob(".home-layout-*-rollback-*"))), 1)
+
+    def test_cross_mount_interrupted_copy_retries_in_fresh_stage(self):
+        target = self.cross_mount()
+        original = self.file(".old/key", "legacy")
+        rsync = migrate.subprocess.run
+
+        def interrupt(args, **kwargs):
+            Path(args[-1]).mkdir()
+            Path(args[-1], "partial").write_text("incomplete")
+            raise OSError("interrupted staging")
+        with patch.object(migrate.subprocess, "run", side_effect=interrupt):
+            with self.assertRaisesRegex(OSError, "interrupted staging"):
+                migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        self.assertFalse(target.exists())
+        self.assertEqual(original.read_text(), "legacy")
+        self.assertEqual(self.invoke("apply", "--group", "fixture", "--offline").returncode, 1)
+        self.assertIs(migrate.subprocess.run, rsync)
+        run = self.journal()[0]["run"]
+        result = self.invoke("recover", "--group", "fixture", "--offline", "--run", run)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((target / "key").read_text(), "legacy")
+        self.assertEqual(len(list(target.parent.glob(".home-layout-*-stage/payload/partial"))), 1)
+
+    def test_cross_mount_external_hardlink_fails_preflight(self):
+        target = self.cross_mount()
+        original = self.file(".old/key")
+        os.link(original, self.home / "external-link")
+        with self.assertRaisesRegex(migrate.Unsupported, "hard links outside"):
+            migrate.apply(self.manifest, rsync=shutil.which("rsync"))
+        self.assertFalse(target.exists())
         self.assertFalse((self.home / "state").exists())
+
+    def test_equal_copies_require_separate_plan_and_can_be_restored(self):
+        old = self.file(".old", "authoritative bytes")
+        new = self.file(".new", "authoritative bytes")
+        for path in (old, new):
+            os.utime(path, (100, 100))
+        self.rule(".old", ".new")
+        self.assertEqual(self.invoke("apply", "--group", "fixture", "--offline").returncode, 1)
+        plan = self.invoke("plan", "--group", "fixture", "--retire-equal")
+        self.assertEqual(plan.returncode, 0, plan.stderr)
+        token = json.loads(plan.stdout)["expect"]
+        retired = self.invoke("retire-equal", "--group", "fixture", "--offline", "--expect", token)
+        self.assertEqual(retired.returncode, 0, retired.stderr)
+        self.assertFalse(old.exists())
+        self.assertEqual(new.read_text(), "authoritative bytes")
+        run = self.journal()[0]["run"]
+        restored = self.invoke("rollback", "--group", "fixture", "--offline", "--run", run)
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual(old.read_text(), new.read_text())
+
+    def test_source_substitution_after_intent_stops_without_publishing(self):
+        old = self.file(".old", "original")
+        saved = self.home / "preserved-original"
+        self.rule(".old", "new")
+        journal = migrate.write_journal
+
+        def substitute(log, event):
+            journal(log, event)
+            if event["event"] == "intent":
+                old.rename(saved)
+                old.write_text("late entry")
+
+        with (patch.object(migrate, "write_journal", side_effect=substitute),
+              self.assertRaisesRegex(migrate.Conflict, "source changed")):
+            migrate.apply(self.manifest)
+        self.assertFalse((self.home / "new").exists())
+        self.assertEqual(saved.read_text(), "original")
+        self.assertEqual(old.read_text(), "late entry")
+        with self.assertRaises(migrate.Conflict):
+            self.recover()
+
+    def test_mount_identity_change_stops_before_a_move(self):
+        old = self.file(".old", "original")
+        self.rule(".old", "new")
+        anchor = migrate.MoveBoundary.anchor
+        calls = 0
+
+        def changed(boundary, path):
+            nonlocal calls
+            calls += 1
+            answer = anchor(boundary, path)
+            if calls > 2:
+                answer[-1] = "replacement"
+            return answer
+
+        with (patch.object(migrate.MoveBoundary, "anchor", changed),
+              self.assertRaisesRegex(migrate.Conflict, "parent or mount changed")):
+            migrate.apply(self.manifest)
+        self.assertEqual(old.read_text(), "original")
+        self.assertFalse((self.home / "new").exists())
 
     def test_custom_xdg_roots_and_json_only_legacy(self):
         self.file(".claude.json", '{"keep": true}')
@@ -290,9 +446,32 @@ class MigrationTest(unittest.TestCase):
                 migrate.apply(self.manifest)
         self.assertEqual((self.home / "first/key").read_text(), "one")
         self.assertTrue((self.home / ".second/key").exists())
-        self.assertEqual([e["action"] for e in self.journal()], ["move-intent", "move", "move-intent"])
-        migrate.apply(self.manifest)
+        self.assertEqual([e["event"] for e in self.journal()], ["begin", "intent", "done", "intent"])
+        with self.assertRaisesRegex(migrate.Conflict, "Recover outstanding run"):
+            migrate.apply(self.manifest)
+        self.recover()
         self.assertEqual((self.home / "second/key").read_text(), "two")
+
+    def test_recovery_after_nested_parent_was_published(self):
+        self.file(".bun/install/cache/key", "cached")
+        self.file(".bun/bin/bun", "binary")
+        self.rule(".bun/install/cache", "cache/bun/install")
+        self.rule(".bun", "data/bun")
+        write = migrate.write_journal
+
+        def interrupt(log, event):
+            if event["event"] == "done" and event["index"] == 1:
+                raise OSError(errno.ENOSPC, "nested parent completion")
+            write(log, event)
+
+        with (patch.object(migrate, "write_journal", side_effect=interrupt),
+              self.assertRaisesRegex(OSError, "nested parent completion")):
+            migrate.apply(self.manifest)
+        self.assertFalse((self.home / ".bun").exists())
+        self.recover()
+        self.assertEqual(self.journal()[-1]["event"], "finished")
+        self.assertEqual((self.home / "cache/bun/install/key").read_text(), "cached")
+        self.assertEqual((self.home / "data/bun/bin/bun").read_text(), "binary")
 
     def test_unknown_absolute_self_symlinks_block(self):
         self.file(".old/key")
@@ -342,10 +521,10 @@ class MigrationTest(unittest.TestCase):
         before = migrate.plan(self.manifest)
         self.assertTrue(any(a["action"] == "symlink" for a in before))
         self.assertEqual(os.readlink(alias), str(package.parent))
-        activation = self.invoke("check", "--activation")
-        self.assertEqual(activation.returncode, 0, activation.stderr)
-        self.assertIn("[home-layout] symlink", activation.stderr)
-        self.assertIn("manual repair", activation.stderr)
+        review = self.invoke("check")
+        self.assertEqual(review.returncode, 0, review.stderr)
+        self.assertIn('"symlink"', review.stdout)
+        self.assertIn("operator review", review.stderr)
         with self.assertRaises(migrate.Unsupported):
             migrate.apply(self.manifest)
         self.assertFalse((self.home / "state").exists())
@@ -371,9 +550,10 @@ class MigrationTest(unittest.TestCase):
                 new = self.file(f"{target}/entry", "new")
                 before = [path.stat().st_ino for path in (old, new)]
                 self.rule(source, target, owner=owner, onConflict="backup")
-                result = self.invoke("check", "--activation")
+                result = self.invoke("check")
                 self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertIn(f"Both paths contain data ({owner})", result.stderr)
+                self.assertIn("Both paths contain data", result.stderr)
+                self.assertIn(owner, result.stderr)
                 with self.assertRaises(migrate.Conflict):
                     migrate.apply(self.manifest)
                 self.assertEqual([path.stat().st_ino for path in (old, new)], before)
@@ -392,7 +572,7 @@ class MigrationTest(unittest.TestCase):
         journal.parent.parent.chmod(0o700)
         result = self.invoke("check")
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("Apparent match (no writer exclusion)", result.stderr)
+        self.assertIn("Unexpected entry in migration journal", result.stderr)
         self.assertNotIn("private data", result.stderr)
         with self.assertRaises(migrate.Conflict):
             migrate.apply(self.manifest)
@@ -427,7 +607,7 @@ class MigrationTest(unittest.TestCase):
         self.manifest["managed"] = [str(target)]
         with (patch.object(migrate.os, "listxattr", side_effect=OSError(errno.ENOTSUP, "no xattrs")),
               self.assertRaises(OSError) as failure):
-            migrate.apply(self.manifest)
+            migrate.apply(self.manifest, generated={target: {str(target.readlink())}})
         self.assertEqual(failure.exception.errno, errno.ENOTSUP)
         self.assertTrue(target.is_symlink())
 
@@ -522,31 +702,57 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("comparison could not establish a match (PermissionError)", result.stderr)
 
-    def test_activation_warns_for_pending_move_without_reading_a_busy_process(self):
+    def test_activation_distinguishes_held_pending_and_unverified_redirect(self):
         old = self.file(".old/key", "private fixture")
         before = old.stat()
-        self.rule(".old", ".new", owner="firefox", processes=["*"])
-        activation = self.invoke("check", "--activation")
-        self.assertEqual(activation.returncode, 0, activation.stderr)
-        self.assertIn("[firefox] move", activation.stderr)
-        self.assertIn(str(old.parent), activation.stderr)
-        self.assertIn(str(self.home / ".new"), activation.stderr)
-        self.assertIn("home-layout-migrate check", activation.stderr)
-        self.assertNotIn("private fixture", activation.stderr + activation.stdout)
+        rule = self.rule(".old", ".new", owner="firefox", processes=["*"], route=str(old.parent))
+        self.manifest["adopt"] = {"firefox": "legacy"}
+        errors = io.StringIO()
+        with (patch.object(migrate, "generation_files", return_value={}),
+              patch.object(migrate, "busy", side_effect=AssertionError("activation scans writers")),
+              redirect_stderr(errors)):
+            generation = Path("/fixture-generation")
+            migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, None, False)
+            rule["route"] = rule["target"]
+            with self.assertRaisesRegex(migrate.Conflict, "intended route requires a verified transfer"):
+                migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, None, False)
+        self.assertIn("[firefox] migration assessment: legacy pending", errors.getvalue())
+        self.assertIn("runtime continuity: legacy held", errors.getvalue())
+        self.assertNotIn("private fixture", errors.getvalue())
         self.assertEqual(old.stat().st_ino, before.st_ino)
-        self.assertEqual(old.stat().st_mode, before.st_mode)
         self.assertFalse((self.home / ".new").exists())
         self.assertFalse((self.home / "state").exists())
 
     def test_activation_retains_a_specific_managed_link_blocker(self):
         body = self.file(".old/profile.js", "private profile")
-        self.rule(".old", ".new", owner="firefox")
-        self.manifest["managed"] = [str(self.home / ".new/profile.js")]
-        result = self.invoke("check", "--activation")
-        self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("Legacy file would collide with a managed file (firefox)", result.stderr)
-        self.assertIn(str(body), result.stderr)
-        self.assertNotIn("private profile", result.stderr)
+        self.rule(".old", ".new", owner="firefox", route=str(body.parent))
+        self.manifest["adopt"] = {"firefox": "legacy"}
+        generated = {body: {"/nix/store/fixture-home-manager-files/.old/profile.js"}}
+        with (patch.object(migrate, "generation_files", return_value=generated),
+              self.assertRaisesRegex(migrate.Conflict, "Home Manager link would displace protected data")):
+            migrate.activation_gate(self.manifest, migrate.MoveBoundary(), Path("/fixture-generation"),
+                                    None, None, False)
+        self.assertEqual(body.read_text(), "private profile")
+
+    def test_restored_payload_admits_native_legacy_route_under_exclusion(self):
+        source = self.file(".old/marker", "original")
+        rule = self.rule(".old", ".new")
+        migrate.apply(self.manifest)
+        run = self.journal()[0]["run"]
+        incumbent = self.home / "installed-generation"
+        incumbent.mkdir()
+        (incumbent / "home-layout-manifest.json").write_text(json.dumps(self.manifest))
+        rule["route"] = rule["source"]
+        generation = Path("/fixture-generation")
+        with patch.object(migrate, "generation_files", return_value={}):
+            with self.assertRaisesRegex(migrate.Conflict, "no verified legacy incumbent"):
+                migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, False)
+            migrate.mutate(self.manifest, "rollback", "fixture", {}, None, run_id=run)
+            with self.assertRaisesRegex(migrate.Conflict, "exclude active sessions and writers before rollback"):
+                migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, True)
+            migrate.activation_gate(self.manifest, migrate.MoveBoundary(), generation, None, incumbent, False)
+        self.assertEqual(source.read_text(), "original")
+        self.assertFalse((self.home / ".new").exists())
 
     def test_cross_rule_absolute_link_proposal_uses_specific_target(self):
         cache = self.file('.bun/install/cache/cli-width@4.1.0@@@1/package', 'legacy')
@@ -664,7 +870,7 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("operator review", result.stderr)
         self.assertIn("rewrite", result.stdout)
-        result = self.invoke("apply")
+        result = self.invoke("apply", "--group", "fixture", "--offline")
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("batch refused", result.stderr)
         self.assertNotIn("private fixture", result.stdout + result.stderr)
@@ -675,7 +881,8 @@ class MigrationTest(unittest.TestCase):
 
     def launch(self, *args):
         launcher = os.environ.get("MIGRATE_LAUNCHER")
-        command = [launcher] if launcher else [sys.executable, migrate.__file__, "--manifest", "/proc/self/fd/0"]
+        command = [launcher] if launcher else [sys.executable, migrate.__file__, "--manifest", "/proc/self/fd/0",
+                                                 "--rsync", shutil.which("rsync") or "rsync"]
         return subprocess.run(command + list(args), input=json.dumps(self.manifest),
                               capture_output=True, text=True, check=False)
 
@@ -693,12 +900,15 @@ class MigrationTest(unittest.TestCase):
     def test_real_launcher_read_only_startup(self):
         self.rule(".absent", "xdg/new")
         result = self.launch("check", "--require-noop")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "[]")
+        if self.sandbox_root:
+            self.assertEqual(result.returncode, 1, result.stderr)
+        else:
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "[]")
         self.assertFalse((self.home / "state").exists())
         if self.sandbox_root:
             self.file(".absent/key")
-            result = self.launch("apply")
+            result = self.launch("apply", "--group", "fixture", "--offline")
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("untrusted entry changes: /", result.stderr)
             self.assertFalse((self.home / "state").exists())
@@ -711,7 +921,9 @@ class MigrationTest(unittest.TestCase):
         self.assertEqual(check.returncode, 2, check.stderr)
         self.assertFalse((self.home / "state").exists())
         self.assertTrue(original.exists())
-        applied = self.invoke("apply")
+        plan = self.invoke("plan", "--group", "fixture")
+        token = json.loads(plan.stdout)["expect"]
+        applied = self.invoke("apply", "--group", "fixture", "--offline", "--expect", token)
         self.assertEqual(applied.returncode, 0, applied.stderr)
         self.assertFalse(original.exists())
         self.assertEqual((self.home / "xdg/new/key").stat().st_ino, inode)
@@ -726,7 +938,7 @@ class MigrationTest(unittest.TestCase):
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.assertEqual(self.invoke("check", "--require-noop").returncode, 2)
-            result = self.invoke("apply")
+            result = self.invoke("apply", "--group", "fixture", "--offline")
             self.assertEqual(result.returncode, 1)
             self.assertIn("HOME lock", result.stderr)
         finally:
@@ -785,6 +997,8 @@ class MigrationTest(unittest.TestCase):
         journal = migrate.write_journal
 
         def fail_intent(log, event):
+            if event["event"] != "intent":
+                return journal(log, event)
             with patch.object(migrate.os, "fsync", side_effect=OSError(errno.ENOSPC, "journal flush")):
                 journal(log, event)
 
@@ -793,9 +1007,9 @@ class MigrationTest(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "journal flush"):
                 migrate.apply(self.manifest)
         execute.assert_not_called()
-        event, = self.journal()
-        self.assertEqual(event["action"], "move-intent")
-        self.assertEqual(event["inode"], original.stat().st_ino)
+        begin, event = self.journal()
+        self.assertEqual(event["event"], "intent")
+        self.assertEqual(event["entry"][1], original.stat().st_ino)
         self.assertFalse((self.home / "xdg/new").exists())
 
     def test_backup_parent_flush_failure_leaves_visible_archive_and_legacy(self):
@@ -815,7 +1029,6 @@ class MigrationTest(unittest.TestCase):
                 flushes.append(fd)
                 raise OSError(errno.EIO, "backup directory flush")
             with patch.object(migrate.os, "fsync", side_effect=fail):
-                self.assertNotEqual(intent.source.parent_fd, intent.target.parent_fd)
                 try:
                     return execute(intent, **kwargs)
                 finally:
@@ -823,16 +1036,16 @@ class MigrationTest(unittest.TestCase):
 
         with patch.object(migrate.safety, "execute_move", side_effect=failed_backup_flush):
             with self.assertRaisesRegex(migrate.safety.OutcomeUnknown, "parent flush failed"):
-                migrate.apply(self.manifest)
-        event, = self.journal()
-        self.assertEqual((event["action"], event["kind"]), ("move-intent", "scaffolding"))
+                migrate.apply(self.manifest, generated={target: {link}})
+        begin, event = self.journal()
+        self.assertEqual(event["event"], "intent")
+        self.assertEqual(begin["operations"][0]["kind"], "scaffold")
         self.assertFalse(target.is_symlink())
         backup = Path(event["target"]) / "user.js"
         self.assertEqual(backup.lstat().st_ino, cache_inode)
         self.assertEqual(str(backup.readlink()), link)
         self.assertEqual(old.stat().st_ino, legacy_inode)
-        # Retry follows the observed entries after an operator reconciles them.
-        migrate.apply(self.manifest)
+        self.recover()
         self.assertEqual(target.with_name("key").stat().st_ino, legacy_inode)
         self.assertEqual(backup.lstat().st_ino, cache_inode)
 
@@ -848,23 +1061,27 @@ class MigrationTest(unittest.TestCase):
             return fsync(fd)
 
         def completion(log, event):
-            if event["action"] == "move":
+            if event["event"] == "done":
                 self.assertEqual(observed[-2:], [self.home / "deep", self.home])
                 raise OSError(errno.ENOSPC, "completion flush failed")
             journal(log, event)
 
         with (patch.object(migrate, "write_journal", side_effect=completion),
               patch.object(migrate.os, "fsync", side_effect=track)):
-            with self.assertRaises(migrate.safety.OutcomeUnknown) as failure:
+            with self.assertRaises(OSError) as failure:
                 migrate.apply(self.manifest)
         self.assertEqual(failure.exception.errno, errno.ENOSPC)
         self.assertFalse(old.exists())
         target = self.home / "deep/target"
         self.assertEqual(target.stat().st_ino, inode)
         self.assertEqual(target.read_text(), "data")
-        event, = self.journal()
-        self.assertEqual(event["action"], "move-intent")
-        self.assertEqual(event["inode"], inode)
+        begin, event = self.journal()
+        self.assertEqual(event["event"], "intent")
+        self.assertEqual(event["entry"][1], inode)
+        run = begin["run"]
+        recovered = self.invoke("recover", "--group", "fixture", "--offline", "--run", run)
+        self.assertEqual(recovered.returncode, 0, recovered.stderr)
+        self.assertEqual(self.journal()[-1]["event"], "finished")
         self.assertEqual(migrate.plan(self.manifest), [])
 
 

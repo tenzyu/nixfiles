@@ -1,73 +1,125 @@
 #!/usr/bin/env bash
-# Evaluate the real DAG entries and run the two pre-write steps against a fixture HOME.
+# Invoke only inside the disposable NixOS test machine.
 set -euo pipefail
+trap 'printf "Home activation fixture failed at line %s\n" "$LINENO" >&2' ERR
 
-fixture=$(mktemp -d /tmp/nixfiles-hm-preflight.XXXXXXXX)
-trap 'rm -rf -- "$fixture"' EXIT
-export ADR02_FIXTURE_HOME="$fixture/home"
-export ADR02_FIXTURE_USER
-ADR02_FIXTURE_USER=$(id -un)
-mkdir -m 700 "$ADR02_FIXTURE_HOME"
+user=hfixture
+home=/home/$user
+profile=/etc/profiles/per-user/$user
+base=$(readlink -f /run/current-system)
+variants=$base/specialisation
 
-runner=$(nix build --no-link --print-out-paths --no-write-lock-file --impure --expr '
-let
-  flake = builtins.getFlake (toString ./.);
-  pkgs = flake.inputs.nixpkgs.legacyPackages.x86_64-linux;
-  home = (flake.inputs.home-manager.lib.homeManagerConfiguration {
-    inherit pkgs;
-    modules = [
-      flake.modules.homeManager.home-migration
-      ({config, ...}: {
-        home = {
-          username = builtins.getEnv "ADR02_FIXTURE_USER";
-          homeDirectory = builtins.getEnv "ADR02_FIXTURE_HOME";
-          stateVersion = "26.05";
-          file."managed.txt".text = "generation content";
-        };
-        local.homeMigration.paths = [{
-          owner = "fixture";
-          source = "${config.home.homeDirectory}/.legacy";
-          target = "${config.home.homeDirectory}/.new";
-        }];
-      })
-    ];
-  }).config;
-  activation = home.home.activation;
-  ordered = (home.lib.dag.topoSort activation).result;
-  steps = builtins.filter (step: builtins.elem step.name [
-    "checkHomeMigration" "checkLinkTargets" "writeBoundary"
-  ]) ordered;
-in assert map (step: step.name) steps ==
-  ["checkHomeMigration" "checkLinkTargets" "writeBoundary"];
-pkgs.writeShellScript "fixture-home-preflight" ("\n  set -eu\n"
-  + "export HOME=${pkgs.lib.escapeShellArg home.home.homeDirectory}\n"
-  + "export PATH=${pkgs.lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.findutils pkgs.diffutils]}\n"
-  + "newGenPath=${home.home.activationPackage}\n"
-  + activation.checkHomeMigration.data
-  + activation.checkLinkTargets.data
-  + ": > \"$HOME/reached-write-boundary\"\n")
-')
+as_user() {
+  setpriv --reuid=1000 --regid="$(id -g "$user")" --init-groups \
+    env -i HOME="$home" USER="$user" PATH=/run/current-system/sw/bin "$@"
+}
 
-mkdir "$ADR02_FIXTURE_HOME/.legacy"
-legacy="$ADR02_FIXTURE_HOME/.legacy/key"
-sentinel="$ADR02_FIXTURE_HOME/reached-write-boundary"
-printf legacy > "$legacy"
-chmod 600 "$legacy"
-before=$(stat -c '%i:%a:%s' "$legacy")
-"$runner" > "$fixture/pending.log" 2>&1
-grep -F '[fixture] move' "$fixture/pending.log"
-test -f "$sentinel"
-test "$(stat -c '%i:%a:%s' "$legacy")" = "$before"
-test "$(cat "$legacy")" = legacy
-test ! -e "$ADR02_FIXTURE_HOME/.new"
-rm "$sentinel"
+app() {
+  as_user bash -ec 'source "$1/etc/profile.d/hm-session-vars.sh"; shift; bash -c '"'"'exec "$@"'"'"' bash "$@"' \
+    bash "$profile" "$profile/bin/fixture-app" "$@"
+}
 
-printf collision > "$ADR02_FIXTURE_HOME/managed.txt"
-if "$runner" > "$fixture/collision.log" 2>&1; then
-  echo 'Native Home Manager check accepted a conflicting file' >&2
+candidate() {
+  "$variants/$1/bin/switch-to-configuration" test
+}
+
+test -f "$home/reached-initial"
+test -L "$home/.codex/old-link"
+as_user bash -c 'printf "legacy-record\n" > "$HOME/.codex/record"'
+inode=$(stat -c %i "$home/.codex/record")
+test "$(app read)" = legacy-record
+
+# An early switch failure must leave the profile, managed writes and app data alone.
+for variant in intended backup forced; do
+  if candidate "$variant" > "/tmp/$variant.log" 2>&1; then
+    echo "$variant was admitted" >&2
+    exit 1
+  fi
+  case "$variant" in
+    intended) grep -F 'intended route requires a verified transfer' "/tmp/$variant.log" ;;
+    backup|forced) grep -F 'Home Manager link would displace protected data' "/tmp/$variant.log" ;;
+  esac
+  test "$(readlink -f /run/current-system)" = "$base"
+  test "$(app version)" = initial
+  test ! -e "$home/reached-$variant"
+  test ! -e "$home/.codex/record.hm-backup"
+  test "$(stat -c %i "$home/.codex/record")" = "$inode"
+done
+
+as_user bash -c 'printf unmanaged > "$HOME/unrelated.txt"; printf incumbent > "$HOME/unrelated.txt.hm-backup"'
+if candidate held > /tmp/unowned.log 2>&1; then
+  echo 'Native Home Manager collision check accepted the occupied backup name' >&2
   exit 1
 fi
-grep -F 'would be clobbered' "$fixture/collision.log"
-test ! -e "$sentinel"
-test "$(cat "$ADR02_FIXTURE_HOME/managed.txt")" = collision
-test "$(stat -c '%i:%a:%s' "$legacy")" = "$before"
+grep -F 'would be clobbered by backing up' /tmp/unowned.log
+test "$(cat "$home/unrelated.txt")" = unmanaged
+test "$(cat "$home/unrelated.txt.hm-backup")" = incumbent
+as_user mv "$home/unrelated.txt.hm-backup" "$home/saved-unrelated-backup"
+candidate held
+systemctl is-active home-manager-hfixture.service
+test -f "$home/reached-held"
+test "$(cat "$home/unrelated.txt.hm-backup")" = unmanaged
+test ! -e "$home/.codex/old-link"
+test "$(app version)" = held
+test "$(app read)" = legacy-record
+test ! -e "$home/.local/share/codex/record"
+
+unit_read() {
+  systemctl start user@1000.service
+  as_user env XDG_RUNTIME_DIR=/run/user/1000 systemctl --user start fixture-read.service
+  tail -1 "$home/unit-read"
+  systemctl stop user@1000.service
+}
+test "$(unit_read)" = legacy-record
+
+wait_for_user_clear() {
+  for attempt in $(seq 1 80); do
+    if ! loginctl list-users --no-legend | awk '$1 == 1000 { found = 1 } END { exit !found }'; then
+      return
+    fi
+    sleep 0.25
+  done
+  loginctl list-users >&2
+  return 1
+}
+wait_for_user_clear
+
+# The actual standalone HM pre-write path must reject the embedded backup
+# policy too, even if NixOS's admission hook is bypassed.
+forced=$(readlink -e "$variants/forced/etc/home-migration/$user")
+if as_user env HOME_MANAGER_BACKUP_EXT=hm-backup "$forced/activate" --driver-version 1 > /tmp/hm-prewrite.log 2>&1; then
+  exit 1
+fi
+grep -F 'Home Manager link would displace protected data' /tmp/hm-prewrite.log
+test ! -e "$home/reached-forced"
+test "$(stat -c %i "$home/.codex/record")" = "$inode"
+
+# Prepare through the unactivated candidate's own runner.
+runner="$variants/intended/etc/home-migration/$user/home-layout-migrate"
+token=$(as_user "$runner" plan --group codex | jq -er .expect)
+as_user "$runner" apply --group codex --offline --expect "$token"
+as_user "$runner" apply --group codex --offline --expect "$token"
+test "$(stat -c %i "$home/.local/share/codex/record")" = "$inode"
+test ! -e "$home/.codex"
+loginctl enable-linger "$user"
+systemctl start user@1000.service
+if candidate intended > /tmp/live.log 2>&1; then
+  echo 'Route cutover accepted a running user manager' >&2
+  exit 1
+fi
+grep -F 'exclude active sessions and writers before cutover' /tmp/live.log
+loginctl disable-linger "$user"
+if loginctl show-user "$user" >/dev/null 2>&1; then
+  loginctl terminate-user "$user"
+fi
+wait_for_user_clear
+candidate intended
+systemctl is-active home-manager-hfixture.service
+test -f "$home/reached-intended"
+test -L "$home/.local/share/codex/new-link"
+test "$(app version)" = intended
+test "$(app read)" = legacy-record
+app save reopened-record
+test "$(app read | tail -1)" = reopened-record
+test "$(unit_read)" = reopened-record
+test ! -e "$home/.codex"

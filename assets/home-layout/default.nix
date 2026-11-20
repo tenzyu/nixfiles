@@ -1,6 +1,7 @@
 {
   callPackage,
   python3,
+  rsync,
   runCommand,
   writeShellScript,
 }: let
@@ -15,6 +16,7 @@ in {
   inherit source;
   launcher = manifest:
     writeShellScript "home-layout-migrate" ''
-      exec ${python3}/bin/python3 -E -s -B ${source}/migrate.py "$@" --manifest ${manifest}
+      exec ${python3}/bin/python3 -E -s -B ${source}/migrate.py "$@" --manifest ${manifest} \
+        --rsync ${rsync}/bin/rsync --launcher "$0"
     '';
 }

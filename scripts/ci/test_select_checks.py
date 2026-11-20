@@ -126,7 +126,7 @@ class SelectionTests(unittest.TestCase):
                 self.assertEqual(module.selection([path]), (["parsec-activation"], False))
 
     def test_migration_rule_owners_are_mapped(self):
-        for path in pathlib.Path("modules/50-features").rglob("*.nix"):
+        for path in pathlib.Path("modules").rglob("*.nix"):
             if "local.homeMigration.paths" in path.read_text():
                 with self.subTest(path=str(path)):
                     self.assertIn("home-migration", module.selection([str(path)])[0])
