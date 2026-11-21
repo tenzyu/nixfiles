@@ -9,7 +9,7 @@
       set -eu
 
       if systemctl --user is-active --quiet mako.service 2>/dev/null; then
-        makoctl mode -a hyprland-gamemode 2>/dev/null || true
+        ${pkgs.mako}/bin/makoctl mode -a hyprland-gamemode 2>/dev/null || true
       fi
       pkill -STOP -x waybar 2>/dev/null || true
 
@@ -35,7 +35,7 @@
 
       pkill -CONT -x waybar 2>/dev/null || true
       if systemctl --user is-active --quiet mako.service 2>/dev/null; then
-        makoctl mode -r hyprland-gamemode 2>/dev/null || true
+        ${pkgs.mako}/bin/makoctl mode -r hyprland-gamemode 2>/dev/null || true
       fi
     '';
   in {
