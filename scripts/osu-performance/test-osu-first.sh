@@ -76,12 +76,12 @@ reset
 if OSU_FIRST_CPU_WEIGHT=10001 "$script_dir/osu-first.sh" solo >/dev/null 2>&1; then fail 'out-of-range CPU weight should fail'; fi
 expect_count 0
 # Game notifications must be hidden without stopping/restarting the Mako unit.
+expected_mako_log="$(printf '%s\n' 'mode -a osu-first' 'mode -r osu-first')"
 reset
 rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null
 expect_count 1
-[[ "$(cat "$TEST_MAKO_LOG")" == 
-mode -a osu-first\nmode -r osu-first' ]] || fail 'Mako mode must be enabled and restored'
+[[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'Mako mode must be enabled and restored'
 [[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || fail 'osu-first must not stop or start the Mako systemd unit'
 # Restore notifications even when the game exits with an error.
 reset
@@ -89,8 +89,7 @@ rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
 if TEST_GAME_RC=7 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null 2>&1; then fail 'game exit 7 must propagate'; else rc=$?; fi
 [[ "$rc" == 7 ]] || fail "expected game status 7 got $rc"
 expect_count 1
-[[ "$(cat "$TEST_MAKO_LOG")" == 
-mode -a osu-first\nmode -r osu-first' ]] || fail 'Mako mode must be restored after game failure'
+[[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'Mako mode must be restored after game failure'
 [[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || fail 'no Mako unit lifecycle calls on game failure'
 # If Mako cannot enter DND, do not claim it was set or alter its exit state.
 reset
