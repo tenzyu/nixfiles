@@ -2,11 +2,15 @@
   flake.modules.homeManager.waybar = {
     config,
     lib,
+    pkgs,
     ...
   }: {
     config = lib.mkIf config.local.features.waybar.enable {
       programs.waybar = {
         enable = true;
+        # 0.15.0 aborts in Battery::refreshBatteries on power-supply hotplug.
+        # The pinned unstable package includes upstream's USB unplug race fix.
+        package = pkgs.unstable.waybar;
 
         settings = [
           {
