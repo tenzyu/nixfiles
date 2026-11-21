@@ -1,5 +1,46 @@
 {...}: {
   configurations.nixos.neko7.module = {
+    # Evidence-oriented declarations. Observe first; no data move or routing change.
+    home-manager.users.tenzyu.local.homeAuthority = {
+      root.forbidden = [".pi" ".docker" ".nv" ".lesshst" ".codex" ".bash_history"];
+      states = let
+        home = "/home/tenzyu";
+      in {
+        pi = {
+          legacy = ".pi";
+          canonical = "${home}/.config/pi";
+          nativeEnvironment.PI_CODING_AGENT_DIR = "${home}/.config/pi/agent";
+        };
+        docker = {
+          legacy = ".docker";
+          canonical = "${home}/.config/docker";
+          nativeEnvironment.DOCKER_CONFIG = "${home}/.config/docker";
+        };
+        cuda = {
+          legacy = ".nv";
+          canonical = "${home}/.cache/nv";
+          nativeEnvironment.CUDA_CACHE_PATH = "${home}/.cache/nv";
+        };
+        less = {
+          legacy = ".lesshst";
+          canonical = "${home}/.local/state/lesshst";
+          kind = "file";
+          nativeEnvironment.LESSHISTFILE = "${home}/.local/state/lesshst";
+        };
+        codex = {
+          legacy = ".codex";
+          canonical = "${home}/.local/share/codex";
+          nativeEnvironment.CODEX_HOME = "${home}/.local/share/codex";
+        };
+        bash = {
+          legacy = ".bash_history";
+          canonical = "${home}/.local/state/bash/history";
+          kind = "file";
+          nativeEnvironment.HISTFILE = "${home}/.local/state/bash/history";
+        };
+      };
+    };
+
     # First admission keeps the paths already used by the shell and user services.
     home-manager.users.tenzyu.local.homeMigration.adoptedRoutes = {
       node-history = "intended";
@@ -99,6 +140,7 @@
         rtk.enable = true;
         opencode-direnv.enable = true;
         codex.enable = true;
+        home-authority.enable = true;
         t3code-neko7.enable = true;
       };
     };

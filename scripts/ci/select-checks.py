@@ -30,6 +30,11 @@ SCOPED_INPUTS = {
         "modules/50-features/game-servers/commands.nix",
         "modules/50-features/game-servers/minecraft.nix",
     ),
+    "home-authority-vm": (
+        "assets/home-authority/",
+        "modules/50-features/home/home-authority.nix",
+        "modules/50-features/home/home-authority-vm.nix",
+    ),
     "home-migration": (
         *PYTHON_RUNTIME,
         "assets/home-layout/",

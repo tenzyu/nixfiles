@@ -33,6 +33,9 @@ class SelectionTests(unittest.TestCase):
 
     def test_known_components_stay_focused(self):
         for path, checks in (
+            ("assets/home-authority/test-vm.py", ["home-authority-vm"]),
+            ("modules/50-features/home/home-authority-vm.nix", ["home-authority-vm", "home-migration"]),
+            ("modules/50-features/home/home-authority.nix", ["home-authority-vm", "home-migration"]),
             ("assets/home-layout/migrate.py", ["home-migration"]),
             ("assets/home-layout/test-activation.sh", ["home-migration"]),
             ("modules/50-features/home/home-migration.nix", ["home-migration"]),

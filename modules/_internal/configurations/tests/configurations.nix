@@ -1060,6 +1060,72 @@ in {
       };
     };
 
+    testHomeAuthorityCompilesToUpstreamProviders = {
+      expr = let
+        host = flake.nixosConfigurations.neko7.extendModules {
+          modules = [{
+            home-manager.users.tenzyu.local.homeAuthority.states = {
+              pi.mode = lib.mkForce "native";
+              docker.mode = lib.mkForce "boxxy";
+            };
+          }];
+        };
+        user = host.config.home-manager.users.tenzyu;
+      in {
+        nativeEnvironment = user.home.sessionVariables.PI_CODING_AGENT_DIR;
+        userManagerEnvironment = user.systemd.user.sessionVariables.PI_CODING_AGENT_DIR;
+        boxxyEnabled = user.programs.boxxy.enable;
+        boxxyRules = map (rule: {
+          inherit (rule) target rewrite mode;
+        }) user.programs.boxxy.rules;
+      };
+      expected = {
+        nativeEnvironment = "/home/tenzyu/.config/pi/agent";
+        userManagerEnvironment = "/home/tenzyu/.config/pi/agent";
+        boxxyEnabled = true;
+        boxxyRules = [{
+          target = "/home/tenzyu/.docker";
+          rewrite = "/home/tenzyu/.config/docker";
+          mode = "directory";
+        }];
+      };
+    };
+
+    testHomeAuthorityRejectsFakePhysicalSeal = {
+      expr = let
+        host = flake.nixosConfigurations.neko7.extendModules {
+          modules = [{
+            home-manager.users.tenzyu.local.homeAuthority.root.enforce = true;
+          }];
+        };
+      in builtins.any (a: !a.assertion
+        && lib.hasInfix "No such backend is installed" a.message)
+        host.config.home-manager.users.tenzyu.assertions;
+      expected = true;
+    };
+
+    testHomeAuthorityAuditHasNoRouteMutation = {
+      expr = let
+        home = flake.nixosConfigurations.neko7.config.home-manager.users.tenzyu;
+        authority = home.local.homeAuthority;
+      in {
+        enabled = authority.enable;
+        immutableRootClaim = authority.root.enforce;
+        nativeRoutes = lib.filterAttrs (_: state: state.mode == "native") authority.states;
+        boxxyRoutes = lib.filterAttrs (_: state: state.mode == "boxxy") authority.states;
+        entryNames = map (state: state.legacy) (builtins.attrValues authority.states);
+        auditActivation = home.home.activation ? homeAuthorityAudit;
+      };
+      expected = {
+        enabled = true;
+        immutableRootClaim = false;
+        nativeRoutes = {};
+        boxxyRoutes = {};
+        entryNames = [".bash_history" ".codex" ".nv" ".docker" ".lesshst" ".pi"];
+        auditActivation = true;
+      };
+    };
+
     testStandaloneHomeOptions = {
       expr = {
         inherit (standalone.home) username homeDirectory stateVersion preferXdgDirectories;
