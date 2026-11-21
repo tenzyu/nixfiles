@@ -519,7 +519,13 @@ in {
         nsncdEnabled = os.services.nscd.enable && os.services.nscd.enableNsncd;
         resolverUpdatesEnabled = os.networking.resolvconf.enable;
         libcSubscriberEnabled = !(lib.hasInfix "libc=NO" conf);
-        cacheInvalidationIsNoop = lib.hasInfix "libc_restart=':'" conf;
+        # The last assignment wins when openresolv sources resolvconf.conf.
+        restartAssignments = builtins.filter
+          (line: lib.hasInfix "libc_restart=" line)
+          (lib.splitString "\n" conf);
+        cacheInvalidationIsNoop =
+          restartAssignments != []
+          && lib.hasSuffix "libc_restart=':'" (lib.last restartAssignments);
       };
       expected = {
         nsncdEnabled = true;
