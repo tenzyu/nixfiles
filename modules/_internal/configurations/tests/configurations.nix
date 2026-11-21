@@ -511,6 +511,34 @@ in {
       };
     };
 
+    testNeko5DiskToolsProvideRootSmartctl = {
+      expr = let
+        neko5 = flake.nixosConfigurations.neko5;
+        systemPackages = neko5.config.environment.systemPackages;
+      in {
+        userSelected = neko5.config.home-manager.users.tenzyu.local.features.disk-tools.enable;
+        projectedSystemFeature = neko5.config.local.features.disk-tools.enable;
+        availableInSystemProfile = builtins.any
+          (pkg: pkg.drvPath == neko5.pkgs.smartmontools.drvPath)
+          systemPackages;
+        otherHostsUnchanged = lib.all
+          (name: let
+            host = flake.nixosConfigurations.${name};
+          in
+            !host.config.local.features.disk-tools.enable
+            && !(builtins.any
+              (pkg: pkg.drvPath == host.pkgs.smartmontools.drvPath)
+              host.config.environment.systemPackages))
+          ["neko6" "neko7"];
+      };
+      expected = {
+        userSelected = true;
+        projectedSystemFeature = true;
+        availableInSystemProfile = true;
+        otherHostsUnchanged = true;
+      };
+    };
+
     testNeko5WaybarUsesUpstreamHotplugFix = {
       expr = let
         host = flake.nixosConfigurations.neko5;
