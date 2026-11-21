@@ -1,8 +1,8 @@
 {
   configurations.nixos.neko5.module = {
     # nsncd is a non-caching NSS proxy. openresolv's cache-invalidation
-    # hook otherwise restarts it on each DNS update; the Nov 20 USB Ethernet
-    # reconnection storm exhausted nscd.service's start limit.
+    # hook otherwise restarts it on each DNS update; a Nov 20 startup
+    # DNS-update burst exhausted nscd.service's start limit.
     # Keep the libc subscriber writing /etc/resolv.conf.
     networking.resolvconf.extraConfig = ''
       libc_restart=':'
