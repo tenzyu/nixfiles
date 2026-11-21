@@ -20,7 +20,13 @@ shift
 MOCK
 cat > "$root/bin/systemctl" <<'MOCK'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$TEST_SYSTEMCTL_LOG"
 exit 1
+MOCK
+cat > "$root/bin/makoctl" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$TEST_MAKO_LOG"
+exit "${TEST_MAKO_RC:-0}"
 MOCK
 cat > "$root/bin/pgrep" <<'MOCK'
 #!/usr/bin/env bash
@@ -28,6 +34,7 @@ exit 1
 MOCK
 chmod +x "$root/bin/"*
 export PATH="$root/bin:$PATH" TEST_LAUNCH_LOG="$root/launch.log" TEST_SCOPE_LOG="$root/scope.log"
+export TEST_MAKO_LOG="$root/mako.log" TEST_SYSTEMCTL_LOG="$root/systemctl.log"
 export OSU_FIRST_SUPPRESS_UI=0 OSU_FIRST_TIMER_MODE=off
 fail() { echo "FAIL: $*" >&2; exit 1; }
 expect_count() { local lines=0; [[ ! -f "$TEST_LAUNCH_LOG" ]] || lines="$(wc -l < "$TEST_LAUNCH_LOG")"; [[ "$lines" == "$1" ]] || fail "expected $1 launches, got $lines"; }
@@ -68,6 +75,30 @@ expect_count 0
 reset
 if OSU_FIRST_CPU_WEIGHT=10001 "$script_dir/osu-first.sh" solo >/dev/null 2>&1; then fail 'out-of-range CPU weight should fail'; fi
 expect_count 0
+# Game notifications must be hidden without stopping/restarting the Mako unit.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
+OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null
+expect_count 1
+[[ "$(cat "$TEST_MAKO_LOG")" == 
+mode -a osu-first\nmode -r osu-first' ]] || fail 'Mako mode must be enabled and restored'
+[[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || fail 'osu-first must not stop or start the Mako systemd unit'
+# Restore notifications even when the game exits with an error.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
+if TEST_GAME_RC=7 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null 2>&1; then fail 'game exit 7 must propagate'; else rc=$?; fi
+[[ "$rc" == 7 ]] || fail "expected game status 7 got $rc"
+expect_count 1
+[[ "$(cat "$TEST_MAKO_LOG")" == 
+mode -a osu-first\nmode -r osu-first' ]] || fail 'Mako mode must be restored after game failure'
+[[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || fail 'no Mako unit lifecycle calls on game failure'
+# If Mako cannot enter DND, do not claim it was set or alter its exit state.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
+TEST_MAKO_RC=71 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null 2>&1
+expect_count 1
+[[ "$(cat "$TEST_MAKO_LOG")" == 'mode -a osu-first' ]] || fail 'failed mode activation must not trigger mode removal'
+[[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || fail 'failed Mako control must not mutate service state'
 # Check the real prctl entrypoint, but never launch osu!.
 python3 "$script_dir/timerslack-exec.py" --nanoseconds 1000 --best-effort -- true
-printf '%s\n' 'PASS: 11 launcher scenarios + timer helper'
+printf '%s\n' 'PASS: 14 launcher scenarios + timer helper'
