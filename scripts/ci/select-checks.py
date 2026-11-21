@@ -30,6 +30,10 @@ SCOPED_INPUTS = {
         "modules/50-features/game-servers/commands.nix",
         "modules/50-features/game-servers/minecraft.nix",
     ),
+    "home-authority-seal-vm": (
+        "assets/home-authority/seal-acceptance.py",
+        "modules/50-features/home/home-authority-seal-vm.nix",
+    ),
     "home-authority-vm": (
         "assets/home-authority/",
         "modules/50-features/home/home-authority.nix",
