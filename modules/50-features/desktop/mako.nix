@@ -2,11 +2,28 @@
   flake.modules.homeManager.mako = {
     config,
     lib,
+    pkgs,
     ...
-  }: {
+  }: let
+    # Local single-provider policy: unlike upstream's generic notifier package,
+    # neko5 selects Mako as its sole notification daemon.
+    managedMako = pkgs.mako.overrideAttrs (old: {
+      postInstall = (old.postInstall or "") + ''
+        provider="$out/share/dbus-1/services/org.freedesktop.Notifications.service"
+        mv "$out/share/dbus-1/services/fr.emersion.mako.service" "$provider"
+        printf '%s\n' 'SystemdService=mako.service' >> "$provider"
+      '';
+    });
+  in {
     config = lib.mkIf config.local.features.mako.enable {
+      # HM services.mako ordinarily installs the package twice: once through
+      # home.packages (user profile) and again through dbus.packages
+      # (~/.local/share). Keep exactly one activatable service description.
+      # package=null retains HM's Mako settings, but skips both installations.
+      home.packages = [managedMako];
       services.mako = {
         enable = true;
+        package = null;
         settings = {
           anchor = "top-right";
           layer = "top";
@@ -31,6 +48,12 @@
           # Avoid stopping/restarting a bus-activatable daemon during osu!.
           # makoctl mode -a/-r osu-first toggles visibility without losing ownership.
           "mode=osu-first" = {
+            invisible = 1;
+          };
+          "mode=hyprland-gamemode" = {
+            invisible = 1;
+          };
+          "mode=hyprland-gaming-cli" = {
             invisible = 1;
           };
 
