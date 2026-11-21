@@ -91,6 +91,22 @@ if [[ "$timer_mode" != off ]]; then
   fi
 fi
 
+# Mako modes are a set, not a reference count. Concurrent launchers would
+# restore notifications early when the first one exits. Keep the UI side effects
+# single-flight for the entire synchronous game lifetime. An unsuppressed
+# launch remains independent.
+if [[ "$suppress_ui" == 1 ]]; then
+  if [[ -z "${XDG_RUNTIME_DIR:-}" || ! -d "$XDG_RUNTIME_DIR" ]] || ! command -v flock >/dev/null 2>&1; then
+    echo 'osu-first: UI suppression requires XDG_RUNTIME_DIR and flock; use OSU_FIRST_SUPPRESS_UI=0 to opt out' >&2
+    exit 75
+  fi
+  exec {ui_lock_fd}>"$XDG_RUNTIME_DIR/osu-first-ui.lock"
+  if ! flock -n "$ui_lock_fd"; then
+    echo 'osu-first: another UI-suppressing session is active; refusing overlapping Mako/Waybar changes' >&2
+    exit 75
+  fi
+fi
+
 mako_mode_set=0
 was_waybar=0
 marker_dir=''
