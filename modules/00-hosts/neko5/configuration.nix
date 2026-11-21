@@ -1,9 +1,8 @@
 {
   configurations.nixos.neko5.module = {
-    # nsncd is a non-caching NSS proxy. openresolv's cache-invalidation
-    # hook otherwise restarts it on each DNS update; a Nov 20 startup
-    # DNS-update burst exhausted nscd.service's start limit.
-    # Keep the libc subscriber writing /etc/resolv.conf.
+    # nsncd does not cache NSS results. Repeated resolver updates can
+    # needlessly restart it and exhaust systemd's start limit.
+    # Preserve the libc subscriber that writes /etc/resolv.conf.
     networking.resolvconf.extraConfig = ''
       libc_restart=':'
     '';
