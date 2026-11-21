@@ -511,6 +511,38 @@ in {
       };
     };
 
+    testNeko5MakoOwnsSingleBusProvider = {
+      expr = let
+        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+        makoPackages = builtins.filter
+          (package: (package.pname or "") == "mako")
+          home.home.packages;
+      in {
+        enabled = home.services.mako.enable;
+        noDuplicateHmDbusInstallation = home.services.mako.package == null
+          && lib.all
+            (package: (package.pname or "") != "mako")
+            home.dbus.packages;
+        oneUserProfilePackage = builtins.length makoPackages == 1;
+        osuMode = home.services.mako.settings."mode=osu-first".invisible == 1;
+        gamemodeMode = home.services.mako.settings."mode=hyprland-gamemode".invisible == 1;
+        gamingCliMode = home.services.mako.settings."mode=hyprland-gaming-cli".invisible == 1;
+        otherHostsUnselected = lib.all
+          (name:
+            !flake.nixosConfigurations.${name}.config.home-manager.users.tenzyu.services.mako.enable)
+          ["neko6" "neko7"];
+      };
+      expected = {
+        enabled = true;
+        noDuplicateHmDbusInstallation = true;
+        oneUserProfilePackage = true;
+        osuMode = true;
+        gamemodeMode = true;
+        gamingCliMode = true;
+        otherHostsUnselected = true;
+      };
+    };
+
     testNeko5WaybarUsesUpstreamHotplugFix = {
       expr = let
         host = flake.nixosConfigurations.neko5;
