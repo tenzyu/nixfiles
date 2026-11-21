@@ -116,6 +116,25 @@
       };
 
       home.packages = lib.optional cfg.audit pkgs.xdg-ninja;
+
+      # Declaring a native route is an explicit cutover, never a data-move request.
+      # Refuse a cutover with a legacy name still present or an absent new root.
+      home.activation.homeAuthorityCheckCutover = lib.mkIf (activeNative != [])
+        (lib.hm.dag.entryBefore ["writeBoundary"] ''
+          ${lib.concatMapStringsSep "\n" (state: let
+            source = "${home}/${state.legacy}";
+          in ''
+            if [ -e ${quote source} ] || [ -L ${quote source} ]; then
+              echo ${quote "HOME authority: ${state.name}: legacy path still present; keeping the current generation"} >&2
+              exit 1
+            fi
+            if [ ! -e ${quote state.canonical} ]; then
+              echo ${quote "HOME authority: ${state.name}: canonical state missing; refusing empty-state cutover"} >&2
+              exit 1
+            fi
+          '') activeNative}
+        '');
+
       home.activation.homeAuthorityAudit = lib.mkIf cfg.audit
         (lib.hm.dag.entryAfter ["writeBoundary"] ''
           echo "HOME authority audit (not physical-root enforcement)"
