@@ -511,6 +511,24 @@ in {
       };
     };
 
+    testNeko5NsncdDoesNotRestartOnResolverUpdates = {
+      expr = let
+        os = flake.nixosConfigurations.neko5.config;
+        conf = os.environment.etc."resolvconf.conf".text;
+      in {
+        nsncdEnabled = os.services.nscd.enable && os.services.nscd.enableNsncd;
+        resolverUpdatesEnabled = os.networking.resolvconf.enable;
+        libcSubscriberEnabled = !(lib.hasInfix "libc=NO" conf);
+        cacheInvalidationIsNoop = lib.hasInfix "libc_restart=':'" conf;
+      };
+      expected = {
+        nsncdEnabled = true;
+        resolverUpdatesEnabled = true;
+        libcSubscriberEnabled = true;
+        cacheInvalidationIsNoop = true;
+      };
+    };
+
     testNeko5SteamProjectsFromUserSelection = {
       expr = let
         seed = hostSeeds.neko5.module.local;
