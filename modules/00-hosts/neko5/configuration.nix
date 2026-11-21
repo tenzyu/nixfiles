@@ -1,12 +1,5 @@
 {
   configurations.nixos.neko5.module = {
-    # nsncd does not cache NSS results. Repeated resolver updates can
-    # needlessly restart it and exhaust systemd's start limit.
-    # Preserve the libc subscriber that writes /etc/resolv.conf.
-    networking.resolvconf.extraConfig = ''
-      libc_restart=':'
-    '';
-
     home-manager.users.tenzyu.imports = [({lib, ...}: {
       # Install the config files normally. Apply reloads at the next app launch,
       # outside Home Manager activation and its protected HOME write checks.
@@ -36,6 +29,13 @@
     users.users.tenzyu.openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeiSmoim2RKyd6smA5t86Pr7Lt+nOF1oXEHQjsw74O5 neko7-to-neko5"
     ];
+
+    # nsncd does not cache NSS results. Repeated resolver updates can
+    # needlessly restart it and exhaust systemd's start limit.
+    # Preserve the libc subscriber that writes /etc/resolv.conf.
+    networking.resolvconf.extraConfig = ''
+      libc_restart=':'
+    '';
 
     local = {
       context = {
