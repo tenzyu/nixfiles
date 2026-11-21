@@ -91,12 +91,16 @@ if [[ "$timer_mode" != off ]]; then
   fi
 fi
 
-was_mako=0
+mako_mode_set=0
 was_waybar=0
 marker_dir=''
 resume() {
   if (( was_waybar )); then pkill -CONT -x waybar 2>/dev/null || true; fi
-  if (( was_mako )); then systemctl --user start mako.service 2>/dev/null || true; fi
+  if (( mako_mode_set )); then
+    if ! makoctl mode -r osu-first >/dev/null; then
+      echo 'osu-first: failed to restore notification visibility' >&2
+    fi
+  fi
   if [[ -n "$marker_dir" ]]; then rm -rf -- "$marker_dir"; fi
 }
 trap resume EXIT
@@ -104,9 +108,16 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 if [[ "$suppress_ui" == 1 ]]; then
-  if systemctl --user is-active --quiet mako.service 2>/dev/null; then
-    systemctl --user stop mako.service
-    was_mako=1
+  # Never stop a D-Bus-activatable notifier: an ordinary notification can
+  # respawn it outside mako.service and make the later service start fail.
+  if command -v makoctl >/dev/null 2>&1; then
+    if makoctl mode -a osu-first >/dev/null; then
+      mako_mode_set=1
+    else
+      echo 'osu-first: unable to suppress Mako notifications' >&2
+    fi
+  else
+    echo 'osu-first: makoctl unavailable; notifications remain visible' >&2
   fi
   if pgrep -x waybar >/dev/null 2>&1; then
     pkill -STOP -x waybar
