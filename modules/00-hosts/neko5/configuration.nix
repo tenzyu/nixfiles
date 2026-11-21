@@ -30,13 +30,6 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeiSmoim2RKyd6smA5t86Pr7Lt+nOF1oXEHQjsw74O5 neko7-to-neko5"
     ];
 
-    # nsncd does not cache NSS results. Repeated resolver updates can
-    # needlessly restart it and exhaust systemd's start limit.
-    # Preserve the libc subscriber that writes /etc/resolv.conf.
-    networking.resolvconf.extraConfig = ''
-      libc_restart=':'
-    '';
-
     local = {
       context = {
         flakePath = "/home/tenzyu/.nixfiles";
@@ -60,6 +53,7 @@
         stub-ld.enable = true;
 
         networkmanager.enable = true;
+        nsncd-resolver-lifecycle.enable = true;
         ssh.enable = true;
         sops-nix.enable = true;
         tailscale.enable = true;
