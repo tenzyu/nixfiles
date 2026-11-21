@@ -22,6 +22,7 @@ cat > "$root/bin/systemctl" <<'MOCK'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TEST_SYSTEMCTL_LOG"
 if [[ "$*" == '--user is-active --quiet mako.service' ]]; then
+  if [[ ${TEST_MAKO_EXIT_INACTIVE:-0} == 1 ]] && [[ "$(wc -l < "$TEST_SYSTEMCTL_LOG")" -gt 1 ]]; then exit 3; fi
   exit "${TEST_MAKO_SERVICE_RC:-0}"
 fi
 exit 1
@@ -88,14 +89,22 @@ expect_count 0
 expected_mako_log="$(printf '%s\n' 'mode' 'mode -a osu-first' 'mode -r osu-first')"
 expected_systemctl_log='--user is-active --quiet mako.service'
 expect_only_readonly_systemctl() {
-  [[ "$(cat "$TEST_SYSTEMCTL_LOG")" == "$expected_systemctl_log" ]] || fail 'Mako unit must only be queried, never stopped or started'
+  local expected_count="${1:-1}"
+  local actual_count=0
+  [[ ! -e "$TEST_SYSTEMCTL_LOG" ]] || actual_count="$(wc -l < "$TEST_SYSTEMCTL_LOG")"
+  [[ "$actual_count" == "$expected_count" ]] || fail "expected $expected_count Mako status reads, got $actual_count"
+  if [[ -e "$TEST_SYSTEMCTL_LOG" ]]; then
+    while IFS= read -r request; do
+      [[ "$request" == "$expected_systemctl_log" ]] || fail 'Mako unit must only be queried, never stopped or started'
+    done < "$TEST_SYSTEMCTL_LOG"
+  fi
 }
 reset
 rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null
 expect_count 1
 [[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'Mako mode must be enabled and restored'
-expect_only_readonly_systemctl
+expect_only_readonly_systemctl 2
 # Restore notifications even when the game exits with an error.
 reset
 rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
@@ -103,7 +112,7 @@ if TEST_GAME_RC=7 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/
 [[ "$rc" == 7 ]] || fail "expected game status 7 got $rc"
 expect_count 1
 [[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'Mako mode must be restored after game failure'
-expect_only_readonly_systemctl
+expect_only_readonly_systemctl 2
 # If adding a mode fails, the launcher may not remove a mode it never added.
 reset
 rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
@@ -132,6 +141,13 @@ TEST_MAKO_READ_RC=72 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_d
 expect_count 1
 [[ "$(cat "$TEST_MAKO_LOG")" == mode ]] || fail 'failed Mako read must not mutate modes'
 expect_only_readonly_systemctl
+# If the unit exits during gameplay, cleanup must NOT autoactivate Mako.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
+TEST_MAKO_EXIT_INACTIVE=1 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null 2>&1
+expect_count 1
+[[ "$(cat "$TEST_MAKO_LOG")" == "$(printf '%s\n' mode 'mode -a osu-first')" ]] || fail 'inactive Mako must not receive cleanup D-Bus call'
+expect_only_readonly_systemctl 2
 # Check the real prctl entrypoint, but never launch osu!.
 python3 "$script_dir/timerslack-exec.py" --nanoseconds 1000 --best-effort -- true
-printf '%s\n' 'PASS: 17 launcher scenarios + timer helper'
+printf '%s\n' 'PASS: 18 launcher scenarios + timer helper'
