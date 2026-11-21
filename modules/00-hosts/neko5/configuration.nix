@@ -53,6 +53,7 @@
         stub-ld.enable = true;
 
         networkmanager.enable = true;
+        nsncd-resolver-lifecycle.enable = true;
         ssh.enable = true;
         sops-nix.enable = true;
         tailscale.enable = true;

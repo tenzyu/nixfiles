@@ -556,6 +556,36 @@ in {
       };
     };
 
+    testNeko5NsncdDoesNotRestartOnResolverUpdates = {
+      expr = let
+        os = flake.nixosConfigurations.neko5.config;
+        conf = os.environment.etc."resolvconf.conf".text;
+        # The last assignment wins when openresolv sources resolvconf.conf.
+        restartAssignments = builtins.filter
+          (line: lib.hasInfix "libc_restart=" line)
+          (lib.splitString "\n" conf);
+      in {
+        nsncdEnabled = os.services.nscd.enable && os.services.nscd.enableNsncd;
+        resolverUpdatesEnabled = os.networking.resolvconf.enable;
+        policySelected = os.local.features.nsncd-resolver-lifecycle.enable;
+        otherHostsUnselected = lib.all
+          (name: !flake.nixosConfigurations.${name}.config.local.features.nsncd-resolver-lifecycle.enable)
+          ["neko6" "neko7"];
+        libcSubscriberEnabled = !(lib.hasInfix "libc=NO" conf);
+        cacheInvalidationIsNoop =
+          restartAssignments != []
+          && lib.hasSuffix "libc_restart=':'" (lib.last restartAssignments);
+      };
+      expected = {
+        nsncdEnabled = true;
+        resolverUpdatesEnabled = true;
+        policySelected = true;
+        otherHostsUnselected = true;
+        libcSubscriberEnabled = true;
+        cacheInvalidationIsNoop = true;
+      };
+    };
+
     testRemovedProfilesAreNotRegistered = {
       expr = lib.intersectLists ["tenzyu-cli" "tenzyu-desktop"] (lib.attrNames flake.modules.homeManager);
       expected = [];
