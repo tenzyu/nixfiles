@@ -1060,6 +1060,28 @@ in {
       };
     };
 
+    testHomeAuthorityAuditHasNoRouteMutation = {
+      expr = let
+        home = flake.nixosConfigurations.neko7.config.home-manager.users.tenzyu;
+        authority = home.local.homeAuthority;
+      in {
+        enabled = authority.enable;
+        immutableRootClaim = authority.root.enforce;
+        nativeRoutes = lib.filterAttrs (_: state: state.mode == "native") authority.states;
+        boxxyRoutes = lib.filterAttrs (_: state: state.mode == "boxxy") authority.states;
+        entryNames = map (state: state.legacy) (builtins.attrValues authority.states);
+        auditActivation = home.home.activation ? homeAuthorityAudit;
+      };
+      expected = {
+        enabled = true;
+        immutableRootClaim = false;
+        nativeRoutes = {};
+        boxxyRoutes = {};
+        entryNames = [".bash_history" ".codex" ".nv" ".docker" ".lesshst" ".pi"];
+        auditActivation = true;
+      };
+    };
+
     testStandaloneHomeOptions = {
       expr = {
         inherit (standalone.home) username homeDirectory stateVersion preferXdgDirectories;

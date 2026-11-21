@@ -134,6 +134,7 @@
 
         # TODO: migration scripts are buggy right now.
         home-layout.enable = true;
+        home-authority.enable = true;
 
         # NOTE: under construction.
         splitcast-capture.enable = false;
