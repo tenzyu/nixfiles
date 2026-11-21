@@ -511,6 +511,23 @@ in {
       };
     };
 
+    testNeko5WaybarUsesUpstreamHotplugFix = {
+      expr = let
+        host = flake.nixosConfigurations.neko5;
+        home = host.config.home-manager.users.tenzyu;
+        selected = home.programs.waybar.package;
+      in {
+        enabled = home.programs.waybar.enable;
+        hasFix = lib.versionAtLeast (lib.getVersion selected) "0.16.0";
+        fromPinnedUnstable = selected.drvPath == host.pkgs.unstable.waybar.drvPath;
+      };
+      expected = {
+        enabled = true;
+        hasFix = true;
+        fromPinnedUnstable = true;
+      };
+    };
+
     testNeko5SteamProjectsFromUserSelection = {
       expr = let
         seed = hostSeeds.neko5.module.local;
