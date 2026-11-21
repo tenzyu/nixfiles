@@ -60,7 +60,10 @@
     '') routeList;
   in {
     options.local.homeAuthority = {
-      enable = mkEnableOption "the native HOME authority contract and a read-only audit";
+      # Match the existing feature-selection API; keep an explicit HM override for isolated fixtures.
+      enable = (mkEnableOption "the native HOME authority contract and a read-only audit") // {
+        default = (config.local.features.home-authority.enable or false) == true;
+      };
       root = {
         forbidden = mkOption {
           type = types.listOf types.str;
