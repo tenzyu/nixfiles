@@ -1,6 +1,9 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu.imports = [({lib, ...}: {
+    home-manager.users.tenzyu.imports = [({lib, pkgs, ...}: {
+      # Upstream Waybar 0.16 fixes the Battery hotplug SIGABRT seen on neko5.
+      # Keep the version override host-local; other users retain pkgs.waybar.
+      programs.waybar.package = pkgs.unstable.waybar;
       # Install the config files normally. Apply reloads at the next app launch,
       # outside Home Manager activation and its protected HOME write checks.
       xdg.configFile = lib.genAttrs [
