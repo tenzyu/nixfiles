@@ -65,6 +65,11 @@ jobs:
       - name: Test selective-check mapping
         run: python3 -m unittest discover -v -s scripts/ci -p 'test_select_checks.py'
 
+      - name: Test osu-first launcher without a graphical session
+        run: |
+          bash -n scripts/osu-performance/osu-first.sh
+          bash scripts/osu-performance/test-osu-first.sh
+
       - name: Select focused checks from the event diff
         id: selection
         run: python3 scripts/ci/select-checks.py --github-output >> "$GITHUB_OUTPUT"
