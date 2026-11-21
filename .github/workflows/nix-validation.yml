@@ -42,6 +42,23 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Temporary fast-path diagnostic: #78 integration evaluation fails with
+      # redacted stderr in framework-cli. Remove after resolving the underlying error.
+      - name: Diagnose configuration adapter before expensive VM build
+        shell: bash
+        run: |
+          set +e
+          nix eval --impure --show-trace --json \
+            --file modules/_internal/configurations/tests/configurations.nix \
+            --argstr flakeRef "git+file://$PWD" failures \
+            > /dev/null 2> /tmp/home-authority-evaluator-error
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "adapter eval exit=$status"
+            sed -n '1,110p' /tmp/home-authority-evaluator-error
+          fi
+          exit "$status"
+
       # Do not use 'nix flake check' in a PR gate: it builds *all* checks,
       # including unrelated Rust and system-level derivations.
       - name: Build narrowly scoped, deterministic checks
