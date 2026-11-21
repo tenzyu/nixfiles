@@ -4,10 +4,18 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 root="$(mktemp -d)"
 trap 'rm -rf -- "$root"' EXIT
-mkdir -p "$root/bin"
+mkdir -p "$root/bin" "$root/runtime"
 cat > "$root/bin/osu-lazer" <<'MOCK'
 #!/usr/bin/env bash
 printf 'launch %s\n' "$*" >> "$TEST_LAUNCH_LOG"
+if [[ -n "${TEST_GAME_HOLD:-}" ]]; then
+  printf started > "$TEST_GAME_STARTED"
+  for _ in {1..100}; do
+    [[ ! -e "$TEST_GAME_HOLD" ]] && break
+    sleep 0.05
+  done
+  [[ ! -e "$TEST_GAME_HOLD" ]] || exit 99
+fi
 exit "${TEST_GAME_RC:-0}"
 MOCK
 cat > "$root/bin/systemd-run" <<'MOCK'
@@ -44,6 +52,7 @@ exit 1
 MOCK
 chmod +x "$root/bin/"*
 export PATH="$root/bin:$PATH" TEST_LAUNCH_LOG="$root/launch.log" TEST_SCOPE_LOG="$root/scope.log"
+export XDG_RUNTIME_DIR="$root/runtime"
 export TEST_MAKO_LOG="$root/mako.log" TEST_SYSTEMCTL_LOG="$root/systemctl.log"
 export OSU_FIRST_SUPPRESS_UI=0 OSU_FIRST_TIMER_MODE=off
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -148,6 +157,48 @@ TEST_MAKO_EXIT_INACTIVE=1 OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$scr
 expect_count 1
 [[ "$(cat "$TEST_MAKO_LOG")" == "$(printf '%s\n' mode 'mode -a osu-first')" ]] || fail 'inactive Mako must not receive cleanup D-Bus call'
 expect_only_readonly_systemctl 2
+# Mako modes are a set: a second UI-suppressing launcher must not make
+# the first one's mode changes racy. The lock is held until the game exits.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG" "$root/started"
+touch "$root/hold"
+TEST_GAME_HOLD="$root/hold" TEST_GAME_STARTED="$root/started" \
+  OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off \
+  "$script_dir/osu-first.sh" solo >"$root/first.out" 2>"$root/first.err" &
+first_pid=$!
+for _ in {1..100}; do
+  [[ -e "$root/started" ]] && break
+  sleep 0.05
+done
+[[ -e "$root/started" ]] || fail 'first game did not enter its holding phase'
+if OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off \
+    "$script_dir/osu-first.sh" solo >"$root/second.out" 2>"$root/second.err"; then
+  fail 'second concurrent UI-suppressing game must be rejected'
+else
+  rc=$?
+fi
+[[ "$rc" == 75 ]] || fail "expected concurrent launcher status 75, got $rc"
+expect_count 1
+rm -f "$root/hold"
+wait "$first_pid"
+[[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'first launch must own and restore Mako mode'
+expect_only_readonly_systemctl 2
+# A completed session must release its lock for the next launch.
+reset
+rm -f "$TEST_MAKO_LOG" "$TEST_SYSTEMCTL_LOG"
+OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off "$script_dir/osu-first.sh" solo >/dev/null
+expect_count 1
+[[ "$(cat "$TEST_MAKO_LOG")" == "$expected_mako_log" ]] || fail 'subsequent launch must restore modes'
+# Do not silently run without concurrency protection if the runtime dir is missing.
+reset
+if XDG_RUNTIME_DIR="$root/missing-runtime" OSU_FIRST_SUPPRESS_UI=1 OSU_FIRST_SCOPE_MODE=off \
+    "$script_dir/osu-first.sh" solo >/dev/null 2>&1; then
+  fail 'missing runtime dir must reject unsafe UI suppression'
+else
+  rc=$?
+fi
+[[ "$rc" == 75 ]] || fail "expected missing runtime status 75, got $rc"
+expect_count 0
 # Check the real prctl entrypoint, but never launch osu!.
 python3 "$script_dir/timerslack-exec.py" --nanoseconds 1000 --best-effort -- true
-printf '%s\n' 'PASS: 18 launcher scenarios + timer helper'
+printf '%s\n' 'PASS: launcher contract, Mako lifecycle and single-flight regression tests'
