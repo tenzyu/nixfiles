@@ -43,6 +43,7 @@
     envPieces = map (state: state.nativeEnvironment) activeNative;
     nativeVars = lib.foldl' (acc: piece: acc // piece) {} envPieces;
     allEnvNames = lib.concatMap builtins.attrNames envPieces;
+    reportPath = "${xdg.stateHome}/nixfiles/home-authority-report.txt";
     display = lib.concatMapStringsSep "\n" (state: let
       source = "${home}/${state.legacy}";
       target = state.canonical;
@@ -50,6 +51,12 @@
       if [ -e ${quote source} ] || [ -L ${quote source} ]; then original=present; else original=absent; fi
       if [ -e ${quote target} ] || [ -L ${quote target} ]; then canonical=present; else canonical=absent; fi
       printf '%s\n' ${quote "[${state.name}] mode=${state.mode} legacy=${source} canonical=${target}"} "source=$original target=$canonical"
+      case "$original/$canonical" in
+        present/present) echo "  CONFLICT: retain incumbent, back up and compare both paths. No automatic merge or cutover.";;
+        present/absent) echo "  LEGACY-ONLY: stop app writers, back up and move with no-copy/no-replace Coreutils, then select native mode.";;
+        absent/present) echo "  CANONICAL-ONLY: verify read/write/relaunch; native mode can be selected after actual route verification.";;
+        absent/absent) echo "  EMPTY: verify this is a new app before creating canonical state.";;
+      esac
     '') routeList;
   in {
     options.local.homeAuthority = {
@@ -137,9 +144,13 @@
 
       home.activation.homeAuthorityAudit = lib.mkIf cfg.audit
         (lib.hm.dag.entryAfter ["writeBoundary"] ''
-          echo "HOME authority audit (not physical-root enforcement)"
-          ${display}
-          echo "For unsupported applications: xdg-ninja --skip-unsupported"
+          umask 077
+          ${pkgs.coreutils}/bin/mkdir -p ${quote (builtins.dirOf reportPath)}
+          {
+            echo "HOME authority audit (not physical-root enforcement)"
+            ${display}
+            echo "For unsupported applications: xdg-ninja --skip-unsupported"
+          } | ${pkgs.coreutils}/bin/tee ${quote reportPath}
         '');
     };
   };
