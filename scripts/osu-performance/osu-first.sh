@@ -97,8 +97,13 @@ marker_dir=''
 resume() {
   if (( was_waybar )); then pkill -CONT -x waybar 2>/dev/null || true; fi
   if (( mako_mode_set )); then
-    if ! makoctl mode -r osu-first >/dev/null; then
-      echo 'osu-first: failed to restore notification visibility' >&2
+    # Do not autoactivate an unmanaged Mako if the service exited meanwhile.
+    if systemctl --user is-active --quiet mako.service 2>/dev/null; then
+      if ! makoctl mode -r osu-first >/dev/null; then
+        echo 'osu-first: failed to restore notification visibility' >&2
+      fi
+    else
+      echo 'osu-first: Mako service inactive on exit; skipping D-Bus mode removal' >&2
     fi
   fi
   if [[ -n "$marker_dir" ]]; then rm -rf -- "$marker_dir"; fi
