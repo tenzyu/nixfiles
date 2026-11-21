@@ -108,16 +108,26 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 if [[ "$suppress_ui" == 1 ]]; then
-  # Never stop a D-Bus-activatable notifier: an ordinary notification can
-  # respawn it outside mako.service and make the later service start fail.
-  if command -v makoctl >/dev/null 2>&1; then
-    if makoctl mode -a osu-first >/dev/null; then
-      mako_mode_set=1
+  # Do not D-Bus-activate an unmanaged Mako if its systemd unit is inactive.
+  # Preserve an existing osu-first mode rather than removing someone else's.
+  if systemctl --user is-active --quiet mako.service 2>/dev/null; then
+    if command -v makoctl >/dev/null 2>&1; then
+      if modes="$(makoctl mode)"; then
+        if ! grep -Fxq -- osu-first <<< "$modes"; then
+          if makoctl mode -a osu-first >/dev/null; then
+            mako_mode_set=1
+          else
+            echo 'osu-first: unable to suppress Mako notifications' >&2
+          fi
+        fi
+      else
+        echo 'osu-first: unable to read Mako modes; notifications remain unchanged' >&2
+      fi
     else
-      echo 'osu-first: unable to suppress Mako notifications' >&2
+      echo 'osu-first: makoctl unavailable; notifications remain visible' >&2
     fi
   else
-    echo 'osu-first: makoctl unavailable; notifications remain visible' >&2
+    echo 'osu-first: Mako service inactive; skipping D-Bus mode changes' >&2
   fi
   if pgrep -x waybar >/dev/null 2>&1; then
     pkill -STOP -x waybar
