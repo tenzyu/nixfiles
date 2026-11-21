@@ -104,6 +104,30 @@ jobs:
 
       # Compatibility state is not the Nixpkgs release. Keep the verified
       # neko5 baseline and the explicitly declared neko7 baseline stable.
+      - name: Build and check Mako's systemd-owned D-Bus provider when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --name-only "$NIX_CHECK_BASE" HEAD | grep -Fxq 'modules/50-features/desktop/mako.nix'; then
+            echo 'Mako provider unchanged'
+            exit 0
+          fi
+          provider="$(nix build -L --no-link --print-out-paths --impure --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+            in
+              builtins.head (builtins.filter (pkg: (pkg.pname or "") == "mako") home.home.packages)
+          ')"
+          service="$provider/share/dbus-1/services/org.freedesktop.Notifications.service"
+          test -f "$service"
+          test ! -e "$provider/share/dbus-1/services/fr.emersion.mako.service"
+          test -f "$provider/lib/systemd/user/mako.service"
+          grep -Fxq 'Name=org.freedesktop.Notifications' "$service"
+          grep -Fxq 'SystemdService=mako.service' "$service"
+          grep -Fxq 'Type=dbus' "$provider/lib/systemd/user/mako.service"
+          grep -Fxq 'BusName=org.freedesktop.Notifications' "$provider/lib/systemd/user/mako.service"
+
       - name: Guard explicitly pinned NixOS state compatibility
         shell: bash
         run: |
