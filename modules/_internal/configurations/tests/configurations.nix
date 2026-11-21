@@ -542,6 +542,10 @@ in {
       in {
         nsncdEnabled = os.services.nscd.enable && os.services.nscd.enableNsncd;
         resolverUpdatesEnabled = os.networking.resolvconf.enable;
+        policySelected = os.local.features.nsncd-resolver-lifecycle.enable;
+        otherHostsUnselected = lib.all
+          (name: !flake.nixosConfigurations.${name}.config.local.features.nsncd-resolver-lifecycle.enable)
+          ["neko6" "neko7"];
         libcSubscriberEnabled = !(lib.hasInfix "libc=NO" conf);
         cacheInvalidationIsNoop =
           restartAssignments != []
@@ -550,6 +554,8 @@ in {
       expected = {
         nsncdEnabled = true;
         resolverUpdatesEnabled = true;
+        policySelected = true;
+        otherHostsUnselected = true;
         libcSubscriberEnabled = true;
         cacheInvalidationIsNoop = true;
       };
