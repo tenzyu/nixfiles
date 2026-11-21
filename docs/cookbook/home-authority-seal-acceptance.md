@@ -1,8 +1,12 @@
 # HOME authority independent seal acceptance
 
-This is a **separate, deliberately failing** acceptance test for Draft PR #78.
-The successful `home-authority-vm` characterizes bypasses; the new
+This is a **separate, fail-closed** acceptance test for Draft PR #78.
+The successful `home-authority-vm` characterizes bypasses; the
 `home-authority-seal-vm` requires those bypasses to be CLOSED, not reproduced.
+The original unsealed fixture failed with 17 actual violations in
+[CI #44941728764](https://github.com/tenzyu/nixfiles/actions/runs/44941728764).
+The same independent oracle passed with a fixture-only seal service in
+[CI #44942386766](https://github.com/tenzyu/nixfiles/actions/runs/44942386766).
 
 Run on a disposable NixOS VM only:
 
@@ -30,11 +34,24 @@ A green outcome requires all of the following:
   Privileged-host escape and real host rollout remain additional acceptance
   gates; this check cannot certify them.
 
-**Expected baseline (PR #78): FAIL.** The present feature is observe-only,
-does not relocate or seal the old backing, and explicitly rejects
-`local.homeAuthority.root.enforce = true`. CI failure on this stacked
-verification PR is evidence that the requested closure does not yet exist,
-not a regression in PR #78's diagnostic check.
+**Result: PASS in the disposable fixture, but not a production guarantee.**
+The fixture-only root-owned service runs after Home Manager activation,
+checks that the competing canonical directory is empty, and uses a
+same-filesystem Coreutils rename to relocate the incumbent inode without
+invalidating any pre-opened directory/file FD. Then `chattr +i` makes the
+**physical HOME inode** reject direct entry creation. Old FDs remain open:
+their writes either address the same authoritative canonical backing or a
+prohibited direct operation is denied. Neither the verifier nor its syscall
+checks were weakened, inverted or skipped.
+
+The actual `local.homeAuthority.root.enforce` remains **false on hosts**.
+The fixture is not an installable or safely upgradeable host backend; the
+immutable physical HOME would currently prevent future Home Manager link
+updates. A production design still needs an exclusive and provably
+writer-safe generation-switch path and appropriate policies for privileged
+host processes. An empty target, controlled startup order, and filesystem
+support for `chattr +i` are explicit prerequisites for this particular VM
+proof. No production HOME is changed.
 
 There is no expected-failure wrapper, result inversion, silent skip, or
 deployment to neko5/neko7. This check stays separate until an actual backend

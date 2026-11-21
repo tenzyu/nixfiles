@@ -129,7 +129,8 @@ in {
         machine.wait_for_unit("home-manager-fixture.service")
         machine.wait_for_unit("home-authority-fixture-seal.service")
         # No inverted assertion or expected-failure escape hatch here.
-        machine.succeed("${pkgs.python3}/bin/python3 ${witness} verify")
+        result = machine.succeed("${pkgs.python3}/bin/python3 ${witness} verify")
+        print(result) # Persist the independent PASS oracle in CI logs.
       '';
     };
   };
