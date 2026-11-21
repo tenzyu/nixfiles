@@ -1,5 +1,13 @@
 {
   configurations.nixos.neko5.module = {
+    # nsncd is a non-caching NSS proxy. openresolv's cache-invalidation
+    # hook otherwise restarts it on each DNS update; the Nov 20 USB Ethernet
+    # reconnection storm exhausted nscd.service's start limit.
+    # Keep the libc subscriber writing /etc/resolv.conf.
+    networking.resolvconf.extraConfig = ''
+      libc_restart=':'
+    '';
+
     home-manager.users.tenzyu.imports = [({lib, ...}: {
       # Install the config files normally. Apply reloads at the next app launch,
       # outside Home Manager activation and its protected HOME write checks.
