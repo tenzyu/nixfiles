@@ -28,6 +28,12 @@
           border-color = "#89b4faff";
           progress-color = "over #313244ff";
 
+          # Avoid stopping/restarting a bus-activatable daemon during osu!.
+          # makoctl mode -a/-r osu-first toggles visibility without losing ownership.
+          "mode=osu-first" = {
+            invisible = 1;
+          };
+
           "urgency=low" = {
             default-timeout = 3000;
           };

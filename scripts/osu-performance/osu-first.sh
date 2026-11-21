@@ -91,12 +91,37 @@ if [[ "$timer_mode" != off ]]; then
   fi
 fi
 
-was_mako=0
+# Mako modes are a set, not a reference count. Concurrent launchers would
+# restore notifications early when the first one exits. Keep the UI side effects
+# single-flight for the entire synchronous game lifetime. An unsuppressed
+# launch remains independent.
+if [[ "$suppress_ui" == 1 ]]; then
+  if [[ -z "${XDG_RUNTIME_DIR:-}" || ! -d "$XDG_RUNTIME_DIR" ]] || ! command -v flock >/dev/null 2>&1; then
+    echo 'osu-first: UI suppression requires XDG_RUNTIME_DIR and flock; use OSU_FIRST_SUPPRESS_UI=0 to opt out' >&2
+    exit 75
+  fi
+  exec {ui_lock_fd}>"$XDG_RUNTIME_DIR/osu-first-ui.lock"
+  if ! flock -n "$ui_lock_fd"; then
+    echo 'osu-first: another UI-suppressing session is active; refusing overlapping Mako/Waybar changes' >&2
+    exit 75
+  fi
+fi
+
+mako_mode_set=0
 was_waybar=0
 marker_dir=''
 resume() {
   if (( was_waybar )); then pkill -CONT -x waybar 2>/dev/null || true; fi
-  if (( was_mako )); then systemctl --user start mako.service 2>/dev/null || true; fi
+  if (( mako_mode_set )); then
+    # Do not autoactivate an unmanaged Mako if the service exited meanwhile.
+    if systemctl --user is-active --quiet mako.service 2>/dev/null; then
+      if ! makoctl mode -r osu-first >/dev/null; then
+        echo 'osu-first: failed to restore notification visibility' >&2
+      fi
+    else
+      echo 'osu-first: Mako service inactive on exit; skipping D-Bus mode removal' >&2
+    fi
+  fi
   if [[ -n "$marker_dir" ]]; then rm -rf -- "$marker_dir"; fi
 }
 trap resume EXIT
@@ -104,9 +129,26 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 if [[ "$suppress_ui" == 1 ]]; then
+  # Do not D-Bus-activate an unmanaged Mako if its systemd unit is inactive.
+  # Preserve an existing osu-first mode rather than removing someone else's.
   if systemctl --user is-active --quiet mako.service 2>/dev/null; then
-    systemctl --user stop mako.service
-    was_mako=1
+    if command -v makoctl >/dev/null 2>&1; then
+      if modes="$(makoctl mode)"; then
+        if ! grep -Fxq -- osu-first <<< "$modes"; then
+          if makoctl mode -a osu-first >/dev/null; then
+            mako_mode_set=1
+          else
+            echo 'osu-first: unable to suppress Mako notifications' >&2
+          fi
+        fi
+      else
+        echo 'osu-first: unable to read Mako modes; notifications remain unchanged' >&2
+      fi
+    else
+      echo 'osu-first: makoctl unavailable; notifications remain visible' >&2
+    fi
+  else
+    echo 'osu-first: Mako service inactive; skipping D-Bus mode changes' >&2
   fi
   if pgrep -x waybar >/dev/null 2>&1; then
     pkill -STOP -x waybar

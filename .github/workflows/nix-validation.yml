@@ -144,6 +144,19 @@ jobs:
             echo "::endgroup::"
           done
 
+  osu-first:
+    name: Offline osu-first launcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Test launcher logic without games or services
+        run: |
+          bash -n scripts/osu-performance/osu-first.sh
+          bash scripts/osu-performance/test-osu-first.sh
+
   full-audit:
     name: On-demand full flake check (expensive)
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
