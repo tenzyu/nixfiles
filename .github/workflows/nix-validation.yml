@@ -106,7 +106,48 @@ jobs:
           assert "after_reboot" in report["lifecycle"]
           assert "upgrade_switch" in report["lifecycle"]
           assert "rollback_switch" in report["lifecycle"]
-          print("HOME authority evidence: " + json.dumps(report["readiness"], sort_keys=True))
+          # v1.1 is a stricter contract: report observable violations rather
+          # than accepting the v1.0 canonical-writer success as a v1.1 PASS.
+          v11 = report["v11"]
+          assert v11["schema"] == "home-authority-v11-mutation/v1"
+          assert v11["external_negative_control_mutated"] is True
+          assert len(v11["results"]) == 20
+          assert v11["counts"]["ERROR_OR_UNSUPPORTED"] == 0
+          assert v11["results"]["read_control"]["verdict"] == "READ_OK"
+          assert v11["administrator_is_trusted"] is True
+          after = report["lifecycle"]["after_reboot"].get("v11_mutation")
+          assert after is not None, "post-reboot v1.1 matrix not completed"
+          assert len(after["results"]) == 20
+          assert after["counts"]["ERROR_OR_UNSUPPORTED"] == 0
+          gates = report["v11_readiness"]
+          assert set(("full_home_immutable", "no_legacy_paths",
+                      "single_local_state", "trusted_admin_exclusivity",
+                      "generation_and_recovery", "local_host_admission",
+                      "real_host_adoption")).issubset(gates)
+          assert gates["local_host_admission"] == "BLOCKED"
+          print("HOME authority v1.0 evidence: " + json.dumps(report["readiness"], sort_keys=True))
+          print("HOME authority v1.1 evidence: " + json.dumps(gates, sort_keys=True))
+          PY
+
+      - name: Export independent two-host VM evidence
+        if: contains(steps.selection.outputs.checks, 'home-authority-two-host-vm')
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix build -L --out-link "$RUNNER_TEMP/home-authority-two-host-vm" \
+            .#checks.x86_64-linux.home-authority-two-host-vm
+          cp -- "$RUNNER_TEMP/home-authority-two-host-vm/home-authority-two-host-evidence.json" \
+            "$RUNNER_TEMP/home-authority-two-host-evidence.json"
+          python3 - "$RUNNER_TEMP/home-authority-two-host-evidence.json" <<'PY'
+          import json
+          import sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert report["schema"] == "home-authority-v11-two-host/v1"
+          assert report["global_agreement_required"] is False
+          assert report["local_host_independence_fixture"] == "PASS"
+          assert report["observations"]["alpha_fsynced_state_survived_crash"] is True
+          assert report["observations"]["beta_writes_during_alpha_crash"] is True
+          print("two-host fixture: " + json.dumps(report["observations"], sort_keys=True))
           PY
 
       - name: Evaluate host HOME authority configuration without deployment
@@ -130,13 +171,14 @@ jobs:
             "$RUNNER_TEMP/home-authority-host-evaluated.json" >/dev/null
 
       - name: Upload physical HOME authority VM evidence
-        if: always() && contains(steps.selection.outputs.checks, 'home-authority-seal-vm')
+        if: always() && (contains(steps.selection.outputs.checks, 'home-authority-seal-vm') || contains(steps.selection.outputs.checks, 'home-authority-two-host-vm'))
         uses: actions/upload-artifact@v4
         with:
           name: home-authority-vm-evidence
           path: |
             ${{ runner.temp }}/home-authority-evidence.json
             ${{ runner.temp }}/home-authority-host-evaluated.json
+            ${{ runner.temp }}/home-authority-two-host-evidence.json
           if-no-files-found: error
           retention-days: 30
 

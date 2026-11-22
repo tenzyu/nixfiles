@@ -33,8 +33,13 @@ SCOPED_INPUTS = {
     "home-authority-seal-vm": (
         "assets/home-authority/seal-acceptance.py",
         "assets/home-authority/transition-probes.py",
+        "assets/home-authority/v11-mutation-probes.py",
         "modules/50-features/home/home-authority.nix",
         "modules/50-features/home/home-authority-seal-vm.nix",
+    ),
+    "home-authority-two-host-vm": (
+        "modules/50-features/home/home-authority.nix",
+        "modules/50-features/home/home-authority-two-host-vm.nix",
     ),
     "home-authority-vm": (
         "assets/home-authority/",

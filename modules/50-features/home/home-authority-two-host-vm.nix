@@ -47,7 +47,7 @@
             machine.succeed("chattr +i /home/fixture")
             machine.succeed(
                 "runuser -u fixture -- sh -c "
-                "'printf %s\\\\n " + identity
+                "'printf " + identity
                 + " > /var/lib/v11-authority-state/instance; sync'"
             )
             immutable = machine.succeed("lsattr -d /home/fixture")
@@ -80,7 +80,7 @@
         alpha.crash()
         beta.succeed(
             "runuser -u fixture -- sh -c "
-            "'printf %s\\\\n beta-continues >> /var/lib/v11-authority-state/instance; sync'"
+            "'printf '\\n'beta-continues >> /var/lib/v11-authority-state/instance; sync'"
         )
         continuing = beta.succeed(
             "cat /var/lib/v11-authority-state/instance"
