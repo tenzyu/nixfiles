@@ -53,6 +53,25 @@ host processes. An empty target, controlled startup order, and filesystem
 support for `chattr +i` are explicit prerequisites for this particular VM
 proof. No production HOME is changed.
 
+## Transition negative controls
+
+A second **disposable backing** under `/home/fixture-transition` measures
+the migration boundary separately from the live sealed fixture:
+
+- Deterministic interposition of an unwrapped UID-1000 writer between
+  `rename` and `chattr +i`. It recreates the legacy entry on a distinct
+  inode while the original canonical tree remains intact. This is an
+  **expected, explicitly reported GAP**, not a race-condition PASS.
+- Destination collision with both trees populated. GNU `mv -T --no-copy
+  --update=none-fail` must fail without overwriting either source or target.
+- Different `st_dev` filesystems (`/home` and `/run`): the same move
+  must fail without copying or deleting source state. Missing cross-device
+  topology fails the test, not silently skipping it.
+
+These observations are included in `home-authority-evidence.json` under
+`transition`; the production admission result remains BLOCKED until a
+provably excluded-writer cutover removes the interposition gap.
+
 ## Full-lifecycle evidence collection
 
 The same VM test additionally creates two distinct *real* NixOS/HM system

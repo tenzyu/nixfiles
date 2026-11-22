@@ -107,6 +107,20 @@ the [NixOS VM test manual](https://nixos.org/manual/nixos/stable/#sec-writing-ni
 documents real specialisation tests. Neither a fail-closed report nor a sealed
 VM makes an untrusted privileged host actor disappear.
 
+### Transition hazards explicitly exercised
+
+The [transition VM probes](../cookbook/home-authority-seal-acceptance.md)
+demonstrate that `rename` followed by `chattr +i` is **not atomic**:
+an unwrapped writer can recreate the forbidden legacy entry after the
+rename and before the seal, causing split-brain. These deliberate negative
+controls are recorded, not hidden as PASS. The same fixture separately
+checks that `mv --update=none-fail --no-copy` preserves both populated
+trees on a destination collision and preserves source on a cross-device
+`EXDEV` without a copy fallback. Both are necessary but not sufficient
+for a complete cutover. A production backend therefore needs an actual
+writer-exclusion mechanism spanning the transition, crash recovery and
+all launch paths; none is installed in Draft #79.
+
 ## Missing implementation to satisfy acceptance
 
 The following must be demonstrated in a disposable NixOS VM before any real HOME write denial:

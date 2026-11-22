@@ -7,6 +7,7 @@
 in {
   perSystem = {pkgs, ...}: let
     witness = ../../../assets/home-authority/seal-acceptance.py;
+    transitionProbe = ../../../assets/home-authority/transition-probes.py;
     home = "/home/fixture";
     # VM-scoped candidate backend. This is not permitted on real hosts:
     # freezing a real HOME would break subsequent Home Manager generations.
@@ -185,6 +186,12 @@ in {
         evidence["capabilities"]["baseline_link"] = machine.succeed(
             "test -L /home/fixture/.hm-baseline && cat /home/fixture/.hm-baseline"
         ).strip()
+
+        # Transition hazards are measured on disposable separate backing.
+        # None of the destructive probes acts on the sealed fixture HOME.
+        evidence["transition"] = json.loads(machine.succeed(
+            "${pkgs.python3}/bin/python3 ${transitionProbe}"
+        ))
 
         # A real privileged host actor can clear FS_IMMUTABLE_FL. Treat the
         # bypass as an explicit capability-boundary GAP, then restore the seal.

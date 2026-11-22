@@ -35,6 +35,7 @@ class SelectionTests(unittest.TestCase):
         for path, checks in (
             ("assets/home-authority/test-vm.py", ["home-authority-vm"]),
             ("assets/home-authority/seal-acceptance.py", ["home-authority-seal-vm", "home-authority-vm"]),
+            ("assets/home-authority/transition-probes.py", ["home-authority-seal-vm", "home-authority-vm"]),
             ("modules/50-features/home/home-authority-seal-vm.nix", ["home-authority-seal-vm", "home-migration"]),
             ("modules/50-features/home/home-authority-vm.nix", ["home-authority-vm", "home-migration"]),
             ("modules/50-features/home/home-authority.nix", ["home-authority-seal-vm", "home-authority-vm", "home-migration"]),
