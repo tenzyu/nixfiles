@@ -180,6 +180,38 @@ def child(action, location):
         print(json.dumps({"result": "completed"}))
 
 
+def private_namespace_legacy_view():
+    """Can an ordinary UID build its own compatibility HOME mount view?
+
+    A user namespace is intentionally attempted without host root
+    privileges. If unavailable, this is *not* evidence of global denial.
+    """
+    alias = EXTERNAL / ".legacy"
+    alias.mkdir(mode=0o700)
+    os.chown(alias, 1000, 100)
+    marker = alias / "inside"
+    marker.write_text("forbidden private view")
+    os.chown(marker, 1000, 100)
+    script = 'mount --bind "$1" "$2" && test -f "$2/.legacy/inside"'
+    cmd = [
+        "runuser", "-u", "fixture", "--",
+        "unshare", "--user", "--map-root-user", "--mount",
+        "--propagation", "private", "--",
+        "sh", "-c", script, "sh", str(EXTERNAL), str(HOME),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    return {
+        "untrusted_host_uid": 1000,
+        "attempted": True,
+        "exit_code": result.returncode,
+        "result": "VIOLATION" if result.returncode == 0 else "UNAVAILABLE_OR_DENIED",
+        "stderr": result.stderr[-450:],
+        "physical_legacy_remains_absent": not os.path.lexists(HOME / ".legacy"),
+        "note": ("The root/user-namespace view is not a trusted administrator; "
+                 "a failed unshare/mount must not be misreported as enforcement."),
+    }
+
+
 def controller():
     if os.geteuid() != 0:
         raise RuntimeError("root test controller required; actor is separate UID")
@@ -220,6 +252,9 @@ def controller():
             label: sum(1 for v in results.values() if v["verdict"] == label)
             for label in ("VIOLATION", "DENIED", "READ_OK", "ERROR_OR_UNSUPPORTED")
         }
+        private_legacy = private_namespace_legacy_view()
+        if not private_legacy["physical_legacy_remains_absent"]:
+            raise RuntimeError("namespace probe escaped into physical HOME")
         return {
             "schema": "home-authority-v11-mutation/v1",
             "physical_home": str(HOME),
@@ -227,6 +262,7 @@ def controller():
             "unprivileged_actor_uid": 1000,
             "root_fixture_setup_is_explicit_trusted_transition": True,
             "external_negative_control_mutated": True,
+            "private_namespace_legacy_view": private_legacy,
             "results": results, "counts": counts,
             "home_immutability_admission": (
                 "PASS" if counts["VIOLATION"] == 0
