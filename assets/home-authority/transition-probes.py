@@ -40,6 +40,78 @@ def clean():
             CROSS_TARGET.unlink()
 
 
+def crash_failpoints():
+    """Kill the trusted transition process at three precise syscall points.
+
+    These disposable scratch trees intentionally have no recovery journal.
+    Their outcomes characterize an unsafe protocol; they are not a
+    production 'recovery succeeded' assertion.
+    """
+    results = {}
+    for stage in ("before_move", "after_move", "after_seal"):
+        work = ROOT / ("interrupt-" + stage)
+        work.mkdir(mode=0o700)
+        os.chown(work, 1000, 100)
+        source = work / ".legacy"
+        target = work / "canonical"
+        write(source / "incumbent", "acknowledged\n")
+        previous_inode = source.stat().st_ino
+        child = os.fork()
+        if child == 0:
+            try:
+                if stage != "before_move":
+                    os.rename(source, target)
+                if stage == "after_seal":
+                    subprocess.run(
+                        ["chattr", "+i", str(work)],
+                        check=True, capture_output=True,
+                    )
+                os._exit(77)
+            except BaseException:
+                os._exit(1)
+        _, status = os.waitpid(child, 0)
+        require(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 77,
+                f"fault injection was not executed at {stage}")
+        moved = not source.exists() and (target / "incumbent").exists()
+        kept = source.exists() and not target.exists()
+        require(moved if stage != "before_move" else kept,
+                f"unexpected state after SIGKILL at {stage}")
+        data_path = target if moved else source
+        require((data_path / "incumbent").read_text() == "acknowledged\n",
+                f"durable baseline lost at {stage}")
+        require(data_path.stat().st_ino == previous_inode,
+                f"incumbent inode replaced at {stage}")
+        if stage == "after_move":
+            interposed = run(
+                "runuser", "-u", "fixture", "--", "mkdir", str(source)
+            )
+            require(interposed.returncode == 0 and source.is_dir(),
+                    "unsealed crash window was not demonstrated")
+            exposure = "VIOLATION"
+        elif stage == "after_seal":
+            interposed = run(
+                "runuser", "-u", "fixture", "--", "mkdir", str(source)
+            )
+            require(interposed.returncode != 0 and not source.exists(),
+                    "sealed crash window allowed forbidden recreation")
+            exposure = "DENIED"
+        else:
+            exposure = "NOT_APPLICABLE_PRE_MOVE"
+        results[stage] = {
+            "trusted_process_exit": 77,
+            "durable_baseline_survived": True,
+            "incumbent_inode_preserved": True,
+            "legacy_recreation": exposure,
+            "recovery_commit_journal": "ABSENT",
+            "safe_recovery_automatically_established": False,
+        }
+        if stage == "after_seal":
+            restored = run("chattr", "-i", str(work))
+            require(restored.returncode == 0, "scratch seal cleanup failed")
+        shutil.rmtree(work)
+    return results
+
+
 def probe():
     clean()
     ROOT.mkdir(mode=0o700)
@@ -117,6 +189,7 @@ def probe():
             "source_survives": True,
             "target_absent": True,
         }
+        evidence["crash_failpoints"] = crash_failpoints()
         print(json.dumps(evidence, sort_keys=True))
     finally:
         clean()
