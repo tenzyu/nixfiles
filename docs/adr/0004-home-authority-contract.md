@@ -148,7 +148,22 @@ derivation, so the GitHub Actions artifact **did not upload**. The subsequent
 fix moves this report explicitly into `$out` and tightens readiness to require
 successful switch, actual managed link, healthy unit, rollback and post-reboot
 attack re-execution—not mere zero status from `lsattr` or a preexisting link.
-The final CI result for that fix must be checked independently.
+The artifact correction was verified in
+[CI #44986156842](https://github.com/tenzyu/nixfiles/actions/runs/44986156842)
+on commit `cd9031d`: the Nix-focused job and documentation checks passed,
+`home-authority-evidence.json` was written into the test derivation output,
+and the GitHub Actions artifact
+[`home-authority-vm-evidence`](https://github.com/tenzyu/nixfiles/actions/runs/44986156842)
+(ID `14739244772`) was successfully uploaded. Evaluated neko5/neko7
+`local.homeAuthority` settings were also exported, explicitly marked as
+static rather than runtime evidence. The resulting readiness values are
+`vm_stale_fd_and_namespace=PASS`,
+`two_generation_managed_links=BLOCKED`,
+`reboot_services=BLOCKED`, `transition_writer_exclusion=BLOCKED`,
+`privileged_physical_root=BLOCKED`, and
+`production_enforce=BLOCKED`. CI success therefore certifies *evidence
+collection and expected steady-state negative-control denial*, not an
+enforceable production transition contract.
 
 ## Missing implementation to satisfy acceptance
 

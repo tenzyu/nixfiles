@@ -21,7 +21,8 @@ optional feature checks. Selection is deterministic, deduplicated and tested.
 
 | Changed source | Additional check |
 | --- | --- |
-| Home modules or `assets/home-layout/` | `home-migration` |\n| `home-authority.nix` and its enforcement fixture | `home-authority-vm` and `home-authority-seal-vm` |
+| Home modules or `assets/home-layout/` | `home-migration` |
+| `home-authority.nix` and its enforcement fixture | `home-authority-vm` and `home-authority-seal-vm` |
 | `nix-store-clean.nix` or `assets/nix-store-clean/` | `nix-store-clean` |
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
@@ -56,6 +57,16 @@ report fails CI. The `root.enforce = true` Nix assertion remains closed
 until privileged-host policy, reliable upgrade/rollback, and real clients
 have independently passed the admission contract in
 [ADR-0004](../adr/0004-home-authority-contract.md).
+
+The final [CI #44986156842](https://github.com/tenzyu/nixfiles/actions/runs/44986156842)
+confirmed all three evidence-related steps succeeded: VM export, static
+host configuration evaluation, and artifact upload (ID `14739244772`).
+The JSON deliberately reports
+`vm_stale_fd_and_namespace=PASS` with
+`two_generation_managed_links`, `reboot_services`,
+`transition_writer_exclusion`, `privileged_physical_root`, and
+`production_enforce` all **BLOCKED**. This is a passing *measurement
+pipeline*, not an admission of `root.enforce = true`.
 
 The artifact also contains `home-authority-host-evaluated.json`,
 the evaluated `local.homeAuthority` configuration for neko5 and neko7.

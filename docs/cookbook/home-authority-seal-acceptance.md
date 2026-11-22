@@ -91,6 +91,16 @@ fixture now writes to `$out` explicitly. The readiness calculation requires
 actual success of both system switches, managed link appearance, unit
 results, reboot persistence and the direct syscall matrix rerun after reboot.
 One successful syscall batch cannot mask a failed Home Manager lifecycle.
+The [final CI #44986156842](https://github.com/tenzyu/nixfiles/actions/runs/44986156842)
+at `cd9031d` **succeeded**: the independent seal oracle and actual VM
+evidence export both completed, while the report explicitly records
+`two_generation_managed_links=BLOCKED`,
+`reboot_services=BLOCKED`, `transition_writer_exclusion=BLOCKED`,
+`privileged_physical_root=BLOCKED`, and
+`production_enforce=BLOCKED`. The uploaded
+`home-authority-vm-evidence` Actions artifact (ID `14739244772`)
+contains the structured VM and static host-evaluation JSON. This is a
+validated evidence-pipeline result, **not** production readiness.
 
 ## Full-lifecycle evidence collection
 
@@ -137,6 +147,8 @@ A Green CI is **not** permission to set `root.enforce = true`.
 
 There is no expected-failure wrapper, result inversion, silent skip, or
 deployment to neko5/neko7. This check stays separate until an actual backend
-and staged two-generation activation can satisfy it. The fixture currently
-exercises the ordering/activation phase within one VM generation; **a second
-real system-generation rollback test is still required** for full certification.
+and staged two-generation activation can satisfy it. The fixture **has
+attempted** a real second NixOS specialisation and rollback, both of which
+failed (exit status 4) under the immutable HOME policy. A **successful,
+writer-safe two-generation switch and rollback** is still required for
+certification.
