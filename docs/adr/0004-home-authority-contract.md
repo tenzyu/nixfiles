@@ -1,5 +1,12 @@
 # ADR-0004 — Physical HOME authority and working-state views
 
+> **Superseded contract boundary:** [ADR-0005](0005-home-authority-problem-space-v1.1.md)
+> fixes the current problem space: trusted administrators, an immutable
+> **whole** physical HOME object graph, no legacy compatibility views,
+> independent neko5/neko7 authorities. The candidate described here allowed
+> ordinary writes inside HOME and must therefore be treated as historical
+> evidence, **not** a valid v1.1 `root.enforce` backend.
+
 **Status:** investigation; **date:** 2026-11-21. This document specifies the acceptance boundary. No host currently satisfies the complete contract. The new `home-authority` Nix module is a typed **audit and route compiler**, not a filesystem lock.
 
 ## The two invariants

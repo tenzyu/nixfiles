@@ -62,6 +62,14 @@ Allowing an ordinary UID to modify HOME *during* that clearance **is**.
 | home-authority-two-host-vm | Two QEMU nodes with independent local disks/authority state; one crash while the other updates, persistence and root name-denial after restart | Independent fixture behavior; not real neko5/neko7 verification |
 | Static host evaluation | Read-only evaluated options for neko5/neko7 | Configuration evidence, not runtime enforcement |
 
+The v1.1 suite also attempts a private legacy compatibility view from an
+untrusted user namespace, explicitly distinguishes unavailable userns/mount
+capabilities from enforcement, and reruns the mutation matrix after reboot.
+The transition suite injects trusted-process crashes at three cutover
+boundaries; these are process failures, not physical power loss. A separate
+two-node VM test power-cycles one QEMU node while another keeps its independent
+state writable. Neither experiment automatically admits a host.
+
 The v1.1 matrix measures create/openat/mkdir/symlink/link/rename/rename
 exchange/unlink/rmdir/ordinary and pwrite/append/truncate/ftruncate/
 MAP_SHARED mmap/posix_fallocate/chmod/utime/xattr, plus a read control.

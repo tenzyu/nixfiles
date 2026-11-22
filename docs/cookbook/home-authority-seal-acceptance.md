@@ -102,6 +102,57 @@ evidence export both completed, while the report explicitly records
 contains the structured VM and static host-evaluation JSON. This is a
 validated evidence-pipeline result, **not** production readiness.
 
+
+### Additional v1.1 negative controls
+
+The [v1.1 contract](../adr/0005-home-authority-problem-space-v1.1.md)
+requires immutable content and metadata **at every depth** beneath the
+physical HOME; root-only new-name denial is insufficient. The new
+`v11-mutation-probes.py` seeds an isolated canonical subtree through a trusted
+test-only administrator and executes 20 operations as UID 1000, comparing the
+actual object graph before and after. It covers existing-file writes,
+`pwrite`, append, truncate, `ftruncate`, `MAP_SHARED` mmap, fallocate,
+`chmod`, timestamp and xattr edits; new names, links, rename/exchange,
+unlink and rmdir; plus a read-only control. Each result is reported as
+`VIOLATION`, `DENIED`, `READ_OK`, or `ERROR_OR_UNSUPPORTED`.
+
+A separate namespace probe attempts `unshare --user --map-root-user --mount`
+as the unprivileged account, followed by a private bind mount that exposes
+`~/.legacy`. If user namespaces or the bind mount are unavailable, the
+result remains `UNAVAILABLE_OR_DENIED`: **never** a universal non-exposure
+proof. The matrix runs both before and after a real VM reboot.
+
+The transition fixture now also terminates a trusted process immediately
+*before rename*, *after rename* and *after seal*. It inspects incumbent
+inode/data survival and whether a normal UID can recreate the legacy name
+after the process exit. These are deterministic process-death failpoints,
+not a simulation of controller power loss or disk cache loss.
+
+`home-authority-two-host-vm` boots independent alpha and beta QEMU nodes,
+constructs separate HOME and external state, forcibly crashes alpha while
+beta continues its local updates, and checks recovery of alpha's fsynced
+state and immutable-root denial after restart. This checks the *lack of a
+cross-host authority requirement*, not real host adoption or user session
+behavior.
+
+Run the independently scoped suites:
+
+```sh
+nix build -L .#checks.x86_64-linux.home-authority-seal-vm
+nix build -L .#checks.x86_64-linux.home-authority-two-host-vm
+```
+
+GitHub Actions exports one artifact, `home-authority-vm-evidence`, containing
+`home-authority-evidence.json` (original oracle + v1.1 matrix and gates),
+`home-authority-two-host-evidence.json` (independent-node experiment), and
+`home-authority-host-evaluated.json` (static host configuration only).
+
+**Do not interpret CI Green as v1.1 admission.** The old test explicitly
+requires writing to an existing subtree *inside* HOME, which v1.1 forbids.
+A clean diagnostic run may correctly report many `VIOLATION` and `BLOCKED`
+results. Only the evidence's independent v1.1 admission gates describe the
+new problem space, and `root.enforce = true` remains disabled on both hosts.
+
 ## Full-lifecycle evidence collection
 
 The same VM test additionally creates two distinct *real* NixOS/HM system

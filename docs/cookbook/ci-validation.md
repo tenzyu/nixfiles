@@ -22,11 +22,11 @@ optional feature checks. Selection is deterministic, deduplicated and tested.
 | Changed source | Additional check |
 | --- | --- |
 | Home modules or `assets/home-layout/` | `home-migration` |
-| `home-authority.nix` and its enforcement fixture | `home-authority-vm` and `home-authority-seal-vm` |
+| `home-authority.nix` and its authority fixtures | `home-authority-vm`, `home-authority-seal-vm` and `home-authority-two-host-vm` |
 | `nix-store-clean.nix` or `assets/nix-store-clean/` | `nix-store-clean` |
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
-| `flake.nix`, `flake.lock`, shared overlays, host declarations, or internal adapter implementation | All five focused optional checks and cache probe |
+| `flake.nix`, `flake.lock`, shared overlays, host declarations, or internal adapter implementation | All affected focused optional checks and cache probe |
 | Zsh, Firefox or common feature (owners of home migration rules) | `home-migration` |
 | SplitCast media features (including cache settings) or `nix.nix` | SplitCast cache probe only |
 
@@ -41,6 +41,16 @@ always built for an unrelated PR. It remains available as
 The manually dispatched `full-audit` job retains `nix flake check`.
 
 ## Physical HOME authority evidence
+
+The accepted v1.1 problem space is [ADR-0005](../adr/0005-home-authority-problem-space-v1.1.md).
+CI collects *diagnostic* evidence of whole-HOME immutability, untrusted
+user-namespace compatibility views, administrator cutover windows,
+process-crash failpoints and independent two-host QEMU authority.
+Unprivileged nested HOME mutations are correctly classified as
+**VIOLATION** even where the earlier root-only oracle says PASS.
+The two-host test is not a clone of either real host. CI Green means
+measurement succeeded, not that production `root.enforce` is admissible.
+
 
 When HOME authority test inputs change, the selective-check mapping
 includes both the independent `home-authority-seal-vm` and the
