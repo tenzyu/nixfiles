@@ -59,7 +59,7 @@ in {
           home = home;
           createHome = true;
         };
-        environment.systemPackages = with pkgs; [coreutils util-linux python3];
+        environment.systemPackages = with pkgs; [coreutils util-linux python3 e2fsprogs];
         # Genuine second NixOS/HM generation: changing a root-level managed
         # link must NOT be mistaken for successful activation under +i.
         home-manager.users.fixture.home.file.".hm-baseline".text = "baseline\n";

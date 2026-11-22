@@ -14,14 +14,14 @@ build, boot, service activation, or runtime acceptance test.
 first parent for pull requests; on push to main it uses the event's
 `before` SHA, including multi-commit pushes. The checkout fetches full
 history to make that base reachable. If Git cannot resolve the base, the
-selector fails closed: it chooses all five focused optional checks and
+selector fails closed: it chooses all focused optional checks and
 the SplitCast cache probe rather than silently skipping checks.
 Test fixtures and pure library unit tests alone do not force unrelated
 optional feature checks. Selection is deterministic, deduplicated and tested.
 
 | Changed source | Additional check |
 | --- | --- |
-| Home modules or `assets/home-layout/` | `home-migration` |
+| Home modules or `assets/home-layout/` | `home-migration` |\n| `home-authority.nix` and its enforcement fixture | `home-authority-vm` and `home-authority-seal-vm` |
 | `nix-store-clean.nix` or `assets/nix-store-clean/` | `nix-store-clean` |
 | `opencode-direnv.nix` or `assets/opencode/` | `opencode-direnv` |
 | `rtk.nix` or `assets/rtk/` | `rtk-rewrites` |
@@ -101,5 +101,5 @@ bash -n scripts/ci/audit-splitcast-cache.sh
 
 CI configuration changes do not activate hosts or change their closures.
 Rollback is a Git revert of the CI-only commit(s). On a `flake.lock`
-change, the five optional checks may take longer than the baseline;
+change, the optional focused checks may take longer than the baseline;
 a timeout is a failed verification, never an accepted build.

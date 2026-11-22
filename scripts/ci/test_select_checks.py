@@ -37,7 +37,7 @@ class SelectionTests(unittest.TestCase):
             ("assets/home-authority/seal-acceptance.py", ["home-authority-seal-vm", "home-authority-vm"]),
             ("modules/50-features/home/home-authority-seal-vm.nix", ["home-authority-seal-vm", "home-migration"]),
             ("modules/50-features/home/home-authority-vm.nix", ["home-authority-vm", "home-migration"]),
-            ("modules/50-features/home/home-authority.nix", ["home-authority-vm", "home-migration"]),
+            ("modules/50-features/home/home-authority.nix", ["home-authority-seal-vm", "home-authority-vm", "home-migration"]),
             ("assets/home-layout/migrate.py", ["home-migration"]),
             ("assets/home-layout/test-activation.sh", ["home-migration"]),
             ("modules/50-features/home/home-migration.nix", ["home-migration"]),

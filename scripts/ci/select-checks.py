@@ -32,6 +32,7 @@ SCOPED_INPUTS = {
     ),
     "home-authority-seal-vm": (
         "assets/home-authority/seal-acceptance.py",
+        "modules/50-features/home/home-authority.nix",
         "modules/50-features/home/home-authority-seal-vm.nix",
     ),
     "home-authority-vm": (
