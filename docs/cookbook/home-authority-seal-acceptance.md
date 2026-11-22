@@ -72,6 +72,26 @@ These observations are included in `home-authority-evidence.json` under
 `transition`; the production admission result remains BLOCKED until a
 provably excluded-writer cutover removes the interposition gap.
 
+## Measured generation and restart gaps
+
+The expanded [CI #44985524761](https://github.com/tenzyu/nixfiles/actions/runs/44985524761)
+used an ext4 Linux 6.18.63 fixture. Both genuine
+`switch-to-configuration test` operations returned status **4**:
+the next generation could not create `.hm-generation-two`, and rollback
+could not recreate `.hm-baseline` under `chattr +i`.
+After reboot, the immutable flag, canonical data and canonical write path
+survived, but the Home Manager unit was `ActiveState=failed`,
+`Result=exit-code`. The root-unseal and interposition gaps were likewise
+reproduced. These are **blocking observations**, not an unexpected CI
+regression to waive.
+
+The initial report accidentally landed in `/build` and was not included
+in the Nix derivation; the artifact export step therefore failed. The
+fixture now writes to `$out` explicitly. The readiness calculation requires
+actual success of both system switches, managed link appearance, unit
+results, reboot persistence and the direct syscall matrix rerun after reboot.
+One successful syscall batch cannot mask a failed Home Manager lifecycle.
+
 ## Full-lifecycle evidence collection
 
 The same VM test additionally creates two distinct *real* NixOS/HM system

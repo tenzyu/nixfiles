@@ -198,15 +198,15 @@ in {
         machine.succeed("chattr -i /home/fixture")
         try:
             root_override = sample(
-                "runuser -u fixture -- sh -c 'printf bypass > /home/fixture/.root-override'"
+                "runuser -u fixture -- sh -c 'printf bypass > /home/fixture/.blocked'"
             )
             evidence["privileged_boundary"]["clear_immutable_then_user_create"] = root_override
             evidence["privileged_boundary"]["bypass_visible"] = sample(
-                "test -f /home/fixture/.root-override && "
-                "grep -Fxq bypass /home/fixture/.root-override"
+                "test -f /home/fixture/.blocked && "
+                "grep -Fxq bypass /home/fixture/.blocked"
             )
         finally:
-            machine.succeed("rm -f /home/fixture/.root-override")
+            machine.succeed("rm -f /home/fixture/.blocked")
             machine.succeed("chattr +i /home/fixture")
         # Make the observable capability escape a required fact, not a SKIP.
         assert evidence["privileged_boundary"]["clear_immutable_then_user_create"]["exit_code"] == 0
@@ -243,46 +243,100 @@ in {
 
         # Reboot should preserve data and physical policy. Observe the actual
         # services rather than faking a healthy two-generation boot.
-        machine.reboot()
-        machine.wait_for_unit("multi-user.target")
-        evidence["lifecycle"]["after_reboot"] = {
-            "seal": sample("lsattr -d /home/fixture"),
-            "canonical_data": sample("grep -Fxq 'before' /home/fixture/.local/share/authority/incumbent"),
-            "legacy_absent": sample("test ! -e /home/fixture/.legacy"),
-            "held_fd_service": sample("systemctl show -p ActiveState -p Result home-authority-held-fds.service"),
-            "home_manager_unit": sample("systemctl show -p ActiveState -p Result home-manager-fixture.service"),
-            "seal_unit": sample("systemctl show -p ActiveState -p Result home-authority-fixture-seal.service"),
-            "canonical_writable": sample(
-                "runuser -u fixture -- sh -c 'printf postboot > /home/fixture/.local/share/authority/reboot-writer'"
-            ),
-        }
+        # Keep the diagnostic evidence even if reboot cannot reconnect.
+        # The prior independent syscall oracle was already required to pass.
+        try:
+            machine.reboot()
+            machine.wait_for_unit("multi-user.target", timeout=120)
+            evidence["lifecycle"]["reboot_transport"] = "reconnected"
+            evidence["lifecycle"]["after_reboot"] = {
+                "seal": sample("lsattr -d /home/fixture"),
+                "canonical_data": sample("grep -Fxq 'before' /home/fixture/.local/share/authority/incumbent"),
+                "legacy_absent": sample("test ! -e /home/fixture/.legacy"),
+                "held_fd_service": sample("systemctl show -p ActiveState -p Result home-authority-held-fds.service"),
+                "home_manager_unit": sample("systemctl show -p ActiveState -p Result home-manager-fixture.service"),
+                "seal_unit": sample("systemctl show -p ActiveState -p Result home-authority-fixture-seal.service"),
+                "canonical_writable": sample(
+                    "runuser -u fixture -- sh -c 'printf postboot > /home/fixture/.local/share/authority/reboot-writer'"
+                ),
+            }
+            # Repeat the full independent direct-syscall matrix after a real
+            # restart. A boot with no immutable flag must NOT appear healthy.
+            code, stdout = machine.execute(
+                "runuser -u fixture -- ${pkgs.python3}/bin/python3 ${witness} unwrapped",
+                timeout=90,
+            )
+            if code != 0:
+                evidence["lifecycle"]["after_reboot"]["direct_probes_error"] = {
+                    "exit_code": code, "output": stdout[-1800:]
+                }
+            else:
+                evidence["lifecycle"]["after_reboot"]["direct_probes"] = json.loads(stdout)
+        except Exception as exc:
+            evidence["lifecycle"]["reboot_transport"] = "BLOCKED"
+            evidence["lifecycle"]["reboot_error"] = type(exc).__name__ + ": " + str(exc)[-900:]
+            evidence["lifecycle"].setdefault("after_reboot", {})
 
-        # A strong result is not confused with a successful lifecycle:
-        # any failed service/link remains recorded as a blocker.
-        print("HOME_AUTHORITY_EVIDENCE_BEGIN")
-        print(json.dumps(evidence, indent=2, sort_keys=True))
-        print("HOME_AUTHORITY_EVIDENCE_END")
+        # A passing command exit code does not imply a healthy systemd unit,
+        # nor does a pre-existing link prove a successful generation switch.
+        def ok(item):
+            return item.get("exit_code") == 0
+
+        def unit_ok(item):
+            return ok(item) and "Result=success" in item.get("output", "")
+
+        lifecycle = evidence["lifecycle"]
+        upgraded = lifecycle["after_upgrade"]
+        rolled_back = lifecycle["after_rollback"]
+        generation_ok = (
+            ok(lifecycle["upgrade_switch"])
+            and ok(upgraded["new_link_present"])
+            and unit_ok(upgraded["home_manager_unit"])
+            and ok(lifecycle["rollback_switch"])
+            and ok(rolled_back["baseline_link"])
+        )
+        boot = lifecycle["after_reboot"]
+        syscalls = boot.get("direct_probes", [])
+        syscalls_ok = (
+            len(syscalls) == 7
+            and all(
+                p.get("result") == ("allowed" if p.get("label") == "canonical-writer" else "denied")
+                for p in syscalls
+            )
+        )
+        reboot_ok = (
+            lifecycle.get("reboot_transport") == "reconnected"
+            and all(ok(boot.get(k, {})) for k in ("canonical_data", "canonical_writable", "legacy_absent"))
+            and "i" in boot.get("seal", {}).get("output", "").split(" ", 1)[0]
+            and all(unit_ok(boot.get(k, {})) for k in ("held_fd_service", "home_manager_unit", "seal_unit"))
+            and syscalls_ok
+        )
         evidence["readiness"] = {
             "vm_stale_fd_and_namespace": "PASS",
-            "two_generation_managed_links": (
-                "PASS" if evidence["lifecycle"]["after_upgrade"]["new_link_present"]["exit_code"] == 0
-                else "BLOCKED"
-            ),
+            "transition_writer_exclusion": "BLOCKED: deterministic unwrapped interposition creates split-brain",
+            "two_generation_managed_links": "PASS" if generation_ok else "BLOCKED",
             "privileged_physical_root": "BLOCKED: privileged actor demonstrated immutable-flag override",
-            "reboot_services": "OBSERVED: inspect lifecycle.after_reboot unit states",
+            "reboot_services": "PASS" if reboot_ok else "BLOCKED",
             "production_enforce": "BLOCKED",
             "untested_outside_vm": [
                 "neko5/neko7 physical filesystems and mount topology",
                 "real graphical/T3/Codex/Docker clients and daemon inheritance",
-                "concurrent writers during privileged maintenance",
                 "host administrator policy and storage snapshots",
                 "other filesystems and remote storage",
             ],
         }
+        # Nix test scripts run with /build as CWD; writing there is NOT the
+        # output derivation. Explicitly put the JSON in $out for CI artifacts.
+        import os
         from pathlib import Path
-        artifact = Path("home-authority-evidence.json")
+        output_dir = Path(os.environ["out"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        artifact = output_dir / "home-authority-evidence.json"
         artifact.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         assert artifact.is_file() and artifact.stat().st_size > 512
+        print("HOME_AUTHORITY_EVIDENCE_BEGIN")
+        print(json.dumps(evidence, indent=2, sort_keys=True))
+        print("HOME_AUTHORITY_EVIDENCE_END")
         print("HOME_AUTHORITY_EVIDENCE_ARTIFACT=" + str(artifact.resolve()))
       '';
     };

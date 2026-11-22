@@ -98,15 +98,45 @@ jobs:
           assert report["schema"] == "home-authority-vm-evidence/v1"
           assert report["initial_seal_oracle"] == "PASS"
           assert report["readiness"]["production_enforce"] == "BLOCKED"
+          assert report["readiness"]["transition_writer_exclusion"].startswith("BLOCKED")
+          assert report["transition"]["rename_to_seal_interposition"]["result"] == "GAP_CONFIRMED"
+          assert report["transition"]["occupied_destination"]["preserved_both_backings"] is True
+          assert report["transition"]["cross_filesystem_no_copy"]["result"] == "REJECTED_WITHOUT_COPY"
+          assert report["privileged_boundary"]["bypass_visible"]["exit_code"] == 0
+          assert "after_reboot" in report["lifecycle"]
+          assert "upgrade_switch" in report["lifecycle"]
+          assert "rollback_switch" in report["lifecycle"]
           print("HOME authority evidence: " + json.dumps(report["readiness"], sort_keys=True))
           PY
+
+      - name: Evaluate host HOME authority configuration without deployment
+        if: contains(steps.selection.outputs.checks, 'home-authority-seal-vm')
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in neko5 neko7; do
+            nix eval --json \
+              ".#nixosConfigurations.${host}.config.home-manager.users.tenzyu.local.homeAuthority" \
+              > "$RUNNER_TEMP/${host}-home-authority.json"
+          done
+          jq -n \
+            --slurpfile neko5 "$RUNNER_TEMP/neko5-home-authority.json" \
+            --slurpfile neko7 "$RUNNER_TEMP/neko7-home-authority.json" \
+            '{schema:"home-authority-host-evaluation/v1", runtime_observed:false,
+              hosts:{neko5:$neko5[0], neko7:$neko7[0]}}' \
+            > "$RUNNER_TEMP/home-authority-host-evaluated.json"
+          jq -e '.hosts.neko5.root.enforce == false and
+                 .hosts.neko7.root.enforce == false' \
+            "$RUNNER_TEMP/home-authority-host-evaluated.json" >/dev/null
 
       - name: Upload physical HOME authority VM evidence
         if: always() && contains(steps.selection.outputs.checks, 'home-authority-seal-vm')
         uses: actions/upload-artifact@v4
         with:
           name: home-authority-vm-evidence
-          path: ${{ runner.temp }}/home-authority-evidence.json
+          path: |
+            ${{ runner.temp }}/home-authority-evidence.json
+            ${{ runner.temp }}/home-authority-host-evaluated.json
           if-no-files-found: error
           retention-days: 30
 

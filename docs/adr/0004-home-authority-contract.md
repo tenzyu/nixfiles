@@ -121,6 +121,35 @@ for a complete cutover. A production backend therefore needs an actual
 writer-exclusion mechanism spanning the transition, crash recovery and
 all launch paths; none is installed in Draft #79.
 
+### Observed expanded VM results (CI #44985524761)
+
+The [expanded CI run](https://github.com/tenzyu/nixfiles/actions/runs/44985524761)
+completed every VM diagnostic and recorded Linux **6.18.63** on **ext4
+(/dev/vda)**, with `FS_IMMUTABLE_FL` present on the actual
+`/home/fixture` directory. It also recorded:
+
+- The destination-collision and cross-filesystem no-copy probes refused
+  mutation (both Coreutils `mv` exit status 1), preserving the incumbents.
+- A deterministically interposed UID-1000 writer recreated the legacy name
+  between rename and seal, producing a different inode and **split-brain**.
+- A privileged host actor removed the immutable attribute; an unwrapped
+  normal-user writer could then create a new entry.
+- The specialisation upgrade **failed with status 4**, with Home Manager
+  unable to create `.hm-generation-two` (`Operation not permitted`).
+- Rollback **failed with status 4**, with Home Manager unable to recreate
+  `.hm-baseline` for the same reason.
+- Reboot preserved immutable flags, canonical contents and writable
+  canonical state, but `home-manager-fixture.service` was **failed**
+  (`Result=exit-code`); the FD service remained active and the seal
+  oneshot returned success.
+
+The run's test output wrote JSON to `/build` instead of the Nix output
+derivation, so the GitHub Actions artifact **did not upload**. The subsequent
+fix moves this report explicitly into `$out` and tightens readiness to require
+successful switch, actual managed link, healthy unit, rollback and post-reboot
+attack re-execution—not mere zero status from `lsattr` or a preexisting link.
+The final CI result for that fix must be checked independently.
+
 ## Missing implementation to satisfy acceptance
 
 The following must be demonstrated in a disposable NixOS VM before any real HOME write denial:

@@ -57,6 +57,12 @@ until privileged-host policy, reliable upgrade/rollback, and real clients
 have independently passed the admission contract in
 [ADR-0004](../adr/0004-home-authority-contract.md).
 
+The artifact also contains `home-authority-host-evaluated.json`,
+the evaluated `local.homeAuthority` configuration for neko5 and neko7.
+This is **static configuration evidence only** and is marked
+`runtime_observed: false`. It cannot establish the real filesystem type,
+live process references, account-root authority or state cutover safety.
+
 ## SplitCast cache evidence
 
 For selected changes, `scripts/ci/audit-splitcast-cache.sh` reads the
