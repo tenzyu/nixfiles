@@ -53,6 +53,44 @@ host processes. An empty target, controlled startup order, and filesystem
 support for `chattr +i` are explicit prerequisites for this particular VM
 proof. No production HOME is changed.
 
+## Full-lifecycle evidence collection
+
+The same VM test additionally creates two distinct *real* NixOS/HM system
+generations: initial Home Manager root link `.hm-baseline`, and a
+`specialisation.next` which adds `.hm-generation-two`. After proving all
+original root-denial/FD invariants, it attempts the actual
+`switch-to-configuration test` to generation two, observes the managed
+link and systemd unit results, switches back, and reboots the same VM disk.
+The test does not unseal to rescue Home Manager activation.
+
+The test records the following independently of its PASS/FAIL syscall oracle:
+
+- Kernel version, physical HOME filesystem + source + mount flags, mount
+  namespace, immutable flags, owner and canonical inode.
+- Privileged actor's `chattr -i` capability followed by a real unwrapped
+  user process creating a forbidden root entry during the maintenance window.
+  Cleanup and resealing are required.
+- Generation-one and generation-two system store references, switch/rollback
+  exit codes, new managed-link existence, systemd results and canonical data.
+- Post-reboot immutable flag, canonical data survival, legacy name absence,
+  held-FD witness unit, Home Manager unit and sealing service status.
+- Machine-readable gate map: `vm_stale_fd_and_namespace`, generation link
+  transition, privileged boundary, reboot service evidence and production
+  readiness. There is no synthetic "all-good" result.
+
+CI artifact: `home-authority-vm-evidence.json` from the Nix test output
+directory, published as `home-authority-vm-evidence` (30 days). The
+workflow validates its JSON schema and requires an explicit
+`production_enforce = BLOCKED` until real host authorization exists.
+The JSON report is intended to be reviewed even when the VM's
+original syscall oracle remains PASS.
+
+**Scope limitations:** This disposable VM cannot establish neko5/neko7
+filesystem behavior, credential-bearing T3/Codex sessions, live Docker
+storage writers, desktop sessions or host-administrator restraint. Additional
+negative controls are required for any new privileged-switch architecture.
+A Green CI is **not** permission to set `root.enforce = true`.
+
 There is no expected-failure wrapper, result inversion, silent skip, or
 deployment to neko5/neko7. This check stays separate until an actual backend
 and staged two-generation activation can satisfy it. The fixture currently

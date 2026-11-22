@@ -79,6 +79,37 @@ jobs:
           read -r -a attrs <<< "$SELECTED_CHECKS"
           nix build -L --no-link "${attrs[@]}"
 
+      # VM evidence is a Nix test output, not a reconstructed green/red
+      # status. Failure to materialize the structured report fails this gate.
+      - name: Export physical HOME authority VM evidence
+        if: contains(steps.selection.outputs.checks, 'home-authority-seal-vm')
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix build -L --out-link "$RUNNER_TEMP/home-authority-vm" \
+            .#checks.x86_64-linux.home-authority-seal-vm
+          cp -- "$RUNNER_TEMP/home-authority-vm/home-authority-evidence.json" \
+            "$RUNNER_TEMP/home-authority-evidence.json"
+          python3 -m json.tool "$RUNNER_TEMP/home-authority-evidence.json" >/dev/null
+          python3 - "$RUNNER_TEMP/home-authority-evidence.json" <<'PY'
+          import json
+          import sys
+          report = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert report["schema"] == "home-authority-vm-evidence/v1"
+          assert report["initial_seal_oracle"] == "PASS"
+          assert report["readiness"]["production_enforce"] == "BLOCKED"
+          print("HOME authority evidence: " + json.dumps(report["readiness"], sort_keys=True))
+          PY
+
+      - name: Upload physical HOME authority VM evidence
+        if: always() && contains(steps.selection.outputs.checks, 'home-authority-seal-vm')
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-authority-vm-evidence
+          path: ${{ runner.temp }}/home-authority-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Exercise the offline osu! lab fixture
         if: steps.selection.outputs.osu_lab == 'yes'
         run: python3 scripts/osu-performance/test-osu-lab.py

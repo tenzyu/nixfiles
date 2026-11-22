@@ -246,6 +246,28 @@ in {
         print("HOME_AUTHORITY_EVIDENCE_BEGIN")
         print(json.dumps(evidence, indent=2, sort_keys=True))
         print("HOME_AUTHORITY_EVIDENCE_END")
+        evidence["readiness"] = {
+            "vm_stale_fd_and_namespace": "PASS",
+            "two_generation_managed_links": (
+                "PASS" if evidence["lifecycle"]["after_upgrade"]["new_link_present"]["exit_code"] == 0
+                else "BLOCKED"
+            ),
+            "privileged_physical_root": "BLOCKED: privileged actor demonstrated immutable-flag override",
+            "reboot_services": "OBSERVED: inspect lifecycle.after_reboot unit states",
+            "production_enforce": "BLOCKED",
+            "untested_outside_vm": [
+                "neko5/neko7 physical filesystems and mount topology",
+                "real graphical/T3/Codex/Docker clients and daemon inheritance",
+                "concurrent writers during privileged maintenance",
+                "host administrator policy and storage snapshots",
+                "other filesystems and remote storage",
+            ],
+        }
+        from pathlib import Path
+        artifact = Path("home-authority-evidence.json")
+        artifact.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        assert artifact.is_file() and artifact.stat().st_size > 512
+        print("HOME_AUTHORITY_EVIDENCE_ARTIFACT=" + str(artifact.resolve()))
       '';
     };
   };

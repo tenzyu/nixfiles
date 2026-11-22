@@ -69,6 +69,44 @@ If the VM's backing filesystem lacks immutable-flag support, the probe prints
 boundary-characterization check, not a green proof of the complete two-invariant
 contract. Test code is fixture-only Python and is never installed on neko5/neko7.
 
+## Expanded VM evidence gate (Draft #79)
+
+The independent [seal acceptance fixture](../cookbook/home-authority-seal-acceptance.md)
+is stacked on this PR. Baseline without any seal: [17 real violations,
+CI #44941728764](https://github.com/tenzyu/nixfiles/actions/runs/44941728764).
+Unchanged syscall oracle after `rename` + physical `chattr +i`:
+[PASS, CI #44943803020](https://github.com/tenzyu/nixfiles/actions/runs/44943803020).
+This is a constrained, single-activation result, **not** an installation
+of `local.homeAuthority.root.enforce`.
+
+The expanded CI now runs a real second NixOS specialisation/HM generation,
+attempts to switch back, reboots the same writable VM and records actual
+service results, canonical inode and FS flags. It also actively clears the
+immutable flag as a privileged actor, proves a normal account can then create
+a forbidden root entry, and reseals. A `root`/CAP_LINUX_IMMUTABLE adversary
+therefore remains outside the proven enforcement boundary. The machine-readable
+`home-authority-evidence.json` is preserved as a CI artifact when the VM
+succeeds. Evidence is deliberately separate from the original syscall oracle:
+an observed failed lifecycle or privileged bypass is a **blocker**, not a
+waived assertion or an asserted production PASS.
+
+| Required guarantee | Automated measurement | Enablement threshold |
+| --- | --- | --- |
+| One backing with old writable FDs | Pre-activation notify witness, post-activation inode/content tests | No independent hidden/orphan mutation |
+| Physical HOME entry denial | Unwrapped UID, alternate mount namespace, syscall matrix | Only real permission denials; canonical remains writable |
+| Collision and rollback safety | Observe-mode conflict, strict move, generation switch and rollback | No overwrite; stable authority; correct HM links |
+| Restart and reboot | Same VM disk reboot, unit `ActiveState`/`Result`, root flag and persistent contents | No boot ordering deadlocks or unsealed window |
+| Privileged actor boundary | Root clears `FS_IMMUTABLE_FL`, then unwrapped UID attempts creation | A specified and verified policy excludes unsafe override |
+| Actual host deployment | CI only evaluates host derivations; **no** host writes | Independent neko5/neko7 storage and consumer acceptance |
+
+Kernel references: [`chattr(1)`](https://man.archlinux.org/man/chattr.1.en)
+documents filesystem-specific immutable behavior and capability requirements;
+[Landlock](https://www.kernel.org/doc/html/latest/userspace-api/landlock.html)
+offers per-process rules, not a blanket physical-HOME authority;
+the [NixOS VM test manual](https://nixos.org/manual/nixos/stable/#sec-writing-nixos-tests)
+documents real specialisation tests. Neither a fail-closed report nor a sealed
+VM makes an untrusted privileged host actor disappear.
+
 ## Missing implementation to satisfy acceptance
 
 The following must be demonstrated in a disposable NixOS VM before any real HOME write denial:

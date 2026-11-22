@@ -18,6 +18,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [Switch without moving HOME data](home-migration-rollout.md) — run the Home Manager pre-switch check on each host, resolve refusals, and switch one host at a time.
 - [Reuse-first HOME layout decision](../adr/0003-home-layout-reuse-first.md) — existing migration tools, neko7 inventory, and the precise threshold for any new code.
 - [Physical HOME authority contract](../adr/0004-home-authority-contract.md) — immutable-root and one-state acceptance boundaries, upstream provider APIs and audit-only rollout.
+- [Physical HOME VM evidence](home-authority-seal-acceptance.md) — independent syscall acceptance, two-generation/rollback/reboot diagnostics, and the machine-readable CI artifact.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.
 - [osu! display experiments](../../scripts/osu-performance/README-display.md) · [latency lab](../../scripts/osu-performance/README-lab.md) — experimental evidence, not physical latency proof.

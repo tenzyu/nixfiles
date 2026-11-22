@@ -39,6 +39,24 @@ always built for an unrelated PR. It remains available as
 `nix build --no-link .#checks.x86_64-linux.splitcast-configs`.
 The manually dispatched `full-audit` job retains `nix flake check`.
 
+## Physical HOME authority evidence
+
+When HOME authority test inputs change, the selective-check mapping
+includes both the independent `home-authority-seal-vm` and the
+negative-control `home-authority-vm` as applicable. The former runs a
+real physical-root syscall matrix and a second NixOS specialisation,
+rolls back and reboots a disposable VM. The results are **not** evidence
+for the user's physical host, nor do they automatically enable enforcement.
+
+The VM emits a structured `home-authority-evidence.json` into its Nix
+test output. CI validates and uploads the file as the
+`home-authority-vm-evidence` artifact, retaining actual kernel,
+filesystem, privilege, generation and service observations. A missing
+report fails CI. The `root.enforce = true` Nix assertion remains closed
+until privileged-host policy, reliable upgrade/rollback, and real clients
+have independently passed the admission contract in
+[ADR-0004](../adr/0004-home-authority-contract.md).
+
 ## SplitCast cache evidence
 
 For selected changes, `scripts/ci/audit-splitcast-cache.sh` reads the
