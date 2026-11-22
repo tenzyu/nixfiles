@@ -8,6 +8,7 @@ in {
   perSystem = {pkgs, ...}: let
     witness = ../../../assets/home-authority/seal-acceptance.py;
     transitionProbe = ../../../assets/home-authority/transition-probes.py;
+    v11Probe = ../../../assets/home-authority/v11-mutation-probes.py;
     home = "/home/fixture";
     # VM-scoped candidate backend. This is not permitted on real hosts:
     # freezing a real HOME would break subsequent Home Manager generations.
@@ -187,6 +188,22 @@ in {
             "test -L /home/fixture/.hm-baseline && cat /home/fixture/.hm-baseline"
         ).strip()
 
+        # v1.1 is stricter than the previous physical-root-only contract.
+        # The matrix executes real UID-1000 syscalls against *nested* HOME
+        # objects, comparing content, names, symlinks, modes and timestamps.
+        evidence["v11"] = json.loads(machine.succeed(
+            "${pkgs.python3}/bin/python3 ${v11Probe} probe", timeout=150
+        ))
+        previous_oracle = json.loads(result)
+        evidence["v11"]["pre_seal_fds_retained"] = previous_oracle["held_fd"]
+        evidence["v11"]["held_fd_full_home_immutability"] = (
+            "VIOLATION" if any(
+                entry["label"] in ("held-legacy-dirfd-create", "held-legacy-filefd-append")
+                and entry["result"] == "allowed"
+                for entry in previous_oracle["held_fd"]
+            ) else "DENIED"
+        )
+
         # Transition hazards are measured on disposable separate backing.
         # None of the destructive probes acts on the sealed fixture HOME.
         evidence["transition"] = json.loads(machine.succeed(
@@ -212,6 +229,12 @@ in {
         assert evidence["privileged_boundary"]["clear_immutable_then_user_create"]["exit_code"] == 0
         assert evidence["privileged_boundary"]["bypass_visible"]["exit_code"] == 0
         evidence["privileged_boundary"]["conclusion"] = "GAP: root with CAP_LINUX_IMMUTABLE can unseal physical HOME"
+        # v1.1 trusts the administrator. Its concern is instead that an
+        # ordinary UID can take advantage of the administrator's unseal gap.
+        evidence["v11"]["administrator_is_trusted"] = True
+        evidence["v11"]["untrusted_writer_during_transition"] = (
+            "VIOLATION" if root_override["exit_code"] == 0 else "DENIED"
+        )
 
         # Genuine system-specialisation upgrade, *without* lifting the seal.
         initial_system = machine.succeed("readlink -f /run/current-system").strip()
@@ -272,6 +295,17 @@ in {
                 }
             else:
                 evidence["lifecycle"]["after_reboot"]["direct_probes"] = json.loads(stdout)
+            # Re-run the entire nested-object matrix after reboot, not just
+            # its original root-entry denial subset.
+            matrix_code, matrix_output = machine.execute(
+                "${pkgs.python3}/bin/python3 ${v11Probe} probe", timeout=150
+            )
+            if matrix_code:
+                evidence["lifecycle"]["after_reboot"]["v11_mutation_error"] = {
+                    "exit_code": matrix_code, "output": matrix_output[-1400:]
+                }
+            else:
+                evidence["lifecycle"]["after_reboot"]["v11_mutation"] = json.loads(matrix_output)
         except Exception as exc:
             evidence["lifecycle"]["reboot_transport"] = "BLOCKED"
             evidence["lifecycle"]["reboot_error"] = type(exc).__name__ + ": " + str(exc)[-900:]
@@ -324,6 +358,32 @@ in {
                 "host administrator policy and storage snapshots",
                 "other filesystems and remote storage",
             ],
+        }
+        postboot_v11 = boot.get("v11_mutation", {})
+        evidence["v11_readiness"] = {
+            "full_home_immutable": (
+                "PASS" if evidence["v11"]["home_immutability_admission"] == "PASS"
+                and evidence["v11"]["held_fd_full_home_immutability"] == "DENIED"
+                and postboot_v11.get("home_immutability_admission") == "PASS"
+                else "BLOCKED"
+            ),
+            "no_legacy_paths": (
+                "PARTIAL: physical root and current mount-view probes pass; "
+                "not an exhaustive namespace proof"
+            ),
+            "single_local_state": (
+                "PARTIAL: known incumbent remains one inode; "
+                "unregistered processes and writer races remain unproven"
+            ),
+            "trusted_admin_exclusivity": (
+                "BLOCKED" if evidence["v11"]["untrusted_writer_during_transition"]
+                == "VIOLATION" else "PASS"
+            ),
+            "generation_and_recovery": (
+                "PASS" if generation_ok and reboot_ok else "BLOCKED"
+            ),
+            "local_host_admission": "BLOCKED",
+            "real_host_adoption": "NOT_TESTED",
         }
         # Nix test scripts run with /build as CWD; writing there is NOT the
         # output derivation. Explicitly put the JSON in $out for CI artifacts.
