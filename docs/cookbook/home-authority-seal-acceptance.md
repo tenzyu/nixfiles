@@ -62,6 +62,11 @@ original root-denial/FD invariants, it attempts the actual
 `switch-to-configuration test` to generation two, observes the managed
 link and systemd unit results, switches back, and reboots the same VM disk.
 The test does not unseal to rescue Home Manager activation.
+The pre-activation FD witness reopens the *canonical* inode after a legitimate
+completed seal, and the seal oneshot accepts only an already-immutable physical
+HOME with the verified canonical incumbent. This removes an artificial
+restart failure from the fixture without relaxing a single syscall denial.
+A missing immutable flag or competing populated root still fails closed.
 
 The test records the following independently of its PASS/FAIL syscall oracle:
 

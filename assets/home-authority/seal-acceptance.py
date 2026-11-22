@@ -94,11 +94,23 @@ def direct_probes():
 
 def hold():
     CANONICAL.mkdir(parents=True, exist_ok=True)
-    LEGACY.mkdir(exist_ok=True)
-    (LEGACY / "incumbent").write_text("before\n")
+    canonical_incumbent = CANONICAL / "incumbent"
+    if canonical_incumbent.is_file() and not LEGACY.exists():
+        # Restart after sealing: the same inode is now canonical. Do not
+        # attempt to recreate the forbidden legacy path on an immutable HOME.
+        backing = CANONICAL
+    elif not canonical_incumbent.exists():
+        # First activation: deliberately acquire the pre-seal legacy inode.
+        LEGACY.mkdir(exist_ok=True)
+        if (LEGACY / "incumbent").exists():
+            raise RuntimeError("unexpected stale incumbent; do not overwrite")
+        (LEGACY / "incumbent").write_text("before\n")
+        backing = LEGACY
+    else:
+        raise RuntimeError("competing incumbent roots; refusing restart")
     homefd = os.open(HOME, os.O_RDONLY | os.O_DIRECTORY)
-    legacyfd = os.open(LEGACY, os.O_RDONLY | os.O_DIRECTORY)
-    filefd = os.open(LEGACY / "incumbent", os.O_WRONLY | os.O_APPEND)
+    legacyfd = os.open(backing, os.O_RDONLY | os.O_DIRECTORY)
+    filefd = os.open(backing / "incumbent", os.O_WRONLY | os.O_APPEND)
     SOCK.parent.mkdir(parents=True, exist_ok=True)
     if SOCK.exists():
         SOCK.unlink()

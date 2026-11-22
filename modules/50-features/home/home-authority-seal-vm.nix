@@ -17,6 +17,12 @@ in {
       h=${home}
       source="$h/.legacy"
       target="$h/.local/share/authority"
+      # A second generation/reboot may re-run this oneshot. Accept only the
+      # already-sealed, single-authority topology; never silently reseed.
+      if [ ! -e "$source" ] && [ ! -L "$source" ] && [ -f "$target/incumbent" ]; then
+        ${pkgs.e2fsprogs}/bin/lsattr -d "$h" | ${pkgs.gnugrep}/bin/grep -Eq '^[^ ]*i'
+        exit 0
+      fi
       if [ ! -d "$source" ] || [ -L "$source" ] ||
          [ ! -d "$target" ] || [ -L "$target" ]; then
         echo "refusing unrecognized incumbent/target topology" >&2
