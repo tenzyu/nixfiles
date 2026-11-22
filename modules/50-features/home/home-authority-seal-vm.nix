@@ -131,7 +131,10 @@ in {
       };
 
       testScript = ''
-        machine.start()
+        # The default QEMU test driver passes -no-reboot. Explicitly opt in
+        # before the first boot, otherwise reboot diagnostics disconnect the
+        # driver instead of observing the post-reboot policy and unit state.
+        machine.start(allow_reboot=True)
         machine.wait_for_unit("home-authority-held-fds.service")
         machine.wait_for_unit("home-manager-fixture.service")
         machine.wait_for_unit("home-authority-fixture-seal.service")
