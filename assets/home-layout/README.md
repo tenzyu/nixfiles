@@ -1,5 +1,7 @@
 # XDG home layout / 既存ホームの移行
 
+> **運用上の位置付け（2026-11-23）:** [ADR-0003](../../docs/adr/0003-home-layout-reuse-first.md) により、HOME の見た目のためだけの新規移行や全域強制は追求しない。この README は **既に main にある移行・復旧機構を使う場合の安全手順**であり、今すぐ移行を実行する指示ではない。コードを撤去するまでは既存のチェック・journal・衝突拒否を維持する。
+
 neko5 の既存 TODO は旧 Home 移行の不具合を記録している。この実装の実機受入は **NOT RUN**。
 [移行と復旧の判断](../../docs/memory/decisions.md)
 
