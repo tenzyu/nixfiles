@@ -26,13 +26,15 @@
         import json
         import os
         from pathlib import Path
+        from typing import Any
 
         alpha.start(allow_reboot=True)
         beta.start(allow_reboot=True)
         alpha.wait_for_unit("multi-user.target")
         beta.wait_for_unit("multi-user.target")
 
-        evidence = {
+        # Heterogeneous JSON evidence (nested objects, scalars and lists).
+        evidence: dict[str, Any] = {
             "schema": "home-authority-v11-two-host/v1",
             "scope": "two disposable QEMU nodes with separate local storage",
             "global_agreement_required": False,
