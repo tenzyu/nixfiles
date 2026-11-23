@@ -23,6 +23,8 @@ These are **declarations**, not claims about currently running services. Minecra
 
 [Architecture and decisions](docs/memory/index.md) · [Practical recipes](docs/cookbook/index.md)
 
+**HOME maintenance goal:** leave ordinary application state alone unless it causes a concrete problem. Use native NixOS/Home Manager/application options, on-demand inspection and recoverable changes rather than implementing a new global authority. The existing HOME migration engine remains on `main` until separately reviewed retirement; no host migration or permission change is implied by the [HOME maintenance ADR](docs/adr/0003-home-layout-reuse-first.md).
+
 ## Explore without activating anything
 
 With Nix and flakes available, from a checkout:
