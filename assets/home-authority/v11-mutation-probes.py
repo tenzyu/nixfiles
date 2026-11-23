@@ -30,25 +30,35 @@ ACTIONS = (
 )
 
 
+def node_record(obj):
+    """Fingerprint object identity-relevant metadata, including xattrs."""
+    s = obj.lstat()
+    kind = "link" if stat.S_ISLNK(s.st_mode) else "dir" if stat.S_ISDIR(s.st_mode) else "file"
+    digest = (
+        os.readlink(obj) if kind == "link"
+        else hashlib.sha256(obj.read_bytes()).hexdigest() if kind == "file"
+        else None
+    )
+    xattrs = {
+        name: hashlib.sha256(os.getxattr(obj, name, follow_symlinks=False)).hexdigest()
+        for name in sorted(os.listxattr(obj, follow_symlinks=False))
+    }
+    return {
+        "kind": kind, "uid": s.st_uid, "gid": s.st_gid,
+        "mode": stat.S_IMODE(s.st_mode),
+        "size": s.st_size if kind == "file" else None,
+        "digest": digest, "mtime_ns": s.st_mtime_ns,
+        "xattrs": xattrs,
+    }
+
+
 def graph(path):
     """Observable protected name, content and metadata; excludes access-time."""
-    result = {}
+    result = {".": node_record(path)}
     for root, dirs, files in os.walk(path, followlinks=False):
         for name in sorted(dirs + files):
             obj = Path(root) / name
-            entry = str(obj.relative_to(path))
-            s = obj.lstat()
-            kind = "link" if stat.S_ISLNK(s.st_mode) else "dir" if stat.S_ISDIR(s.st_mode) else "file"
-            digest = (
-                os.readlink(obj) if kind == "link"
-                else hashlib.sha256(obj.read_bytes()).hexdigest() if kind == "file"
-                else None
-            )
-            result[entry] = {
-                "kind": kind, "mode": stat.S_IMODE(s.st_mode),
-                "size": s.st_size if kind == "file" else None,
-                "digest": digest, "mtime_ns": s.st_mtime_ns,
-            }
+            result[str(obj.relative_to(path))] = node_record(obj)
     return result
 
 
@@ -230,6 +240,14 @@ def controller():
         after = graph(EXTERNAL)
         if control["result"] != "completed" or before == after:
             raise RuntimeError("unprotected external negative control did not mutate")
+        # A change in xattrs often preserves size, digest, mode and mtime.
+        # Verify that the graph oracle detects this independent mutation.
+        seed(EXTERNAL)
+        xattr_before = graph(EXTERNAL)
+        xattr_control = run_child("setxattr", EXTERNAL)
+        xattr_after = graph(EXTERNAL)
+        if xattr_control["result"] != "completed" or xattr_before == xattr_after:
+            raise RuntimeError("unprotected external xattr negative control did not mutate")
         for action in ACTIONS:
             seed(FIXTURE)
             previous = graph(FIXTURE)
@@ -262,6 +280,7 @@ def controller():
             "unprivileged_actor_uid": 1000,
             "root_fixture_setup_is_explicit_trusted_transition": True,
             "external_negative_control_mutated": True,
+            "external_xattr_negative_control_mutated": True,
             "private_namespace_legacy_view": private_legacy,
             "results": results, "counts": counts,
             "home_immutability_admission": (
