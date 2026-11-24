@@ -3,6 +3,7 @@
   rustPlatform,
   pkg-config,
   sqlite,
+  python3,
 }: let
   src = (builtins.fetchTree {
     type = "github";
@@ -20,6 +21,9 @@ in
     # libsqlite3-sys copy. Both richclip binaries link against libsqlite3.
     nativeBuildInputs = [pkg-config];
     buildInputs = [sqlite];
+    # review_activation_dispatch spawns a Python Wayland wire fixture.
+    # Keep the regression test enabled without adding a runtime dependency.
+    nativeCheckInputs = [python3];
     cargoBuildFlags = ["-p" "richclip" "-p" "richclip-wayland"];
     cargoTestFlags = ["-p" "richclip" "-p" "richclip-wayland"];
     preCheck = ''
