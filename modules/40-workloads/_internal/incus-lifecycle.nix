@@ -60,6 +60,21 @@ in pkgs.testers.runNixOSTest {
     ready("original")
     assert run("original", ${builtins.toJSON stateProbe.verify}) == original_state
     # Update to a distinct test release with identical application version.
+    ${pkgs.lib.optionalString (name == "syncthing") ''
+      # Fixture-only fault injection: preserve native calls except for the
+      # activation boundary after the real profile mutation has completed.
+      neko7.succeed("mkdir -p /root/fault-bin")
+      neko7.succeed("cat >/root/fault-bin/sudo <<'EOF'\n#!${pkgs.runtimeShell}\nfor arg in \"$@\"; do\n  case \"$arg\" in */bin/switch-to-configuration) exit 77;; esac\ndone\nexec /run/wrappers/bin/sudo \"$@\"\nEOF\nchmod 0700 /root/fault-bin/sudo")
+      neko7.fail("cd /root/fixture && PATH=/root/fault-bin:$PATH just _update-system original /root/interrupted ${name} " + uuid + " ${candidate}")
+      neko7.succeed("cd /root/interrupted && sha256sum -c SHA256SUMS")
+      assert run("original", "readlink -e /nix/var/nix/profiles/system") == "${candidate}"
+      assert run("original", "readlink -e /run/current-system") == original_generation
+      assert run("original", ${builtins.toJSON stateProbe.verify}) == original_state
+      # No activation ran; the fixture may safely reset only the release
+      # pointer. This is not a general schema rollback procedure.
+      run("original", "nix-env -p /nix/var/nix/profiles/system --set " + original_generation)
+      ready("original")
+    ''}
     neko7.succeed(recipe + "_update-system original /root/before-update ${name} " + uuid + " ${candidate}")
     assert run("original", "cat /etc/neko7/fixture-release") == "candidate"
     assert run("original", "readlink -e /run/current-system") == "${candidate}"
@@ -69,8 +84,8 @@ in pkgs.testers.runNixOSTest {
     neko7.succeed("incus list local: name=original --format json | jq -e 'length == 1 and .[0].status == \"Stopped\"'")
     # Incus import does not boot. Override the NIC before the first start,
     # then assert no expanded NIC exists; never start a cloned identity online.
-    neko7.succeed("incus import /root/before-update/instance.tar.gz local:restore --project default")
-    neko7.succeed("incus config set local:restore boot.autostart=false --project default")
+    neko7.succeed("incus import local: /root/before-update/instance.tar.gz restore --project default -c boot.autostart=false")
+    neko7.succeed("incus config get local:restore boot.autostart --project default | grep -Fx false")
     neko7.succeed("incus config device add local:restore eth0 none --project default")
     neko7.succeed("incus list local: name=restore --format json | jq -e 'length == 1 and .[0].status == \"Stopped\" and ([.[0].expanded_devices[] | select(.type == \"nic\")] | length == 0)'")
     neko7.succeed("incus start local:restore --project default")

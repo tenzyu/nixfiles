@@ -220,7 +220,7 @@ jobs:
           nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
           nix eval --raw "$attr.virtualisation.incus.package.version"
           nix eval --raw "$attr.virtualisation.incus.package.drvPath"
-          nix eval --raw .#legacyPackages.x86_64-linux.incus.version || true
+
           nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
             .config["core.https_address"] == "127.0.0.1:8443"
             and (.projects[] | select(.name == "lab") | .config.restricted == "true")

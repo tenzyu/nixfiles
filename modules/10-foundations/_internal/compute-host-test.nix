@@ -120,7 +120,7 @@ in pkgs.testers.runNixOSTest {
     denied("incus config device add lab:experiment gpu gpu", "GPU devices are forbidden")
     denied("incus config set lab:experiment limits.memory=9GiB", "maximum aggregate value")
     denied("incus config set lab:experiment limits.cpu=9", "maximum aggregate value")
-    denied("incus create lab:fixture lab:over-budget -c limits.cpu=9", "maximum aggregate value")
+    denied("incus create lab:fixture lab:over-budget${lib.optionalString vm " --vm -c security.secureboot=false"} -c limits.cpu=9", "maximum aggregate value")
     assert json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]["config"] == before_config["config"]
     assert json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]["devices"] == before_config["devices"]
     denied("incus config device add lab:experiment external nic nictype=physical parent=eth0 name=eth1", "Only managed network devices")
