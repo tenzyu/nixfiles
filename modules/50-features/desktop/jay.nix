@@ -61,25 +61,8 @@
     config,
     lib,
     pkgs,
-    osConfig ? null,
     ...
   }: let
-    jay = pkgs.unstable.jay;
-    terminal = if config.programs.alacritty.enable then config.programs.alacritty.package else pkgs.unstable.alacritty;
-    hasCclip = config.local.features.cclip.enable;
-    hasTofi = config.local.features.tofi.enable;
-    tofiActions = pkgs.writeShellApplication {
-      name = "jay-tofi-actions";
-      runtimeInputs = [pkgs.tofi jay terminal];
-      text = lib.replaceStrings ["@SHELL@"] [pkgs.runtimeShell] (builtins.readFile ../../../scripts/desktop/tofi-actions.sh);
-    };
-    hasIme = osConfig != null && osConfig.i18n.inputMethod.enable && osConfig.i18n.inputMethod.type == "fcitx5";
-    ime = if hasIme then osConfig.i18n.inputMethod.package else null;
-    clipboardHistory = ''
-      selection="$(${lib.getExe pkgs.cliphist} list | rofi -dmenu -replace -i)" || exit 0
-      [ -n "$selection" ] || exit 0
-      printf '%s\n' "$selection" | ${lib.getExe pkgs.cliphist} decode | ${lib.getExe jay} run-privileged ${lib.getExe' pkgs.wl-clipboard "wl-copy"}
-    '';
     screenshotArea = ''
       geometry="$(${lib.getExe pkgs.slurp})" || exit 0
       [ -n "$geometry" ] || exit 0
@@ -105,11 +88,33 @@
       logo-shift-${key} = [{ type = "move-to-workspace", name = "${name}" }, "$workspace-${name}"]
     '') (lib.range 1 10);
   in {
+    # Native HM option merge points for Jay's existing TOML sections.
+    # Keep raw TOML action syntax (including heterogeneous action arrays).
+    # Each integration owns its shortcut keys and startup contributions.
+    options.local.jay = {
+      startupActions = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+      };
+      shortcuts = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = {};
+      };
+      output = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            connector = lib.mkOption {type = lib.types.str;};
+            width = lib.mkOption {type = lib.types.ints.positive;};
+            height = lib.mkOption {type = lib.types.ints.positive;};
+            scale = lib.mkOption {type = lib.types.float;};
+          };
+        });
+        default = null;
+      };
+    };
+
     config = lib.mkIf config.local.features.jay.enable {
-      home.packages = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.wayland-utils]
-        ++ lib.optional (!config.programs.alacritty.enable) terminal
-        ++ lib.optional (!hasCclip) pkgs.cliphist
-        ++ lib.optional hasTofi tofiActions;
+      home.packages = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.wayland-utils];
       xdg.configFile."jay/config.toml".text = ''
           # Native Wayland desktop.
           keymap = """
@@ -129,21 +134,17 @@
           vrr.mode = "never"
           on-graphics-initialized = [
             { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH", "QT_IM_MODULE"] },
-            ${if hasCclip then ''
-              { type = "exec", exec = { prog = "cclip-start", args = [], privileged = true } },
-            '' else ''
-            { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "text", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
-            { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "image", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
-            ''}
-            ${lib.optionalString hasIme ''
-              { type = "exec", exec = { prog = "${ime}/bin/fcitx5", args = ["-r"], privileged = true } },
-            ''}
+            ${lib.concatMapStringsSep "\n" (action: "${action},") config.local.jay.startupActions}
           ]
 
-          [[outputs]]
-          match.connector = "eDP-1"
-          mode = { width = 1366, height = 768 }
-          scale = 1.0
+          ${lib.optionalString (config.local.jay.output != null) (let
+            output = config.local.jay.output;
+          in ''
+            [[outputs]]
+            match.connector = ${builtins.toJSON output.connector}
+            mode = { width = ${toString output.width}, height = ${toString output.height} }
+            scale = ${builtins.toJSON output.scale}
+          '')}
 
           [xwayland]
           enabled = false
@@ -162,10 +163,6 @@
           ${workspaceActions}
 
           [shortcuts]
-          logo-Return = { type = "exec", exec = "${lib.getExe terminal}" }
-          logo-space = { type = "exec", exec = ${builtins.toJSON (if hasTofi then ["${pkgs.tofi}/bin/tofi-drun" "--drun-launch=true" "--terminal=alacritty"] else ["rofi" "-show" "drun"])} }
-          logo-b = { type = "exec", exec = "firefox" }
-          logo-o = { type = "exec", exec = "osu-lazer" }
           logo-h = "focus-left"
           logo-j = "focus-down"
           logo-k = "focus-up"
@@ -176,11 +173,6 @@
           logo-shift-l = "move-right"
           logo-d = "split-horizontal"
           logo-shift-v = "split-vertical"
-          ${if hasCclip then ''
-            logo-v = { type = "exec", exec = ["cclip-picker"] }
-          '' else ''
-            logo-v = { type = "exec", exec = { shell = ${builtins.toJSON clipboardHistory} } }
-          ''}
           logo-shift-s = { type = "exec", exec = { shell = ${builtins.toJSON screenshotArea}, privileged = true } }
           Print = { type = "exec", exec = { shell = "${lib.getExe pkgs.grim} - | ${lib.getExe' pkgs.wl-clipboard "wl-copy"} --type image/png", privileged = true } }
           logo-Tab = "$next-workspace"
@@ -192,18 +184,7 @@
           logo-t = "toggle-floating"
           logo-q = "close"
           logo-ctrl-shift-q = "quit"
-          ${if hasTofi then ''
-            logo-r = { type = "exec", exec = ["${lib.getExe tofiActions}", "run"] }
-            logo-shift-r = { type = "exec", exec = ["${lib.getExe tofiActions}", "custom"] }
-            logo-shift-space = { type = "exec", exec = ["${lib.getExe tofiActions}", "desktop"] }
-            logo-ctrl-shift-r = "reload-config-toml"
-          '' else ''
-            logo-shift-r = "reload-config-toml"
-          ''}
-          ${lib.optionalString hasIme ''
-            logo-ctrl-i = { type = "exec", exec = { prog = "${ime}/bin/fcitx5", args = ["-r"], privileged = true } }
-            logo-i = { type = "exec", exec = ["${ime}/bin/fcitx5-remote", "-t"] }
-          ''}
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: action: "${key} = ${action}") config.local.jay.shortcuts)}
           ${workspaceBindings}
           ctrl-alt-F1 = { type = "switch-to-vt", num = 1 }
           ctrl-alt-F2 = { type = "switch-to-vt", num = 2 }

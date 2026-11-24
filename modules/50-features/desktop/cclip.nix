@@ -13,14 +13,9 @@
       runtimeInputs = [cclip pkgs.coreutils pkgs.util-linux];
       text = builtins.readFile ../../../scripts/desktop/cclip-start.sh;
     };
-    picker = pkgs.writeShellApplication {
-      name = "cclip-picker";
-      runtimeInputs = [cclip pkgs.unstable.jay pkgs.tofi pkgs.coreutils pkgs.util-linux pkgs.libnotify];
-      text = builtins.readFile ../../../scripts/desktop/cclip-picker.sh;
-    };
   in {
     config = lib.mkIf config.local.features.cclip.enable {
-      home.packages = [cclip start picker];
+      home.packages = [cclip start];
     };
   };
 }

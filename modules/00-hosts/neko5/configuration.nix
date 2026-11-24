@@ -29,17 +29,19 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeiSmoim2RKyd6smA5t86Pr7Lt+nOF1oXEHQjsw74O5 neko7-to-neko5"
     ];
 
-    # Jay is the normal neko5 generation. Only Gamescope is an alternative
-    # native DRM session. Keep the old Hyprland modules in the repository.
-    imports = [
-      ({...}: {
-        specialisation.neko5-gamescope.configuration = {lib, ...}: {
-          local.features.jay.enable = lib.mkForce false;
-          local.users.tenzyu.features.jay.enable = lib.mkForce false;
-          local.features.gamescope.enable = true;
-        };
-      })
-    ];
+    # Physical panel and personal application bindings, not generic Jay defaults.
+    home-manager.users.tenzyu.local.jay = {
+      output = {
+        connector = "eDP-1";
+        width = 1366;
+        height = 768;
+        scale = 1.0;
+      };
+      shortcuts = {
+        logo-b = ''{ type = "exec", exec = "firefox" }'';
+        logo-o = ''{ type = "exec", exec = "osu-lazer" }'';
+      };
+    };
     home-manager.users.tenzyu.xdg.configFile = {
       "waybar/config".enable = false;
       "waybar/style.css".enable = false;
