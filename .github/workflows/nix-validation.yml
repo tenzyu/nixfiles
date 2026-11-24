@@ -203,11 +203,16 @@ jobs:
               audioIsolated = !(builtins.hasAttr audioRulePath other.xdg.configFile);
               jay = h.xdg.configFile."jay/config.toml".text;
               alacrittyOsc52 = h.programs.alacritty.settings.terminal.osc52;
+              herdrReusesStock = let
+                packages = builtins.filter (p: (p.pname or "") == "herdr") h.home.packages;
+                stock = f.nixosConfigurations.neko5.pkgs.llm-agents.herdr;
+              in builtins.length packages == 1 && (builtins.head packages).unwrapped.drvPath == stock.drvPath;
             }
           ' > /tmp/neko5-experiments.json
           jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
+          python3 scripts/desktop/test-clipboard-integration.py
 
   desktop-packages:
     name: Build changed neko5 desktop packages

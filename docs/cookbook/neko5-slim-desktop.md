@@ -220,13 +220,38 @@ actual game/audio/Wayland behavior still needs a local smoke test.
 
 ## Herdr clipboard
 
-The Jay-enabled Herdr package prefers its existing OSC 52 writer for native
-Jay sessions (including the local client of `herdr --remote`). This avoids
-the unprivileged wl-copy focus/serial fallback. SSH already prefers OSC 52
-upstream; neko7 and non-Jay packages remain unmodified. Alacritty explicitly
-allows OSC 52 writes only; its focused window owns the Wayland selection.
-Richclipd observes normal selections; no manual richclip add/restore is used
-for copying, so its capture filters remain intact.
+The Jay-enabled Herdr launcher reuses the unmodified llm-agents Herdr
+package (v0.9.5 at the current lock). A private PATH prefix makes only the
+exact native wl-copy call from the stock Herdr executable on Jay fail,
+selecting Herdr's existing OSC 52 fallback. Ordinary wl-copy calls,
+including pane commands, still invoke the real wl-copy. There is no Rust
+source patch or new clipboard transport, and the existing Numtide
+substituter can serve the unchanged stock derivation if cached.
+See upstream herdrdev/herdr #6035 for a first-class clipboard backend
+selector request. Remove the launcher adapter once an upstream release
+provides that option. SSH already prefers OSC 52 upstream; neko7 and
+non-Jay packages remain unmodified. Alacritty allows OSC 52 writes only;
+its focused window owns the Wayland selection. Richclipd observes normal
+selections, preserving its capture filters.
+
+Super+V reads at most 129 history records initially, displays the newest
+128, and offers "Show all history" if older entries exist. No records are
+deleted. Recent-list timeout is 2 seconds (plus up to 1 second to kill),
+full-list timeout is 10 seconds, restore timeout is 5 seconds. Empty
+history and CLI failures produce a notification. The picker has its own
+nonblocking lock, independent of tofi-drun's shared lock; its menu does
+not persist a second history. These are bounded-work mitigations, not a
+measured diagnosis of the operator's intermittent launch failure.
+To compare history-load costs without displaying clipboard contents:
+
+```sh
+time richclip list --json --limit 129 >/dev/null
+time richclip list --json >/dev/null
+```
+
+Test repeated Super+V (20 opens/cancels), older history, text and screenshot
+restoration, Super+Space, and an ordinary wl-copy from a Herdr pane.
+An actual cache hit and live Wayland acceptance remain operator checks.
 
 After building and activating, open a fresh Alacritty via Super+Enter and
 attach with the new Herdr client (do not terminate running agents just to

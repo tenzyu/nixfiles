@@ -5,26 +5,32 @@
     pkgs,
     ...
   }: let
-    # Herdr 0.9.5 prefers wl-copy on local Wayland. Jay restricts data-control,
-    # so use Herdr's existing OSC 52 writer in a native Jay session instead.
-    # The focused outer terminal owns the selection; no privileged helper,
-    # clipboard-read permission, or richclip history injection is needed.
-    herdr =
-      if config.local.features.jay.enable
-      then
-        pkgs.llm-agents.herdr.overrideAttrs (old: {
-          postPatch =
-            (old.postPatch or "")
-            + ''
-              substituteInPlace src/selection.rs \
-                --replace-fail 'let prefer_osc52 = should_prefer_osc52();' \
-                  'let prefer_osc52 = should_prefer_osc52() || (std::env::var_os("XDG_CURRENT_DESKTOP").as_deref() == Some(OsStr::new("jay")) && std::env::var_os("WAYLAND_DISPLAY").is_some());'
-            '';
-        })
-      else pkgs.llm-agents.herdr;
+    stock = pkgs.llm-agents.herdr;
+    # Herdr 0.9.5 has no OSC 52 preference setting (upstream #6035).
+    # Reuse its existing fallback without changing its compiled derivation.
+    # Only the exact native copy call from the stock Herdr executable on
+    # Jay is rejected; other wl-copy callers retain their normal behavior.
+    clipboardFallback = pkgs.writeShellScriptBin "wl-copy" (lib.replaceStrings
+      ["@HERDR@" "@WL_COPY@" "@READLINK@"]
+      ["${stock}/bin/herdr" "${pkgs.wl-clipboard}/bin/wl-copy" "${pkgs.coreutils}/bin/readlink"]
+      (builtins.readFile ../../../scripts/desktop/herdr-wl-copy.sh));
+    jayHerdr = pkgs.symlinkJoin {
+      name = "${stock.name}-jay";
+      inherit (stock) pname version meta;
+      paths = [stock];
+      nativeBuildInputs = [pkgs.makeWrapper];
+      postBuild = ''
+        wrapProgram "$out/bin/herdr" --prefix PATH : ${clipboardFallback}/bin
+      '';
+      passthru.unwrapped = stock;
+    };
   in {
     config = lib.mkIf config.local.features.herdr.enable {
-      home.packages = [herdr];
+      home.packages = [(
+        if config.local.features.jay.enable
+        then jayHerdr
+        else stock
+      )];
     };
   };
 }
