@@ -29,14 +29,13 @@ class ClipboardIntegration(unittest.TestCase):
 [[ -z "${LIST_FAIL:-}" ]] || exit 1
 cat "$FIXTURE/items" """)
         self.stub("cclipd", 'printf "%s\\n" "$@" > "$FIXTURE/daemon-args"')
-        self.stub("tofi", """cat > "$FIXTURE/menu"
+        self.stub("rofi", """cat > "$FIXTURE/menu"
 case "${PICK:-first}" in
   cancel) exit 1 ;;
   invalid) printf '999\\tinvalid\\n' ;;
   last) tail -n 1 "$FIXTURE/menu" ;;
   *) head -n 1 "$FIXTURE/menu" ;;
 esac""")
-        self.stub("tofi-run", 'printf "%s\\n" "${COMMAND:-}"')
         self.stub("jay", """printf '%s\\n' "$@" > "$FIXTURE/jay-calls"
 [[ -z "${RESTORE_FAIL:-}" ]]""")
         self.stub("alacritty", 'printf "%s\\n" "$@" > "$FIXTURE/terminal"')
@@ -98,16 +97,14 @@ esac""")
 
     def test_launcher_modes(self):
         script = self.root / "actions.sh"
-        script.write_text((HERE / "tofi-actions.sh").read_text().replace("@SHELL@", "/bin/bash"))
+        script.write_text((HERE / "rofi-actions.sh").read_text())
         for mode, env in [
-            ("run", {"COMMAND": "printf '%s' ok > \"$FIXTURE/ran\""}),
             ("custom", {}),
             ("desktop", {}),
         ]:
             result = subprocess.run(["bash", "-euo", "pipefail", str(script), mode],
                                     env=dict(self.env, **env), capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "ran").read_text(), "ok")
         self.assertIn("--working-directory", (self.root / "terminal").read_text())
         self.assertEqual((self.root / "jay-calls").read_text(), "control-center\n")
 

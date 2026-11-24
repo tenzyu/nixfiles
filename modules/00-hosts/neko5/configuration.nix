@@ -130,8 +130,9 @@
         jay.enable = true;
         kitty.enable = false;
         alacritty.enable = true;
-        rofi.enable = false;
-        tofi.enable = true;
+        # Restore the stock Wayland-capable launcher after intermittent Tofi startup.
+        rofi.enable = true;
+        tofi.enable = false;
         cclip.enable = true;
         waybar.enable = false;
         mako.enable = true;

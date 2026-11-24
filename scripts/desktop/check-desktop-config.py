@@ -42,10 +42,11 @@ assert keys["logo-q"] == "close"
 assert keys["logo-ctrl-shift-q"] == "quit"
 assert keys["logo-f"] == "toggle-fullscreen"
 assert keys["logo-v"]["exec"] == ["cclip-picker"]
-assert keys["logo-space"]["exec"][0].endswith("/bin/tofi-drun")
-assert "--drun-launch=true" in keys["logo-space"]["exec"]
-for key, mode in [("logo-r", "run"), ("logo-shift-r", "custom"), ("logo-shift-space", "desktop")]:
-    assert keys[key]["exec"][0].endswith("/bin/jay-tofi-actions")
+for key, mode in [("logo-space", "drun"), ("logo-r", "run")]:
+    assert keys[key]["exec"][0].endswith("/bin/rofi")
+    assert keys[key]["exec"][1:] == ["-show", mode, "-replace", "-terminal", "alacritty"]
+for key, mode in [("logo-shift-r", "custom"), ("logo-shift-space", "desktop")]:
+    assert keys[key]["exec"][0].endswith("/bin/jay-rofi-actions")
     assert keys[key]["exec"][1:] == [mode]
 assert keys["logo-ctrl-shift-r"] == "reload-config-toml"
 assert keys["logo-shift-v"] == "split-vertical"

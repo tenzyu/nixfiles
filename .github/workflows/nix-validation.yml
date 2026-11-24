@@ -239,7 +239,7 @@ jobs:
               echo "$name=true" >> "$GITHUB_OUTPUT"
             fi
           done
-          if printf '%s\n' "$changed" | grep -Eq '^scripts/desktop/(cclip-(start|picker)|tofi-actions)\.sh$|^modules/60-integrations/desktop/jay-(cclip|tofi)\.nix$|^modules/50-features/desktop/tofi\.nix$|^\.github/workflows/nix-validation\.yml$'; then
+          if printf '%s\n' "$changed" | grep -Eq '^scripts/desktop/(cclip-(start|picker)|rofi-actions)\.sh$|^modules/60-integrations/desktop/jay-(cclip|rofi)\.nix$|^modules/50-features/desktop/rofi\.nix$|^\.github/workflows/nix-validation\.yml$'; then
             echo "cclip=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -272,7 +272,7 @@ jobs:
             test -x "$out/bin/cclipd"
             if ldd "$out/bin/cclipd" | grep -F 'not found'; then exit 1; fi
             # writeShellApplication runs ShellCheck during build, not evaluation.
-            for wrapper in cclip-start cclip-picker jay-tofi-actions; do
+            for wrapper in cclip-start cclip-picker jay-rofi-actions; do
               wrapper_out="$(build_package "$wrapper")"
               test -x "$wrapper_out/bin/$wrapper"
             done

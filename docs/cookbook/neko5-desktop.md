@@ -12,8 +12,8 @@ official osu! package, HID, audio, thermal, network and SSH policy.
   [independent specialisation](../../modules/00-hosts/neko5/specialisations.nix);
   [physical performance policy](../../modules/00-hosts/neko5/performance.nix).
 - Jay owns session, portal, native workspace actions and screenshots.
-  Selected Alacritty, Tofi, cclip, Fcitx5 and Herdr integrations compose its
-  TOML or scoped package settings; no implicit rofi/cliphist fallback.
+  Selected Alacritty, Rofi, cclip, Fcitx5 and Herdr integrations compose its
+  TOML or scoped package settings; no implicit alternate launcher or cliphist fallback.
 - [PipeWire host policy](../../modules/60-integrations/audio/neko5-pipewire.nix):
   48 kHz, ALC257 analog sink periods 128 × 3, headroom 0, suspend timeout 5 s;
   direct RTKit for PipeWire-Pulse. Keep RTKit limits and thermal protection.
@@ -35,8 +35,9 @@ official osu! package, HID, audio, thermal, network and SSH policy.
 - Fileman v0.5.2 uses pinned official x86_64 binary; Ark remains for .osk
   because Fileman cannot handle that archive path. GTK FileChooser portal
   unchanged. cclip 3.3.1 builds pinned C/Meson source (no official binary
-  found). Alacritty, Tofi, dua-cli and GitUI replace Kitty, Rofi, ncdu and
-  Lazygit on this host. QDirStat and dust remain available.
+  found). Alacritty, dua-cli and GitUI replace Kitty, ncdu and Lazygit.
+  Restore stock Rofi 2.0 (native Wayland) after the operator observed slow
+  or missing Tofi launches; cclip/Herdr capture remains unchanged. QDirStat and dust remain available.
 
 ## Build, enter and recover
 
@@ -68,9 +69,9 @@ acceptance checks.
 
 | Shortcut | Action |
 | --- | --- |
-| Super+Enter / Super+Space | Alacritty / Tofi application launcher |
-| Super+V | cclip history via Tofi |
-| Super+R / Super+Shift+R | PATH or explicit shell command / custom actions |
+| Super+Enter / Super+Space | Alacritty / Rofi application launcher |
+| Super+V | cclip history via Rofi |
+| Super+R / Super+Shift+R | Native Rofi run / custom actions |
 | Super+Shift+Space / Super+Ctrl+Shift+R | Desktop actions / native Jay reload |
 | Super+Shift+S / Print | Copy area / full screenshot |
 | Super+1..9,0 / Super+Shift+1..9,0 | Select workspace / move and follow |
@@ -81,13 +82,13 @@ acceptance checks.
 | Super+Ctrl+I / Super+I | Restart Fcitx5 / toggle IME |
 
 The native workspace cycle tracks keyboard selections, not mouse/bar changes;
-numbered keys resynchronise. Run mode deliberately accepts shell syntax as
-the ordinary user. Custom and desktop action menus use fixed allowlists.
+numbered keys resynchronise. Run mode uses Rofi's stock command runner; use an explicit shell or
+terminal for shell operators. Custom and desktop action menus use fixed allowlists.
 
 ## Clipboard, cursor and Japanese input
 
 Only trusted capture/restore, screenshots and Fcitx5 use the privileged
-Wayland socket (all Jay protocol capabilities, not root). Tofi runs on the
+Wayland socket (all Jay protocol capabilities, not root). Rofi runs on the
 ordinary socket. cclipd uses a private 0700 directory and singleton flock;
 regular clipboard only, 512-entry retention target, 160-byte previews.
 One MIME representation is retained; grouped HTML/file semantics are not

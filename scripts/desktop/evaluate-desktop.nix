@@ -33,7 +33,9 @@
         herdr = builtins.filter (p: (p.pname or "") == "herdr") pkgs;
       in !has "cliphist" && !has "grimblast"
         && has "cclip-picker" == (compositor == "jay")
-        && has "jay-tofi-actions" == (compositor == "jay")
+        && has "jay-rofi-actions" == (compositor == "jay")
+        && !has "jay-tofi-actions" && !has "tofi"
+        && sh.programs.rofi.enable && !sh.local.features.tofi.enable
         && builtins.length herdr == 1
         && (if compositor == "jay"
           then (builtins.head herdr).unwrapped.drvPath == f.nixosConfigurations.neko5.pkgs.llm-agents.herdr.drvPath

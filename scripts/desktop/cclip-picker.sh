@@ -17,7 +17,7 @@ if [[ -z "$rows" ]]; then
   notify "No saved clipboard history."
   exit 0
 fi
-selection="$(printf '%s\n' "$rows" | tofi --history=false --require-match=true --prompt-text='Clipboard: ')" || exit 0
+selection="$(printf '%s\n' "$rows" | rofi -dmenu -replace -i -no-custom -format s -p Clipboard)" || exit 0
 [[ -n "$selection" ]] || exit 0
 id="${selection%%$'\t'*}"
 if [[ ! "$id" =~ ^[1-9][0-9]*$ || "$selection" != *$'\t'* || $'\n'"$rows"$'\n' != *$'\n'"$selection"$'\n'* ]]; then
