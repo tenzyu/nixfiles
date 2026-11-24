@@ -1,87 +1,140 @@
-# neko5 Slim Desktop experiment
+# neko5 compositor experiments
 
-This is a reversible NixOS boot specialisation, not the new default. It uses the
-same physical machine, existing home, kernel, Intel driver, audio, thermal
-policy, Nix, Tailscale and SSH. No kernel watermark, data migration, power
-protection or secrets changes are proposed.
+Keep the ordinary neko5 Hyprland generation as recovery. The five boot
+specialisations share the physical host, canonical HOME routes, kernel,
+Mesa/i915 system driver, official osu! package, HID, audio, thermal, network
+and SSH policy. No new flake inputs, kernel watermark tuning or HOME migration.
+Only one native DRM session runs at a time.
 
-The initial native-Wayland profile uses Jay 1.15.0 from the already locked
-unstable input, its built-in bar and solid background, Alacritty, and the
-existing on-demand Rofi and D-Bus-activatable Mako. It deliberately does not
-start Hyprland, Waybar, hyprpaper, Xwayland, a tray bridge or a status script.
-Wired is not selected because it requires X11. No new flake inputs.
+| Boot entry | Role | Desktop usability |
+|---|---|---|
+| neko5-slim | Jay 1.15.0 reference | Ten numbered workspaces, Super+Q close |
+| neko5-sway | wlroots / Sway | Ten numbered workspaces, Super+Q close |
+| neko5-kwin | Standalone KWin (no Plasma session) | Ten desktops, Super+Q close via KWin script; verify shortcut registration |
+| neko5-weston | Weston 15.0.1 DRM desktop-shell probe | **Not eligible:** upstream has only one workspace; no equivalent Super+Q binding |
+| neko5-gamescope | Gamescope 3.16.23 standalone DRM game probe | **Not eligible:** no desktop workspaces; internal Xwayland required even for native clients |
 
-## Trial procedure
+The two probes are bootable attempts to compare presentation behavior, not
+accepted desktop candidates. Do not rank them as satisfying the common
+usability contract. Gamescope uses its native xdg-shell client path
+(`--expose-wayland`, unset DISPLAY for osu!, no nested compositor). It requires
+an internal Xwayland server in the pinned source (main.cpp accesses server 0).
+Weston 15.0.1 desktop-shell/shell.c uses a single workspace object. Do not
+patch in missing desktop features just to qualify the probes.
 
-From the PR checkout, on neko5:
+## Fixed experimental contract
+
+- Same internal panel eDP-1, **1366x768 native, approximately 60 Hz, scale 1**.
+  Disconnect external displays. Verify actual mode using `wayland-info`,
+  `jay randr`, `swaymsg -t get_outputs`, KScreen/DRM logs as applicable.
+  KWin chooses the preferred mode; if not native, correct it before testing.
+- Same official osu!lazer install and HOME data, embedded OTD, same renderer,
+  fullscreen, 1366x768, **Frame limiter 8x** (`Limit8x`, approximately 480 Draw
+  Hz at 60 Hz); do not change game config or renderer between profiles.
+  Confirm the in-game settings on every boot. These mutable game settings
+  are operator-verified, not overwritten by Nix.
+- PipeWire **64 frames / 48000 Hz**, min/default/max 64 in every specialisation.
+  Verify active output and osu! in `pw-top` while playing. ALSA period-size 128,
+  count 3 retained from existing policy. If graph rate or quantum differs,
+  invalidate the run. Do not silently lower constraints. Ordinary Hyprland
+  fallback is untouched; manually match settings if used as an extra control.
+- Direct scanout requested where supported, tearing permitted for fullscreen,
+  no VRR requested, no overlays/capture during performance runs. Neither
+  eligibility nor permission proves actual hardware scanout or async flips.
+  Record each separately. Do not add forced composition or change the GPU.
+- Same song/map, mods, skin, renderer, peripherals, power source, ambient
+  conditions, initial thermal state and background apps. Record package and
+  renderer versions; do not modify the app between boots.
+
+Jay direct scanout and stable 480 Hz Draw were reported by the operator on the
+earlier specialisation. This is the reference observation, not proof that the
+new revision has passed.
+
+## Start and rollback
+
+Build from the PR checkout without activation first:
 
 ```sh
-nix eval --raw .#nixosConfigurations.neko5.config.specialisation.neko5-slim.configuration.system.build.toplevel.drvPath
-nix build --no-link .#nixosConfigurations.neko5.config.specialisation.neko5-slim.configuration.system.build.toplevel
-```
-
-Only after reviewing the build and existing HOME admission requirements, install
-the boot menu generation from the PR checkout on neko5:
-
-```sh
+for p in slim sway kwin weston gamescope; do
+  nix eval --raw ".#nixosConfigurations.neko5.config.specialisation.neko5-$p.configuration.system.build.toplevel.drvPath"
+done
+# Choose one to build first, or build the entire generation to stage all entries.
+nix build --no-link .#nixosConfigurations.neko5.config.specialisation.neko5-sway.configuration.system.build.toplevel
 sudo nixos-rebuild boot --flake .#neko5
 ```
 
-This stages the normal Hyprland generation and its neko5-slim specialisation.
-Do not use switch during an active desktop session. Save work, reboot when
-ready, and select the neko5-slim entry in systemd-boot. Log in on the local
-text VT as the usual user and run:
+Staging the parent generation builds all five specialisations (extra closure
+and build time). Only run the last command after reviewing CI, build and
+existing HOME admission requirements. Do not switch during an active session.
+Reboot into the desired systemd-boot entry; log in on the local VT and run
+`exec neko5-slim-session` for **every** experiment. Gamescope starts osu!
+directly; the other entries start their desktop. No nested sessions.
+For the three desktop candidates:
 
-```sh
-exec neko5-slim-session
-```
+| Shortcut | Action |
+|---|---|
+| Super+Q | Close focused window (never exit session) |
+| Super+1..9,0 | Switch workspace 1..10 |
+| Super+Shift+1..9,0 | Move focused window to workspace (Sway/KWin also follow) |
+| Super+F | Fullscreen |
+| Super+Enter | Alacritty |
+| Super+Space | Application launcher |
+| Super+B / Super+O | Firefox / osu! |
+| Super+H/J/K/L | Directional focus |
+| Super+Ctrl+Shift+Q | Explicit exit in Jay/Sway only |
 
-Use Super+Enter (Alacritty), Super+P (Rofi), Super+B (Firefox), Super+O (raw osu!),
-Super+U (fullscreen), Super+1 is not bound; Super+F1 through Super+F5 select workspaces,
-Super+Shift+C closes a window and Super+Q exits. If graphics fails, use another VT
-(Ctrl+Alt+F2) or SSH. Do not start both compositors at once.
+KWin uses a native KWin script plus on-demand systemd user application units,
+and an /etc/xdg/kwinrc default. Existing local KDE settings may override
+defaults; verify ten desktops and every shortcut before counting a result.
+KWin uses stacking rather than Jay/Sway tiling; launcher units allow one
+running instance per app. For Weston use panel launchers and Super+Shift+F
+(fullscreen); its titlebar close action, not Super+K (force kill).
+For Gamescope exit the game; neither probe has equivalent workspace controls.
 
-This native-only experiment deliberately omits X11/Parsec compatibility, the
-Hyprland-specific osu-first launcher, idle/lock UI and tray widgets.
-Notifications, IME, portals/screen sharing, suspend, and native osu! are
-runtime acceptance items, not guaranteed by evaluation. Do not leave an
-unlocked experimental session unattended. If any required application needs
-Xwayland, use the ordinary Hyprland generation rather than quietly changing
-the experimental baseline.
+For recovery use another VT (Ctrl+Alt+F2) or SSH. `loginctl list-sessions`
+and `loginctl terminate-session SESSION_ID` only for the experimental
+local session after saving work; do not terminate SSH. Reboot into ordinary
+neko5 or the previous known-good generation if needed. No automatic lock UI
+in these trial sessions: do not leave them unattended. Portal/IME/lock/suspend
+and authorization remain runtime acceptance checks; KWin/Weston/Gamescope
+use generic GTK portal only in this trial (no promised screen sharing).
 
-## Measurement and decision
+## Record comparable results
 
-Compare the same booted hardware, display mode and network connection, after
-five minutes idle with no foreground apps or measurement terminal. Collect
-three samples 30 seconds apart from neko7 over SSH, using the same checked-out
-script for both profiles:
+After five idle minutes, close foreground apps and collect three samples
+30 seconds apart over neko7 SSH for each desktop candidate:
 
 ```sh
 ssh neko5 'python3 /home/tenzyu/.nixfiles/scripts/desktop/slim-memory.py'
 ```
 
-If that checkout is not the PR checkout, substitute its actual path.
-The script is read-only. Its PSS list covers only readable processes; run
-locally via sudo if a whole-process inventory is needed. The JSON reports
-effective used, non-cache residual, estimated reserve, pressure and process
-PSS separately. Do not add these accounting categories together.
+Use the actual PR checkout path if different. The Gamescope game-only probe
+cannot supply an equivalent empty desktop idle reading. The script is
+read-only; PSS is limited to readable processes unless run with sudo.
+Use effective used and non-cache residual separately. Target 600 MiB
+effective used, no cache dropping or VM reserve tuning.
 
-* Effective used (MemTotal minus MemAvailable): 600 MiB target, not claimed.
-* Non-cache residual: report separately; no cache dropping or VM reserve tuning.
-* Check expected absence of Hyprland, Waybar, hyprpaper and Xwayland.
-* Verify network/Tailscale/SSH, native Firefox, O3C and CTL-472, PipeWire
-  and Japanese input; verify screen sharing and authorization prompts if needed.
-* Compare osu! p95/p99 frame timing, audio XRUNs, Direct Scanout and tearing
-  with the ordinary Hyprland generation. Do not claim input-to-photon results
-  from compositor telemetry alone. Reject regressions or missing required
-  functionality even if memory is lower.
+For every valid game run record actual resolution/rate/scale, graphics API,
+native Wayland confirmation, actual quantum/rate, scanout and async flip
+evidence, Draw/Update frequencies, p95/p99 frame times, audio ERR delta by
+node (not just total), session length, thermal state and input feel. Prefer
+the same 40-minute play workload where feasible. Record an actual
+input-to-photon measurement only if instrumented. Jay: Control Center
+Visualize Compositing plus debug log; Sway: get_outputs and debug logs;
+KWin: support information/DRM debug logs; Weston: DRM log/scopes;
+Gamescope: DRM logs. Diagnostic overlays and verbose logging can perturb
+performance: collect eligibility separately, turn diagnostics off for the
+timing run. A missing telemetry channel is unknown, not a pass.
 
-No real-device or VM graphics measurement has been performed by this PR.
+Reject a candidate for missing workspaces or unsafe close/exit behavior,
+failure of native fullscreen / input / audio or any material frame pacing
+regression. Direct scanout and 64-frame operation are acceptance criteria,
+not presumed from configuration. Do not tune one candidate's game or
+audio settings to hide failures. Only after these experiments, decide
+whether a dedicated osu!-specific end-to-end presentation implementation
+is worthwhile; this PR does not start that project.
 
-## Rollback
-
-Exit Jay (Super+Q), save all work and reboot into the ordinary neko5 entry.
-If the new boot generation fails, select the previous known-good NixOS
-generation in systemd-boot. Do not bypass HOME admission or delete user
-data; if activation reports a conflict, stop and inspect it. No HOME path
-changes are part of the experiment.
+CI evaluates each specialisation and the shared audio/identity invariants,
+parses evaluated Jay TOML and syntax-checks KWin JS. Physical KMS, audio,
+keybinding delivery, package build and game performance are not proven by
+Nix evaluation alone.

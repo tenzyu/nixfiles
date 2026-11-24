@@ -168,7 +168,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Evaluate neko5 slim specialisation and preserve the control
+      - name: Evaluate all neko5 experiment specialisations and preserve the control
         shell: bash
         run: |
           set -euo pipefail
@@ -176,20 +176,37 @@ jobs:
             let
               f = builtins.getFlake (toString ./.);
               c = f.nixosConfigurations.neko5.config;
-              s = c.specialisation.neko5-slim.configuration;
               h = c.home-manager.users.tenzyu;
-              sh = s.home-manager.users.tenzyu;
               routes = home: map (r: { inherit (r) group source target route; }) home.local.homeMigration.paths;
+              check = compositor: s:
+                let
+                  sh = s.home-manager.users.tenzyu;
+                  audio = s.services.pipewire.extraConfig.pipewire."99-neko5-experiment"."context.properties";
+                in {
+                  profile = s.neko5Experiment.compositor == compositor;
+                  slim = s.local.features.neko5-slim-desktop.enable && !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
+                  systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
+                  identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
+                  audio = audio."default.clock.rate" == 48000 && audio."default.clock.allowed-rates" == [48000] && audio."default.clock.quantum" == 64 && audio."default.clock.min-quantum" == 64 && audio."default.clock.max-quantum" == 64;
+                  drv = s.system.build.toplevel.drvPath;
+                };
+              specs = {
+                neko5-slim = "jay";
+                neko5-sway = "sway";
+                neko5-kwin = "kwin";
+                neko5-weston = "weston";
+                neko5-gamescope = "gamescope";
+              };
             in {
               control = c.programs.hyprland.enable && h.local.features.waybar.enable && h.local.features.hyprpaper.enable && !c.local.features.neko5-slim-desktop.enable;
-              slim = s.local.features.neko5-slim-desktop.enable && !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
-              systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
-              identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
-              nativeOnly = builtins.match ".*enabled = false.*" sh.xdg.configFile."jay/config.toml".text != null;
-              drv = s.system.build.toplevel.drvPath;
+              profiles = builtins.mapAttrs (name: compositor: check compositor c.specialisation.${name}.configuration) specs;
+              jay = c.specialisation.neko5-slim.configuration.home-manager.users.tenzyu.xdg.configFile."jay/config.toml".text;
             }
-          ' | jq -e '.control and .slim and .systemPolicy and .identity and .nativeOnly and (.drv | endswith(".drv"))'
+          ' > /tmp/neko5-experiments.json
+          jq -e '.control and (.profiles | length == 5 and all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
+          node --check scripts/desktop/kwin-experiment.js
 
   osu-first:
     name: Offline osu-first launcher
