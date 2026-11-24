@@ -81,7 +81,11 @@ Jay shortcuts:
 | Super+F | Fullscreen |
 | Super+Enter | Alacritty |
 | Super+Space | tofi application launcher |
-| Super+V | Clipboard history via richclip/tofi |
+| Super+V | Clipboard history via cclip/tofi |
+| Super+R | PATH / explicit shell command via tofi-run |
+| Super+Shift+R | Custom command menu |
+| Super+Shift+Space | Desktop action menu |
+| Super+Ctrl+Shift+R | Reload Jay configuration |
 | Super+Shift+S / Print | Copy area / full display screenshot |
 | Super+Tab / Super+Shift+Tab | Cycle numbered workspaces forward / backward |
 | Super+Shift+V | Vertical split |
@@ -92,11 +96,7 @@ Jay shortcuts:
 Jay's native named-action cycle tracks the last workspace selected by its
 keyboard bindings (1–10, including empty workspaces); mouse/bar changes
 are not reflected in this state. Numbered keys resynchronize the cycle.
-The single richclipd Wayland capture process starts on Jay's privileged socket;
-the tofi picker runs on the ordinary socket and restores an item by UUID via
-richclip IPC. Screenshots still use grim/slurp and wl-copy, not Hyprland's
-grimblast. Selection cancellation leaves the clipboard unchanged. Existing
-cliphist data is untouched and its CLI remains available for legacy history.
+The single cclipd capture process starts through cclip-start on Jay's privileged socket. The tofi picker runs on the ordinary socket and restores a selected numeric ID with `jay run-privileged cclip copy`. The restore owner is upstream cclip, not a new custom daemon. Screenshots still use grim/slurp and wl-copy. Cancel leaves the clipboard unchanged. Existing richclip and cliphist history is untouched; no migration or deletion is performed.
 
 For Gamescope exit the game; it does not have desktop workspace controls.
 
@@ -202,31 +202,17 @@ Do not use the legacy global-quantum lab for this acceptance test.
 ## Daily software replacements
 
 The normal neko5 generation selects Alacritty, Fileman, tofi, dua-cli,
-richclip and GitUI. Kitty, Dolphin, Rofi, ncdu and Lazygit are no longer
+cclip and GitUI. Kitty, Dolphin, Rofi, ncdu and Lazygit are no longer
 selected on this host. Ark and the existing osu! skin MIME association remain:
 Fileman does not handle opening an arbitrary archive on its command line or
 recognize .osk as an archive in this upstream revision. QDirStat and dust
 remain available for treemap and summary use. The GTK FileChooser portal is
 unchanged. No historical clipboard migration or deletion is performed.
 
-Fileman v0.5.2 and richclip v0.1.3 use the official x86_64 Linux release
-archives, pinned by SHA-256. Nix repackages the ELF binaries using
-autoPatchelfHook; no Rust compilation, Cargo tests or upstream shell installer
-runs locally. Fileman matches the previous source revision; richclip uses the
-release tag instead of the two later main-branch commits, so post-release
-history deduplication and restore-ordering changes are not included.
-The previous source packages remain available in Git history.
-CI builds the repackaged derivations and checks the installed binaries;
-actual Wayland behavior still requires a local smoke test.
-Richclip's upstream capture policy skips token-like runs of 30 or more ASCII
-characters (including some commit hashes), caps each format at 4 MiB and
-expires items after 30 days by default. Direct clipboard copy/paste remains
-independent of history. If richclipd survives a compositor shutdown, stop the
-old instance before starting Jay again; its single-instance socket rejects
-duplicate daemons. No cloud labelling worker is installed.
+Fileman v0.5.2 uses its pinned official x86_64 binary. cclip 3.3.1 is a small C/Meson source package pinned by upstream commit and recursive SHA-256; no official binary was found. CI builds and smoke-tests it. cclipd captures only the regular clipboard, preferring PNG/images and then plain text, with a 512-entry retention target and 160-byte previews. It stores a single MIME representation, so grouped HTML/file semantics are not preserved. Password-manager hints are honored, but unmarked secrets may be stored. The private cclip data directory is mode 0700 and a non-forking flock prevents duplicate capture processes. Payload/queue sizes are not hard-bounded upstream.
 
 Smoke test after building and booting: Super+Enter, Super+Space,
-Super+V (text, HTML and screenshot restore, cancel), Fileman copy/move/trash,
+Super+V (text, long SHA, screenshot restore, cancel), Fileman copy/move/trash,
 archive extraction, .osk association, USB/network share, `dua i` and `lg`.
 Check Japanese input and Herdr clipboard as before. Keep existing generation
 for rollback. No full performance A/B is required for this selection;
@@ -245,27 +231,9 @@ See upstream herdrdev/herdr #6035 for a first-class clipboard backend
 selector request. Remove the launcher adapter once an upstream release
 provides that option. SSH already prefers OSC 52 upstream; neko7 and
 non-Jay packages remain unmodified. Alacritty allows OSC 52 writes only;
-its focused window owns the Wayland selection. Richclipd observes normal
-selections, preserving its capture filters.
+its focused window owns the Wayland selection. cclipd observes normal selections and honors upstream password-manager hints.
 
-Super+V reads at most 129 history records initially, displays the newest
-128, and offers "Show all history" if older entries exist. No records are
-deleted. Recent-list timeout is 2 seconds (plus up to 1 second to kill),
-full-list timeout is 10 seconds, restore timeout is 5 seconds. Empty
-history and CLI failures produce a notification. The picker has its own
-nonblocking lock, independent of tofi-drun's shared lock; its menu does
-not persist a second history. These are bounded-work mitigations, not a
-measured diagnosis of the operator's intermittent launch failure.
-To compare history-load costs without displaying clipboard contents:
-
-```sh
-time richclip list --json --limit 129 >/dev/null
-time richclip list --json >/dev/null
-```
-
-Test repeated Super+V (20 opens/cancels), older history, text and screenshot
-restoration, Super+Space, and an ordinary wl-copy from a Herdr pane.
-An actual cache hit and live Wayland acceptance remain operator checks.
+Super+V queries only saved previews, with a two-second list deadline and no JSON/blob decoding. cclipd generates previews at capture time and trims history periodically to the configured target; older entries are not migrated from richclip. Selection must match the menu snapshot; the selected ID is passed to the upstream MIME-aware copy command. The picker closes its lock FD before restore to avoid retaining the lock in the selection owner. Super+R accepts explicitly typed shell commands as the normal session user, with no terminal unless requested; the custom and desktop menus dispatch fixed allowlisted actions. Super+Ctrl+Shift+R preserves native config reload. Test 20 repeated open/cancel cycles, long SHA, multiline text, screenshot restore, all five launcher shortcuts and reload. Live Wayland acceptance and PSS remain operator checks.
 
 After building and activating, open a fresh Alacritty via Super+Enter and
 attach with the new Herdr client (do not terminate running agents just to
@@ -278,8 +246,7 @@ printf '\033]52;c;%s\a' "$(printf 'Herdr clipboard 日本語\nsecond line' | bas
 With the terminal focused during execution, paste into Firefox and compare
 both lines exactly. Repeat using Herdr mouse selection and keyboard copy
 mode, locally and via the actual remote route; test multiline JSON, then
-Super+V history restore and both screenshot shortcuts. A long token-like
-string may paste correctly but be intentionally absent from richclip history.
+Super+V history restore and both screenshot shortcuts. A long token-like string must now appear in cclip history unless excluded by an explicit MIME hint or unsupported representation.
 Do not treat a Herdr success toast as delivery confirmation. If direct OSC 52
 fails, inspect Alacritty focus/policy and Jay selection before altering
 privileges. Nested terminal multiplexers require independent OSC 52

@@ -66,9 +66,13 @@
   }: let
     jay = pkgs.unstable.jay;
     terminal = if config.programs.alacritty.enable then config.programs.alacritty.package else pkgs.unstable.alacritty;
-    hasRichclip = config.local.features.richclip.enable;
+    hasCclip = config.local.features.cclip.enable;
     hasTofi = config.local.features.tofi.enable;
-    richclip = pkgs.unstable.callPackage ../../../assets/packages/richclip.nix {};
+    tofiActions = pkgs.writeShellApplication {
+      name = "jay-tofi-actions";
+      runtimeInputs = [pkgs.tofi jay terminal];
+      text = lib.replaceStrings ["@SHELL@"] [pkgs.runtimeShell] (builtins.readFile ../../../scripts/desktop/tofi-actions.sh);
+    };
     hasIme = osConfig != null && osConfig.i18n.inputMethod.enable && osConfig.i18n.inputMethod.type == "fcitx5";
     ime = if hasIme then osConfig.i18n.inputMethod.package else null;
     clipboardHistory = ''
@@ -104,7 +108,8 @@
     config = lib.mkIf config.local.features.jay.enable {
       home.packages = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.wayland-utils]
         ++ lib.optional (!config.programs.alacritty.enable) terminal
-        ++ lib.optional (!hasRichclip) pkgs.cliphist;
+        ++ lib.optional (!hasCclip) pkgs.cliphist
+        ++ lib.optional hasTofi tofiActions;
       xdg.configFile."jay/config.toml".text = ''
           # Native Wayland desktop.
           keymap = """
@@ -124,8 +129,8 @@
           vrr.mode = "never"
           on-graphics-initialized = [
             { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH", "QT_IM_MODULE"] },
-            ${if hasRichclip then ''
-              { type = "exec", exec = { prog = "${richclip}/bin/richclipd", args = [], privileged = true } },
+            ${if hasCclip then ''
+              { type = "exec", exec = { prog = "cclip-start", args = [], privileged = true } },
             '' else ''
             { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "text", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
             { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "image", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
@@ -171,8 +176,8 @@
           logo-shift-l = "move-right"
           logo-d = "split-horizontal"
           logo-shift-v = "split-vertical"
-          ${if hasRichclip then ''
-            logo-v = { type = "exec", exec = ["richclip-picker"] }
+          ${if hasCclip then ''
+            logo-v = { type = "exec", exec = ["cclip-picker"] }
           '' else ''
             logo-v = { type = "exec", exec = { shell = ${builtins.toJSON clipboardHistory} } }
           ''}
@@ -187,7 +192,14 @@
           logo-t = "toggle-floating"
           logo-q = "close"
           logo-ctrl-shift-q = "quit"
-          logo-shift-r = "reload-config-toml"
+          ${if hasTofi then ''
+            logo-r = { type = "exec", exec = ["${lib.getExe tofiActions}", "run"] }
+            logo-shift-r = { type = "exec", exec = ["${lib.getExe tofiActions}", "custom"] }
+            logo-shift-space = { type = "exec", exec = ["${lib.getExe tofiActions}", "desktop"] }
+            logo-ctrl-shift-r = "reload-config-toml"
+          '' else ''
+            logo-shift-r = "reload-config-toml"
+          ''}
           ${lib.optionalString hasIme ''
             logo-ctrl-i = { type = "exec", exec = { prog = "${ime}/bin/fcitx5", args = ["-r"], privileged = true } }
             logo-i = { type = "exec", exec = ["${ime}/bin/fcitx5-remote", "-t"] }

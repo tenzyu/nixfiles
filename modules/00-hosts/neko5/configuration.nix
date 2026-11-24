@@ -138,7 +138,7 @@
         alacritty.enable = true;
         rofi.enable = false;
         tofi.enable = true;
-        richclip.enable = true;
+        cclip.enable = true;
         waybar.enable = false;
         mako.enable = true;
         wlogout.enable = true;

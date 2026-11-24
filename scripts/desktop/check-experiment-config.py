@@ -17,7 +17,7 @@ startup = [action["exec"] for action in jay["on-graphics-initialized"]]
 ime = next(e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/fcitx5"))
 watchers = [e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/wl-paste")]
 assert not watchers
-clipboard = [e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/richclipd")]
+clipboard = [e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("cclip-start")]
 assert len(clipboard) == 1 and clipboard[0]["privileged"] is True
 assert clipboard[0]["args"] == []
 assert ime["prog"].endswith("/bin/fcitx5") and ime["args"] == ["-r"]
@@ -32,9 +32,14 @@ assert jay["outputs"][0]["scale"] == 1.0
 assert keys["logo-q"] == "close"
 assert keys["logo-ctrl-shift-q"] == "quit"
 assert keys["logo-f"] == "toggle-fullscreen"
-assert keys["logo-v"]["exec"] == ["richclip-picker"]
+assert keys["logo-v"]["exec"] == ["cclip-picker"]
 assert keys["logo-space"]["exec"][0].endswith("/bin/tofi-drun")
 assert "--drun-launch=true" in keys["logo-space"]["exec"]
+for key, mode in [("logo-r", "run"), ("logo-shift-r", "custom"), ("logo-shift-space", "desktop")]:
+    assert keys[key]["exec"][0].endswith("/bin/jay-tofi-actions")
+    assert keys[key]["exec"][1:] == [mode]
+assert keys["logo-ctrl-shift-r"] == "reload-config-toml"
+assert keys["logo-shift-v"] == "split-vertical"
 assert keys["logo-Return"]["exec"].endswith("/bin/alacritty")
 assert keys["logo-shift-s"]["exec"]["privileged"] is True
 assert "slurp" in keys["logo-shift-s"]["exec"]["shell"]

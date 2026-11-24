@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Offline routing and menu tests; no compositor, clipboard or history access."""
-import json
+"""Offline clipboard and launcher routing tests; never access a live session."""
 import os
 from pathlib import Path
 import subprocess
@@ -17,44 +16,31 @@ class ClipboardIntegration(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.env = dict(os.environ, PATH=f"{self.root}:{os.environ['PATH']}",
-                        XDG_RUNTIME_DIR=str(self.root), XDG_CURRENT_DESKTOP="jay",
-                        WAYLAND_DISPLAY="wayland-1", FIXTURE=str(self.root))
+                        XDG_RUNTIME_DIR=str(self.root), XDG_DATA_HOME=str(self.root),
+                        XDG_CURRENT_DESKTOP="jay", WAYLAND_DISPLAY="wayland-1",
+                        FIXTURE=str(self.root))
         self.stub("wl-copy-real", "cat")
         self.shim = self.root / "shim"
         self.shim.write_text((HERE / "herdr-wl-copy.sh").read_text()
                              .replace("@HERDR@", str(Path(sys.executable).resolve()))
                              .replace("@READLINK@", "readlink")
                              .replace("@WL_COPY@", str(self.root / "wl-copy-real")))
-        self.stub("richclip", """python3 - "$@" <<'PYTHON'
-import json, os, sys
-from pathlib import Path
-root = Path(os.environ["FIXTURE"])
-args = sys.argv[1:]
-with (root / "calls").open("a") as out:
-    out.write(json.dumps(args) + "\\n")
-if args[0] == "list":
-    if os.environ.get("LIST_FAIL"):
-        sys.exit(1)
-    items = json.loads((root / "items").read_text())
-    if "--limit" in args:
-        items = items[:int(args[args.index("--limit") + 1])]
-    print(json.dumps(items))
-elif args[0] == "restore":
-    (root / "restored").write_text(args[1])
-PYTHON""")
+        self.stub("cclip", """[[ "$*" == 'list rowid,preview' ]] || exit 7
+[[ -z "${LIST_FAIL:-}" ]] || exit 1
+cat "$FIXTURE/items" """)
+        self.stub("cclipd", 'printf "%s\\n" "$@" > "$FIXTURE/daemon-args"')
         self.stub("tofi", """cat > "$FIXTURE/menu"
 case "${PICK:-first}" in
   cancel) exit 1 ;;
-  invalid) echo "unknown invalid" ;;
-  older)
-    if grep -q '^__all__ ' "$FIXTURE/menu"; then
-      grep '^__all__ ' "$FIXTURE/menu"
-    else
-      tail -n 1 "$FIXTURE/menu"
-    fi ;;
+  invalid) printf '999\\tinvalid\\n' ;;
+  last) tail -n 1 "$FIXTURE/menu" ;;
   *) head -n 1 "$FIXTURE/menu" ;;
 esac""")
-        self.stub("notify-send", 'printf "%s\n" "$*" >> "$FIXTURE/notices"')
+        self.stub("tofi-run", 'printf "%s\\n" "${COMMAND:-}"')
+        self.stub("jay", """printf '%s\\n' "$@" > "$FIXTURE/jay"
+[[ -z "${RESTORE_FAIL:-}" ]]""")
+        self.stub("alacritty", 'printf "%s\\n" "$@" > "$FIXTURE/terminal"')
+        self.stub("notify-send", 'printf "%s\\n" "$*" >> "$FIXTURE/notices"')
 
     def stub(self, name, script):
         path = self.root / name
@@ -65,12 +51,9 @@ esac""")
         return subprocess.run(["bash", str(self.shim), *args], input="test",
                               text=True, capture_output=True, env=dict(self.env, **env))
 
-    def picker(self, count, **env):
-        (self.root / "items").write_text(json.dumps([
-            {"id": f"id{i}", "label": f"日本語 {i}\nnext",
-             "formats": [{"mime": "text/plain"}]} for i in range(count)
-        ]))
-        return subprocess.run(["bash", "-euo", "pipefail", str(HERE / "richclip-picker.sh")],
+    def picker(self, rows, **env):
+        (self.root / "items").write_text(rows)
+        return subprocess.run(["bash", "-euo", "pipefail", str(HERE / "cclip-picker.sh")],
                               env=dict(self.env, **env), capture_output=True, text=True)
 
     def test_scoped_osc52_fallback(self):
@@ -87,33 +70,46 @@ esac""")
         result = self.shim_call(args)
         self.assertEqual((result.returncode, result.stdout), (0, "test"))
 
-    def test_recent_restore(self):
-        result = self.picker(150)
+    def test_restore(self):
+        result = self.picker("1\t日本語\n2\tabcdefghijklmnopqrstuvwxyz1234\n", PICK="last")
         self.assertEqual(result.returncode, 0, result.stderr)
-        menu = (self.root / "menu").read_text().splitlines()
-        self.assertEqual(len(menu), 129)
-        self.assertEqual(menu[0], "id0 日本語 0 next")
-        self.assertEqual(menu[-1], "__all__ Show all history")
-        self.assertEqual((self.root / "restored").read_text(), "id0")
+        self.assertEqual((self.root / "jay").read_text(), "run-privileged\ncclip\ncopy\n2\n")
 
-    def test_all_history_remains_accessible(self):
-        result = self.picker(150, PICK="older")
+    def test_cancel_and_invalid(self):
+        self.assertEqual(self.picker("1\ttext\n", PICK="cancel").returncode, 0)
+        self.assertEqual(self.picker("1\ttext\n", PICK="invalid").returncode, 1)
+        self.assertFalse((self.root / "jay").exists())
+
+    def test_empty_and_failure(self):
+        self.assertEqual(self.picker("").returncode, 0)
+        self.assertEqual(self.picker("1\ttext\n", LIST_FAIL="1").returncode, 1)
+        self.assertFalse((self.root / "jay").exists())
+        self.assertEqual(self.picker("1\ttext\n", RESTORE_FAIL="1").returncode, 1)
+
+    def test_private_daemon_directory(self):
+        result = subprocess.run(["bash", "-euo", "pipefail", str(HERE / "cclip-start.sh")],
+                                env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "restored").read_text(), "id149")
-        calls = [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
-        self.assertEqual(calls[:2], [["list", "--json", "--limit", "129"], ["list", "--json"]])
+        self.assertEqual((self.root / "cclip").stat().st_mode & 0o777, 0o700)
+        args = (self.root / "daemon-args").read_text().splitlines()
+        self.assertEqual(args[:4], ["-c", "512", "-P", "160"])
+        self.assertNotIn("-p", args)
+        self.assertNotIn("-S", args)
 
-    def test_empty_and_error(self):
-        self.assertEqual(self.picker(0).returncode, 0)
-        self.assertIn("No saved clipboard history", (self.root / "notices").read_text())
-        self.assertEqual(self.picker(1, LIST_FAIL="1").returncode, 1)
-        self.assertIn("Could not load history", (self.root / "notices").read_text())
-        self.assertFalse((self.root / "restored").exists())
-
-    def test_cancel_and_invalid_selection(self):
-        self.assertEqual(self.picker(1, PICK="cancel").returncode, 0)
-        self.assertEqual(self.picker(1, PICK="invalid").returncode, 1)
-        self.assertFalse((self.root / "restored").exists())
+    def test_launcher_modes(self):
+        script = self.root / "actions.sh"
+        script.write_text((HERE / "tofi-actions.sh").read_text().replace("@SHELL@", "/bin/bash"))
+        for mode, env in [
+            ("run", {"COMMAND": "printf '%s' ok > \"$FIXTURE/ran\""}),
+            ("custom", {}),
+            ("desktop", {}),
+        ]:
+            result = subprocess.run(["bash", "-euo", "pipefail", str(script), mode],
+                                    env=dict(self.env, **env), capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / "ran").read_text(), "ok")
+        self.assertIn("--working-directory", (self.root / "terminal").read_text())
+        self.assertEqual((self.root / "jay").read_text(), "control-center\n")
 
 
 if __name__ == "__main__":

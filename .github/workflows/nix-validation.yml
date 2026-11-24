@@ -240,22 +240,22 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$NIX_CHECK_BASE" HEAD)"
-          for name in richclip fileman; do
+          for name in cclip fileman; do
             if printf '%s\n' "$changed" | grep -Eq "^assets/packages/$name\.nix$|^modules/50-features/desktop/$name\.nix$|^flake\.lock$"; then
               echo "$name=true" >> "$GITHUB_OUTPUT"
             fi
           done
 
       - uses: cachix/install-nix-action@v31
-        if: steps.desktop.outputs.richclip == 'true' || steps.desktop.outputs.fileman == 'true'
+        if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and smoke-test selected desktop packages
-        if: steps.desktop.outputs.richclip == 'true' || steps.desktop.outputs.fileman == 'true'
+        if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
         shell: bash
         env:
-          BUILD_RICHCLIP: ${{ steps.desktop.outputs.richclip }}
+          BUILD_CCLIP: ${{ steps.desktop.outputs.cclip }}
           BUILD_FILEMAN: ${{ steps.desktop.outputs.fileman }}
         run: |
           set -euo pipefail
@@ -268,11 +268,12 @@ jobs:
               in builtins.head (builtins.filter (p: (p.pname or "") == name) h.home.packages)
             '
           }
-          if [[ "$BUILD_RICHCLIP" == true ]]; then
-            out="$(build_package richclip)"
-            "$out/bin/richclip" --help >/dev/null
-            test -x "$out/bin/richclipd"
-            if ldd "$out/bin/richclipd" | grep -F 'not found'; then exit 1; fi
+          if [[ "$BUILD_CCLIP" == true ]]; then
+            out="$(build_package cclip)"
+            "$out/bin/cclip" -h >/dev/null
+            "$out/bin/cclipd" -h >/dev/null 2>&1
+            test -x "$out/bin/cclipd"
+            if ldd "$out/bin/cclipd" | grep -F 'not found'; then exit 1; fi
           fi
           if [[ "$BUILD_FILEMAN" == true ]]; then
             out="$(build_package fileman)"
