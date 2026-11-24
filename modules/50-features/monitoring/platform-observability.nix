@@ -79,6 +79,22 @@
         "core.metrics_address" = "127.0.0.1:8444";
         "core.metrics_authentication" = "false";
       };
+      # Grafana requires a key on this pin even for a read-only instance.
+      # The service user creates it once, in persistent private state, never
+      # in the store. Keep an existing key; do not rotate or recover silently.
+      systemd.services.grafana.preStart = lib.mkBefore ''
+        umask 077
+        key=/var/lib/grafana/.platform-secret-key
+        if ! test -e "$key" && ! test -L "$key"; then
+          tmp=$(mktemp /var/lib/grafana/.platform-key.XXXXXX)
+          trap 'rm -f "$tmp"' EXIT
+          ${pkgs.openssl}/bin/openssl rand -hex 32 > "$tmp"
+          mv -T "$tmp" "$key"
+          trap - EXIT
+        fi
+        test -f "$key" && test ! -L "$key" && test -s "$key"
+        chmod 0600 "$key"
+      '';
       services.grafana = {
         enable = true;
         openFirewall = false;
@@ -88,6 +104,7 @@
           # boundary. No default admin password or externally trusted header.
           security = {
             disable_initial_admin_creation = true;
+            secret_key = "$__file{/var/lib/grafana/.platform-secret-key}";
             disable_gravatar = true;
             data_source_proxy_whitelist = ["127.0.0.1:9090"];
           };

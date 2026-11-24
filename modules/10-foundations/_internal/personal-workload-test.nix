@@ -1,5 +1,5 @@
-{inputs, system, workload}: let
-  pkgs = inputs.nixpkgs.legacyPackages.${system};
+{nixpkgs, system, workload, module}: let
+  pkgs = nixpkgs.legacyPackages.${system};
   syncthing = workload == "syncthing";
   port = if syncthing then "8384" else "2283";
   path = if syncthing then "/" else "/api/server/ping";
@@ -8,7 +8,7 @@ in pkgs.testers.runNixOSTest {
   name = "personal-workload-${workload}";
   nodes = {
     workload = {
-      imports = [ (if syncthing then ../../40-workloads/_internal/syncthing.nix else ../../40-workloads/_internal/immich.nix) ];
+      imports = [module];
       virtualisation.memorySize = if syncthing then 1024 else 4096;
       virtualisation.cores = 2;
       environment.systemPackages = [pkgs.curl pkgs.jq];
@@ -24,6 +24,7 @@ in pkgs.testers.runNixOSTest {
       workload.wait_for_unit("syncthing-init.service")
       workload.succeed("ss -ltn | grep -F '127.0.0.1:8384'")
       workload.succeed("test -d /var/lib/syncthing")
+      workload.fail("grep -q '<folder ' /var/lib/syncthing/.config/syncthing/config.xml")
       peer.fail("nc -z -w 2 workload 22000")
     '' else ''
       workload.wait_for_unit("postgresql.service")

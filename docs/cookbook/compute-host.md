@@ -55,6 +55,8 @@ Do not grant `incus-admin`, `incus` group access, host socket access or unrestri
 
 ## Native dynamic execution
 
+[Instance operations](compute-instances.md) is the short entrypoint for adding, updating, backing up and retiring durable instances and running ephemeral lab instances. [Flestr ingress](flestr-ingress.md) describes the verified source-level transport boundary; no physical port is opened.
+
 Run these as the enrolled user, including from an existing T3 project shell. Select a trusted image and pin its fingerprint for reproducible tests. Names below are examples; choose unique names per session.
 
 ```sh

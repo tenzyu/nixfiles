@@ -1,14 +1,6 @@
 {inputs, self, ...}: {
   perSystem = {system, lib, ...}: {
     checks = lib.optionalAttrs (system == "x86_64-linux") {
-      personal-workload-syncthing = import ./_internal/personal-workload-test.nix {
-        inherit inputs system;
-        workload = "syncthing";
-      };
-      personal-workload-immich = import ./_internal/personal-workload-test.nix {
-        inherit inputs system;
-        workload = "immich";
-      };
       multi-machine-lab = import ./_internal/multi-machine-lab-test.nix {
         inherit inputs system;
       };

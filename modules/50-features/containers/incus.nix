@@ -36,6 +36,7 @@
     config = lib.mkIf config.local.features.incus.enable {
       # The NixOS Incus module requires nftables with the host firewall.
       networking.nftables.enable = true;
+      environment.systemPackages = [pkgs.just];
       networking.firewall.interfaces = lib.genAttrs ["incusbr0" "incuslab0"] (_: {
         allowedTCPPorts = [53];
         allowedUDPPorts = [53 67];

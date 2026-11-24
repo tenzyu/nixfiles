@@ -43,6 +43,7 @@ modules/
   _internal/             typed host-to-module projection, explicitly imported
   00-hosts/              selections for neko5, neko6 and neko7
   10-foundations/        shared policy and checks
+  40-workloads/          independent NixOS workload release definitions
   50-features/           independently selectable NixOS/Home Manager features
   60-integrations/       conditional cross-feature behavior
 lib/                      pure Nix composition primitives
@@ -52,6 +53,10 @@ docs/memory/              OKF knowledge for agents: why, evidence, risks, retrie
 ```
 
 Some support assets are written in Python, TypeScript or shell; **Nix-first does not mean 100% Nix source or immutable application data**. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
+
+## Compute host operations
+
+[Instance operations](docs/cookbook/compute-instances.md) is the short entrypoint. On neko7, `just`, `just images`, and `just instances` discover the native task menu, buildable workload releases and live Incus inventory; mutation recipes are documented separately and require operator approval. New guest releases do not require editing the host declaration or a CI matrix.
 
 ## Change safely
 

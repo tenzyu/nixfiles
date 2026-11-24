@@ -1,5 +1,23 @@
 {inputs, self, system}: let
   pkgs = inputs.nixpkgs.legacyPackages.${system};
+  udpEcho = pkgs.writeText "udp-echo.py" ''
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("198.51.100.2", 18083))
+    while True:
+        data, peer = sock.recvfrom(2048)
+        sock.sendto(data, peer)
+  '';
+  udpClient = pkgs.writeText "udp-client.py" ''
+    import socket
+    import sys
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((sys.argv[1], 18082))
+    sock.settimeout(3)
+    sock.sendto(b"outbound-session", ("198.51.100.2", 18083))
+    data, peer = sock.recvfrom(2048)
+    assert data == b"outbound-session" and peer == ("198.51.100.2", 18083)
+  '';
 in pkgs.testers.runNixOSTest {
   name = "tailnet-ingress";
   nodes.machine = {
@@ -18,6 +36,7 @@ in pkgs.testers.runNixOSTest {
     # Intentionally allow a host TCP port in the ordinary firewall.
     # The separate ingress guard must override even this mistaken opening.
     networking.firewall.allowedTCPPorts = [18080];
+    networking.firewall.allowedUDPPorts = [18082];
     environment.systemPackages = [pkgs.curl pkgs.jq pkgs.iproute2];
     virtualisation.memorySize = 1024;
   };
@@ -81,6 +100,15 @@ in pkgs.testers.runNixOSTest {
         machine.fail("ip netns exec outside " + curl + "http://198.51.100.1:18081/")
         assert denied_counter("forward_denied") > before
         machine.succeed("nft delete table ip ci_dnat")
+
+    with subtest("unsolicited UDP denied, outbound UDP reply allowed without opening a port"):
+        before = denied_counter("input_denied")
+        machine.succeed("ip netns exec outside ${pkgs.python3}/bin/python3 -c 'import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.sendto(b\"unsolicited\",(\"198.51.100.1\",18082))'")
+        assert denied_counter("input_denied") > before
+        machine.succeed("systemd-run --unit=udp-echo ${pkgs.iproute2}/bin/ip netns exec outside ${pkgs.python3}/bin/python3 ${udpEcho}")
+        machine.wait_until_succeeds("ip netns exec outside ss -lun | grep -F ':18083'")
+        machine.succeed("${pkgs.python3}/bin/python3 ${udpClient} 198.51.100.1")
+        machine.succeed("ip netns exec guest ${pkgs.python3}/bin/python3 ${udpClient} 203.0.113.2")
 
     # Prove the intended positive paths still work after all negative probes.
     machine.succeed(curl + "http://203.0.113.2:8080/")

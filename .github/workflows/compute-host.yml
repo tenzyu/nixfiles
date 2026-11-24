@@ -4,6 +4,7 @@ on:
     paths:
       - 'modules/00-hosts/neko7/**'
       - 'modules/40-workloads/**'
+      - 'justfile'
       - 'modules/50-features/monitoring/**'
       - 'modules/50-features/networking/preview-gateway.nix'
       - 'modules/50-features/development/execution-discovery.nix'
@@ -50,14 +51,34 @@ jobs:
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
           nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+  discover-workloads:
+    name: Discover independent image outputs and validate operator menu
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.outputs.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: outputs
+        run: |
+          set -euo pipefail
+          workloads=$(nix eval --json .#packages.x86_64-linux --apply builtins.attrNames | jq -c '[.[] | select(startswith("neko7-") and endswith("-image")) | sub("^neko7-"; "") | sub("-image$"; "")]')
+          echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
+          nix build -L --no-link .#checks.x86_64-linux.instance-recipes
   personal-workloads:
+    needs: discover-workloads
+    if: needs.discover-workloads.outputs.workloads != '[]'
     name: Build ${{ matrix.workload }} image
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        workload: [syncthing, immich]
+        workload: ${{ fromJSON(needs.discover-workloads.outputs.workloads) }}
     steps:
       - uses: actions/checkout@v5
         with:
