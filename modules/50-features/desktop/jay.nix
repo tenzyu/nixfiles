@@ -39,6 +39,11 @@
     config = lib.mkIf config.local.features.jay.enable {
       environment.systemPackages = [jay startJay pkgs.adwaita-icon-theme];
       services.dbus.packages = [portalActivation];
+
+      # GTK portal writes GSettings through dconf; without the writer service,
+      # file chooser preferences fail to persist (ServiceUnknown).
+      # Reads use the mapped database; the writer is D-Bus activated.
+      programs.dconf.enable = true;
       xdg.portal = {
         enable = true;
         extraPortals = [jay pkgs.xdg-desktop-portal-gtk];
