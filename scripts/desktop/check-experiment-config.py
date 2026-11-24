@@ -7,6 +7,7 @@ from pathlib import Path
 
 data = json.loads(Path(sys.argv[1]).read_text())
 jay = tomllib.loads(data["jay"])
+assert data["alacrittyOsc52"] == "OnlyCopy"
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"

@@ -199,6 +199,7 @@ jobs:
               probe = check "gamescope" c.specialisation.neko5-gamescope.configuration;
               onlyProbe = builtins.attrNames c.specialisation == ["neko5-gamescope"];
               jay = h.xdg.configFile."jay/config.toml".text;
+              alacrittyOsc52 = h.programs.alacritty.settings.terminal.osc52;
             }
           ' > /tmp/neko5-experiments.json
           jq -e '.onlyProbe and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json

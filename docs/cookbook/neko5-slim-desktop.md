@@ -200,3 +200,32 @@ archive extraction, .osk association, USB/network share, `dua i` and `lg`.
 Check Japanese input and Herdr clipboard as before. Keep existing generation
 for rollback. No full performance A/B is required for this selection;
 actual game/audio/Wayland behavior still needs a local smoke test.
+
+## Herdr clipboard
+
+The Jay-enabled Herdr package prefers its existing OSC 52 writer for native
+Jay sessions (including the local client of `herdr --remote`). This avoids
+the unprivileged wl-copy focus/serial fallback. SSH already prefers OSC 52
+upstream; neko7 and non-Jay packages remain unmodified. Alacritty explicitly
+allows OSC 52 writes only; its focused window owns the Wayland selection.
+Richclipd observes normal selections; no manual richclip add/restore is used
+for copying, so its capture filters remain intact.
+
+After building and activating, open a fresh Alacritty via Super+Enter and
+attach with the new Herdr client (do not terminate running agents just to
+test clipboard). First run this outside Herdr, then inside its pane:
+
+```sh
+printf '\033]52;c;%s\a' "$(printf 'Herdr clipboard 日本語\nsecond line' | base64 -w0)"
+```
+
+With the terminal focused during execution, paste into Firefox and compare
+both lines exactly. Repeat using Herdr mouse selection and keyboard copy
+mode, locally and via the actual remote route; test multiline JSON, then
+Super+V history restore and both screenshot shortcuts. A long token-like
+string may paste correctly but be intentionally absent from richclip history.
+Do not treat a Herdr success toast as delivery confirmation. If direct OSC 52
+fails, inspect Alacritty focus/policy and Jay selection before altering
+privileges. Nested terminal multiplexers require independent OSC 52
+forwarding support. This is a source-level routing fix, not a demonstrated
+runtime root cause; physical acceptance is pending.

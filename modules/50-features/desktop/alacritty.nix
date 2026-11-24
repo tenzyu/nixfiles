@@ -24,6 +24,9 @@
           scrolling.history = 10000;
           cursor.style.blinking = "Never";
           bell.duration = 0;
+        } // lib.optionalAttrs config.local.features.jay.enable {
+          # Allow OSC 52 writes, never terminal-initiated clipboard reads.
+          terminal.osc52 = "OnlyCopy";
         };
       };
     };
