@@ -10,11 +10,21 @@ Native preseed is declarative for the pool, bridges, project and default profile
 
 Existing T3, Minecraft, builder, SplitCast and Docker services stay in place. No data is moved. Future services can use the operator project without changing the host or T3. Existing application-specific configuration is not a precedent for adding project-specific infrastructure.
 
+## Tailnet-only ingress (host invariant)
+
+No application listener, public port forward, DMZ, physical NIC passthrough or public reverse tunnel may expose services through neko7's uplink. External access is exclusively authenticated Tailnet access (Serve, SSH forwarding, or a separately approved guest Tailnet identity). Never use Funnel or an Internet-facing reverse tunnel; never publish an endpoint without operator approval. The existing Proxmox/router port-opening prohibition remains unchanged.
+
+The host selects the independent `tailnet-ingress` feature. Its native nftables inet table filters new TCP/UDP input and unsolicited forwarding arriving on the declared NAT uplink (`ens18`), including DNAT to any guest. It leaves loopback, internal interfaces, Tailnet traffic, outgoing connections and their replies unchanged. DHCP client traffic and the existing encrypted Tailscale UDP transport are exceptions to the guard, not new firewall openings; ICMP/control traffic remains governed by the ordinary firewall. The guard is not an outbound filter, and established connections are deliberately preserved. NixOS NAT port forwards and DMZ configuration are rejected at evaluation. Restricted Incus credentials cannot attach a physical NIC, add proxy devices or administer the shared network.
+
+This is a packet-level direct-ingress guard, not a security boundary against host administrators, arbitrary outbound tunnels or changes to Tailnet control-plane policy. Funnel uses outbound connectivity, so nftables cannot reliably distinguish it from legitimate Tailnet traffic. The operator must verify in the Tailnet policy that Funnel capability is not granted to neko7 or guest identities (including broad nodeAttrs selectors), and check `tailscale serve status --json` for any enabled `AllowFunnel` entries on those nodes. Do not modify existing Serve routes or Tailnet policy automatically. Verify other uplinks if hardware/network topology changes.
+
+The separate ingress CI test uses real network namespaces with a deliberately allowed host listener, a routed guest, and deliberate DNAT, checks that the actual drop counters increase, and proves host/internal HTTP and outbound NAT still work. It does not substitute for actual Tailscale connectivity, current Tailnet policy or Proxmox firewall evidence.
+
 ## Before approved activation
 
 - Check `ip -4 route`, `ss -ltn`, and existing Incus state. The proposed bridge ranges are 10.77.40.0/24 and 10.77.41.0/24; API port 8443 is loopback-only. Abort on overlap, existing incompatible storage pool, or port conflict. Do not reinitialize an existing Incus installation blindly.
 - Confirm `/dev/kvm`, available memory and filesystem space. The operator has reported past MicroVM success; that is not an Incus acceptance result.
-- Review the nftables transition: native Incus requires nftables with the NixOS firewall. Verify existing Minecraft NAT, Tailscale, SSH, T3 HTTPS and rootless Docker connectivity after activation. Use an out-of-band Proxmox console and retain the previous generation.
+- Review the nftables transition: native Incus requires nftables with the NixOS firewall. Verify existing Minecraft NAT, Tailscale, SSH, T3 HTTPS and rootless Docker connectivity after activation. From a non-Tailnet uplink peer, confirm application TCP/UDP and forwarded guest connections fail; from a Tailnet peer, confirm SSH/Serve still work. Inspect `sudo nft list table inet tailnet_ingress` and the deny counters. Check Tailnet Funnel policy as above. Use an out-of-band Proxmox console and retain the previous generation.
 - Build the host closure and pass the CI tests. Only then request explicit approval for activation. Neither merging nor CI results authorize activation.
 
 ## Enroll the existing T3 user once
@@ -65,7 +75,7 @@ incus stop lab:machine-b
 
 Use `incus exec --user UID --group GID --cwd /home/USER` when an ordinary guest user is needed; create that account using the guest's own configuration. Incus VM exec needs a functioning guest agent. External aliases and image downloads are not CI fixtures. Persistent instances omit `--ephemeral`; managed volumes can survive instance removal if deliberately created separately. Stopping an ephemeral instance deletes it, so export required evidence first.
 
-An HTTP preview can listen on its instance address; discover it with `incus list lab:`. For remote browser access, an operator/client can use an existing SSH connection with local forwarding to that private address (for example `ssh -N -L 18080:INSTANCE_IP:8080 neko7`). Do not add public proxy listeners automatically. The repository owns its build/start/test command and guest image if special dependencies are needed; the host does not. NixOS tests may instantiate any number of declarative guests without installing a project-specific host feature.
+An HTTP preview can listen on its instance address; discover it with `incus list lab:`. For remote browser access, an operator/client can use an existing SSH connection with local forwarding to that private address (for example `ssh -N -L 18080:INSTANCE_IP:8080 neko7`). Do not add public proxy listeners. For approved Tailnet HTTP endpoints, use an explicitly authorized Tailscale Serve route to a host-loopback listener; preserve existing Serve routes. Do not use Funnel. The repository owns its build/start/test command and guest image if special dependencies are needed; the host does not. NixOS tests may instantiate any number of declarative guests without installing a project-specific host feature.
 
 ## Operations and dashboard
 

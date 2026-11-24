@@ -101,8 +101,11 @@ in pkgs.testers.runNixOSTest {
     machine.succeed(agent("incus exec lab:experiment -- touch /tmp/experiment-marker"))
     machine.fail(agent("incus exec lab:persistent -- test -e /tmp/experiment-marker"))
     machine.fail(agent("incus config device add lab:experiment host-etc disk source=/etc path=/host-etc"))
+    machine.fail(agent("incus config device add lab:experiment external nic nictype=physical parent=eth0 name=eth1"))
+    machine.fail(agent("incus network forward create lab:incuslab0 192.0.2.99"))
     ${lib.optionalString (!vm) ''
       machine.fail(agent("incus config set lab:experiment security.privileged=true"))
+      machine.fail(agent("incus config device add lab:experiment public proxy listen=tcp:0.0.0.0:18080 connect=tcp:127.0.0.1:8080"))
     ''}
     ${lib.optionalString vm ''
       machine.fail(agent("incus config set lab:experiment raw.qemu=-nographic"))
