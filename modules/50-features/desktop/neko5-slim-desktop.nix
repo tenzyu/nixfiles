@@ -36,6 +36,12 @@
       export NIXOS_OZONE_WL=1
       export SDL_VIDEODRIVER=wayland
       export JAY_NO_REALTIME=1
+      ${lib.optionalString (compositor == "jay") ''
+        # Jay resolves server cursors before reading the TOML child environment.
+        export XCURSOR_THEME=Adwaita
+        export XCURSOR_SIZE=24
+        export XCURSOR_PATH=${pkgs.adwaita-icon-theme}/share/icons:/run/current-system/sw/share/icons
+      '' }
       echo "neko5 experiment: ${compositor}; physical 1366x768, osu! fullscreen / Limit8x; PipeWire 64/48000."
       ${lib.optionalString (compositor == "kwin") ''
         export KDE_SESSION_VERSION=6
@@ -176,7 +182,7 @@
       exec osu-lazer
     '';
     packages = {
-      jay = [jay];
+      jay = [jay pkgs.adwaita-icon-theme];
       sway = [sway];
       kwin = [kwin accel kwinScript pkgs.kdePackages.libkscreen];
       weston = [weston];
@@ -240,9 +246,19 @@
 
           show-bar = true
           direct-scanout = true
-          tearing.mode = "variant2"
+          # Restore the known-good upstream policy; do not force async eligibility.
+          tearing.mode = "variant3"
           vrr.mode = "never"
-          on-graphics-initialized = { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP"] }
+          on-graphics-initialized = [
+            { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH"] },
+            { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], tag = "neko5-fcitx5" } },
+          ]
+
+          # The normal socket supports per-client capability rules. Grant only
+          # input-method (plus ordinary desktop capabilities) to this tagged IME.
+          [[clients]]
+          match.tag = "neko5-fcitx5"
+          capabilities = ["input-method", "layer-shell", "drm-lease"]
 
           [[outputs]]
           match.connector = "eDP-1"
@@ -283,6 +299,7 @@
           logo-q = "close"
           logo-ctrl-shift-q = "quit"
           logo-shift-r = "reload-config-toml"
+          logo-ctrl-i = { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], tag = "neko5-fcitx5" } }
           logo-1 = { type = "show-workspace", name = "1" }
           logo-shift-1 = [{ type = "move-to-workspace", name = "1" }, { type = "show-workspace", name = "1" }]
           logo-2 = { type = "show-workspace", name = "2" }

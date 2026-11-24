@@ -9,7 +9,13 @@ data = json.loads(Path(sys.argv[1]).read_text())
 jay = tomllib.loads(data["jay"])
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
-assert jay["tearing"]["mode"] == "variant2"
+assert jay["tearing"]["mode"] == "variant3"
+assert jay["clients"] == [{"match": {"tag": "neko5-fcitx5"},
+                            "capabilities": ["input-method", "layer-shell", "drm-lease"]}]
+ime = jay["on-graphics-initialized"][1]["exec"]
+assert ime["prog"].endswith("/bin/fcitx5") and ime["args"] == ["-r"]
+assert ime["tag"] == "neko5-fcitx5" and not ime.get("privileged", False)
+assert keys["logo-ctrl-i"]["exec"] == ime
 assert jay["vrr"]["mode"] == "never"
 assert jay["xwayland"]["enabled"] is False
 assert jay["outputs"][0]["mode"] == {"width": 1366, "height": 768}

@@ -138,3 +138,25 @@ CI evaluates each specialisation and the shared audio/identity invariants,
 parses evaluated Jay TOML and syntax-checks KWin JS. Physical KMS, audio,
 keybinding delivery, package build and game performance are not proven by
 Nix evaluation alone.
+
+## Baseline selection and desktop integration
+
+The operator reports Gamescope felt best but sacrifices too much desktop
+functionality; Jay is the selected daily baseline. Restore Jay upstream
+`variant3` tearing policy (the previous configuration used this default).
+Keep all other performance settings unchanged: native mode, direct scanout,
+Limit8x and Q64. The operator reported recovery of stable 480 Hz Draw after
+the regression discussion; the exact runtime settings were not captured.
+
+Jay's Xcursor loader uses explicit Adwaita 24 and a store-backed search path
+before compositor startup; do not disable hardware cursor as a workaround.
+Fcitx5 is started from Jay's graphics-initialized hook using the existing
+Mozc-enabled package. Its tagged ordinary connection receives input-method
+capability (plus normal desktop capabilities) rather than all privileged
+protocols. Super+Ctrl+I restarts the tagged Fcitx instance if needed. Existing
+user IME profile/dictionaries are retained; use fcitx5-configtool to select
+Mozc if it is absent. Verify cursor in empty workspace and Firefox; verify
+Ctrl+Space or the existing IME trigger, preedit and Japanese commit in Firefox
+and other native clients. Some toolkits may need per-app IM module settings.
+Recheck 480 Hz Draw, direct scanout, and Q64 with the new IME process resident.
+No hardware-cursor, scheduler or kernel tuning is changed.
