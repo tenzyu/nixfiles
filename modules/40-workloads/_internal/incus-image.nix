@@ -1,4 +1,4 @@
-{nixpkgs, system, name, module}: let
+{nixpkgs, system, name, module, extraModules ? []}: let
   pkgs = nixpkgs.legacyPackages.${system};
   guest = nixpkgs.lib.nixosSystem {
     inherit system;
@@ -18,7 +18,7 @@
         environment.systemPackages = [pkgs.curl];
       })
       module
-    ];
+    ] ++ extraModules;
   };
 in {
   "neko7-${name}-system" = guest.config.system.build.toplevel;

@@ -1,36 +1,38 @@
 # Instance operations
 
-One source of truth per operation: **Nix describes a software release, Incus owns the instance and its mutable state.** Adding or removing an instance does not change the host generation. Use the existing authenticated SSH session on neko7 and the nixfiles checkout. The native `just` task runner is a command menu, not a daemon, reconciler, registry, or backend API. It is installed with Incus.
-
-## Normal workflow
-
-Read-only discovery: `just`, `just images`, `just instances`. The image list is derived from the actual flake outputs, not a catalog.
+Nix owns releases; Incus owns instances and mutable state. Run the menu from the nixfiles checkout on neko7. `just status` reads native inventories; it is not an application-health registry.
 
 ```sh
-# Operator-approved new persistent instance; choose disk, CPU, RAM explicitly.
+just
+just images
+just status
 just new syncthing sync 40GiB
 just new immich photos 100GiB 4 6GiB
-# Run the native manager for inspection and start/stop.
 sudo incus info local:photos --project default
-sudo incus exec local:photos --project default -- journalctl -u immich-server -n 80
 sudo incus stop local:photos --project default
 sudo incus start local:photos --project default
-# Backup leaves the machine stopped. Use an approved private directory (0700), preferably off-host.
-just backup photos /approved/backup/photos.tar.gz
-# Only after backup/restore and service-specific schema acceptance.
-just update photos /approved/backup/photos-before-update.tar.gz
-# After stopping and isolated restore verification, type the exact instance name.
-just delete photos /approved/backup/photos.tar.gz
+# Existing private parent directory (0700), preferably off-host.
+just backup photos /approved/backup/photos-20261125
+# Maintenance window, verified prior restore and schema review required.
+just update photos /approved/backup/photos-before-update
 ```
 
-New instances carry a native Incus `user.nixfiles.workload` annotation solely for resolving the release output, not a duplicate database. They autostart and are deletion-protected. The creation recipe builds before importing, keeps a temporary native Nix GC root until the operation finishes, uses a release-specific image alias, and never edits the host, existing VM or firewall. A duplicate instance name fails; inspect any incomplete instance with native Incus before retrying. The operator can still use native commands. Serialize operations on the same instance; no parallel manual mutation while a recipe is running. For multiple instances of a workload, enroll each guest under a unique Tailnet node identity/name. Delete only accepts a stopped managed instance and explicit existing backup path; the receipt's hash is printed, not proof of recoverability. An isolated restore is operator-verified and explicitly confirmed. Incus deletes the instance disk and its instance-owned snapshots, not independent storage volumes. No force or silent prune. Image aliases/old backups are not automatically deleted.
+New VMs have a native workload annotation, auto-start and deletion protection. The release stays GC-rooted during creation/update. `new` and `update` require guest `/etc/neko7/readiness` to succeed; update additionally checks the active and system profile closures. This is service readiness, not schema rollback or full application acceptance.
 
-`just update` builds independently, creates an offline whole-instance export at a new path, and applies the reviewed guest closure after typed approval. It does not prove application-level consistency or safe database downgrades. Confirm an existing verified restorable backup before the operation, and verify application health afterward. Failure leaves the backup and the native generations; never blindly retry or automatically roll back mutable data. For major database migrations, follow the workload's upstream backup/restore procedure first. The helper uses existing Incus authority and never grants that authority to an agent.
+Each compound operation holds a nonblocking advisory instance lock under /run/lock/neko7-instances. Native direct Incus commands bypass this lock; the operator must serialize those with recipes. Backup makes a new private directory atomically, stops the target and writes instance.tar.gz, identity.json (name, native volatile.uuid, project, workload), SHA256SUMS only after export succeeds. A partial directory is not a valid backup. Backup leaves the VM stopped. A successful checksum is not a successful restore. Verify the archive off-host and protect it as credentials.
 
-Agents use the restricted `lab:` remote directly, or `just lab NAME`, `just lab-vm NAME`, `incus exec lab:NAME -- COMMAND`, `just lab-stop NAME`. No sudo; stop deletes ephemeral instances, so retrieve evidence first. For an arbitrary preview use existing SSH local forwarding; shared Caddy routes still require operator approval. See [platform operations](compute-platform-operations.md).
+## Recovery
 
-## Add another persistent workload
+If an operation fails, do not blindly retry. Inspect `incus info local:NAME --project default`, `incus config get local:NAME volatile.uuid --project default`, the bundle and guest `readlink -e /run/current-system /nix/var/nix/profiles/system`. The old and candidate closures are printed before update; the native generations remain available subject to GC. A failed export leaves the instance stopped or in its observed native state; inspect before restarting. A failed closure import has not changed the profile unless that subsequent step ran. If activation fails after profile mutation, do not assume running and boot generations agree. Preserve the backup, compare actual generations and application schema; use native generation rollback only if the application permits it, otherwise recover into an isolated restored instance. Never automatically overwrite mutable data. Manual recovery requires explicit approval.
 
-Add exactly one public file in `modules/40-workloads/`, following `syncthing.nix` or `immich.nix`. It contains ordinary native NixOS service options and exports `neko7-NAME-image`, `neko7-NAME-system` via the upstream Incus image helper, plus a matching `checks.personal-workload-NAME` machine test. Use a workload-specific native test when appropriate. The native `pkgs.testers.runNixOSTest` is defined in the same workload file, so a new workload has no central test dispatch table. CI discovers image names from the flake outputs and builds/tests each one; no host feature, central service catalog, CI matrix or per-project agent adapter needs a new entry. Use the pinned stable nixpkgs unless an isolated guest explicitly requires another reviewed pin. Do not allow insecure packages. Image software removal is independent from instance/data removal; existing instances remain Incus-owned until explicit retirement. Do not remove their release declarations before arranging future maintenance or a verified retirement.
+## Retirement (no automatic delete)
 
-Native nspawn and user-service incumbents retain their reviewed release and recovery contracts in [existing workload migration](compute-workload-migration.md). No forced conversion of those services, no automatic changes to live state. Infrastructure and placement remain in `00-hosts`, reusable capabilities in `50-features`, product integration in `60-integrations`, independent workloads in `40-workloads`. Do not route per-app runtime facts through host evaluation. Future identity providers, tunnels and agent frontends fit as separate native capabilities, without changing the instance lifecycle.
+Permanent deletion is intentionally not a menu recipe. Stop the instance; record its native UUID, verify the bundle identity and stored SHA256SUMS, confirm no writes/restart since the backup or explicitly accept the data-loss window, and review expanded devices, independent volumes, snapshots and external data. Restore the export into a separate disposable, non-networked instance and verify application data before any destructive action. The restored identity must never join the Tailnet while the original exists. Confirm an independent backup location. If the owner separately approves permanent removal, use the native Incus UI/CLI with the exact verified target. Incus requires explicit removal of deletion protection. If interrupted after unprotecting, immediately re-enable protection on the surviving instance and re-evaluate the retirement gate; do not retry deletion blindly. The recipe never unprotects or deletes persistent instances. A missing release definition does not retire a live instance.
+
+## Add a workload
+
+One file in `modules/40-workloads/`: native service module, guest readiness command, image/system outputs, service-module test and exact-image lifecycle check. CI derives the matrix from image outputs. No central catalog, host declaration or CI list edit. A specialized workload can need additional storage, driver or security capabilities. Tests use disposable data; the application owner still validates real migration and recovery. Use the existing stable or reviewed isolated unstable pin without insecure allowlists.
+
+Agents use restricted `lab:` credentials and `just lab NAME` / `just lab-vm NAME` / `just lab-stop NAME`. Stop deletes ephemeral instances. Lab project admission limits are initial 8 allocated instances, at most 3 VMs, aggregate 8 CPUs / 8 GiB configured memory, default 2 CPUs / 2 GiB. These are configured resource limits, not a guarantee of physical headroom; QEMU overhead, images, snapshots, storage and host-native tasks are outside the memory/CPU budget. On dir/ext4, filesystem quotas depend on project quota support; VM virtual disk size bounds guest block capacity, not aggregate host space. Do not assert disk exhaustion containment until verified. No new storage migration.
+
+For previews, use SSH forwarding by default, Caddy only for supervised operator-approved sharing. [Platform operations](compute-platform-operations.md). Existing Minecraft and user-service releases follow [existing workload migration](compute-workload-migration.md).

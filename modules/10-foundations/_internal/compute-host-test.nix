@@ -67,6 +67,7 @@ in pkgs.testers.runNixOSTest {
     machine.wait_for_unit("incus-preseed.service")
     machine.wait_for_unit("incumbent.service")
     incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
+    machine.succeed("incus version; incus project get lab limits.instances | grep -x 8; incus project get lab limits.virtual-machines | grep -x 3")
     machine.succeed("incus project get lab restricted | grep -x true")
     machine.succeed("incus project get lab restricted.devices.disk | grep -x managed")
     machine.succeed("incus network show incuslab0")
@@ -114,12 +115,14 @@ in pkgs.testers.runNixOSTest {
     def denied(command, reason):
         status, output = machine.execute(agent(command))
         assert status != 0 and reason.lower() in output.lower(), (command, output)
-    before_config = json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))
+    before_config = json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]
     denied("incus config device add lab:experiment host-etc disk source=/etc path=/host-etc", "not backed by a pool")
     denied("incus config device add lab:experiment gpu gpu", "GPU devices are forbidden")
     denied("incus config set lab:experiment limits.memory=9GiB", "maximum aggregate value")
-    assert json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))["config"] == before_config["config"]
-    assert json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))["devices"] == before_config["devices"]
+    denied("incus config set lab:experiment limits.cpu=9", "maximum aggregate value")
+    denied("incus create lab:fixture lab:over-budget -c limits.cpu=9", "maximum aggregate value")
+    assert json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]["config"] == before_config["config"]
+    assert json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]["devices"] == before_config["devices"]
     denied("incus config device add lab:experiment external nic nictype=physical parent=eth0 name=eth1", "Only managed network devices")
     denied("incus network forward create lab:incuslab0 192.0.2.99", "permission for project")
     ${lib.optionalString (!vm) ''

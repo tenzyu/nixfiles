@@ -36,6 +36,10 @@ bundle() {
   [[ $dest == /* ]] || exit 2
   # mkdir is the atomic no-overwrite admission. Failed exports leave a
   # partial bundle without SHA256SUMS; never treat it as a valid backup.
+  parent=$(dirname "$dest")
+  sudo test -d "$parent"
+  mode=$(sudo stat -Lc %a "$parent")
+  (( (8#$mode & 077) == 0 )) || { echo "Backup parent must be private (0700)" >&2; exit 1; }
   sudo mkdir -m 0700 -- "$dest"
   status=$(inc list local: --project default --format json | jq -er --arg name "$name" '.[] | select(.name == $name) | .status')
   case "$status" in
@@ -49,7 +53,7 @@ bundle() {
   jq -n --arg name "$name" --arg uuid "$uuid" --arg workload "$workload" \
     '{name:$name,uuid:$uuid,workload:$workload,project:"default"}' | sudo tee "$dest/identity.json" >/dev/null
   sudo chmod 0600 "$dest/identity.json"
-  sudo sh -c 'cd "$1"; sha256sum instance.tar.gz identity.json > SHA256SUMS; chmod 0600 SHA256SUMS; sha256sum -c SHA256SUMS' sh "$dest"
+  sudo sh -ec 'cd "$1"; umask 077; sha256sum instance.tar.gz identity.json > SHA256SUMS.partial; sha256sum -c SHA256SUMS.partial; mv -T SHA256SUMS.partial SHA256SUMS' sh "$dest"
   echo "Export complete (restore not yet verified): $dest"
 }
 case "$action" in
@@ -77,6 +81,7 @@ case "$action" in
     [[ $workload == "$expected_workload" && $uuid == "$expected_uuid" && $candidate == /nix/store/* ]] || exit 2
     test -x "$candidate/bin/switch-to-configuration"
     # Refuse concurrent identity changes and verify the current release is usable.
+    ready
     old=$(inc exec "$target" --project default -- readlink -e /run/current-system)
     printf 'Old generation: %s\nCandidate: %s\nBackup: %s\n' "$old" "$candidate" "$dest"
     bundle "$dest"
