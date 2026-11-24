@@ -6,7 +6,8 @@
   module = {pkgs, ...}: {
     environment.etc."neko7/readiness".source = pkgs.writeShellScript "immich-ready" ''
       set -euo pipefail
-      systemctl is-active --quiet immich-server.service
+      # Incus VM agent exec is not a login shell: do not depend on PATH.
+      ${pkgs.systemd}/bin/systemctl is-active --quiet immich-server.service
       ${pkgs.curl}/bin/curl -fsS --max-time 5 http://127.0.0.1:2283/api/server/ping | ${pkgs.jq}/bin/jq -e '.res == "pong"' >/dev/null
     '';
     services.immich = {
@@ -40,7 +41,7 @@ in {
       inherit inputs self system candidate;
       name = "immich";
       image = releases.neko7-immich-image;
-      guestMemory = "3GiB";
+      guestMemory = "4GiB";
       stateProbe = {
         seed = "runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d immich -c 'CREATE TABLE fixture_acceptance (value integer); INSERT INTO fixture_acceptance VALUES (82);'; echo preserved > /var/lib/immich/fixture-data";
         verify = "grep -Fx preserved /var/lib/immich/fixture-data; runuser -u postgres -- psql -At -d immich -c 'SELECT value FROM fixture_acceptance' | grep -Fx 82";
@@ -68,6 +69,7 @@ in {
         workload.wait_for_unit("redis-immich.service")
         workload.succeed("jq -e '.res == \"pong\"' /tmp/response")
         workload.succeed("test -d /var/lib/immich")
+        workload.succeed("env -i PATH=/nonexistent /etc/neko7/readiness")
         peer.fail("nc -z -w 2 workload 5432")
         peer.fail("nc -z -w 2 workload 6379")
       '';

@@ -3,6 +3,7 @@
 in pkgs.testers.runNixOSTest {
   name = "incus-workload-${name}";
   qemu.forceAccel = true;
+  globalTimeout = 75 * 60;
   nodes.neko7 = {
     imports = [
       self.modules.nixos.incus
@@ -11,6 +12,8 @@ in pkgs.testers.runNixOSTest {
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
+      # Native local store image instead of nested QEMU/image I/O over 9p.
+      useNixStoreImage = true;
       memorySize = 7168;
       diskSize = 48 * 1024;
       additionalPaths = [image candidate];
@@ -22,16 +25,16 @@ in pkgs.testers.runNixOSTest {
     neko7.start()
     neko7.wait_for_unit("incus-preseed.service")
     neko7.succeed("test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp ${../../../justfile} /root/fixture/justfile; cp ${../../../tools/instance-ops.sh} /root/fixture/tools/instance-ops.sh")
-    recipe = "cd /root/fixture && just "
+    recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
     def guest(name, command):
-        return "incus exec local:" + name + " --project default -- sh -ec " + shlex.quote(command)
+        return "incus exec local:" + name + " --project default --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- /run/current-system/sw/bin/bash -ec " + shlex.quote(command)
     def run(name, command):
         return neko7.succeed(guest(name, command)).strip()
     def diagnose(name):
         print(neko7.execute("timeout -k 5s 20s incus info local:" + name + " --project default --show-log 2>&1; timeout -k 5s 20s incus console local:" + name + " --project default --show-log 2>&1; free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'")[1])
     def ready(name):
         try:
-            neko7.wait_until_succeeds("timeout -k 5s 15s " + guest(name, "/etc/neko7/readiness"), timeout=300)
+            neko7.wait_until_succeeds("timeout -k 5s 30s " + guest(name, "/etc/neko7/readiness"), timeout=900)
         except Exception:
             diagnose(name)
             raise
@@ -80,7 +83,7 @@ in pkgs.testers.runNixOSTest {
       # activation boundary after the real profile mutation has completed.
       neko7.succeed("mkdir -p /root/fault-bin")
       neko7.succeed("cat >/root/fault-bin/sudo <<'EOF'\n#!${pkgs.runtimeShell}\nfor arg in \"$@\"; do\n  case \"$arg\" in */bin/switch-to-configuration) exit 77;; esac\ndone\nexec /run/wrappers/bin/sudo \"$@\"\nEOF\nchmod 0700 /root/fault-bin/sudo")
-      neko7.fail("cd /root/fixture && PATH=/root/fault-bin:$PATH just _update-system original /root/interrupted ${name} " + uuid + " ${candidate}")
+      neko7.fail("cd /root/fixture && PATH=/root/fault-bin:$PATH NEKO7_READINESS_TIMEOUT=900 just _update-system original /root/interrupted ${name} " + uuid + " ${candidate}")
       neko7.succeed("cd /root/interrupted && sha256sum -c SHA256SUMS")
       assert run("original", "readlink -e /nix/var/nix/profiles/system") == "${candidate}"
       assert run("original", "readlink -e /run/current-system") == original_generation

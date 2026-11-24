@@ -32,7 +32,7 @@
   # Test-only single-vCPU guests remove one nested-SMP variable while
   # preserving real KVM, two simultaneous guests, and production limits.
   # Controlled mitigation, not a proven root-cause fix.
-  vmFlag = lib.optionalString vm " --vm -c security.secureboot=false -c limits.memory=1024MiB -c limits.cpu=1";
+  vmFlag = lib.optionalString vm " --vm -c security.secureboot=false -c limits.memory=2048MiB -c limits.cpu=1";
 in pkgs.testers.runNixOSTest {
   name = if vm then "compute-host-vm" else "compute-host-container";
   qemu.forceAccel = true;
@@ -46,7 +46,10 @@ in pkgs.testers.runNixOSTest {
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
-      memorySize = if vm then 6144 else 4096;
+      # The nested QEMU process and image reads must not traverse the
+      # outer test driver's 9p Nix store. Native block-backed EROFS store.
+      useNixStoreImage = vm;
+      memorySize = if vm then 7168 else 4096;
       diskSize = 24 * 1024;
     };
     users.users.agent = {
@@ -65,11 +68,13 @@ in pkgs.testers.runNixOSTest {
     import shlex
 
     def agent(command):
+        if command.startswith("incus exec lab:"):
+            command = command.replace(" -- ", " --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
         return "su - agent -c " + shlex.quote(command)
 
     def guest_ready(name):
         try:
-            machine.wait_until_succeeds("timeout -k 5s 15s " + agent("incus exec lab:" + name + " -- systemctl is-active fixture-http"), timeout=300)
+            machine.wait_until_succeeds("timeout -k 5s 30s " + agent("incus exec lab:" + name + " -- systemctl is-active fixture-http"), timeout=900 if ${if vm then "True" else "False"} else 300)
         except Exception:
             # A present /dev/kvm is not evidence that an inner guest booted.
             # Collect firmware/kernel/agent console before fixture cleanup.

@@ -75,7 +75,7 @@ jobs:
     if: needs.discover-workloads.outputs.workloads != '[]'
     name: Build ${{ matrix.workload }} image
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -99,7 +99,9 @@ jobs:
       - name: Boot actual service module and test private reachability
         run: nix build -L --no-link .#checks.x86_64-linux.personal-workload-${{ matrix.workload }}
       - name: Execute exact image lifecycle and isolated restore
-        run: nix build -L --no-link .#checks.x86_64-linux.incus-workload-${{ matrix.workload }}
+        run: |
+          df -h
+          nix build -L --no-link .#checks.x86_64-linux.incus-workload-${{ matrix.workload }}
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest

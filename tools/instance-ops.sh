@@ -18,6 +18,10 @@ umask 077
 target="local:$name"
 inc() { sudo incus "$@"; }
 get() { inc config get "$target" "$1" --project default; }
+# Incus agent supplies a generic Linux PATH, not a NixOS login environment.
+# Explicitly resolve the guest's active system and wrappers, never host paths.
+guest_path=/run/wrappers/bin:/run/current-system/sw/bin
+guest() { inc exec "$target" --project default --env "PATH=$guest_path" -- "$@"; }
 managed() {
   workload=$(get user.nixfiles.workload)
   uuid=$(get volatile.uuid)
@@ -26,11 +30,13 @@ managed() {
 ready() {
   # Count elapsed wall time, not attempts: an unresponsive VM agent
   # can otherwise make 120 CLI requests take an hour or more.
-  local deadline=$((SECONDS + 300)) remaining probe
+  local budget=${NEKO7_READINESS_TIMEOUT:-300}
+  [[ $budget =~ ^[1-9][0-9]{0,3}$ ]] && (( budget <= 900 )) || { echo "Invalid readiness budget (1..900 seconds)" >&2; return 2; }
+  local deadline=$((SECONDS + budget)) remaining probe
   while (( SECONDS < deadline )); do
     remaining=$((deadline - SECONDS))
-    probe=$((remaining < 15 ? remaining : 15))
-    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default -- /etc/neko7/readiness; then
+    probe=$((remaining < 30 ? remaining : 30))
+    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default --env "PATH=$guest_path" -- /etc/neko7/readiness; then
       return 0
     fi
     if (( SECONDS + 2 < deadline )); then sleep 2; else break; fi
@@ -89,16 +95,16 @@ case "$action" in
     test -x "$candidate/bin/switch-to-configuration"
     # Refuse concurrent identity changes and verify the current release is usable.
     ready
-    old=$(inc exec "$target" --project default -- readlink -e /run/current-system)
+    old=$(guest readlink -e /run/current-system)
     printf 'Old generation: %s\nCandidate: %s\nBackup: %s\n' "$old" "$candidate" "$dest"
     bundle "$dest"
     inc start "$target" --project default
     ready
-    nix-store --export $(nix-store -qR "$candidate") | inc exec "$target" --project default -- nix-store --import
-    inc exec "$target" --project default -- nix-env -p /nix/var/nix/profiles/system --set "$candidate"
-    inc exec "$target" --project default -- "$candidate/bin/switch-to-configuration" switch
-    active=$(inc exec "$target" --project default -- readlink -e /run/current-system)
-    profile=$(inc exec "$target" --project default -- readlink -e /nix/var/nix/profiles/system)
+    nix-store --export $(nix-store -qR "$candidate") | guest nix-store --import
+    guest nix-env -p /nix/var/nix/profiles/system --set "$candidate"
+    guest "$candidate/bin/switch-to-configuration" switch
+    active=$(guest readlink -e /run/current-system)
+    profile=$(guest readlink -e /nix/var/nix/profiles/system)
     [[ $active == "$candidate" && $profile == "$candidate" ]] || exit 1
     ready
     echo "Release active and ready; backup: $dest"
