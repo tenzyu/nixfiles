@@ -192,9 +192,6 @@ jobs:
                 };
               specs = {
                 neko5-slim = "jay";
-                neko5-sway = "sway";
-                neko5-kwin = "kwin";
-                neko5-weston = "weston";
                 neko5-gamescope = "gamescope";
               };
             in {
@@ -203,10 +200,9 @@ jobs:
               jay = c.specialisation.neko5-slim.configuration.home-manager.users.tenzyu.xdg.configFile."jay/config.toml".text;
             }
           ' > /tmp/neko5-experiments.json
-          jq -e '.control and (.profiles | length == 5 and all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          jq -e '.control and (.profiles | length == 2 and all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
-          node --check scripts/desktop/kwin-experiment.js
 
   osu-first:
     name: Offline osu-first launcher

@@ -8,20 +8,13 @@
     compositor = config.neko5Experiment.compositor;
     jay = pkgs.unstable.jay;
     terminal = pkgs.unstable.alacritty;
-    sway = pkgs.sway;
-    kwin = pkgs.kdePackages.kwin;
-    accel = pkgs.kdePackages.kglobalacceld;
-    weston = pkgs.weston;
     gamescope = pkgs.gamescope;
     # One launcher, selected at boot. Do not add another compositor boundary.
     launch = {
       jay = "${lib.getExe jay} run";
-      sway = "${lib.getExe sway} --config ${swayConfig}";
-      kwin = "${kwin}/bin/kwin_wayland --drm --no-lockscreen --no-kactivities ${kwinInit}";
-      weston = "${lib.getExe weston} --backend=drm --config=${westonConfig}";
       gamescope = "${lib.getExe gamescope} --backend drm --expose-wayland --immediate-flips --prefer-output eDP-1 -W 1366 -H 768 -w 1366 -h 768 -r 60 --framerate-limit 0 -- ${gameProbe}";
     };
-    desktop = if compositor == "kwin" then "KDE" else compositor;
+    desktop = compositor;
     session = pkgs.writeShellScriptBin "neko5-slim-session" ''
       set -eu
       if [ "$(id -u)" = 0 ] || [ ! -t 0 ] || [ -n "''${SSH_CONNECTION:-}" ] || [ -n "''${WAYLAND_DISPLAY:-}" ] || [ -n "''${DISPLAY:-}" ]; then
@@ -43,11 +36,6 @@
         export XCURSOR_PATH=${pkgs.adwaita-icon-theme}/share/icons:/run/current-system/sw/share/icons
       '' }
       echo "neko5 experiment: ${compositor}; physical 1366x768, osu! fullscreen / Limit8x; PipeWire 64/48000."
-      ${lib.optionalString (compositor == "kwin") ''
-        export KDE_SESSION_VERSION=6
-        export KDE_FULL_SESSION=true
-        ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP KDE_SESSION_VERSION KDE_FULL_SESSION
-      ''}
       exec ${launch.${compositor}}
     '';
     portalActivation = pkgs.writeTextFile {
@@ -59,119 +47,6 @@
         Exec=${lib.getExe jay} portal
       '';
     };
-    importEnvironment = "${pkgs.dbus}/bin/dbus-update-activation-environment --systemd PATH WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP";
-    swayConfig = pkgs.writeText "neko5-sway.conf" ''
-      set $mod Mod4
-      xwayland disable
-      output eDP-1 mode 1366x768 scale 1 adaptive_sync off allow_tearing yes
-      default_border pixel 1
-      default_floating_border pixel 1
-      for_window [app_id=".*"] allow_tearing yes
-      bindsym $mod+Return exec ${lib.getExe terminal}
-      bindsym $mod+space exec rofi -show drun
-      bindsym $mod+b exec firefox
-      bindsym $mod+o exec osu-lazer
-      bindsym $mod+q kill
-      bindsym $mod+f fullscreen toggle
-      bindsym $mod+t floating toggle
-      bindsym $mod+h focus left
-      bindsym $mod+j focus down
-      bindsym $mod+k focus up
-      bindsym $mod+l focus right
-      bindsym $mod+Control+Shift+q exit
-      bindsym $mod+1 workspace number 1
-      bindsym $mod+Shift+1 move container to workspace number 1; workspace number 1
-      bindsym $mod+2 workspace number 2
-      bindsym $mod+Shift+2 move container to workspace number 2; workspace number 2
-      bindsym $mod+3 workspace number 3
-      bindsym $mod+Shift+3 move container to workspace number 3; workspace number 3
-      bindsym $mod+4 workspace number 4
-      bindsym $mod+Shift+4 move container to workspace number 4; workspace number 4
-      bindsym $mod+5 workspace number 5
-      bindsym $mod+Shift+5 move container to workspace number 5; workspace number 5
-      bindsym $mod+6 workspace number 6
-      bindsym $mod+Shift+6 move container to workspace number 6; workspace number 6
-      bindsym $mod+7 workspace number 7
-      bindsym $mod+Shift+7 move container to workspace number 7; workspace number 7
-      bindsym $mod+8 workspace number 8
-      bindsym $mod+Shift+8 move container to workspace number 8; workspace number 8
-      bindsym $mod+9 workspace number 9
-      bindsym $mod+Shift+9 move container to workspace number 9; workspace number 9
-      bindsym $mod+0 workspace number 10
-      bindsym $mod+Shift+0 move container to workspace number 10; workspace number 10
-      exec ${importEnvironment} SWAYSOCK
-      bar {
-        position top
-        font pango:monospace 10
-        colors {
-          background #181825
-          statusline #cdd6f4
-        }
-      }
-    '';
-    # Standalone KWin, not Plasma. Default config is under /etc/xdg;
-    # the user's pre-existing KDE overrides, if any, must be checked in the trial.
-    kwinInit = pkgs.writeShellScript "neko5-kwin-init" ''
-      export QT_QPA_PLATFORM=wayland
-      ${importEnvironment} QT_QPA_PLATFORM
-    '';
-    kwinScript = pkgs.runCommand "neko5-kwin-shortcuts" {} ''
-      dir="$out/share/kwin/scripts/neko5-experiment"
-      mkdir -p "$dir/contents/code"
-      cat > "$dir/metadata.json" <<'EOF'
-      {"KPlugin":{"Id":"neko5-experiment","Name":"neko5 experiment shortcuts","EnabledByDefault":true},"X-Plasma-API":"javascript","KPackageStructure":"KWin/Script"}
-      EOF
-      cp ${../../../scripts/desktop/kwin-experiment.js} "$dir/contents/code/main.js"
-    '';
-    kwinApps = {
-      terminal = lib.getExe terminal;
-      launcher = "rofi -show drun";
-      firefox = "firefox";
-      osu = "osu-lazer";
-    };
-    kwinAppServices = lib.mapAttrs' (name: command: lib.nameValuePair "neko5-kwin-${name}" {
-      description = "neko5 KWin experiment: ${name}";
-      serviceConfig = {
-        Type = "exec";
-        ExecStart = "${pkgs.writeShellScript "neko5-kwin-${name}" "exec ${command}"}";
-      };
-    }) kwinApps;
-    westonApp = name: command: pkgs.writeShellScript "neko5-weston-${name}" ''
-      ${importEnvironment}
-      exec ${command}
-    '';
-    westonConfig = pkgs.writeText "neko5-weston.ini" ''
-      [core]
-      shell=desktop
-      xwayland=false
-      idle-time=0
-      [shell]
-      binding-modifier=super
-      allow-zap=false
-      background-color=0xff1e1e2e
-      panel-color=0xff181825
-      [output]
-      name=eDP-1
-      mode=1366x768
-      scale=1
-      vrr-mode=none
-      [launcher]
-      displayname=Terminal
-      icon=${weston}/share/weston/terminal.png
-      path=${lib.getExe terminal}
-      [launcher]
-      displayname=osu!
-      icon=${weston}/share/weston/terminal.png
-      path=${westonApp "osu" "osu-lazer"}
-      [launcher]
-      displayname=Firefox
-      icon=${weston}/share/weston/terminal.png
-      path=${westonApp "firefox" "firefox"}
-      [launcher]
-      displayname=Applications
-      icon=${weston}/share/weston/terminal.png
-      path=${westonApp "applications" "rofi -show drun"}
-    '';
     # This pinned Gamescope version requires server 0 even with expose-wayland.
     # Keep Xwayland for Gamescope internals, not for the game. This is a
     # presentation-only probe and cannot pass the workspace/usability gate.
@@ -183,14 +58,11 @@
     '';
     packages = {
       jay = [jay pkgs.adwaita-icon-theme];
-      sway = [sway];
-      kwin = [kwin accel kwinScript pkgs.kdePackages.libkscreen];
-      weston = [weston];
       gamescope = [gamescope pkgs.xwayland];
     };
   in {
     options.neko5Experiment.compositor = lib.mkOption {
-      type = lib.types.enum ["jay" "sway" "kwin" "weston" "gamescope"];
+      type = lib.types.enum ["jay" "gamescope"];
       default = "jay";
       description = "Compositor for the isolated neko5 presentation experiment.";
     };
@@ -324,28 +196,6 @@
           ctrl-alt-F2 = { type = "switch-to-vt", num = 2 }
           ctrl-alt-F3 = { type = "switch-to-vt", num = 3 }
         '';
-      })
-      (lib.mkIf (compositor == "sway") {
-        xdg.portal.extraPortals = [pkgs.xdg-desktop-portal-wlr];
-        xdg.portal.config.sway = {
-          "org.freedesktop.impl.portal.ScreenCast" = ["wlr"];
-          "org.freedesktop.impl.portal.Screenshot" = ["wlr"];
-          "org.freedesktop.impl.portal.Inhibit" = ["none"];
-        };
-      })
-      (lib.mkIf (compositor == "kwin") {
-        services.dbus.packages = [accel];
-        environment.pathsToLink = ["/share/kwin"];
-        environment.etc."xdg/kwinrc".text = ''
-          [Desktops]
-          Number=10
-          Rows=2
-          [Compositing]
-          AllowTearing=true
-          [Plugins]
-          neko5-experimentEnabled=true
-        '';
-        systemd.user.services = kwinAppServices;
       })
     ]);
   };

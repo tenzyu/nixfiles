@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate evaluated Jay TOML and the cross-profile keyboard contract."""
+"""Validate evaluated Jay TOML and the Jay keyboard and IME contract."""
 import json
 import sys
 import tomllib

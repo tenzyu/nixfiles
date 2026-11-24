@@ -59,9 +59,6 @@
           };
         }) {
           neko5-slim = "jay";
-          neko5-sway = "sway";
-          neko5-kwin = "kwin";
-          neko5-weston = "weston";
           neko5-gamescope = "gamescope";
         };
       })
