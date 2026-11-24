@@ -5,6 +5,7 @@ on:
       - 'modules/00-hosts/neko7/**'
       - 'modules/40-workloads/**'
       - 'justfile'
+      - 'tools/instance-ops.sh'
       - 'modules/50-features/monitoring/**'
       - 'modules/50-features/networking/preview-gateway.nix'
       - 'modules/50-features/development/execution-discovery.nix'
@@ -215,6 +216,9 @@ jobs:
           set -euo pipefail
           attr=.#nixosConfigurations.neko7.config
           nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --raw "$attr.virtualisation.incus.package.version"
+          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
+          nix eval --raw .#legacyPackages.x86_64-linux.incus.version || true
           nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
             .config["core.https_address"] == "127.0.0.1:8443"
             and (.projects[] | select(.name == "lab") | .config.restricted == "true")

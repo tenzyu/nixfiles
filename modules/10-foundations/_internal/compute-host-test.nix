@@ -42,14 +42,14 @@ in pkgs.testers.runNixOSTest {
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
-      memorySize = 4096;
+      memorySize = if vm then 6144 else 4096;
       diskSize = 24 * 1024;
     };
     users.users.agent = {
       isNormalUser = true;
       uid = 1000;
     };
-    environment.systemPackages = [pkgs.curl pkgs.jq];
+    environment.systemPackages = [pkgs.curl pkgs.jq pkgs.time pkgs.qemu pkgs.util-linux];
     # Co-resident native service should not be restarted by lab operations.
     systemd.services.incumbent = {
       wantedBy = ["multi-user.target"];
@@ -94,24 +94,44 @@ in pkgs.testers.runNixOSTest {
       machine.succeed("test -c /dev/kvm")
     ''}
     machine.succeed(agent("incus launch lab:fixture lab:persistent${vmFlag}"))
-    machine.succeed(agent("incus launch lab:fixture lab:experiment${vmFlag} --ephemeral"))
+    machine.wait_until_succeeds(agent("incus exec lab:persistent -- systemctl is-active fixture-http"), timeout=240)
+    ${lib.optionalString vm ''
+      # Preserve the upstream inspection limits. Capture headroom, CPU time
+      # and peak RSS before launching the second concurrent guest.
+      machine.succeed("free -m; cat /proc/pressure/{cpu,memory,io}; incus version")
+      machine.execute("for image in /var/lib/incus/images/*.rootfs; do ${pkgs.time}/bin/time -v prlimit --cpu=2 --as=1073741824 qemu-img info -f qcow2 --output=json \"$image\"; done")
+    ''}
+    status, output = machine.execute(agent("incus launch lab:fixture lab:experiment${vmFlag} --ephemeral"))
+    if status != 0:
+        print(output)
+        print(machine.succeed("free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; journalctl -u incus --no-pager | tail -100"))
+        raise Exception("second instance launch failed; see diagnostics above")
     machine.wait_until_succeeds(agent("incus exec lab:experiment -- systemctl is-active fixture-http"), timeout=240)
     machine.wait_until_succeeds(agent("incus exec lab:persistent -- systemctl is-active fixture-http"), timeout=240)
     machine.succeed(agent("incus exec lab:experiment -- su - developer -c 'id -un' | grep -x developer"))
     machine.succeed(agent("incus exec lab:experiment -- touch /tmp/experiment-marker"))
     machine.fail(agent("incus exec lab:persistent -- test -e /tmp/experiment-marker"))
-    machine.fail(agent("incus config device add lab:experiment host-etc disk source=/etc path=/host-etc"))
-    machine.fail(agent("incus config device add lab:experiment external nic nictype=physical parent=eth0 name=eth1"))
-    machine.fail(agent("incus network forward create lab:incuslab0 192.0.2.99"))
+    def denied(command, reason):
+        status, output = machine.execute(agent(command))
+        assert status != 0 and reason.lower() in output.lower(), (command, output)
+    before_config = json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))
+    denied("incus config device add lab:experiment host-etc disk source=/etc path=/host-etc", "not backed by a pool")
+    denied("incus config device add lab:experiment gpu gpu", "GPU devices are forbidden")
+    denied("incus config set lab:experiment limits.memory=9GiB", "maximum aggregate value")
+    assert json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))["config"] == before_config["config"]
+    assert json.loads(machine.succeed(agent("incus query lab:/1.0/instances/experiment")))["devices"] == before_config["devices"]
+    denied("incus config device add lab:experiment external nic nictype=physical parent=eth0 name=eth1", "Only managed network devices")
+    denied("incus network forward create lab:incuslab0 192.0.2.99", "permission for project")
     ${lib.optionalString (!vm) ''
-      machine.fail(agent("incus config set lab:experiment security.privileged=true"))
-      machine.fail(agent("incus config device add lab:experiment public proxy listen=tcp:0.0.0.0:18080 connect=tcp:127.0.0.1:8080"))
+      denied("incus config set lab:experiment security.privileged=true", "Privileged containers are forbidden")
+      denied("incus config device add lab:experiment public proxy listen=tcp:0.0.0.0:18080 connect=tcp:127.0.0.1:8080", "Proxy devices are forbidden")
     ''}
     ${lib.optionalString vm ''
       machine.fail(agent("incus config set lab:experiment raw.qemu=-nographic"))
     ''}
     # A real HTTP preview is reachable from the host without a public listener.
-    data = json.loads(machine.succeed(agent("incus list lab:experiment --format=json")))
+    data = json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))
+    assert len(data) == 1 and data[0]["name"] == "experiment", data
     ips = [a["address"] for nic in data[0]["state"]["network"].values() for a in nic["addresses"] if a["family"] == "inet" and a["scope"] == "global"]
     assert len(ips) >= 1, data
     machine.wait_until_succeeds("curl -fsS http://" + ips[0] + ":8080/ | grep -F compute-host-fixture")
@@ -128,6 +148,8 @@ in pkgs.testers.runNixOSTest {
     assert machine.succeed(agent("incus exec lab:persistent -- cat /proc/sys/kernel/random/boot_id")).strip() == before
     assert machine.succeed("incus info persistent --project lab | grep '^PID:'").strip() == pid
     assert machine.succeed("systemctl show -p MainPID --value incumbent.service").strip() == incumbent
+    denied("incus config device add lab:persistent host-etc disk source=/etc path=/host-etc", "not backed by a pool")
+    machine.fail(agent("incus info lab:operator-owned --project default"))
     machine.succeed(agent("incus delete lab:persistent --force"))
     machine.succeed("incus delete operator-owned")
     machine.succeed(agent("incus list lab: --format=json | jq -e 'length == 0'"))

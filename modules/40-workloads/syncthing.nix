@@ -1,6 +1,6 @@
 {inputs, ...}: let
   nixpkgs = inputs.nixpkgs;
-  module = {...}: {
+  module = {pkgs, ...}: {
     services.syncthing = {
       enable = true;
       dataDir = "/var/lib/syncthing";
@@ -16,6 +16,10 @@
         listenAddresses = ["tcp://0.0.0.0:22000" "quic://0.0.0.0:22000"];
       };
     };
+    environment.etc."neko7/readiness".source = pkgs.writeShellScript "syncthing-ready" ''
+      systemctl is-active --quiet syncthing.service
+      ${pkgs.curl}/bin/curl -fsS --max-time 5 http://127.0.0.1:8384/ >/dev/null
+    '';
     # The peer device IDs, folder membership, GUI password and Tailnet
     # enrollment are operator-owned runtime data, not image inputs.
     networking.firewall.interfaces.tailscale0 = {
@@ -38,7 +42,7 @@ in {
           imports = [module];
           virtualisation.memorySize = 1024;
           virtualisation.cores = 2;
-          environment.systemPackages = [pkgs.curl pkgs.jq];
+          environment.systemPackages = [pkgs.curl pkgs.jq pkgs.python3];
         };
         peer.environment.systemPackages = [pkgs.curl pkgs.netcat-openbsd];
       };
@@ -50,7 +54,9 @@ in {
         workload.wait_for_unit("syncthing-init.service")
         workload.succeed("ss -ltn | grep -F '127.0.0.1:8384'")
         workload.succeed("test -d /var/lib/syncthing && test -s /var/lib/syncthing/.config/syncthing/config.xml")
-        workload.fail("grep -q '<folder ' /var/lib/syncthing/.config/syncthing/config.xml")
+        # Defaults templates are not actual replication folders.
+        workload.succeed("python3 -c 'import xml.etree.ElementTree as E; r=E.parse(\"/var/lib/syncthing/.config/syncthing/config.xml\").getroot(); print(\"folders\", [f.attrib for f in r.findall(\"./folder\")]); print(\"defaults\", len(r.findall(\"./defaults/folder\"))); assert not r.findall(\"./folder\"); assert len(r.findall(\"./device\")) <= 1; o=r.find(\"options\"); assert all(o.findtext(k)==\"false\" for k in [\"globalAnnounceEnabled\",\"localAnnounceEnabled\",\"relaysEnabled\",\"natEnabled\"])'")
+        workload.succeed("/etc/neko7/readiness")
         peer.fail("nc -z -w 2 workload 22000")
       '';
     };

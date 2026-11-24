@@ -13,107 +13,50 @@ images:
 instances:
     sudo incus list local: --all-projects
 
-# Build, import and start one new durable VM. No host switch. Size is explicit.
+# A read-only view of native managers, no persisted inventory.
+status:
+    @sudo incus list local: --all-projects
+    @systemctl list-units 'container@*.service' --all --no-pager
+    @systemctl --user list-units --type=service --state=running,failed --no-pager
+    @systemctl --failed --no-pager
+    @free -h
+    @df -h / /nix/store
+
+# Build a durable VM image, then call the exact same artifact operation used in CI.
 new workload name disk cpu="2" memory="2GiB":
     #!/usr/bin/env bash
     set -euo pipefail
-    [[ $(hostname -s) == neko7 ]] || { echo "Run on neko7" >&2; exit 1; }
-    workload=$1 name=$2 disk=$3 cpu=$4 memory=$5
-    [[ $workload =~ ^[a-z][a-z0-9-]*$ && $name =~ ^[a-z][a-z0-9-]{0,62}$ ]] || exit 2
-    [[ $disk =~ ^[1-9][0-9]*GiB$ && $cpu =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*GiB$ ]] || exit 2
+    [[ $(hostname -s) == neko7 && $1 =~ ^[a-z][a-z0-9-]*$ ]] || exit 2
     build_root=$(mktemp -d)
     trap 'rm -rf -- "$build_root"' EXIT
-    nix build --out-link "$build_root/result" ".#neko7-$workload-image"
-    out=$(readlink -e "$build_root/result")
-    test -s "$out/metadata.tar.xz" && test -s "$out/nixos.qcow2"
-    base=${out##*/}
-    alias="nix-${base%%-*}"
-    # Explicit local remote and operator project. Never overwrite an image alias.
-    if ! sudo incus image info "local:$alias" --project default >/dev/null 2>&1; then
-      sudo incus image import "$out/metadata.tar.xz" "$out/nixos.qcow2" local: --alias "$alias" --project default
-    fi
-    sudo incus launch "local:$alias" "local:$name" --project default --vm \
-      -c security.secureboot=false -c boot.autostart=true \
-      -c security.protection.delete=true -c "limits.cpu=$cpu" -c "limits.memory=$memory" \
-      -c "user.nixfiles.workload=$workload" -d "root,size=$disk"
-    sudo incus info "local:$name" --project default
+    nix build --out-link "$build_root/result" ".#neko7-$1-image"
+    just _new-image "$1" "$2" "$3" "$4" "$5" "$(readlink -e "$build_root/result")"
 
-# Update one managed VM from its declared workload (after an approved backup).
-# Explicit backup and typed confirmation; do not downgrade schema automatically.
+# Build independently, then apply under the same native lock as backup.
 update name backup:
     #!/usr/bin/env bash
     set -euo pipefail
     [[ $(hostname -s) == neko7 && $1 =~ ^[a-z][a-z0-9-]{0,62}$ && $2 == /* ]] || exit 2
-    name=$1 backup=$2
-    workload=$(sudo incus config get "local:$name" user.nixfiles.workload --project default)
-    [[ $workload =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Not a managed Nix workload" >&2; exit 1; }
+    workload=$(sudo incus config get "local:$1" user.nixfiles.workload --project default)
+    uuid=$(sudo incus config get "local:$1" volatile.uuid --project default)
+    [[ $workload =~ ^[a-z][a-z0-9-]*$ && -n $uuid ]] || exit 2
     build_root=$(mktemp -d)
     trap 'rm -rf -- "$build_root"' EXIT
     nix build --out-link "$build_root/result" ".#neko7-$workload-system"
-    candidate=$(readlink -e "$build_root/result")
-    test -x "$candidate/bin/switch-to-configuration"
-    printf 'Offline backup then update %s to %s. Type instance name: ' "$name" "$candidate"
+    printf 'Offline backup and update %s. Type instance name: ' "$1"
     read -r confirm
-    [[ $confirm == "$name" ]] || exit 1
-    just backup "$name" "$backup"
-    sudo incus start "local:$name" --project default
-    # Agent availability is checked without silently swallowing a failure.
-    for ((i=0; i<60; i++)); do
-      if sudo incus exec "local:$name" --project default -- true; then break; fi
-      sleep 2
-    done
-    sudo incus exec "local:$name" --project default -- true
-    nix-store --export $(nix-store -qR "$candidate") | sudo incus exec "local:$name" --project default -- nix-store --import
-    sudo incus exec "local:$name" --project default -- nix-env -p /nix/var/nix/profiles/system --set "$candidate"
-    sudo incus exec "local:$name" --project default -- "$candidate/bin/switch-to-configuration" switch
-    echo "Verify service health. Backup: $backup"
+    [[ $confirm == "$1" ]] || exit 1
+    just _update-system "$1" "$2" "$workload" "$uuid" "$(readlink -e "$build_root/result")"
 
-# Stop one instance and export it to a new absolute path; leave it stopped.
-backup name path:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [[ $(hostname -s) == neko7 && $1 =~ ^[a-z][a-z0-9-]{0,62}$ && $2 == /* ]] || exit 2
-    name=$1 path=$2
-    sudo test ! -e "$path" && sudo test ! -L "$path" || exit 1
-    # Export contains database, identities and credentials. Require a private
-    # existing directory, and never overwrite an incumbent backup.
-    parent=$(dirname "$path")
-    sudo test -d "$parent"
-    mode=$(sudo stat -Lc %a "$parent")
-    (( (8#$mode & 077) == 0 )) || { echo "Backup directory must be private (0700)" >&2; exit 1; }
-    status=$(sudo incus list local: --project default --format json | jq -er --arg name "$name" '.[] | select(.name == $name) | .status')
-    case "$status" in
-      Running) sudo incus stop "local:$name" --project default ;;
-      Stopped) ;;
-      *) echo "Unexpected status: $status" >&2; exit 1 ;;
-    esac
-    sudo incus export "local:$name" "$path" --project default
-    sudo test -s "$path"
-    sudo chmod 0600 "$path"
-    sudo sha256sum "$path"
+# Stop and export to a new private bundle directory. Leaves instance stopped.
+backup name directory:
+    bash tools/instance-ops.sh backup "$1" "$2"
 
-# Permanent removal: explicit existing verified backup, stopped protected VM.
-# Never deletes separate volumes, images, snapshots outside this instance or files.
-delete name verified_backup:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [[ $(hostname -s) == neko7 && $1 =~ ^[a-z][a-z0-9-]{0,62}$ && $2 == /* ]] || exit 2
-    name=$1 backup=$2
-    sudo test -f "$backup" && sudo test -s "$backup" && sudo test ! -L "$backup"
-    sudo sha256sum "$backup"
-    workload=$(sudo incus config get "local:$name" user.nixfiles.workload --project default)
-    [[ $workload =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Not a managed Nix workload" >&2; exit 1; }
-    status=$(sudo incus list local: --project default --format json | jq -er --arg name "$name" '.[] | select(.name == $name) | .status')
-    [[ $status == Stopped ]] || { echo "Stop and back up the instance first" >&2; exit 1; }
-    [[ $(sudo incus config get "local:$name" security.protection.delete --project default) == true ]] || exit 1
-    printf 'Only continue after an isolated restore of this backup. Permanently delete %s? Type its name: ' "$name"
-    read -r confirm
-    [[ $confirm == "$name" ]] || exit 1
-    sudo incus config set "local:$name" security.protection.delete=false --project default
-    if ! sudo incus delete "local:$name" --project default; then
-      sudo incus config set "local:$name" security.protection.delete=true --project default
-      exit 1
-    fi
+_new-image workload name disk cpu memory image:
+    bash tools/instance-ops.sh new "$@"
+
+_update-system name directory workload uuid system:
+    bash tools/instance-ops.sh update "$@"
 
 # Ephemeral agent instances use the enrolled restricted remote directly.
 lab name image="images:debian/13":

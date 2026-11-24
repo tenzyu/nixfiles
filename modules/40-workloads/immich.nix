@@ -3,7 +3,12 @@
   # Use the entire isolated guest's existing unstable pin (Immich 3.4.1),
   # not permittedInsecurePackages or a cross-release package injection.
   nixpkgs = inputs.nixpkgs-unstable;
-  module = {...}: {
+  module = {pkgs, ...}: {
+    environment.etc."neko7/readiness".source = pkgs.writeShellScript "immich-ready" ''
+      set -euo pipefail
+      systemctl is-active --quiet immich-server.service
+      ${pkgs.curl}/bin/curl -fsS --max-time 5 http://127.0.0.1:2283/api/server/ping | ${pkgs.jq}/bin/jq -e '.res == "pong"' >/dev/null
+    '';
     services.immich = {
       enable = true;
       host = "127.0.0.1";
