@@ -12,6 +12,9 @@
         system.installer.channel.enable = false;
         users.users.root.initialHashedPassword = lib.mkForce "!";
         services.openssh.enable = lib.mkForce false;
+        # Match the host Incus release line for the guest agent loader; the
+        # daemon supplies the agent executable at boot. Avoid default LTS loader.
+        virtualisation.incus.package = pkgs.incus;
         services.getty.helpLine = lib.mkForce "Manage this guest with the Incus agent.";
         services.tailscale = {enable = true; openFirewall = false;};
         networking.firewall.enable = true;

@@ -28,34 +28,57 @@ in pkgs.testers.runNixOSTest {
     neko7.wait_for_unit("incus-preseed.service")
     neko7.succeed("test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp ${../../../justfile} /root/fixture/justfile; cp ${../../../tools/instance-ops.sh} /root/fixture/tools/instance-ops.sh")
     recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
+    ${pkgs.lib.optionalString tcg ''
+      # The disposable test host runs over a second virtual block stack.
+      # Incus writeback keeps guest flush semantics (unlike unsafe), but
+      # avoids O_DIRECT/io_uring through that stack. Native KVM gate unchanged.
+      neko7.succeed("incus profile device set default root io.cache=writeback --project default")
+      neko7.succeed("incus profile device get default root io.cache --project default | grep -Fx writeback")
+    ''}
+    def exec_prefix(name):
+        return "incus exec local:" + name + " --project default --mode=non-interactive --disable-stdin --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- "
     def guest(name, command):
-        return "incus exec local:" + name + " --project default --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- /run/current-system/sw/bin/bash -ec " + shlex.quote(command)
+        return exec_prefix(name) + "/run/current-system/sw/bin/bash -ec " + shlex.quote(command)
     def run(name, command):
         return neko7.succeed(guest(name, command)).strip()
     def diagnose(name):
-        print(neko7.execute("timeout -k 5s 20s incus info local:" + name + " --project default --show-log 2>&1; timeout -k 5s 20s incus console local:" + name + " --project default --show-log 2>&1; free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'")[1])
+        # Test Driver uses errexit: independent probes preserve evidence
+        # even if one CLI command or the agent is unresponsive.
+        for command in [
+            "incus info local:" + name + " --project default --show-log",
+            "incus console local:" + name + " --project default --show-log",
+            "free -m; cat /proc/pressure/{cpu,memory,io}; df -h; cat /proc/diskstats",
+            "journalctl -u incus -n 100 --no-pager; journalctl -k -n 100 --no-pager",
+            "ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'",
+            "incus config show local:" + name + " --expanded --project default",
+            exec_prefix(name) + "/run/current-system/sw/bin/systemctl --failed --no-pager",
+        ]:
+            status, output = neko7.execute("timeout -k 5s 30s bash -c " + shlex.quote(command) + " 2>&1", timeout=40)
+            print(f"diagnostic: {command} (exit {status})\n{output}")
     def ready(name):
         try:
-            neko7.wait_until_succeeds("timeout -k 5s 30s " + guest(name, "/etc/neko7/readiness"), timeout=900)
+            neko7.wait_until_succeeds("timeout -k 5s 30s " + exec_prefix(name) + "/etc/neko7/readiness", timeout=900)
         except Exception:
             diagnose(name)
             raise
     def new_instance(name):
-        status, output = neko7.execute(recipe + "_new-image ${name} " + name + " 16GiB 1 ${guestMemory} ${image} 2>&1")
+        status, output = neko7.execute(recipe + "_new-image ${name} " + name + " 16GiB 2 ${guestMemory} ${image} 2>&1", timeout=1200)
         if status != 0:
             print(output)
             diagnose(name)
             raise Exception("exact-image instance creation/readiness failed")
         ${pkgs.lib.optionalString tcg ''
           neko7.succeed("grep -Fx " + shlex.quote(name) + " /run/incus-ci-tcg-launches")
+          neko7.succeed("incus list local: name=" + shlex.quote(name) + " --project default --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
         ''}
     # Exact production image, no synthetic image substitution. The private
     # artifact entrypoints are precisely the steps used by the public recipes
     # after nix build; public build wrappers are tested separately.
-    # One vCPU in CI only: the hosted runner adds an extra virtualization
-    # layer. Production sizing and all exact-image/state tests are unchanged.
+    # Two vCPUs let guest service initialization and the agent make progress
+    # concurrently. Production defaults and the hardware gate are unchanged.
     new_instance("original")
-    ready("original")
+    # The production recipe already succeeded at the same readiness probe.
+    # The next command verifies actual guest exec and reads persistent identity.
     original_id = run("original", "cat /etc/machine-id")
     run("original", ${builtins.toJSON stateProbe.seed})
     original_state = run("original", ${builtins.toJSON stateProbe.verify})
@@ -76,7 +99,6 @@ in pkgs.testers.runNixOSTest {
     # Separate instance identity without copying state, one running VM at a time.
     neko7.succeed("incus stop local:original --project default")
     new_instance("independent")
-    ready("independent")
     assert run("independent", "cat /etc/machine-id") != original_id
     neko7.succeed("incus stop local:independent --project default")
     neko7.succeed("incus start local:original --project default")

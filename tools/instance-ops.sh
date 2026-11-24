@@ -21,7 +21,10 @@ get() { inc config get "$target" "$1" --project default; }
 # Incus agent supplies a generic Linux PATH, not a NixOS login environment.
 # Explicitly resolve the guest's active system and wrappers, never host paths.
 guest_path=/run/wrappers/bin:/run/current-system/sw/bin
-guest() { inc exec "$target" --project default --env "PATH=$guest_path" -- "$@"; }
+# No implicit PTY or input forwarding from an operator's terminal.
+# The closure import is the sole command that consumes a byte stream.
+guest_stream() { inc exec "$target" --project default --mode=non-interactive --env "PATH=$guest_path" -- "$@"; }
+guest() { guest_stream "$@" </dev/null; }
 managed() {
   workload=$(get user.nixfiles.workload)
   uuid=$(get volatile.uuid)
@@ -36,7 +39,7 @@ ready() {
   while (( SECONDS < deadline )); do
     remaining=$((deadline - SECONDS))
     probe=$((remaining < 30 ? remaining : 30))
-    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default --env "PATH=$guest_path" -- /etc/neko7/readiness; then
+    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default --mode=non-interactive --disable-stdin --env "PATH=$guest_path" -- /etc/neko7/readiness; then
       return 0
     fi
     if (( SECONDS + 2 < deadline )); then sleep 2; else break; fi
@@ -100,7 +103,7 @@ case "$action" in
     bundle "$dest"
     inc start "$target" --project default
     ready
-    nix-store --export $(nix-store -qR "$candidate") | guest nix-store --import
+    nix-store --export $(nix-store -qR "$candidate") | guest_stream nix-store --import
     guest nix-env -p /nix/var/nix/profiles/system --set "$candidate"
     guest "$candidate/bin/switch-to-configuration" switch
     active=$(guest readlink -e /run/current-system)
