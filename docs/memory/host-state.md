@@ -59,6 +59,8 @@ The [storage migration runbook](../cookbook/game-server-srv-migration.md) record
 
 `sops-nix` is selected on neko7. [Secret provisioning](../cookbook/secrets-and-tailscale.md) requires a host decryption identity and an actual `sops.secrets` declaration; the feature toggle alone is not evidence that a Tailscale auth key was moved into SOPS. The `t3code-tailnet` systemd service is a controlled, on-demand Serve restore, not proof that the public/Tailnet route exists now. `opencode-neko7-service` remains a candidate aspect rather than a selected host feature. SplitCast `production` is a **consumer role**, not automatic broadcast acceptance.
 
+The [compute platform runbook](../cookbook/compute-host.md) describes the Incus substrate and operator enrollment. This historical inventory does not establish that the new feature has been activated.
+
 ## Obtaining live acceptance evidence
 
 Record the host, UTC/JST timestamp, source revision, running `/run/current-system` identity, current system profile/boot entries, service status and direct functional result. Then compare with the desired configuration. Git revision, successful `nix eval`, closure build, `nixos-rebuild test`, `switch`, boot and application-level acceptance are distinct gates.

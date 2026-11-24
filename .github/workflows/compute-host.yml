@@ -1,0 +1,53 @@
+name: Compute host integration
+on:
+  pull_request:
+    paths:
+      - 'modules/00-hosts/neko7/**'
+      - 'modules/50-features/containers/incus.nix'
+      - 'modules/10-foundations/compute-host-checks.nix'
+      - 'modules/10-foundations/_internal/compute-host-test.nix'
+      - '.github/workflows/compute-host.yml'
+      - 'flake.lock'
+      - 'flake.nix'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: compute-host-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  integration:
+    name: Incus ${{ matrix.kind }} lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [container, vm]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check KVM availability (required for real machine evidence)
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
+          df -h
+      - name: Evaluate host integration and preserve privilege boundary
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          '
+          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
+          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
+          nix eval --raw "$attr.system.build.toplevel.drvPath"
+      - name: Build and execute NixOS machine test
+        run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}

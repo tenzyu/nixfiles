@@ -61,6 +61,7 @@
         codex-sandbox.enable = true;
         t3code-browser.enable = true;
         docker-rootless.enable = true;
+        incus.enable = true;
         llama-cpp-cuda.enable = true;
         nix-remote-builder.enable = true;
       };
