@@ -673,3 +673,67 @@ Proposed research sequence (not implemented):
   other native clients reading client.conf as well; not stream-specific.
 - OPEN: deployed config and CI evaluation, Discord-only/exit/restart
   lifecycle, sustained 40-minute play, audible dropout and Draw acceptance.
+
+## 2026-11-25 / Presentation — steady async direct scanout, software boundary
+
+- OBS: Linux 7.3.4, Jay v1.15.0, osu! 2026.1115.0 / framework
+  2026.1114.0, Wayland 1.26.0; Mesa exact runtime revision not established.
+  eDP-1 1366x768, pixel clock 76.42 MHz, totals 1592x800, ~60.003 Hz;
+  active primary only, no scaler/visible overlay/cursor, XRGB8888.
+- OBS: variant3 + original OpenGL buffer: 600 successful sync 0x201
+  commits/10 s; no tearing-control request seen in client protocol log.
+  variant2: 600 async 0x203 EINVAL and 600 successful sync/10 s.
+  variant2 + INTEL_DEBUG=noccs: ~4800 successful async commits/10 s,
+  no steady rejection; operator confirmed Direct Scanout. Narrower
+  noccs-modifier did not resolve rejection. In-game debugfs confirmed
+  Y_TILED modifier 0x0100000000000002. Prior non-game snapshot was
+  Y_TILED_CCS; exact original in-game modifier/rejection message unobserved.
+  intel_plane_async_flip trace: six successive 4800/10 s blocks, all
+  eight 100-line scanline buckets populated. 480 flips/s is not LCD 480 Hz.
+- SRC: Jay's async path bypasses JIT flip-margin scheduling, waits for
+  prior flip/buffer availability and retries sync on async failure.
+  i915 validates async format/modifier. Mesa Iris noccs excludes CCS.
+  https://github.com/mahkoh/jay/blob/v1.15.0/src/backends/metal/present.rs
+  https://github.com/mahkoh/jay/blob/v1.15.0/src/backends/metal/video.rs
+  https://github.com/gregkh/linux/blob/v7.3.4/drivers/gpu/drm/i915/display/intel_display.c
+  https://github.com/chaotic-cx/mesa-mirror/blob/mesa-26.1.8/src/gallium/drivers/iris/iris_resource.c
+- OBS: steady 60 s phase trace 28813 matched, 22 unmatched; arm-to-done
+  p50 ~1.03 ms, p99 ~1.57 ms, 0–599 scanline means ~1.08 ms; lower
+  screen phases sometimes <100 us. FBC active but not compressing at
+  snapshot; disabling FBC verified, 28782 matched, distribution largely
+  unchanged (p50 ~1.02 ms); interval tail did not clearly improve.
+  Restore default FBC. DDB primary 860 x 512 B, cursor 32 x 512 B;
+  allocation is not occupancy. PSR status empty, DC counter cumulative.
+  DDB/prefetch causal mechanism not proven; newer display versions have
+  minimum WM0 policy, Gen9 excluded. No kernel patch accepted.
+  https://github.com/gregkh/linux/blob/v7.3.4/drivers/gpu/drm/i915/display/skl_watermark.c#L1268-L1294
+- OBS: stages trace 28798 matched: submit-to-arm mean ~80 us, arm-to-done
+  mean ~950 us; previous done-to-submit includes waiting for next frame.
+  Client commit trace 28837 commits/60 s, 28820 attempts, 28801 observed
+  success, 27417 matched, 1432 overwritten and 1385 missing association;
+  commit-to-submit main mode ~1.8 ms, not strict buffer identity.
+  DMA-BUF poll callback trace: 28814 polls, 28799 non-null fence callbacks,
+  11 repeated, 4 outstanding; main wait ~1.75 ms, max 4160 us.
+  Final 30 s ready-to-submit: 14414 attempts, 14413 matched, 14430 signals,
+  16 overwritten, 1 missing, 14401 observed returns all zero, 13 missing
+  returns. 14036/14413 samples <100 us; max 461 us; p50 within 25–50 us,
+  p99 within 125–150 us, 14401/14413 <300 us. Separate runs, histogram
+  approximations and temporal association, not DMA-BUF identity tracing.
+  Callback marks a fence notification, not proof of every dependency or
+  pure GPU execution. Jay implicit DMA-BUF polling and Mesa swap flush
+  explain the dominant upstream wait without bypassing synchronization.
+  https://github.com/mahkoh/jay/blob/v1.15.0/src/ifs/wl_surface/commit_timeline.rs
+  https://github.com/chaotic-cx/mesa-mirror/blob/mesa-26.1.8/src/egl/drivers/dri2/platform_wayland.c
+  https://github.com/gregkh/linux/blob/v7.3.4/drivers/dma-buf/dma-buf.c
+- DEC (operator accepted): close ordinary-setting presentation research;
+  persist eDP-1 variant2 + normal neko5 osu!-only noccs; preserve generic
+  variant3, Gamescope reference, OpenGL, Limit8x, native resolution, Jay
+  Vulkan/direct scanout, default flip margin 1.5 ms and kernel power
+  policy. Keep audio independent. No host activation authorized.
+- OPEN: new-generation acceptance and other fullscreen fallback;
+  GPU queue/execute/fence timing and frames in flight are next (not FPS
+  alone), compare Iris vs ANV with fixed rendering workload. Hardware
+  DDB/WM research deferred until safe Gen9 evidence and measured benefit.
+  Input and engine update are separate domains; physical input-to-photon
+  and LCD response remain unmeasured. Raw trace files reside in the
+  operator's conversation, not committed as repository attachments.

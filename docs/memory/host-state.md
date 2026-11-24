@@ -32,7 +32,7 @@ Each host's `local.users.tenzyu.context.homeStateVersion` is declared as `26.05`
 
 The normal host selects Jay, Alacritty, Tofi, cclip, Fileman, Firefox, osu!lazer, `nix-remote-client` and `nix-store-clean`. Hyprland is disabled; Gamescope is the only independent research specialisation. The system-only `neko5-osu-first` selector is retired; the optional legacy HM lab remains disabled. See [desktop runbook](../cookbook/neko5-desktop.md). Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../../assets/home-layout/README.md).
 
-`sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The declared panel is 1366×768, with Direct Scanout requested; 48 kHz, osu! playback quantum ceiling 64/48000 and ALC257 periods 128×3/H0 are source policy, not physical latency evidence.
+`sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The declared panel is 1366×768, with Direct Scanout requested; the 2026-11-25 presentation decision scopes variant2 to eDP-1 and noccs to normal neko5 osu! launches (not Gamescope or other hosts). Steady ~480 async flips/s and fast fence-ready dispatch were observed during the trial, not after deployment. See the [dated research log](../research/neko5-presentation-log.md). The 48 kHz, osu! playback quantum ceiling 64/48000 and ALC257 periods 128×3/H0 are source policy, not physical latency evidence.
 
 ## neko6: WSL
 

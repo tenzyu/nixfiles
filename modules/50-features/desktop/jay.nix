@@ -107,6 +107,10 @@
             width = lib.mkOption {type = lib.types.ints.positive;};
             height = lib.mkOption {type = lib.types.ints.positive;};
             scale = lib.mkOption {type = lib.types.float;};
+            tearingMode = lib.mkOption {
+              type = lib.types.nullOr (lib.types.enum ["never" "always" "variant1" "variant2" "variant3"]);
+              default = null;
+            };
           };
         });
         default = null;
@@ -148,6 +152,7 @@
             match.connector = ${builtins.toJSON output.connector}
             mode = { width = ${toString output.width}, height = ${toString output.height} }
             scale = ${builtins.toJSON output.scale}
+            ${lib.optionalString (output.tearingMode != null) "tearing.mode = ${builtins.toJSON output.tearingMode}"}
           '')}
 
           [xwayland]

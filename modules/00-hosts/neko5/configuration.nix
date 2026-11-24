@@ -27,12 +27,19 @@
         width = 1366;
         height = 768;
         scale = 1.0;
+        # osu! EGL did not request tearing; variant3 stayed at 60 sync flips/s.
+        # Variant2 + osu!-scoped noccs sustained 480 async flips/s on this panel.
+        # Other fullscreen apps may fall back to sync if their buffers are incompatible.
+        tearingMode = "variant2";
       };
       shortcuts = {
         logo-b = ''{ type = "exec", exec = "firefox" }'';
         logo-o = ''{ type = "exec", exec = "osu-lazer" }'';
       };
     };
+    # Preserve direct scanout while avoiding the Gen9 CCS async-flip rejection.
+    home-manager.users.tenzyu.local.osuLazer.disableIntelCcs = true;
+
     local = {
       context = {
         flakePath = "/home/tenzyu/.nixfiles";

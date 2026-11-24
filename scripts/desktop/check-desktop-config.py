@@ -14,6 +14,8 @@ assert data["fileAssociation"] == ["dev.fileman.Files.desktop"]
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"
+assert jay["outputs"][0]["tearing"]["mode"] == "variant2"
+assert data["presentationCcsScope"] is True
 assert not jay.get("clients")
 startup = [action["exec"] for action in jay["on-graphics-initialized"]]
 ime = next(e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/fcitx5"))

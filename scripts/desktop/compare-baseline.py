@@ -10,6 +10,10 @@ import tomllib
 def compare(before, after):
     old_jay = tomllib.loads(before["jay"])
     new_jay = tomllib.loads(after["jay"])
+    # The measured presentation improvement is the only permitted TOML delta.
+    assert "tearing" not in old_jay["outputs"][0]
+    assert old_jay["tearing"]["mode"] == "variant3"
+    old_jay["outputs"][0]["tearing"] = {"mode": "variant2"}
     if old_jay != new_jay:
         changed = sorted(k for k in old_jay.keys() | new_jay.keys()
                          if old_jay.get(k) != new_jay.get(k))
@@ -30,7 +34,7 @@ def compare(before, after):
                 f"added={dict(new_packages - old_packages)}; expected removed={dict(removed)}"
             )
         print(f"{profile}: native policy unchanged; removed {dict(removed)}")
-    print("Complete parsed Jay TOML unchanged; direct package deltas as intended.")
+    print("Complete parsed Jay TOML matches baseline plus eDP-1 variant2; direct package deltas as intended.")
 
 
 if __name__ == "__main__":

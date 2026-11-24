@@ -25,9 +25,13 @@ official osu! package, HID, audio, thermal, network and SSH policy.
   forced. The XDG RTKit drop-in is client-context-wide, not stream-specific.
   No global quantum override or manual RT promotion.
 - Native 1366×768 (~60 Hz), scale 1, Jay direct scanout requested,
-  tearing `variant3`, VRR never, XWayland disabled. Keep official osu!
-  fullscreen, same renderer, embedded OTD, `Limit8x` (~480 Draw Hz).
-  Nix does not overwrite mutable in-game settings.
+  tearing `variant2` on eDP-1 only (generic default `variant3`), VRR never,
+  XWayland disabled. Keep official osu! fullscreen, OpenGL, embedded OTD,
+  `Limit8x` (~480 Draw Hz). The normal neko5 osu! launcher exports
+  `INTEL_DEBUG=noccs` only to its process tree; the Gamescope probe and other
+  hosts retain defaults. Nix does not overwrite mutable in-game settings.
+  Keep the default 1.5 ms flip margin and i915 FBC/PSR/DC/DDB policies.
+  See [dated presentation evidence](../research/neko5-presentation-log.md).
 - Fileman v0.5.2 uses pinned official x86_64 binary; Ark remains for .osk
   because Fileman cannot handle that archive path. GTK FileChooser portal
   unchanged. cclip 3.3.1 builds pinned C/Meson source (no official binary
@@ -142,6 +146,22 @@ Test Discord-only / osu! exit / restart graph lifecycle, capture graph,
 40-minute ERR deltas, audible continuity and pacing. Roll back generation
 and restart affected processes on regression. Do not invoke the old global
 quantum lab for this test. The portal remains available for other uses.
+
+## Presentation acceptance and rollback
+
+After separately approved activation, relaunch osu! through `osu-lazer`.
+Verify effective eDP-1 variant2, the process environment, XRGB8888 Y_TILED
+(without CCS), actual Direct Scanout and steady ~480 successful async flips/s
+(DRM flags 0x203), not just the setting or Draw count. Use the same
+fullscreen map, native mode, OpenGL and Limit8x. Verify ordinary desktop,
+other fullscreen clients, Discord/IME, audio and thermal behaviour; variant2
+can attempt unsupported async flips and fall back to sync. Reject material
+regressions, EINVAL loops for osu!, or loss of Direct Scanout. Restore
+`tearingMode = null` and `disableIntelCcs = false` together (or use the
+previous generation) and relaunch/reload; for immediate session rollback use
+`jay randr output eDP-1 tearing set-mode variant3` and restart osu! without
+`noccs` using the prior launcher. Do not disable synchronization or change
+kernel parameters. Host activation is not implied by Git or CI.
 
 ## Measure, don't infer
 

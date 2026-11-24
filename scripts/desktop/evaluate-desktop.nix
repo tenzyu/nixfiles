@@ -51,6 +51,9 @@ in {
   in !(builtins.hasAttr audioRulePath other.xdg.configFile)
     && !(builtins.hasAttr clientRtPath other.xdg.configFile)
     && !(otherSystem.services.pipewire.extraConfig.pipewire-pulse ? "90-neko5-rtkit")) ["neko6" "neko7"];
+  presentationCcsScope = h.local.osuLazer.disableIntelCcs
+    && !c.specialisation.neko5-gamescope.configuration.home-manager.users.tenzyu.local.osuLazer.disableIntelCcs
+    && lib.all (name: !(f.nixosConfigurations.${name}.config.home-manager.users.tenzyu.local.osuLazer.disableIntelCcs or false)) ["neko6" "neko7"];
   jay = h.xdg.configFile."jay/config.toml".text;
   skinAssociation = h.xdg.mimeApps.defaultApplications."application/x-osu-skin";
   fileAssociation = h.xdg.mimeApps.defaultApplications."inode/directory";
