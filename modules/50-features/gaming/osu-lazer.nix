@@ -21,6 +21,7 @@
     config,
     lib,
     pkgs,
+    osConfig ? {},
     ...
   }: let
     osuLauncher = pkgs.writeShellScriptBin "osu-lazer" ''
@@ -53,9 +54,23 @@
     '';
   in {
     config = lib.mkIf config.local.features.osu-lazer.enable {
-      # Opt-in, automatically reverted PipeWire graph-quantum experiment only.
-      # No audio changes occur when launching osu-lazer normally.
+      # The legacy global-quantum lab is opt-in only. Normal launches use
+      # the client-side playback policy below when the system feature is enabled.
       home.packages = [osuLaunchers osuAudioLab];
+
+      # AppImage sees XDG config but not host /etc/pipewire. Preserve the
+      # application's native latency request (441/44100) and constrain only
+      # its playback graph's negotiated quantum, not independent capture.
+      xdg.configFile = lib.mkIf (osConfig.local.features.neko5-osu-first.enable or false) {
+        "pipewire/client.conf.d/90-neko5-osu-quantum.conf".text = builtins.toJSON {
+          "stream.rules" = [
+            {
+              matches = [{"node.name" = "alsa_playback.osu!";}];
+              actions.update-props."node.max-latency" = "64/48000";
+            }
+          ];
+        };
+      };
 
       xdg.desktopEntries.osu-lazer = {
         name = "osu! lazer";

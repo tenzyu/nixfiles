@@ -616,3 +616,29 @@ Proposed research sequence (not implemented):
    runtime after proven limitation and user decision; do not replicate
    Wayland desktop. User plans to involve 6.2 Astra / Sol if all trials
    unsatisfactory, but current decision is Jay baseline.
+
+## 2026-11-25 / Audio — client visibility and bounded quantum
+
+- OBS: host `pw-config` loads the system stream rule, but the running osu!
+  AppImage's mount namespace lacks `/etc/pipewire` and exposes the same rule
+  under `/.host-etc/pipewire`. Actual mapped ALSA PCM plugin and libpipewire
+  are both 1.6.6. No PIPEWIRE_* overrides in the original process environment.
+- OBS: transient XDG copy of the original rule applied node.force-quantum=64,
+  driver Q64/48000, follower 64/44100, node.latency=441/44100 and global
+  clock.force-quantum=0. Two valid samples had unchanged ERR 109/6; not
+  evidence of long-duration stability.
+- SRC: PipeWire 1.6.6 profiler overwrites the reported follower latency
+  numerator with force_quantum (src/modules/module-profiler.c L279-L286).
+  The graph scheduler collects node.max-latency and clamps negotiated
+  quantum (src/pipewire/context.c L1615-L1623, L1734-L1759).
+  https://github.com/PipeWire/pipewire/blob/1.6.6/src/modules/module-profiler.c#L279-L286
+  https://github.com/PipeWire/pipewire/blob/1.6.6/src/pipewire/context.c#L1734-L1759
+- DEC: operator confirmed the expected result of the transient max-latency
+  trial and authorized committing it. Move the client rule to XDG config,
+  scoped to alsa_playback.osu! and the existing system feature, using
+  node.max-latency=64/48000 instead of force-quantum. Preserve the native
+  latency request and normal capture negotiation. This is a ceiling, not
+  an unconditional Q64 guarantee; other constraints and locks can affect it.
+  No raw max-latency trial log provided in this conversation.
+- OPEN: deployed-rule verification, Discord VC isolation, exit/restart
+  lifecycle, 40-minute ERR deltas and frame pacing remain pending.

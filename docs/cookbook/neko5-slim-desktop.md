@@ -30,12 +30,17 @@ accesses server 0). Do not add desktop features merely to qualify it.
   Hz at 60 Hz); do not change game config or renderer between profiles.
   Confirm the in-game settings on every boot. These mutable game settings
   are operator-verified, not overwritten by Nix.
-- PipeWire stays at 48 kHz. Only the observed `alsa_playback.osu!` stream
-  forces Q64 while active. Independent driver graphs such as the USB mic
-  negotiate normally; clients sharing the same playback driver share its
-  quantum. Verify actual output/capture QUANT and ERR deltas in `pw-top`.
-  ALSA period-size 128/count 3 retained; no global quantum override.
-  Previous boot generations retained.
+- PipeWire stays at 48 kHz. The observed `alsa_playback.osu!` stream has
+  `node.max-latency = "64/48000"` via a Home Manager XDG client drop-in,
+  capping normal graph negotiation at 64 frames while linked (Q64 expected,
+  smaller negotiated values possible). Its native `node.latency = 441/44100`
+  is untouched; `pw-top` should show driver Q64 and osu! follower 441.
+  Independent driver graphs such as the USB mic negotiate normally; clients
+  sharing the same playback driver share its cycle. No global quantum override.
+  ALSA period-size 128/count 3 retained. Previous boot generations retained.
+  Restart osu! after applying or rolling back the drop-in; no daemon restart
+  is normally needed. Verify actual output/capture QUANT and ERR deltas in
+  `pw-top` and the node properties in `pw-dump`.
 - Direct scanout requested where supported, tearing permitted for fullscreen,
   no VRR requested, no overlays/capture during performance runs. Neither
   eligibility nor permission proves actual hardware scanout or async flips.
@@ -171,9 +176,14 @@ No hardware-cursor, scheduler or kernel tuning is changed.
 ## Research record
 
 See [append-only presentation research log](../research/neko5-presentation-log.md).
-Discord VC + osu! ERR remains unresolved. Global Q64 is superseded by
-the osu!-playback-specific rule on operator request. Keep RT priorities,
-kernel and ALSA policy unchanged. Hardware verification pending.
+Discord VC + osu! ERR remains unresolved. The former global Q64 and
+osu!-scoped forced quantum are superseded by a playback-scoped negotiation
+ceiling. Operator reports the transient max-latency trial matches the expected
+driver Q64 / follower 441. Verify the deployed XDG rule, Discord-only and
+combined graphs, quantum restoration after osu! exits, and steady-state
+40-minute ERR deltas, audible continuity and frame pacing. Keep RT priorities,
+kernel and ALSA policy unchanged. Do not use the legacy global-quantum lab
+for this acceptance test.
 
 ## Daily software replacements
 

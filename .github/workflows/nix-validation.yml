@@ -177,13 +177,15 @@ jobs:
               f = builtins.getFlake (toString ./.);
               c = f.nixosConfigurations.neko5.config;
               h = c.home-manager.users.tenzyu;
+              audioRulePath = "pipewire/client.conf.d/90-neko5-osu-quantum.conf";
+              other = f.nixosConfigurations.neko7.config.home-manager.users.tenzyu;
               routes = home: map (r: { inherit (r) group source target route; }) home.local.homeMigration.paths;
               check = compositor: s:
                 let
                   sh = s.home-manager.users.tenzyu;
                   audio = s.services.pipewire.extraConfig;
                   rate = audio.pipewire."90-neko5-rate"."context.properties";
-                  rules = audio.client."90-neko5-osu-quantum"."stream.rules";
+                  rules = builtins.fromJSON sh.xdg.configFile.${audioRulePath}.text;
                   names = map (p: p.name or "") s.environment.systemPackages;
                 in {
                   profile = s.local.features.jay.enable == (compositor == "jay") && sh.local.features.jay.enable == (compositor == "jay") && s.local.features.gamescope.enable == (compositor == "gamescope");
@@ -191,18 +193,19 @@ jobs:
                   slim = !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
                   systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
                   identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
-                  audio = rate."default.clock.rate" == 48000 && rate."default.clock.allowed-rates" == [48000] && !(audio.pipewire ? "99-neko5-experiment") && rules == [{ matches = [{ "node.name" = "alsa_playback.osu!"; }]; actions.update-props."node.force-quantum" = 64; }];
+                  audio = rate."default.clock.rate" == 48000 && rate."default.clock.allowed-rates" == [48000] && !(audio.pipewire ? "99-neko5-experiment") && !(audio.client ? "90-neko5-osu-quantum") && rules == { "stream.rules" = [{ matches = [{ "node.name" = "alsa_playback.osu!"; }]; actions.update-props."node.max-latency" = "64/48000"; }]; };
                   drv = s.system.build.toplevel.drvPath;
                 };
             in {
               primary = check "jay" c;
               probe = check "gamescope" c.specialisation.neko5-gamescope.configuration;
               onlyProbe = builtins.attrNames c.specialisation == ["neko5-gamescope"];
+              audioIsolated = !(builtins.hasAttr audioRulePath other.xdg.configFile);
               jay = h.xdg.configFile."jay/config.toml".text;
               alacrittyOsc52 = h.programs.alacritty.settings.terminal.osc52;
             }
           ' > /tmp/neko5-experiments.json
-          jq -e '.onlyProbe and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
 
