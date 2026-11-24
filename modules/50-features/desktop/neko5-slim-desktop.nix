@@ -84,36 +84,36 @@
         font = "Fira Code 11"
 
         [shortcuts]
-        alt-Return = { type = "exec", exec = "${lib.getExe terminal}" }
-        alt-p = { type = "exec", exec = ["rofi", "-show", "drun"] }
-        alt-b = { type = "exec", exec = "firefox" }
-        alt-o = { type = "exec", exec = "osu-lazer" }
-        alt-h = "focus-left"
-        alt-j = "focus-down"
-        alt-k = "focus-up"
-        alt-l = "focus-right"
-        alt-shift-h = "move-left"
-        alt-shift-j = "move-down"
-        alt-shift-k = "move-up"
-        alt-shift-l = "move-right"
-        alt-d = "split-horizontal"
-        alt-v = "split-vertical"
-        alt-u = "toggle-fullscreen"
-        alt-c = "open-control-center"
-        alt-shift-c = "close"
-        alt-shift-f = "toggle-floating"
-        alt-q = "quit"
-        alt-shift-r = "reload-config-toml"
-        alt-F1 = { type = "show-workspace", name = "1" }
-        alt-F2 = { type = "show-workspace", name = "2" }
-        alt-F3 = { type = "show-workspace", name = "3" }
-        alt-F4 = { type = "show-workspace", name = "4" }
-        alt-F5 = { type = "show-workspace", name = "5" }
-        alt-shift-F1 = { type = "move-to-workspace", name = "1" }
-        alt-shift-F2 = { type = "move-to-workspace", name = "2" }
-        alt-shift-F3 = { type = "move-to-workspace", name = "3" }
-        alt-shift-F4 = { type = "move-to-workspace", name = "4" }
-        alt-shift-F5 = { type = "move-to-workspace", name = "5" }
+        logo-Return = { type = "exec", exec = "${lib.getExe terminal}" }
+        logo-p = { type = "exec", exec = ["rofi", "-show", "drun"] }
+        logo-b = { type = "exec", exec = "firefox" }
+        logo-o = { type = "exec", exec = "osu-lazer" }
+        logo-h = "focus-left"
+        logo-j = "focus-down"
+        logo-k = "focus-up"
+        logo-l = "focus-right"
+        logo-shift-h = "move-left"
+        logo-shift-j = "move-down"
+        logo-shift-k = "move-up"
+        logo-shift-l = "move-right"
+        logo-d = "split-horizontal"
+        logo-v = "split-vertical"
+        logo-u = "toggle-fullscreen"
+        logo-c = "open-control-center"
+        logo-shift-c = "close"
+        logo-shift-f = "toggle-floating"
+        logo-q = "quit"
+        logo-shift-r = "reload-config-toml"
+        logo-F1 = { type = "show-workspace", name = "1" }
+        logo-F2 = { type = "show-workspace", name = "2" }
+        logo-F3 = { type = "show-workspace", name = "3" }
+        logo-F4 = { type = "show-workspace", name = "4" }
+        logo-F5 = { type = "show-workspace", name = "5" }
+        logo-shift-F1 = { type = "move-to-workspace", name = "1" }
+        logo-shift-F2 = { type = "move-to-workspace", name = "2" }
+        logo-shift-F3 = { type = "move-to-workspace", name = "3" }
+        logo-shift-F4 = { type = "move-to-workspace", name = "4" }
+        logo-shift-F5 = { type = "move-to-workspace", name = "5" }
         ctrl-alt-F1 = { type = "switch-to-vt", num = 1 }
         ctrl-alt-F2 = { type = "switch-to-vt", num = 2 }
         ctrl-alt-F3 = { type = "switch-to-vt", num = 3 }

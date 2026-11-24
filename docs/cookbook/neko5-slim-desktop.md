@@ -36,9 +36,9 @@ text VT as the usual user and run:
 exec neko5-slim-session
 ```
 
-Use Alt+Enter (Alacritty), Alt+P (Rofi), Alt+B (Firefox), Alt+O (raw osu!),
-Alt+U (fullscreen), Alt+1 is not bound; Alt+F1 through Alt+F5 select workspaces,
-Alt+Shift+C closes a window and Alt+Q exits. If graphics fails, use another VT
+Use Super+Enter (Alacritty), Super+P (Rofi), Super+B (Firefox), Super+O (raw osu!),
+Super+U (fullscreen), Super+1 is not bound; Super+F1 through Super+F5 select workspaces,
+Super+Shift+C closes a window and Super+Q exits. If graphics fails, use another VT
 (Ctrl+Alt+F2) or SSH. Do not start both compositors at once.
 
 This native-only experiment deliberately omits X11/Parsec compatibility, the
@@ -80,7 +80,7 @@ No real-device or VM graphics measurement has been performed by this PR.
 
 ## Rollback
 
-Exit Jay (Alt+Q), save all work and reboot into the ordinary neko5 entry.
+Exit Jay (Super+Q), save all work and reboot into the ordinary neko5 entry.
 If the new boot generation fails, select the previous known-good NixOS
 generation in systemd-boot. Do not bypass HOME admission or delete user
 data; if activation reports a conflict, stop and inspect it. No HOME path
