@@ -1,8 +1,8 @@
 {...}: {
-  configurations.nixos.neko7.module = {lib, ...}: {
+  configurations.nixos.neko7.module = {
     # Placement-specific endpoint probes belong to the host composition.
     # No credentials, no application-specific gateway implementation.
-    services.prometheus.scrapeConfigs = lib.mkAfter [{
+    services.prometheus.scrapeConfigs = [{
       job_name = "t3-control-plane";
       metrics_path = "/probe";
       params.module = ["http_ok"];

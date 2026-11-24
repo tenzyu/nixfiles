@@ -86,7 +86,11 @@
           server = {http_addr = "127.0.0.1"; http_port = 13000;};
           # Read-only local operator dashboard behind the existing SSH
           # boundary. No default admin password or externally trusted header.
-          security.disable_initial_admin_creation = true;
+          security = {
+            disable_initial_admin_creation = true;
+            disable_gravatar = true;
+            data_source_proxy_whitelist = ["127.0.0.1:9090"];
+          };
           "auth.anonymous" = {enabled = true; org_role = "Viewer";};
           auth.disable_login_form = true;
           analytics.reporting_enabled = false;

@@ -4,6 +4,7 @@
     dataDir = "/var/lib/syncthing";
     guiAddress = "127.0.0.1:8384";
     openDefaultPorts = false;
+    extraFlags = ["--no-default-folder"];
     overrideDevices = false;
     overrideFolders = false;
     settings.options = {

@@ -10,6 +10,7 @@ on:
       - 'modules/50-features/development/_internal/execution.md'
       - 'modules/10-foundations/_internal/multi-machine-lab-test.nix'
       - 'modules/10-foundations/_internal/platform-services-test.nix'
+      - 'modules/10-foundations/_internal/personal-workload-test.nix'
       - 'modules/50-features/containers/incus.nix'
       - 'modules/50-features/game-servers/**'
       - 'modules/50-features/development/t3code-neko7.nix'
@@ -73,6 +74,8 @@ jobs:
           test -s "$out/nixos.qcow2"
           test -s "$out/metadata.tar.xz"
           nix build -L --no-link .#neko7-${{ matrix.workload }}-system
+      - name: Boot actual service module and test private reachability
+        run: nix build -L --no-link .#checks.x86_64-linux.personal-workload-${{ matrix.workload }}
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest

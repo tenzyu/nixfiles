@@ -29,45 +29,54 @@
         systemStateVersion = "26.05";
       };
       features = {
+        # Physical machine, boot, kernel, storage
         neko7-hardware.enable = true;
-        nix.enable = true;
-        time.enable = true;
-        locale.enable = true;
-        ssh.enable = true;
-        sops-nix.enable = true;
+        systemd-boot.enable = true;
+        qemu-guest-profile.enable = true;
+        kernel-latest.enable = false;
+        nvidia-graphics.enable = true;
+
+        # Network and ingress boundary
+        networkmanager.enable = true;
+        disable-ipv6.enable = true;
+        resolvconf-blacklist-gateway.enable = true;
         tailscale.enable = true;
+        ssh.enable = true;
+        tailnet-ingress.enable = true;
+        preview-gateway.enable = true;
+
+        # Nix and execution substrate
+        nix.enable = true;
+        nix-remote-builder.enable = true;
+        incus.enable = true;
+        docker-rootless.enable = true;
+        codex-sandbox.enable = true;
+        t3code-browser.enable = true;
+        stub-ld.enable = true;
+        nix-ld.enable = true;
+        llama-cpp-cuda.enable = true;
+
+        # Operator telemetry, credentials and control plane
+        sops-nix.enable = true;
+        platform-observability.enable = true;
+        execution-discovery.enable = true;
         t3code-tailnet.enable = true;
+
+        # Persistent workload placement
         splitcast-production.enable = true;
-        # Keep ARK and Rust definitions available without deploying them.
-        # Minecraft is the only selected game container on neko7.
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
         game-srv.enable = true;
         game-server-tools.enable = true;
-        resolvconf-blacklist-gateway.enable = true;
-        disable-ipv6.enable = true;
-        systemd-boot.enable = true;
-        # Proxmox is a deployment context; the actual NixOS capability is QEMU guest support.
-        qemu-guest-profile.enable = true;
-        nvidia-graphics.enable = true;
-        kernel-latest.enable = false;
-        networkmanager.enable = true;
+        neko7-workload-profiles.enable = true;
+
+        # Common host environment
+        time.enable = true;
+        locale.enable = true;
         ja-extra-locales.enable = true;
         us-xserver-keyboard.enable = true;
         fonts.enable = true;
-        stub-ld.enable = true;
-        nix-ld.enable = true;
-        codex-sandbox.enable = true;
-        t3code-browser.enable = true;
-        docker-rootless.enable = true;
-        incus.enable = true;
-        platform-observability.enable = true;
-        preview-gateway.enable = true;
-        execution-discovery.enable = true;
-        tailnet-ingress.enable = true;
-        llama-cpp-cuda.enable = true;
-        nix-remote-builder.enable = true;
       };
     };
 
