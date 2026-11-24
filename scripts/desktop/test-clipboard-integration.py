@@ -16,7 +16,7 @@ class ClipboardIntegration(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.env = dict(os.environ, PATH=f"{self.root}:{os.environ['PATH']}",
-                        XDG_RUNTIME_DIR=str(self.root), XDG_DATA_HOME=str(self.root),
+                        XDG_RUNTIME_DIR=str(self.root), XDG_DATA_HOME=str(self.root / 'data'),
                         XDG_CURRENT_DESKTOP="jay", WAYLAND_DISPLAY="wayland-1",
                         FIXTURE=str(self.root))
         self.stub("wl-copy-real", "cat")
@@ -90,7 +90,7 @@ esac""")
         result = subprocess.run(["bash", "-euo", "pipefail", str(HERE / "cclip-start.sh")],
                                 env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "cclip").stat().st_mode & 0o777, 0o700)
+        self.assertEqual((self.root / "data" / "cclip").stat().st_mode & 0o777, 0o700)
         args = (self.root / "daemon-args").read_text().splitlines()
         self.assertEqual(args[:4], ["-c", "512", "-P", "160"])
         self.assertNotIn("-p", args)
