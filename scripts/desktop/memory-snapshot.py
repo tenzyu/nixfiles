@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, unprivileged memory accounting for neko5 desktop A/B trials."""
+"""Read-only, unprivileged Linux desktop memory accounting."""
 import json
 import os
 import re

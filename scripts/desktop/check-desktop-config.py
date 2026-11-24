@@ -35,6 +35,7 @@ assert jay["vrr"]["mode"] == "never"
 assert jay["xwayland"]["enabled"] is False
 assert jay["outputs"][0]["mode"] == {"width": 1366, "height": 768}
 assert jay["outputs"][0]["scale"] == 1.0
+assert type(jay["outputs"][0]["scale"]) is float
 assert keys["logo-q"] == "close"
 assert keys["logo-ctrl-shift-q"] == "quit"
 assert keys["logo-f"] == "toggle-fullscreen"
@@ -54,6 +55,10 @@ assert keys["logo-shift-s"]["exec"]["privileged"] is True
 assert "slurp" in keys["logo-shift-s"]["exec"]["shell"]
 assert "grim" in keys["logo-shift-s"]["exec"]["shell"]
 assert keys["Print"]["exec"]["privileged"] is True
+assert {k for k, action in keys.items()
+        if isinstance(action, dict) and isinstance(action.get("exec"), dict)
+        and action["exec"].get("privileged")} == {"logo-ctrl-i", "logo-shift-s", "Print"}
+assert sum(isinstance(e, dict) and e.get("privileged", False) for e in startup) == 2
 assert keys["logo-Tab"] == "$next-workspace"
 assert keys["logo-shift-Tab"] == "$previous-workspace"
 assert jay["workspace-display-order"] == "sorted"

@@ -18,6 +18,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [Switch without moving HOME data](home-migration-rollout.md) — run the Home Manager pre-switch check on each host, resolve refusals, and switch one host at a time.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.
+- [neko5 desktop and Gamescope](neko5-desktop.md) — daily Jay session, independent probe, audio and clipboard acceptance.
 - [osu! display experiments](../../scripts/osu-performance/README-display.md) · [latency lab](../../scripts/osu-performance/README-lab.md) — experimental evidence, not physical latency proof.
 
 For architectural reasons and rejected alternatives see [LLM Wiki](../memory/index.md); for work not yet accepted see [Roadmap](../../ROADMAP.md).

@@ -40,8 +40,13 @@
       "sources": [
         "modules/00-hosts/neko5/configuration.nix",
         "modules/00-hosts/neko6/configuration.nix",
-        "modules/00-hosts/neko7/configuration.nix"
-      ]
+        "modules/00-hosts/neko7/configuration.nix",
+        "modules/00-hosts/neko5/performance.nix",
+        "modules/00-hosts/neko5/specialisations.nix",
+        "modules/60-integrations/audio/neko5-pipewire.nix",
+        "modules/60-integrations/audio/neko5-pipewire-osu-lazer.nix"
+      ],
+      "reviewed_revision": "ed50586c0c041f110397f8a312979b9537db0c81"
     },
     {
       "page": "docs/memory/decisions.md",

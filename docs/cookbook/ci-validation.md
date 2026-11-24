@@ -5,7 +5,12 @@
 `.github/workflows/nix-validation.yml` always builds the existing
 `framework-cli`, `deprecated-patterns`, and `feature-name-shape`
 checks, runs the framework test suite and isolated T3 Serve tests, and
-evaluates all three host system derivation paths. Evaluation is not a
+evaluates all three host system derivation paths. The desktop gate evaluates
+Jay and the independent Gamescope specialisation using
+`scripts/desktop/evaluate-desktop.nix`, checks audio/identity/package scoping,
+parses the actual Jay TOML and runs offline clipboard/launcher regressions.
+The separate desktop-package job builds and smoke-tests changed cclip/Fileman
+packages. Evaluation is not a
 build, boot, service activation, or runtime acceptance test.
 
 ## Additional checks driven by the diff

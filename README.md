@@ -8,7 +8,7 @@ The aim is to make the important decisions visible where they belong: **hosts ch
 
 | Host | Purpose | Source-selected examples |
 | --- | --- | --- |
-| **neko5** | Wayland laptop and low-latency osu!lazer environment | Hyprland, tablet tooling, PipeWire, remote build client |
+| **neko5** | Wayland laptop and low-latency osu!lazer environment | Jay, Alacritty, Tofi, cclip, tablet tooling, PipeWire, remote build client |
 | **neko6** | NixOS-WSL command-line environment | Home Manager, Docker and WSL integration |
 | **neko7** | Proxmox guest for remote development and workloads | Remote builder, T3 Code, CUDA, SplitCast production consumer, Minecraft |
 

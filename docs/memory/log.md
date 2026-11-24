@@ -1,5 +1,9 @@
 # Knowledge update log
 
+## 2026-11-25
+
+- **neko5 desktop graduation (PR #81 candidate):** [runbook](../cookbook/neko5-desktop.md) is canonical. Jay is daily, Gamescope is an independent probe, and hardware/audio policy is independent of the disabled historical osu-first HM lab. The accepted source baseline `3b2cf50` passed required CI; the reorganised candidate still requires CI and live host acceptance. Preserve the [research record](../research/neko5-presentation-log.md) as dated evidence, not current runtime authority.
+
 ## 2026-11-20
 
 - **ADR-0002 candidate.** The user's accepted design replaces the warning-only Home route with per-group continuity and an embedded write gate. [D2](decisions.md#d2--data-and-rollback-safety) is the canonical rule for equal-looking roots and independent retirement authority. The repeated ADR statement and its older scaffold evidence remain in the [archived draft](https://github.com/tenzyu/nixfiles/blob/af0cc75d74353079ea550f3cd90548ea41dc6812/docs/adr/0002-invariant-safety.md#L210).
