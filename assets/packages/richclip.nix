@@ -1,43 +1,40 @@
 {
   lib,
-  rustPlatform,
-  pkg-config,
+  stdenv,
+  fetchurl,
+  autoPatchelfHook,
+  wayland,
   sqlite,
-  python3,
-}: let
-  src = (builtins.fetchTree {
-    type = "github";
-    owner = "dstoc";
-    repo = "richclip";
-    rev = "6ac7f21e7d1db887ffbf7dc4de3f4097c05c09d2";
-  }).outPath;
-in
-  rustPlatform.buildRustPackage {
-    pname = "richclip";
-    version = "0.1.3";
-    inherit src;
-    cargoLock.lockFile = "${src}/Cargo.lock";
-    # Nix's Rust packaging uses the system SQLite instead of the vendored
-    # libsqlite3-sys copy. Both richclip binaries link against libsqlite3.
-    nativeBuildInputs = [pkg-config];
-    buildInputs = [sqlite];
-    # review_activation_dispatch spawns a Python Wayland wire fixture.
-    # Keep the regression test enabled without adding a runtime dependency.
-    nativeCheckInputs = [python3];
-    cargoBuildFlags = ["-p" "richclip" "-p" "richclip-wayland"];
-    cargoTestFlags = ["-p" "richclip" "-p" "richclip-wayland"];
-    preCheck = ''
-      export HOME="$(mktemp -d)"
-      unset WAYLAND_DISPLAY WAYLAND_SOCKET
-    '';
-    postInstall = ''
-      test -x "$out/bin/richclip"
-      test -x "$out/bin/richclipd"
-    '';
-    meta = {
-      description = "Multi-MIME Wayland clipboard history";
-      homepage = "https://github.com/dstoc/richclip";
-      platforms = lib.platforms.linux;
-      mainProgram = "richclip";
-    };
-  }
+}:
+stdenv.mkDerivation (finalAttrs: {
+  pname = "richclip";
+  version = "0.1.3";
+
+  src = fetchurl {
+    url = "https://github.com/dstoc/richclip/releases/download/richclip-v${finalAttrs.version}/richclip-richclip-v${finalAttrs.version}-x86_64-unknown-linux-gnu.tar.gz";
+    sha256 = "63d3303c4d7fc543e7b1887607509c11aba9c89fe7f13c27b9e68a3fab4d57cd";
+  };
+
+  nativeBuildInputs = [autoPatchelfHook];
+  buildInputs = [stdenv.cc.cc.lib wayland sqlite];
+
+  dontConfigure = true;
+  dontBuild = true;
+  dontStrip = true;
+
+  installPhase = ''
+    runHook preInstall
+    install -Dm755 richclip "$out/bin/richclip"
+    install -Dm755 richclipd "$out/bin/richclipd"
+    # Do not install the optional remote image labelling worker.
+    runHook postInstall
+  '';
+
+  meta = {
+    description = "Multi-MIME Wayland clipboard history (official release binary)";
+    homepage = "https://github.com/dstoc/richclip";
+    platforms = ["x86_64-linux"];
+    mainProgram = "richclip";
+    sourceProvenance = [lib.sourceTypes.binaryNativeCode];
+  };
+})

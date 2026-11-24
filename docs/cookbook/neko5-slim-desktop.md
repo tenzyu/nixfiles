@@ -195,8 +195,15 @@ recognize .osk as an archive in this upstream revision. QDirStat and dust
 remain available for treemap and summary use. The GTK FileChooser portal is
 unchanged. No historical clipboard migration or deletion is performed.
 
-Fileman and richclip are source-packaged from exact upstream Git revisions
-with their upstream Cargo.lock; no shell installer or unpinned source is used.
+Fileman v0.5.2 and richclip v0.1.3 use the official x86_64 Linux release
+archives, pinned by SHA-256. Nix repackages the ELF binaries using
+autoPatchelfHook; no Rust compilation, Cargo tests or upstream shell installer
+runs locally. Fileman matches the previous source revision; richclip uses the
+release tag instead of the two later main-branch commits, so post-release
+history deduplication and restore-ordering changes are not included.
+The previous source packages remain available in Git history.
+CI builds the repackaged derivations and checks the installed binaries;
+actual Wayland behavior still requires a local smoke test.
 Richclip's upstream capture policy skips token-like runs of 30 or more ASCII
 characters (including some commit hashes), caps each format at 4 MiB and
 expires items after 30 days by default. Direct clipboard copy/paste remains
