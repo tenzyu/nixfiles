@@ -12,6 +12,8 @@ The host now chooses `game-ark = false`, `game-rust = false`, `game-minecraft = 
 - A `game-srv` state change needs an offline data inventory; do **not** run the historical first-cutover copy on an already populated `/srv/minecraft`.
 - Source-only evaluation does not prove that an existing container restarts safely or that backups and game updates are transactional. Those operations still require separate validation.
 
+The selected Minecraft workload is now built as `.#neko7-minecraft-system` and deployed via the native per-container Nix profile. The machine name, data, identities and backup commands remain unchanged. Seed the incumbent before switching; see [existing workload migration](compute-workload-migration.md).
+
 ## Backups and recovery
 
 Use `game diagnose minecraft` to inspect an unconfirmed Minecraft operation. It shows the admission guard, the host and guest unit properties, and the current jobs for each manager. Follow the lock-held recovery procedure before clearing a guard. Inspect archive publication separately before deciding whether to resume a stopped server. [Minecraft backup and recovery runbook](../../modules/50-features/game-servers/_internal/minecraft-backup/README.md#diagnose-and-recover)

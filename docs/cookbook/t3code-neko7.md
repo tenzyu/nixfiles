@@ -13,9 +13,10 @@ sources:
 
 ## Ownership and scope
 
+For the current independent runtime deployment and first cutover, follow [existing workload migration](compute-workload-migration.md). The earlier observations below are historical, not proof of profile activation.
+
 The neko7 Home Manager feature `t3code-neko7` enables a dedicated
-`t3code-neko7.service` user unit (loopback 127.0.0.1:3773) and installs the
-T3 CLI. The existing `codex` feature installs the Codex CLI from the
+`t3code-neko7.service` user unit (loopback 127.0.0.1:3773) and exposes the T3 CLI through its independent native Nix runtime profile. The existing `codex` feature installs the Codex CLI from the
 `llm-agents.nix` revision pinned by `flake.lock`. T3 comes from the
 `nixpkgs-unstable` input pinned by the same lockfile. No Flake inputs are
 updated.

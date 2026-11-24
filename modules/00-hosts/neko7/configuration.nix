@@ -78,7 +78,9 @@
       };
 
       features = {
-        splitcast-production.enable = true;
+        # The production role is deployed independently of the host generation.
+        splitcast-production.enable = false;
+        splitcast-production-profile.enable = true;
         zsh.enable = true;
         common.enable = true;
         packages-common.enable = true;
