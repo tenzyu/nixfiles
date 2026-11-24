@@ -239,6 +239,88 @@ jobs:
               echo "$name=true" >> "$GITHUB_OUTPUT"
             fi
           done
+          if printf '%s\n' "$changed" | grep -Eq '^scripts/desktop/(cclip-(start|picker)|tofi-actions)\.sh$|^modules/60-integrations/desktop/jay-(cclip|tofi)\.nix$|^modules/50-features/desktop/tofi\.nix$|^\.github/workflows/nix-validation\.yml == 'true' || steps.desktop.outputs.fileman == 'true'
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and smoke-test selected desktop packages
+        if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
+        shell: bash
+        env:
+          BUILD_CCLIP: ${{ steps.desktop.outputs.cclip }}
+          BUILD_FILEMAN: ${{ steps.desktop.outputs.fileman }}
+        run: |
+          set -euo pipefail
+          build_package() {
+            PKG_NAME="$1" nix build -L --no-link --print-out-paths --impure --expr '
+              let
+                f = builtins.getFlake (toString ./.);
+                h = f.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+                name = builtins.getEnv "PKG_NAME";
+              in builtins.head (builtins.filter (p: (p.pname or "") == name || (p.name or "") == name) h.home.packages)
+            '
+          }
+          if [[ "$BUILD_CCLIP" == true ]]; then
+            out="$(build_package cclip)"
+            "$out/bin/cclip" -h >/dev/null
+            "$out/bin/cclipd" -h >/dev/null 2>&1
+            test -x "$out/bin/cclipd"
+            if ldd "$out/bin/cclipd" | grep -F 'not found'; then exit 1; fi
+            # writeShellApplication runs ShellCheck during build, not evaluation.
+            for wrapper in cclip-start cclip-picker jay-tofi-actions; do
+              wrapper_out="$(build_package "$wrapper")"
+              test -x "$wrapper_out/bin/$wrapper"
+            done
+          fi
+          if [[ "$BUILD_FILEMAN" == true ]]; then
+            out="$(build_package fileman)"
+            test -x "$out/bin/fileman"
+            test -f "$out/share/applications/dev.fileman.Files.desktop"
+          fi
+
+  osu-first:
+    name: Offline osu-first launcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Test launcher logic without games or services
+        run: |
+          bash -n scripts/osu-performance/osu-first.sh
+          bash scripts/osu-performance/test-osu-first.sh
+
+  full-audit:
+    name: On-demand full flake check (expensive)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix flake check -L --show-trace
+
+  cache-audit:
+    name: On-demand signed SplitCast cache verification
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.cache_strict }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash scripts/ci/audit-splitcast-cache.sh --strict
+; then
+            echo "cclip=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: cachix/install-nix-action@v31
         if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
