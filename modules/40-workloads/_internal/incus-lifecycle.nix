@@ -2,6 +2,7 @@
   pkgs = inputs.nixpkgs.legacyPackages.${system};
 in pkgs.testers.runNixOSTest {
   name = "incus-workload-${name}";
+  qemu.forceAccel = true;
   nodes.neko7 = {
     imports = [
       self.modules.nixos.incus
@@ -26,12 +27,26 @@ in pkgs.testers.runNixOSTest {
         return "incus exec local:" + name + " --project default -- sh -ec " + shlex.quote(command)
     def run(name, command):
         return neko7.succeed(guest(name, command)).strip()
+    def diagnose(name):
+        print(neko7.execute("timeout -k 5s 20s incus info local:" + name + " --project default --show-log 2>&1; timeout -k 5s 20s incus console local:" + name + " --project default --show-log 2>&1; free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'")[1])
     def ready(name):
-        neko7.wait_until_succeeds(guest(name, "/etc/neko7/readiness"), timeout=300)
+        try:
+            neko7.wait_until_succeeds("timeout -k 5s 15s " + guest(name, "/etc/neko7/readiness"), timeout=300)
+        except Exception:
+            diagnose(name)
+            raise
+    def new_instance(name):
+        status, output = neko7.execute(recipe + "_new-image ${name} " + name + " 16GiB 1 ${guestMemory} ${image} 2>&1")
+        if status != 0:
+            print(output)
+            diagnose(name)
+            raise Exception("exact-image instance creation/readiness failed")
     # Exact production image, no synthetic image substitution. The private
     # artifact entrypoints are precisely the steps used by the public recipes
     # after nix build; public build wrappers are tested separately.
-    neko7.succeed(recipe + "_new-image ${name} original 16GiB 2 ${guestMemory} ${image}")
+    # One vCPU in CI only: the hosted runner adds an extra virtualization
+    # layer. Production sizing and all exact-image/state tests are unchanged.
+    new_instance("original")
     ready("original")
     original_id = run("original", "cat /etc/machine-id")
     run("original", ${builtins.toJSON stateProbe.seed})
@@ -52,7 +67,7 @@ in pkgs.testers.runNixOSTest {
     neko7.succeed("test ! -e /root/wrong-id")
     # Separate instance identity without copying state, one running VM at a time.
     neko7.succeed("incus stop local:original --project default")
-    neko7.succeed(recipe + "_new-image ${name} independent 16GiB 2 ${guestMemory} ${image}")
+    new_instance("independent")
     ready("independent")
     assert run("independent", "cat /etc/machine-id") != original_id
     neko7.succeed("incus stop local:independent --project default")

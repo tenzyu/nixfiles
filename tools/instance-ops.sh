@@ -24,11 +24,18 @@ managed() {
   [[ $workload =~ ^[a-z][a-z0-9-]*$ && -n $uuid ]] || { echo "Not a managed workload" >&2; exit 1; }
 }
 ready() {
-  for ((i=0;i<120;i++)); do
-    if inc exec "$target" --project default -- /etc/neko7/readiness; then return 0; fi
-    sleep 2
+  # Count elapsed wall time, not attempts: an unresponsive VM agent
+  # can otherwise make 120 CLI requests take an hour or more.
+  local deadline=$((SECONDS + 300)) remaining probe
+  while (( SECONDS < deadline )); do
+    remaining=$((deadline - SECONDS))
+    probe=$((remaining < 15 ? remaining : 15))
+    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default -- /etc/neko7/readiness; then
+      return 0
+    fi
+    if (( SECONDS + 2 < deadline )); then sleep 2; else break; fi
   done
-  echo "Readiness failed; inspect $target, do not automatically roll back data" >&2
+  echo "Readiness failed after bounded wait; inspect $target, do not automatically roll back data" >&2
   return 1
 }
 bundle() {

@@ -149,12 +149,23 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
       - name: Build and inspect independent artifact
         env:
           WORKLOAD: ${{ matrix.workload }}
         run: |
           set -euo pipefail
-          out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD")
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
           case "$WORKLOAD" in
             neko7-minecraft-system)
               test -x "$out/init"
@@ -172,6 +183,15 @@ jobs:
               if grep -q '^WantedBy=' "$unit"; then exit 1; fi
               ;;
           esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   ingress:
     name: Tailnet-only ingress negative controls
     runs-on: ubuntu-latest

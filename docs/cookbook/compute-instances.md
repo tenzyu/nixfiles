@@ -17,7 +17,7 @@ just backup photos /approved/backup/photos-20261125
 just update photos /approved/backup/photos-before-update
 ```
 
-New VMs have a native workload annotation, auto-start and deletion protection. The release stays GC-rooted during creation/update. `new` and `update` require guest `/etc/neko7/readiness` to succeed; update additionally checks the active and system profile closures. This is service readiness, not schema rollback or full application acceptance.
+New VMs have a native workload annotation, auto-start and deletion protection. Readiness has a five-minute elapsed-time budget (individual requests at most 15 seconds plus termination grace), so an unavailable VM agent cannot silently extend this into an hour-long polling loop. The release stays GC-rooted during creation/update. `new` and `update` require guest `/etc/neko7/readiness` to succeed; update additionally checks the active and system profile closures. This is service readiness, not schema rollback or full application acceptance.
 
 Each compound operation holds a nonblocking advisory instance lock under /run/lock/neko7-instances. Native direct Incus commands bypass this lock; the operator must serialize those with recipes. Backup makes a new private directory atomically, stops the target and writes instance.tar.gz, identity.json (name, native volatile.uuid, project, workload), SHA256SUMS only after export succeeds. A partial directory is not a valid backup. Backup leaves the VM stopped. A successful checksum is not a successful restore. Verify the archive off-host and protect it as credentials.
 
