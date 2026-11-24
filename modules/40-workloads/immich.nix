@@ -24,9 +24,31 @@ in {
       inherit nixpkgs system module;
       name = "immich";
     };
-    checks.personal-workload-immich = import ../10-foundations/_internal/personal-workload-test.nix {
-      inherit nixpkgs system module;
-      workload = "immich";
+    checks.personal-workload-immich = let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in pkgs.testers.runNixOSTest {
+      name = "personal-workload-immich";
+      nodes = {
+        workload = {
+          imports = [module];
+          virtualisation.memorySize = 4096;
+          virtualisation.cores = 2;
+          environment.systemPackages = [pkgs.curl pkgs.jq];
+        };
+        peer.environment.systemPackages = [pkgs.curl pkgs.netcat-openbsd];
+      };
+      testScript = ''
+        start_all()
+        workload.wait_for_unit("immich-server.service")
+        workload.wait_until_succeeds("curl -fsS --max-time 5 http://127.0.0.1:2283/api/server/ping >/tmp/response", timeout=180)
+        peer.fail("curl -fsS --connect-timeout 2 --max-time 4 http://workload:2283/api/server/ping")
+        workload.wait_for_unit("postgresql.service")
+        workload.wait_for_unit("redis-immich.service")
+        workload.succeed("jq -e '.res == \"pong\"' /tmp/response")
+        workload.succeed("test -d /var/lib/immich")
+        peer.fail("nc -z -w 2 workload 5432")
+        peer.fail("nc -z -w 2 workload 6379")
+      '';
     };
   };
 }

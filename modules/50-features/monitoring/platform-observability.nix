@@ -92,7 +92,10 @@
           mv -T "$tmp" "$key"
           trap - EXIT
         fi
-        test -f "$key" && test ! -L "$key" && test -s "$key"
+        if ! test -f "$key" || test -L "$key" || ! test -s "$key"; then
+          echo "Invalid existing Grafana key; refuse implicit recovery" >&2
+          exit 1
+        fi
         chmod 0600 "$key"
       '';
       services.grafana = {

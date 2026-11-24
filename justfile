@@ -21,7 +21,10 @@ new workload name disk cpu="2" memory="2GiB":
     workload=$1 name=$2 disk=$3 cpu=$4 memory=$5
     [[ $workload =~ ^[a-z][a-z0-9-]*$ && $name =~ ^[a-z][a-z0-9-]{0,62}$ ]] || exit 2
     [[ $disk =~ ^[1-9][0-9]*GiB$ && $cpu =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*GiB$ ]] || exit 2
-    out=$(nix build --no-link --print-out-paths ".#neko7-$workload-image")
+    build_root=$(mktemp -d)
+    trap 'rm -rf -- "$build_root"' EXIT
+    nix build --out-link "$build_root/result" ".#neko7-$workload-image"
+    out=$(readlink -e "$build_root/result")
     test -s "$out/metadata.tar.xz" && test -s "$out/nixos.qcow2"
     base=${out##*/}
     alias="nix-${base%%-*}"
@@ -44,7 +47,10 @@ update name backup:
     name=$1 backup=$2
     workload=$(sudo incus config get "local:$name" user.nixfiles.workload --project default)
     [[ $workload =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Not a managed Nix workload" >&2; exit 1; }
-    candidate=$(nix build --no-link --print-out-paths ".#neko7-$workload-system")
+    build_root=$(mktemp -d)
+    trap 'rm -rf -- "$build_root"' EXIT
+    nix build --out-link "$build_root/result" ".#neko7-$workload-system"
+    candidate=$(readlink -e "$build_root/result")
     test -x "$candidate/bin/switch-to-configuration"
     printf 'Offline backup then update %s to %s. Type instance name: ' "$name" "$candidate"
     read -r confirm
@@ -69,6 +75,12 @@ backup name path:
     [[ $(hostname -s) == neko7 && $1 =~ ^[a-z][a-z0-9-]{0,62}$ && $2 == /* ]] || exit 2
     name=$1 path=$2
     sudo test ! -e "$path" && sudo test ! -L "$path" || exit 1
+    # Export contains database, identities and credentials. Require a private
+    # existing directory, and never overwrite an incumbent backup.
+    parent=$(dirname "$path")
+    sudo test -d "$parent"
+    mode=$(sudo stat -Lc %a "$parent")
+    (( (8#$mode & 077) == 0 )) || { echo "Backup directory must be private (0700)" >&2; exit 1; }
     status=$(sudo incus list local: --project default --format json | jq -er --arg name "$name" '.[] | select(.name == $name) | .status')
     case "$status" in
       Running) sudo incus stop "local:$name" --project default ;;
@@ -77,6 +89,7 @@ backup name path:
     esac
     sudo incus export "local:$name" "$path" --project default
     sudo test -s "$path"
+    sudo chmod 0600 "$path"
     sudo sha256sum "$path"
 
 # Permanent removal: explicit existing verified backup, stopped protected VM.
