@@ -9,6 +9,8 @@ data = json.loads(Path(sys.argv[1]).read_text())
 jay = tomllib.loads(data["jay"])
 assert data["alacrittyOsc52"] == "OnlyCopy"
 assert data["herdrReusesStock"] is True
+assert data["skinAssociation"] == ["org.kde.ark.desktop"]
+assert data["fileAssociation"] == ["dev.fileman.Files.desktop"]
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"
@@ -22,6 +24,10 @@ assert len(clipboard) == 1 and clipboard[0]["privileged"] is True
 assert clipboard[0]["args"] == []
 assert ime["prog"].endswith("/bin/fcitx5") and ime["args"] == ["-r"]
 assert ime["privileged"] is True and "tag" not in ime
+# D-Bus environment must be imported before privileged clients start.
+assert startup[0][0].endswith("/bin/dbus-update-activation-environment")
+assert startup.index(clipboard[0]) < startup.index(ime)
+assert len(startup) == 3
 assert keys["logo-ctrl-i"]["exec"] == ime
 assert keys["logo-i"]["exec"][0].endswith("/bin/fcitx5-remote")
 assert keys["logo-i"]["exec"][1:] == ["-t"]
@@ -41,6 +47,9 @@ for key, mode in [("logo-r", "run"), ("logo-shift-r", "custom"), ("logo-shift-sp
 assert keys["logo-ctrl-shift-r"] == "reload-config-toml"
 assert keys["logo-shift-v"] == "split-vertical"
 assert keys["logo-Return"]["exec"].endswith("/bin/alacritty")
+assert keys["logo-b"]["exec"] == "firefox"
+assert keys["logo-o"]["exec"] == "osu-lazer"
+assert jay["outputs"][0]["match"]["connector"] == "eDP-1"
 assert keys["logo-shift-s"]["exec"]["privileged"] is True
 assert "slurp" in keys["logo-shift-s"]["exec"]["shell"]
 assert "grim" in keys["logo-shift-s"]["exec"]["shell"]

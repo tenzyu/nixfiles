@@ -1,12 +1,9 @@
 {
-  flake.modules.homeManager.jay = {config, lib, pkgs, ...}: let
-    terminal = if config.programs.alacritty.enable then config.programs.alacritty.package else pkgs.unstable.alacritty;
-  in {
-    config = lib.mkIf config.local.features.jay.enable {
-      home.packages = lib.optional (!config.programs.alacritty.enable) terminal;
-      local.jay.shortcuts.logo-Return = ''{ type = "exec", exec = "${lib.getExe terminal}" }'';
+  flake.modules.homeManager.jay = {config, lib, ...}: {
+    config = lib.mkIf (config.local.features.jay.enable && config.local.features.alacritty.enable) {
+      local.jay.shortcuts.logo-Return = ''{ type = "exec", exec = "${lib.getExe config.programs.alacritty.package}" }'';
       # Allow OSC 52 writes, never terminal-initiated clipboard reads.
-      programs.alacritty.settings.terminal.osc52 = lib.mkIf config.local.features.alacritty.enable "OnlyCopy";
+      programs.alacritty.settings.terminal.osc52 = "OnlyCopy";
     };
   };
 }

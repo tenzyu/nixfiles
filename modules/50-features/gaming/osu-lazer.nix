@@ -21,7 +21,6 @@
     config,
     lib,
     pkgs,
-    osConfig ? {},
     ...
   }: let
     osuLauncher = pkgs.writeShellScriptBin "osu-lazer" ''
@@ -55,35 +54,8 @@
   in {
     config = lib.mkIf config.local.features.osu-lazer.enable {
       # The legacy global-quantum lab is opt-in only. Normal launches use
-      # the client-side playback policy below when the system feature is enabled.
+      # the separate neko5 PipeWire integration when selected.
       home.packages = [osuLaunchers osuAudioLab];
-
-      # AppImage sees XDG config but not host /etc/pipewire. Preserve the
-      # application's native latency request (441/44100) and constrain only
-      # its playback graph's negotiated quantum, not independent capture.
-      xdg.configFile = lib.mkIf (osConfig.local.features.neko5-osu-first.enable or false) {
-        # Why: portal PID namespace lookup fails (ENOTDIR) on neko5, leaving
-        # the osu! data-loop SCHED_OTHER. Direct RTKit restored SCHED_RR/20
-        # with unchanged Q64/441 and no extra ALSA headroom. XDG is visible
-        # inside the AppImage FHS namespace, unlike host /etc/pipewire.
-        # This is a client-context policy, not an osu!-only stream rule;
-        # do not raise RTKit limits or promote Draw/Update/GC threads.
-        "pipewire/client.conf.d/90-neko5-rtkit.conf".text = builtins.toJSON {
-          "module.rt.args" = {
-            "rtportal.enabled" = false;
-            "rtkit.enabled" = true;
-          };
-        };
-
-        "pipewire/client.conf.d/90-neko5-osu-quantum.conf".text = builtins.toJSON {
-          "stream.rules" = [
-            {
-              matches = [{"node.name" = "alsa_playback.osu!";}];
-              actions.update-props."node.max-latency" = "64/48000";
-            }
-          ];
-        };
-      };
 
       xdg.desktopEntries.osu-lazer = {
         name = "osu! lazer";

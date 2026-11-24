@@ -115,6 +115,10 @@
 
     config = lib.mkIf config.local.features.jay.enable {
       home.packages = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.wayland-utils];
+      local.jay.shortcuts = {
+        logo-shift-r = lib.mkDefault ''"reload-config-toml"'';
+        logo-ctrl-shift-r = ''"reload-config-toml"'';
+      };
       xdg.configFile."jay/config.toml".text = ''
           # Native Wayland desktop.
           keymap = """

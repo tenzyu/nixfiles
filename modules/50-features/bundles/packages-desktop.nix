@@ -17,12 +17,10 @@
       home.packages =
         (with pkgs; [
           brightnessctl
-          cliphist
           libnotify
           pavucontrol
           playerctl
           wl-clipboard
-          unstable.grimblast
           # vrcx
         ])
         ++ lib.optional (!config.local.features.splitcast-capture.enable) pkgs.easyeffects;

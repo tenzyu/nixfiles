@@ -1,14 +1,5 @@
 {
   configurations.nixos.neko5.module = {
-    home-manager.users.tenzyu.imports = [({lib, ...}: {
-      # Install the config files normally. Apply reloads at the next app launch,
-      # outside Home Manager activation and its protected HOME write checks.
-      xdg.configFile = lib.genAttrs [
-        "mako/config"
-        "waybar/config"
-        "waybar/style.css"
-      ] (_: {onChange = lib.mkForce "";});
-    })];
     # Adopt the paths already used by the installed shell, session and Firefox wrapper.
     home-manager.users.tenzyu.local.homeMigration.adoptedRoutes = {
       bash-history = "intended";
@@ -42,11 +33,6 @@
         logo-o = ''{ type = "exec", exec = "osu-lazer" }'';
       };
     };
-    home-manager.users.tenzyu.xdg.configFile = {
-      "waybar/config".enable = false;
-      "waybar/style.css".enable = false;
-    };
-
     local = {
       context = {
         flakePath = "/home/tenzyu/.nixfiles";
@@ -89,7 +75,6 @@
         gaming-mouse.enable = true;
         open-tablet-driver.enable = true;
         otd-access.enable = true; # for flash custom firmware
-        neko5-osu-first.enable = true;
 
         # NOTE: Under configuration.
         splitcast-capture.enable = false;
