@@ -62,6 +62,9 @@
         t3code-browser.enable = true;
         docker-rootless.enable = true;
         incus.enable = true;
+        platform-observability.enable = true;
+        preview-gateway.enable = true;
+        execution-discovery.enable = true;
         tailnet-ingress.enable = true;
         llama-cpp-cuda.enable = true;
         nix-remote-builder.enable = true;

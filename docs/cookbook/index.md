@@ -18,6 +18,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [Switch without moving HOME data](home-migration-rollout.md) — run the Home Manager pre-switch check on each host, resolve refusals, and switch one host at a time.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
 - [Personal compute platform](compute-host.md) — dynamic restricted instances, host acceptance, and native execution.
+- [Compute platform operations](compute-platform-operations.md) — dashboards, preview gateway, independent personal-data workloads and authority boundaries.
 - [Existing workload migration](compute-workload-migration.md) — independent Minecraft, T3 and SplitCast release profiles and cutover.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.
 - [osu! display experiments](../../scripts/osu-performance/README-display.md) · [latency lab](../../scripts/osu-performance/README-lab.md) — experimental evidence, not physical latency proof.

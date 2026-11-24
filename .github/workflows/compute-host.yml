@@ -3,6 +3,13 @@ on:
   pull_request:
     paths:
       - 'modules/00-hosts/neko7/**'
+      - 'modules/40-workloads/**'
+      - 'modules/50-features/monitoring/**'
+      - 'modules/50-features/networking/preview-gateway.nix'
+      - 'modules/50-features/development/execution-discovery.nix'
+      - 'modules/50-features/development/_internal/execution.md'
+      - 'modules/10-foundations/_internal/multi-machine-lab-test.nix'
+      - 'modules/10-foundations/_internal/platform-services-test.nix'
       - 'modules/50-features/containers/incus.nix'
       - 'modules/50-features/game-servers/**'
       - 'modules/50-features/development/t3code-neko7.nix'
@@ -22,6 +29,50 @@ concurrency:
   group: compute-host-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  platform:
+    name: Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+  personal-workloads:
+    name: Build ${{ matrix.workload }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [syncthing, immich]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build independent VM image and system
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          out=$(nix build -L --no-link --print-out-paths .#neko7-${{ matrix.workload }}-image)
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          nix build -L --no-link .#neko7-${{ matrix.workload }}-system
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest
