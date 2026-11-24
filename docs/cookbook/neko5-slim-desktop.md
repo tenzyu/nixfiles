@@ -75,7 +75,7 @@ For the three desktop candidates:
 |---|---|
 | Super+Q | Close focused window (never exit session) |
 | Super+1..9,0 | Switch workspace 1..10 |
-| Super+Shift+1..9,0 | Move focused window to workspace (Sway/KWin also follow) |
+| Super+Shift+1..9,0 | Move focused window to workspace and follow |
 | Super+F | Fullscreen |
 | Super+Enter | Alacritty |
 | Super+Space | Application launcher |

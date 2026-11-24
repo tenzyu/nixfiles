@@ -20,5 +20,8 @@ assert keys["logo-f"] == "toggle-fullscreen"
 for i in range(1, 11):
     key = str(i % 10)
     assert keys["logo-" + key] == {"type": "show-workspace", "name": str(i)}
-    assert keys["logo-shift-" + key] == {"type": "move-to-workspace", "name": str(i)}
+    assert keys["logo-shift-" + key] == [
+        {"type": "move-to-workspace", "name": str(i)},
+        {"type": "show-workspace", "name": str(i)},
+    ]
 print("Jay TOML and 10 workspace key pairs: PASS")

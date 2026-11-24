@@ -40,6 +40,7 @@
       ${lib.optionalString (compositor == "kwin") ''
         export KDE_SESSION_VERSION=6
         export KDE_FULL_SESSION=true
+        ${pkgs.dbus}/bin/dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP KDE_SESSION_VERSION KDE_FULL_SESSION
       ''}
       exec ${launch.${compositor}}
     '';
@@ -59,7 +60,7 @@
       output eDP-1 mode 1366x768 scale 1 adaptive_sync off allow_tearing yes
       default_border pixel 1
       default_floating_border pixel 1
-      allow_tearing yes
+      for_window [app_id=".*"] allow_tearing yes
       bindsym $mod+Return exec ${lib.getExe terminal}
       bindsym $mod+space exec rofi -show drun
       bindsym $mod+b exec firefox
@@ -72,26 +73,26 @@
       bindsym $mod+k focus up
       bindsym $mod+l focus right
       bindsym $mod+Control+Shift+q exit
-        bindsym $mod+1 workspace number 1
-        bindsym $mod+Shift+1 move container to workspace number 1; workspace number 1
-        bindsym $mod+2 workspace number 2
-        bindsym $mod+Shift+2 move container to workspace number 2; workspace number 2
-        bindsym $mod+3 workspace number 3
-        bindsym $mod+Shift+3 move container to workspace number 3; workspace number 3
-        bindsym $mod+4 workspace number 4
-        bindsym $mod+Shift+4 move container to workspace number 4; workspace number 4
-        bindsym $mod+5 workspace number 5
-        bindsym $mod+Shift+5 move container to workspace number 5; workspace number 5
-        bindsym $mod+6 workspace number 6
-        bindsym $mod+Shift+6 move container to workspace number 6; workspace number 6
-        bindsym $mod+7 workspace number 7
-        bindsym $mod+Shift+7 move container to workspace number 7; workspace number 7
-        bindsym $mod+8 workspace number 8
-        bindsym $mod+Shift+8 move container to workspace number 8; workspace number 8
-        bindsym $mod+9 workspace number 9
-        bindsym $mod+Shift+9 move container to workspace number 9; workspace number 9
-        bindsym $mod+0 workspace number 10
-        bindsym $mod+Shift+0 move container to workspace number 10; workspace number 10
+      bindsym $mod+1 workspace number 1
+      bindsym $mod+Shift+1 move container to workspace number 1; workspace number 1
+      bindsym $mod+2 workspace number 2
+      bindsym $mod+Shift+2 move container to workspace number 2; workspace number 2
+      bindsym $mod+3 workspace number 3
+      bindsym $mod+Shift+3 move container to workspace number 3; workspace number 3
+      bindsym $mod+4 workspace number 4
+      bindsym $mod+Shift+4 move container to workspace number 4; workspace number 4
+      bindsym $mod+5 workspace number 5
+      bindsym $mod+Shift+5 move container to workspace number 5; workspace number 5
+      bindsym $mod+6 workspace number 6
+      bindsym $mod+Shift+6 move container to workspace number 6; workspace number 6
+      bindsym $mod+7 workspace number 7
+      bindsym $mod+Shift+7 move container to workspace number 7; workspace number 7
+      bindsym $mod+8 workspace number 8
+      bindsym $mod+Shift+8 move container to workspace number 8; workspace number 8
+      bindsym $mod+9 workspace number 9
+      bindsym $mod+Shift+9 move container to workspace number 9; workspace number 9
+      bindsym $mod+0 workspace number 10
+      bindsym $mod+Shift+0 move container to workspace number 10; workspace number 10
       exec ${importEnvironment} SWAYSOCK
       bar {
         position top
@@ -129,6 +130,10 @@
         ExecStart = "${pkgs.writeShellScript "neko5-kwin-${name}" "exec ${command}"}";
       };
     }) kwinApps;
+    westonApp = name: command: pkgs.writeShellScript "neko5-weston-${name}" ''
+      ${importEnvironment}
+      exec ${command}
+    '';
     westonConfig = pkgs.writeText "neko5-weston.ini" ''
       [core]
       shell=desktop
@@ -143,19 +148,23 @@
       name=eDP-1
       mode=1366x768
       scale=1
-      vrr-mode=off
+      vrr-mode=none
       [launcher]
       displayname=Terminal
+      icon=${weston}/share/weston/terminal.png
       path=${lib.getExe terminal}
       [launcher]
       displayname=osu!
-      path=osu-lazer
+      icon=${weston}/share/weston/terminal.png
+      path=${westonApp "osu" "osu-lazer"}
       [launcher]
       displayname=Firefox
-      path=firefox
+      icon=${weston}/share/weston/terminal.png
+      path=${westonApp "firefox" "firefox"}
       [launcher]
       displayname=Applications
-      path=rofi -show drun
+      icon=${weston}/share/weston/terminal.png
+      path=${westonApp "applications" "rofi -show drun"}
     '';
     # This pinned Gamescope version requires server 0 even with expose-wayland.
     # Keep Xwayland for Gamescope internals, not for the game. This is a
@@ -228,21 +237,21 @@
                   xkb_symbols  { include "pc+us+inet(evdev)"     };
               };
               """
-  
+
           show-bar = true
           direct-scanout = true
           tearing.mode = "variant2"
           vrr.mode = "never"
           on-graphics-initialized = { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP"] }
-  
+
           [[outputs]]
           match.connector = "eDP-1"
           mode = { width = 1366, height = 768 }
           scale = 1.0
-  
+
           [xwayland]
           enabled = false
-  
+
           [theme]
           bg-color = "#1e1e2e"
           bar-bg-color = "#181825"
@@ -250,7 +259,7 @@
           border-width = 1
           bar-height = 24
           font = "Fira Code 11"
-  
+
           [shortcuts]
           logo-Return = { type = "exec", exec = "${lib.getExe terminal}" }
           logo-space = { type = "exec", exec = ["rofi", "-show", "drun"] }
@@ -275,25 +284,25 @@
           logo-ctrl-shift-q = "quit"
           logo-shift-r = "reload-config-toml"
           logo-1 = { type = "show-workspace", name = "1" }
-          logo-shift-1 = { type = "move-to-workspace", name = "1" }
+          logo-shift-1 = [{ type = "move-to-workspace", name = "1" }, { type = "show-workspace", name = "1" }]
           logo-2 = { type = "show-workspace", name = "2" }
-          logo-shift-2 = { type = "move-to-workspace", name = "2" }
+          logo-shift-2 = [{ type = "move-to-workspace", name = "2" }, { type = "show-workspace", name = "2" }]
           logo-3 = { type = "show-workspace", name = "3" }
-          logo-shift-3 = { type = "move-to-workspace", name = "3" }
+          logo-shift-3 = [{ type = "move-to-workspace", name = "3" }, { type = "show-workspace", name = "3" }]
           logo-4 = { type = "show-workspace", name = "4" }
-          logo-shift-4 = { type = "move-to-workspace", name = "4" }
+          logo-shift-4 = [{ type = "move-to-workspace", name = "4" }, { type = "show-workspace", name = "4" }]
           logo-5 = { type = "show-workspace", name = "5" }
-          logo-shift-5 = { type = "move-to-workspace", name = "5" }
+          logo-shift-5 = [{ type = "move-to-workspace", name = "5" }, { type = "show-workspace", name = "5" }]
           logo-6 = { type = "show-workspace", name = "6" }
-          logo-shift-6 = { type = "move-to-workspace", name = "6" }
+          logo-shift-6 = [{ type = "move-to-workspace", name = "6" }, { type = "show-workspace", name = "6" }]
           logo-7 = { type = "show-workspace", name = "7" }
-          logo-shift-7 = { type = "move-to-workspace", name = "7" }
+          logo-shift-7 = [{ type = "move-to-workspace", name = "7" }, { type = "show-workspace", name = "7" }]
           logo-8 = { type = "show-workspace", name = "8" }
-          logo-shift-8 = { type = "move-to-workspace", name = "8" }
+          logo-shift-8 = [{ type = "move-to-workspace", name = "8" }, { type = "show-workspace", name = "8" }]
           logo-9 = { type = "show-workspace", name = "9" }
-          logo-shift-9 = { type = "move-to-workspace", name = "9" }
+          logo-shift-9 = [{ type = "move-to-workspace", name = "9" }, { type = "show-workspace", name = "9" }]
           logo-0 = { type = "show-workspace", name = "10" }
-          logo-shift-0 = { type = "move-to-workspace", name = "10" }
+          logo-shift-0 = [{ type = "move-to-workspace", name = "10" }, { type = "show-workspace", name = "10" }]
           ctrl-alt-F1 = { type = "switch-to-vt", num = 1 }
           ctrl-alt-F2 = { type = "switch-to-vt", num = 2 }
           ctrl-alt-F3 = { type = "switch-to-vt", num = 3 }
