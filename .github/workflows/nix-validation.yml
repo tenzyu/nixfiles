@@ -100,7 +100,20 @@ jobs:
         run: bash scripts/test-t3code-tailnet.sh
 
       - name: Test framework semantics and editor option types
+        id: framework
         run: nix run -L .#framework-test
+
+      # The interactive framework CLI intentionally redacts subprocess output.
+      # On CI failure, independently evaluate the public source fixture to
+      # distinguish evaluation errors from assertion failures (names only).
+      - name: Diagnose configuration adapter failures
+        if: failure() && steps.framework.outcome == 'failure'
+        shell: bash
+        run: |
+          nix eval --impure --json --show-trace \
+            --file modules/_internal/configurations/tests/configurations.nix \
+            --argstr flakeRef "git+file://$PWD" failures \
+            --apply 'failures: map (failure: failure.name) failures'
 
       # Compatibility state is not the Nixpkgs release. Keep the verified
       # neko5 baseline and the explicitly declared neko7 baseline stable.
