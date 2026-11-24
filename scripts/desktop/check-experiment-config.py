@@ -11,7 +11,12 @@ keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"
 assert not jay.get("clients")
-ime = jay["on-graphics-initialized"][1]["exec"]
+startup = [action["exec"] for action in jay["on-graphics-initialized"]]
+ime = next(e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/fcitx5"))
+watchers = [e for e in startup if isinstance(e, dict) and e.get("prog", "").endswith("/bin/wl-paste")]
+assert len(watchers) == 2
+assert {e["args"][1] for e in watchers} == {"text", "image"}
+assert all(e["privileged"] and e["args"][2] == "--watch" and e["args"][-1] == "store" for e in watchers)
 assert ime["prog"].endswith("/bin/fcitx5") and ime["args"] == ["-r"]
 assert ime["privileged"] is True and "tag" not in ime
 assert keys["logo-ctrl-i"]["exec"] == ime
@@ -24,11 +29,27 @@ assert jay["outputs"][0]["scale"] == 1.0
 assert keys["logo-q"] == "close"
 assert keys["logo-ctrl-shift-q"] == "quit"
 assert keys["logo-f"] == "toggle-fullscreen"
+assert "rofi -dmenu" in keys["logo-v"]["exec"]["shell"]
+assert "run-privileged" in keys["logo-v"]["exec"]["shell"]
+assert keys["logo-shift-s"]["exec"]["privileged"] is True
+assert "slurp" in keys["logo-shift-s"]["exec"]["shell"]
+assert "grim" in keys["logo-shift-s"]["exec"]["shell"]
+assert keys["Print"]["exec"]["privileged"] is True
+assert keys["logo-Tab"] == "$next-workspace"
+assert keys["logo-shift-Tab"] == "$previous-workspace"
+assert jay["workspace-display-order"] == "sorted"
+actions = jay["actions"]
+assert actions["next-workspace"] == "$workspace-2"
+assert actions["previous-workspace"] == "$workspace-10"
 for i in range(1, 11):
     key = str(i % 10)
-    assert keys["logo-" + key] == {"type": "show-workspace", "name": str(i)}
+    assert keys["logo-" + key] == f"$workspace-{i}"
     assert keys["logo-shift-" + key] == [
-        {"type": "move-to-workspace", "name": str(i)},
-        {"type": "show-workspace", "name": str(i)},
+        {"type": "move-to-workspace", "name": str(i)}, f"$workspace-{i}",
     ]
-print("Jay TOML and 10 workspace key pairs: PASS")
+    assert actions[f"workspace-{i}"] == [
+        {"type": "show-workspace", "name": str(i)},
+        {"type": "define-action", "name": "next-workspace", "action": f"$workspace-{i % 10 + 1}"},
+        {"type": "define-action", "name": "previous-workspace", "action": f"$workspace-{(i - 2) % 10 + 1}"},
+    ]
+print("Jay TOML, clipboard, screenshot and workspace cycle: PASS")

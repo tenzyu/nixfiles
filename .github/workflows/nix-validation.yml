@@ -181,13 +181,17 @@ jobs:
               check = compositor: s:
                 let
                   sh = s.home-manager.users.tenzyu;
-                  audio = s.services.pipewire.extraConfig.pipewire."99-neko5-experiment"."context.properties";
+                  audio = s.services.pipewire.extraConfig;
+                  rate = audio.pipewire."90-neko5-rate"."context.properties";
+                  rules = audio.client."90-neko5-osu-quantum"."stream.rules";
+                  names = map (p: p.name or "") s.environment.systemPackages;
                 in {
-                  profile = s.neko5Experiment.compositor == compositor;
-                  slim = s.local.features.neko5-slim-desktop.enable && !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
+                  profile = s.local.features.jay.enable == (compositor == "jay") && sh.local.features.jay.enable == (compositor == "jay") && s.local.features.gamescope.enable == (compositor == "gamescope");
+                  launcher = (builtins.elem "start-jay" names) == (compositor == "jay") && (builtins.elem "start-gamescope" names) == (compositor == "gamescope") && !(builtins.elem "neko5-slim-session" names);
+                  slim = !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
                   systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
                   identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
-                  audio = audio."default.clock.rate" == 48000 && audio."default.clock.allowed-rates" == [48000] && audio."default.clock.quantum" == 64 && audio."default.clock.min-quantum" == 64 && audio."default.clock.max-quantum" == 64;
+                  audio = rate."default.clock.rate" == 48000 && rate."default.clock.allowed-rates" == [48000] && !(audio.pipewire ? "99-neko5-experiment") && rules == [{ matches = [{ "node.name" = "alsa_playback.osu!"; }]; actions.update-props."node.force-quantum" = 64; }];
                   drv = s.system.build.toplevel.drvPath;
                 };
             in {
@@ -197,7 +201,7 @@ jobs:
               jay = h.xdg.configFile."jay/config.toml".text;
             }
           ' > /tmp/neko5-experiments.json
-          jq -e '.onlyProbe and ([.primary,.probe] | all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          jq -e '.onlyProbe and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
 

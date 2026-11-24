@@ -30,10 +30,12 @@ accesses server 0). Do not add desktop features merely to qualify it.
   Hz at 60 Hz); do not change game config or renderer between profiles.
   Confirm the in-game settings on every boot. These mutable game settings
   are operator-verified, not overwritten by Nix.
-- PipeWire **64 frames / 48000 Hz**, min/default/max 64 in both profiles.
-  Verify active output and osu! in `pw-top` while playing. ALSA period-size 128,
-  count 3 retained from existing policy. If graph rate or quantum differs,
-  invalidate the run. Do not silently lower constraints. Previous boot generations remain available until the operator deletes them.
+- PipeWire stays at 48 kHz. Only the observed `alsa_playback.osu!` stream
+  forces Q64 while active. Independent driver graphs such as the USB mic
+  negotiate normally; clients sharing the same playback driver share its
+  quantum. Verify actual output/capture QUANT and ERR deltas in `pw-top`.
+  ALSA period-size 128/count 3 retained; no global quantum override.
+  Previous boot generations retained.
 - Direct scanout requested where supported, tearing permitted for fullscreen,
   no VRR requested, no overlays/capture during performance runs. Neither
   eligibility nor permission proves actual hardware scanout or async flips.
@@ -60,9 +62,10 @@ sudo nixos-rebuild boot --flake .#neko5
 Staging the parent generation builds Jay and the Gamescope specialisation (extra closure
 and build time). Only run the last command after reviewing CI, build and
 existing HOME admission requirements. Do not switch during an active session.
-Reboot into the desired systemd-boot entry; log in on the local VT and run
-`exec neko5-slim-session` for **every** experiment. Gamescope starts osu!
-directly; Jay starts the desktop. No nested sessions.
+Reboot into the desired systemd-boot entry and log in on the local VT.
+Run `start-jay` on normal neko5, or `start-gamescope` on neko5-gamescope
+(which launches osu! directly). Independent modules and commands;
+no nested compositor or shared launcher.
 Jay shortcuts:
 
 | Shortcut | Action |
@@ -73,9 +76,20 @@ Jay shortcuts:
 | Super+F | Fullscreen |
 | Super+Enter | Alacritty |
 | Super+Space | Application launcher |
+| Super+V | Clipboard history via cliphist/rofi |
+| Super+Shift+S / Print | Copy area / full display screenshot |
+| Super+Tab / Super+Shift+Tab | Cycle numbered workspaces forward / backward |
+| Super+Shift+V | Vertical split |
 | Super+B / Super+O | Firefox / osu! |
 | Super+H/J/K/L | Directional focus |
 | Super+Ctrl+Shift+Q | Explicit session exit |
+
+Jay's native named-action cycle tracks the last workspace selected by its
+keyboard bindings (1–10, including empty workspaces); mouse/bar changes
+are not reflected in this state. Numbered keys resynchronize the cycle.
+Clipboard text/image watchers start with Jay's privileged socket. Screenshots
+use grim/slurp, not Hyprland's grimblast. Selection cancellation leaves the
+clipboard unchanged.
 
 For Gamescope exit the game; it does not have desktop workspace controls.
 
@@ -155,5 +169,6 @@ No hardware-cursor, scheduler or kernel tuning is changed.
 ## Research record
 
 See [append-only presentation research log](../research/neko5-presentation-log.md).
-Discord VC + osu! at Q64 is an open stability issue; do not change quantum,
-RT priorities, kernel or ALSA policy in the primary migration commit.
+Discord VC + osu! ERR remains unresolved. Global Q64 is superseded by
+the osu!-playback-specific rule on operator request. Keep RT priorities,
+kernel and ALSA policy unchanged. Hardware verification pending.

@@ -17,6 +17,22 @@
         ACTION=="add|change", SUBSYSTEM=="usb", ATTR{idVendor}=="056a", ATTR{idProduct}=="037a", TEST=="power/control", ATTR{power/control}="on"
       '';
 
+      # Q64 only while the observed osu! playback stream is active.
+      # Other driver graphs negotiate normally; streams on the same output
+      # necessarily share its quantum. Keep the established 48 kHz rate.
+      services.pipewire.extraConfig = {
+        pipewire."90-neko5-rate"."context.properties" = {
+          "default.clock.rate" = 48000;
+          "default.clock.allowed-rates" = [48000];
+        };
+        client."90-neko5-osu-quantum"."stream.rules" = [
+          {
+            matches = [{"node.name" = "alsa_playback.osu!";}];
+            actions.update-props."node.force-quantum" = 64;
+          }
+        ];
+      };
+
       # Only the integrated ALC257 analog PCM output. Unlike global quantum
       # forcing, this avoids changing a USB microphone's capture scheduling.
       # 128 frames is the aggressive first candidate, independent of BASS -128.

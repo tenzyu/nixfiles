@@ -35,11 +35,12 @@
     imports = [
       ({...}: {
         specialisation.neko5-gamescope.configuration = {lib, ...}: {
-          neko5Experiment.compositor = lib.mkForce "gamescope";
+          local.features.jay.enable = lib.mkForce false;
+          local.users.tenzyu.features.jay.enable = lib.mkForce false;
+          local.features.gamescope.enable = true;
         };
       })
     ];
-    neko5Experiment.compositor = "jay";
     home-manager.users.tenzyu.xdg.configFile = {
       "waybar/config".enable = false;
       "waybar/style.css".enable = false;
@@ -79,7 +80,7 @@
 
         intel-graphics.enable = true;
         wayland-session.enable = false;
-        neko5-slim-desktop.enable = true;
+        jay.enable = true;
         hyprland-core.enable = false;
         hyprland-tenzyu.enable = false;
         desktop-performance.enable = true;
@@ -130,6 +131,7 @@
         yazi.enable = true;
         zoxide.enable = true;
 
+        jay.enable = true;
         kitty.enable = true;
         rofi.enable = true;
         waybar.enable = false;
