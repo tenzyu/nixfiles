@@ -206,6 +206,64 @@ jobs:
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
 
+  desktop-packages:
+    name: Build changed neko5 desktop packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^1' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed desktop package definitions
+        id: desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$NIX_CHECK_BASE" HEAD)"
+          for name in richclip fileman; do
+            if printf '%s\n' "$changed" | grep -Eq "^assets/packages/$name\.nix$|^modules/50-features/desktop/$name\.nix$|^flake\.lock$"; then
+              echo "$name=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+      - uses: cachix/install-nix-action@v31
+        if: steps.desktop.outputs.richclip == 'true' || steps.desktop.outputs.fileman == 'true'
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and smoke-test selected desktop packages
+        if: steps.desktop.outputs.richclip == 'true' || steps.desktop.outputs.fileman == 'true'
+        shell: bash
+        env:
+          BUILD_RICHCLIP: ${{ steps.desktop.outputs.richclip }}
+          BUILD_FILEMAN: ${{ steps.desktop.outputs.fileman }}
+        run: |
+          set -euo pipefail
+          build_package() {
+            PKG_NAME="$1" nix build -L --no-link --print-out-paths --impure --expr '
+              let
+                f = builtins.getFlake (toString ./.);
+                h = f.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
+                name = builtins.getEnv "PKG_NAME";
+              in builtins.head (builtins.filter (p: (p.pname or "") == name) h.home.packages)
+            '
+          }
+          if [[ "$BUILD_RICHCLIP" == true ]]; then
+            out="$(build_package richclip)"
+            "$out/bin/richclip" --help >/dev/null
+            test -x "$out/bin/richclipd"
+            if ldd "$out/bin/richclipd" | grep -F 'not found'; then exit 1; fi
+          fi
+          if [[ "$BUILD_FILEMAN" == true ]]; then
+            out="$(build_package fileman)"
+            test -x "$out/bin/fileman"
+            test -f "$out/share/applications/dev.fileman.Files.desktop"
+          fi
+
   osu-first:
     name: Offline osu-first launcher
     runs-on: ubuntu-latest

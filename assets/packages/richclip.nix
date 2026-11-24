@@ -1,6 +1,8 @@
 {
   lib,
   rustPlatform,
+  pkg-config,
+  sqlite,
 }: let
   src = (builtins.fetchTree {
     type = "github";
@@ -14,6 +16,10 @@ in
     version = "0.1.3";
     inherit src;
     cargoLock.lockFile = "${src}/Cargo.lock";
+    # Nix's Rust packaging uses the system SQLite instead of the vendored
+    # libsqlite3-sys copy. Both richclip binaries link against libsqlite3.
+    nativeBuildInputs = [pkg-config];
+    buildInputs = [sqlite];
     cargoBuildFlags = ["-p" "richclip" "-p" "richclip-wayland"];
     cargoTestFlags = ["-p" "richclip" "-p" "richclip-wayland"];
     preCheck = ''
