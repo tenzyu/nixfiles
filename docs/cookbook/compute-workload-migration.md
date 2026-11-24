@@ -68,18 +68,30 @@ After cutover verify the Minecraft guest points to the incumbent profile, its Ta
 
 Build the artifact from a reviewed revision before changing its profile. Native Nix profile generations provide a GC root and rollback. Do not change the host declaration for an application version update.
 
-Minecraft: coordinate the exclusive existing lifecycle lock and job guard throughout the stop/profile/start transaction. Take and verify a backup first; do not overlap with any game operator or raw container operation. Use the root-owned lock directory and do not clear an unconfirmed native job guard. Stop the entire container, confirm inactive, set the profile, start it and inspect the guest version, Tailscale connectivity and player login. Example commands to execute only under that approved exclusive maintenance session:
+Minecraft: coordinate the exclusive existing lifecycle lock and job guard throughout the stop/profile/start transaction. Take and verify a backup first; do not overlap with any game operator or raw container operation. Use the root-owned lock directory and do not clear an unconfirmed native job guard. Stop the entire container, confirm inactive, set the profile, start it and inspect the guest version, Tailscale connectivity and player login. Example commands below build before acquiring the existing lifecycle lock. Run the mutation block in a separate, approved operator session; a lock conflict, unresolved guard, failed stop or non-inactive machine aborts it. If interrupted during a native job, reconcile the manager state before retrying. Do not bypass the existing game operator's backup procedure:
 
 ```sh
 candidate=$(nix build --no-link --print-out-paths .#neko7-minecraft-system)
+# Only after a verified backup and a clean game diagnose result.
+sudo bash -euo pipefail -s -- "$candidate" <<'SH'
+candidate=$1
 profile=/nix/var/nix/profiles/per-container/neko7-mc/system
-sudo systemctl stop container@neko7-mc.service
-sudo nix-env --profile "$profile" --set "$candidate"
-sudo systemctl start container@neko7-mc.service
-sudo nixos-container run neko7-mc -- readlink -e /run/current-system
+lock=/run/nixfiles-game-locks/minecraft.lock
+test -x "$candidate/init"
+test -f "$lock" && test ! -L "$lock"
+exec 9<"$lock"
+flock -n -x 9
+test ! -e "$lock.job" && test ! -L "$lock.job"
+systemctl stop container@neko7-mc.service
+test "$(systemctl show -p ActiveState --value container@neko7-mc.service)" = inactive
+test "$(systemctl show -p MainPID --value container@neko7-mc.service)" = 0
+nix-env --profile "$profile" --set "$candidate"
+systemctl start container@neko7-mc.service
+nixos-container run neko7-mc -- readlink -e /run/current-system
+SH
 ```
 
-On failed acceptance, stop the machine, use `sudo nix-env --profile "$profile" --rollback`, restart and verify. Software rollback is not world-data rollback: a newer Minecraft version may migrate saves irreversibly; restore an independently verified backup only with explicit approval.
+On failed acceptance, reacquire the same exclusive lifecycle lock (including guard and job-state checks), stop the machine, use `sudo nix-env --profile "$profile" --rollback`, restart and verify. Software rollback is not world-data rollback: a newer Minecraft version may migrate saves irreversibly; restore an independently verified backup only with explicit approval.
 
 T3: use an independent SSH session, stop the same user unit, advance its profile, then start that same unit. Roll back the profile and restart if the new server fails acceptance. A newer T3 database schema may require its own application backup/recovery; no automatic state downgrade.
 

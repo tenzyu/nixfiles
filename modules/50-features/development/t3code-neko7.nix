@@ -19,7 +19,6 @@
   flake.modules.homeManager.t3code-neko7 = {
     config,
     lib,
-    pkgs,
     ...
   }: let
     # This native Nix profile is updated independently of NixOS/HM. Keep
