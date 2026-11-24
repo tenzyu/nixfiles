@@ -168,6 +168,29 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Evaluate neko5 slim specialisation and preserve the control
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix eval --impure --json --expr '
+            let
+              f = builtins.getFlake (toString ./.);
+              c = f.nixosConfigurations.neko5.config;
+              s = c.specialisation.neko5-slim.configuration;
+              h = c.home-manager.users.tenzyu;
+              sh = s.home-manager.users.tenzyu;
+              routes = home: map (r: { inherit (r) group source target route; }) home.local.homeMigration.paths;
+            in {
+              control = c.programs.hyprland.enable && h.local.features.waybar.enable && h.local.features.hyprpaper.enable && !c.local.features.neko5-slim-desktop.enable;
+              slim = s.local.features.neko5-slim-desktop.enable && !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
+              systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
+              identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
+              nativeOnly = builtins.match ".*enabled = false.*" sh.xdg.configFile."jay/config.toml".text != null;
+              drv = s.system.build.toplevel.drvPath;
+            }
+          ' | jq -e '.control and .slim and .systemPolicy and .identity and .nativeOnly and (.drv | endswith(".drv"))'
+          python3 -m py_compile scripts/desktop/slim-memory.py
+
   osu-first:
     name: Offline osu-first launcher
     runs-on: ubuntu-latest
