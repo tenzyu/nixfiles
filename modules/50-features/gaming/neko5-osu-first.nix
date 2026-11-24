@@ -25,11 +25,21 @@
         "default.clock.allowed-rates" = [48000];
       };
 
+      # Why: xdg-desktop-portal 1.20.4 fails PID namespace resolution
+      # (fstatat ns/pid: ENOTDIR) on restarted PipeWire-Pulse. Its data-loop
+      # then runs SCHED_OTHER and can miss the shared Q64 playback deadline.
+      # Direct RTKit restored RR/20 and main-thread nice -11 without raising
+      # privilege limits or changing quantum. Keep portal services for other
+      # functions; only bypass their realtime scheduling interface here.
+      services.pipewire.extraConfig.pipewire-pulse."90-neko5-rtkit"."module.rt.args" = {
+        "rtportal.enabled" = false;
+        "rtkit.enabled" = true;
+      };
+
       # Only the integrated ALC257 analog PCM output. Unlike global quantum
       # forcing, this avoids changing a USB microphone's capture scheduling.
-      # 128 frames is the aggressive first candidate, independent of BASS -128.
-      # Hardware/driver may reject or round this request; no improvement claimed.
-      # An unsupported period may be rounded by ALSA/PipeWire.
+      # The operator verified 128-frame periods and a 384-frame DMA buffer
+      # at 48 kHz; keep them independent of the graph quantum and BASS.
       services.pipewire.wireplumber.extraConfig."90-neko5-alc257-lowlatency" = {
         "monitor.alsa.rules" = [
           {
@@ -38,9 +48,11 @@
               "update-props" = {
                 "api.alsa.period-size" = 128;
                 "api.alsa.period-num" = 3;
-                # ALC257 is expected to be an HDA non-batch sink. 64 frames had been an
-                # unmeasured safety margin (1.333 ms at 48 kHz). Start with
-                # the documented default; any XRUN => restore 64 immediately.
+                # Why: after RTKit repaired both client data-loops, the
+                # H0 trial retained Q64 with zero observed ERR across 299
+                # valid playback samples, including Discord VC and video.
+                # Do not pay another 1.333 ms of nominal headroom for an
+                # RT privilege failure. On recurrence, diagnose before tuning.
                 "api.alsa.headroom" = 0;
                 # Avoid a permanently running graph while no client is active.
                 # This does not suspend the sink while osu! is playing.
@@ -80,7 +92,8 @@
 
       # Keep thermald and Intel microcode for platform correctness/thermal
       # safety; LZ4 zram and VM tuning are not draw-path latency optimizers.
-      # No FIFO/RT, IRQ pinning, i915 forced max freq or thermal protections off.
+      # No manual RT promotion, IRQ pinning, i915 forced max freq or thermal
+      # protections off. Audio RT admission remains under existing RTKit policy.
     };
   };
 

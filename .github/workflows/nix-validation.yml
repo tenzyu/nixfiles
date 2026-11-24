@@ -178,7 +178,10 @@ jobs:
               c = f.nixosConfigurations.neko5.config;
               h = c.home-manager.users.tenzyu;
               audioRulePath = "pipewire/client.conf.d/90-neko5-osu-quantum.conf";
-              other = f.nixosConfigurations.neko7.config.home-manager.users.tenzyu;
+              clientRtPath = "pipewire/client.conf.d/90-neko5-rtkit.conf";
+              rtArgs = { "rtportal.enabled" = false; "rtkit.enabled" = true; };
+              otherSystem = f.nixosConfigurations.neko7.config;
+              other = otherSystem.home-manager.users.tenzyu;
               routes = home: map (r: { inherit (r) group source target route; }) home.local.homeMigration.paths;
               check = compositor: s:
                 let
@@ -186,6 +189,9 @@ jobs:
                   audio = s.services.pipewire.extraConfig;
                   rate = audio.pipewire."90-neko5-rate"."context.properties";
                   rules = builtins.fromJSON sh.xdg.configFile.${audioRulePath}.text;
+                  clientRt = builtins.fromJSON sh.xdg.configFile.${clientRtPath}.text;
+                  pulseRt = audio.pipewire-pulse."90-neko5-rtkit";
+                  alsa = (builtins.head s.services.pipewire.wireplumber.extraConfig."90-neko5-alc257-lowlatency"."monitor.alsa.rules").actions."update-props";
                   names = map (p: p.name or "") s.environment.systemPackages;
                 in {
                   profile = s.local.features.jay.enable == (compositor == "jay") && sh.local.features.jay.enable == (compositor == "jay") && s.local.features.gamescope.enable == (compositor == "gamescope");
@@ -194,13 +200,15 @@ jobs:
                   systemPolicy = s.local.features.neko5-osu-first.enable && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
                   identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
                   audio = rate."default.clock.rate" == 48000 && rate."default.clock.allowed-rates" == [48000] && !(audio.pipewire ? "99-neko5-experiment") && !(audio.client ? "90-neko5-osu-quantum") && rules == { "stream.rules" = [{ matches = [{ "node.name" = "alsa_playback.osu!"; }]; actions.update-props."node.max-latency" = "64/48000"; }]; };
+                  realtime = s.security.rtkit.enable && clientRt == { "module.rt.args" = rtArgs; } && pulseRt == clientRt && !(audio.pipewire ? "90-neko5-rtkit") && !(audio.client ? "90-neko5-rtkit");
+                  hardwareAudio = alsa."api.alsa.headroom" == 0 && alsa."api.alsa.period-size" == 128 && alsa."api.alsa.period-num" == 3 && !alsa."api.alsa.disable-tsched";
                   drv = s.system.build.toplevel.drvPath;
                 };
             in {
               primary = check "jay" c;
               probe = check "gamescope" c.specialisation.neko5-gamescope.configuration;
               onlyProbe = builtins.attrNames c.specialisation == ["neko5-gamescope"];
-              audioIsolated = !(builtins.hasAttr audioRulePath other.xdg.configFile);
+              audioIsolated = !(builtins.hasAttr audioRulePath other.xdg.configFile) && !(builtins.hasAttr clientRtPath other.xdg.configFile) && !(otherSystem.services.pipewire.extraConfig.pipewire-pulse ? "90-neko5-rtkit");
               jay = h.xdg.configFile."jay/config.toml".text;
               alacrittyOsc52 = h.programs.alacritty.settings.terminal.osc52;
               herdrReusesStock = let
@@ -209,7 +217,7 @@ jobs:
               in builtins.length packages == 1 && (builtins.head packages).unwrapped.drvPath == stock.drvPath;
             }
           ' > /tmp/neko5-experiments.json
-          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .slim and .systemPolicy and .identity and .audio and .realtime and .hardwareAudio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
           python3 scripts/desktop/test-clipboard-integration.py

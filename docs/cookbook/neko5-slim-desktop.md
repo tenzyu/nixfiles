@@ -176,14 +176,28 @@ No hardware-cursor, scheduler or kernel tuning is changed.
 ## Research record
 
 See [append-only presentation research log](../research/neko5-presentation-log.md).
-Discord VC + osu! ERR remains unresolved. The former global Q64 and
-osu!-scoped forced quantum are superseded by a playback-scoped negotiation
-ceiling. Operator reports the transient max-latency trial matches the expected
-driver Q64 / follower 441. Verify the deployed XDG rule, Discord-only and
-combined graphs, quantum restoration after osu! exits, and steady-state
-40-minute ERR deltas, audible continuity and frame pacing. Keep RT priorities,
-kernel and ALSA policy unchanged. Do not use the legacy global-quantum lab
-for this acceptance test.
+The former global Q64 and osu!-scoped forced quantum are superseded by a
+playback-scoped negotiation ceiling. Portal realtime PID namespace lookup
+failed with ENOTDIR; direct RTKit restored both client data-loops to RR/20.
+The H0 trial observed zero ERR across 299 valid playback samples with
+Discord VC and video nodes active. Keep Q64/441, ALSA 128x3/H0 and RTKit
+limits unchanged; no new daemon or manual thread promotion.
+
+The permanent policy uses a Home Manager XDG client drop-in and NixOS
+`services.pipewire.extraConfig.pipewire-pulse`. Before switching, stop osu!
+and VC/video, remove only the temporary trial drop-ins (if present):
+`~/.config/pipewire/client.conf.d/99-neko5-rtkit-probe.*.conf`,
+`~/.config/pipewire/pipewire-pulse.conf.d/99-neko5-rtkit-probe.conf` and
+`~/.config/wireplumber/wireplumber.conf.d/99-neko5-headroom-probe.conf`
+(use the actual XDG config directory). Restart PipeWire-Pulse after applying
+and relaunch osu! and Discord; check both data-loops are RR/20, sink H0,
+driver Q64 and follower 441 while playing. Roll back to the prior generation
+and restart the affected processes if needed. The portal remains available
+for screen sharing and other interfaces.
+
+Deployed-rule verification, Discord-only/exit/restart quantum lifecycle,
+40-minute ERR deltas, audible continuity and frame pacing are still pending.
+Do not use the legacy global-quantum lab for this acceptance test.
 
 ## Daily software replacements
 

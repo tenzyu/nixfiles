@@ -642,3 +642,34 @@ Proposed research sequence (not implemented):
   No raw max-latency trial log provided in this conversation.
 - OPEN: deployed-rule verification, Discord VC isolation, exit/restart
   lifecycle, 40-minute ERR deltas and frame pacing remain pending.
+
+## 2026-11-25 / Audio — RT admission and zero added headroom
+
+- OBS: pre-fix server data-loop RR/20; osu! and restarted pipewire-pulse
+  data-loops TS; Pulse main nice 0. Portal 1.20.4 logged PID namespace
+  lookup failure for both clients: "Could not fstatat ns/pid: Not a
+  directory". The internal reason for ENOTDIR remains uninvestigated.
+- OBS: direct RTKit trial via module.rt.args (rtportal.enabled=false,
+  rtkit.enabled=true) restored osu! data-loop RR/20 (requested 83 clamped
+  by RTKit to 20) and Pulse data-loop RR/20, main nice -11. No RTKit limits
+  changed. The portal service itself remained enabled.
+- SRC: PipeWire 1.6.6 module-rt.c selects portal or direct RTKit at module
+  initialization; direct RTKit admission remains broker-controlled.
+  https://github.com/PipeWire/pipewire/blob/1.6.6/src/modules/module-rt.c#L937-L975
+- OBS: independently parsed all three operator pw-top dumps (3600, 4518,
+  4500 lines; 300 snapshots each). Every reported ERR was zero. Each
+  contained 299 running playback samples at driver Q64/48000 and osu!
+  request 441/44100. The latter two also contained Discord VC, capture and
+  video nodes; 298 samples per file had capture Q1024/48000 and WebRTC
+  capture 1440/48000. Operator confirmed sink headroom=0, period=128,
+  periods=3 after the third dump; no headroom field in the dumps themselves.
+  No timestamped duration, all-cycle latency, audible continuity or Draw
+  performance established by these dumps.
+- DEC: persist RTKit bypass for native clients in XDG and Pulse server in
+  standard NixOS drop-in, limited to the existing neko5 system feature
+  (native XDG also gated by osu-lazer). Keep existing Q64 ceiling, 441
+  request, capture negotiation, 48 kHz and H0/128x3. No new service, custom
+  option, kernel change or increased RT entitlement. Client XDG applies to
+  other native clients reading client.conf as well; not stream-specific.
+- OPEN: deployed config and CI evaluation, Discord-only/exit/restart
+  lifecycle, sustained 40-minute play, audible dropout and Draw acceptance.

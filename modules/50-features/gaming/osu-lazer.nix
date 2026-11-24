@@ -62,6 +62,19 @@
       # application's native latency request (441/44100) and constrain only
       # its playback graph's negotiated quantum, not independent capture.
       xdg.configFile = lib.mkIf (osConfig.local.features.neko5-osu-first.enable or false) {
+        # Why: portal PID namespace lookup fails (ENOTDIR) on neko5, leaving
+        # the osu! data-loop SCHED_OTHER. Direct RTKit restored SCHED_RR/20
+        # with unchanged Q64/441 and no extra ALSA headroom. XDG is visible
+        # inside the AppImage FHS namespace, unlike host /etc/pipewire.
+        # This is a client-context policy, not an osu!-only stream rule;
+        # do not raise RTKit limits or promote Draw/Update/GC threads.
+        "pipewire/client.conf.d/90-neko5-rtkit.conf".text = builtins.toJSON {
+          "module.rt.args" = {
+            "rtportal.enabled" = false;
+            "rtkit.enabled" = true;
+          };
+        };
+
         "pipewire/client.conf.d/90-neko5-osu-quantum.conf".text = builtins.toJSON {
           "stream.rules" = [
             {
