@@ -1,4 +1,4 @@
-{inputs, self, system, vm}: let
+{inputs, self, system, vm, tcg ? false}: let
   pkgs = inputs.nixpkgs.legacyPackages.${system};
   inherit (pkgs) lib;
   # Use the pinned upstream image builders, not external mutable image aliases.
@@ -34,7 +34,7 @@
   # Controlled mitigation, not a proven root-cause fix.
   vmFlag = lib.optionalString vm " --vm -c security.secureboot=false -c limits.memory=2048MiB -c limits.cpu=1";
 in pkgs.testers.runNixOSTest {
-  name = if vm then "compute-host-vm" else "compute-host-container";
+  name = if vm then "compute-host-vm${lib.optionalString tcg "-tcg"}" else "compute-host-container";
   qemu.forceAccel = true;
   nodes.machine = {
     imports = [
@@ -42,13 +42,14 @@ in pkgs.testers.runNixOSTest {
       ({lib, ...}: {
         options.local.features.incus.enable = lib.mkEnableOption "Incus fixture";
       })
-    ];
+    ] ++ lib.optional tcg ./incus-tcg-fixture.nix;
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
       # The nested QEMU process and image reads must not traverse the
       # outer test driver's 9p Nix store. Native block-backed EROFS store.
       useNixStoreImage = vm;
+      writableStore = true;
       memorySize = if vm then 7168 else 4096;
       diskSize = 24 * 1024;
     };
@@ -82,6 +83,7 @@ in pkgs.testers.runNixOSTest {
             raise
 
     machine.start()
+    machine.wait_for_unit("register-nix-paths.service")
     machine.wait_for_unit("incus-preseed.service")
     machine.wait_for_unit("incumbent.service")
     incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
@@ -109,7 +111,8 @@ in pkgs.testers.runNixOSTest {
     machine.fail(agent("incus delete lab:operator-owned --project default --force"))
     machine.succeed("incus info operator-owned")
     ${lib.optionalString vm ''
-      # Real nested KVM is mandatory for this test: no empty-VM substitute.
+      # Incus feature probing requires /dev/kvm in both variants; the
+      # unsuffixed KVM check also verifies hardware-accelerated guest execution.
       machine.succeed("test -c /dev/kvm")
     ''}
     machine.succeed(agent("incus launch lab:fixture lab:persistent${vmFlag}"))
@@ -127,6 +130,9 @@ in pkgs.testers.runNixOSTest {
         raise Exception("second instance launch failed; see diagnostics above")
     guest_ready("experiment")
     guest_ready("persistent")
+    ${lib.optionalString tcg ''
+      machine.succeed("grep -Fx persistent /run/incus-ci-tcg-launches; grep -Fx experiment /run/incus-ci-tcg-launches")
+    ''}
     machine.succeed(agent("incus exec lab:experiment -- su - developer -c 'id -un' | grep -x developer"))
     machine.succeed(agent("incus exec lab:experiment -- touch /tmp/experiment-marker"))
     machine.fail(agent("incus exec lab:persistent -- test -e /tmp/experiment-marker"))

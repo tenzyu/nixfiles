@@ -1,19 +1,20 @@
-{inputs, self, system, name, image, candidate, guestMemory, stateProbe}: let
+{inputs, self, system, name, image, candidate, guestMemory, stateProbe, tcg ? false}: let
   pkgs = inputs.nixpkgs.legacyPackages.${system};
 in pkgs.testers.runNixOSTest {
-  name = "incus-workload-${name}";
+  name = "incus-workload-${name}${pkgs.lib.optionalString tcg "-tcg"}";
   qemu.forceAccel = true;
   globalTimeout = 75 * 60;
   nodes.neko7 = {
     imports = [
       self.modules.nixos.incus
       ({lib, ...}: {options.local.features.incus.enable = lib.mkEnableOption "Incus fixture";})
-    ];
+    ] ++ pkgs.lib.optional tcg ../../10-foundations/_internal/incus-tcg-fixture.nix;
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
       # Native local store image instead of nested QEMU/image I/O over 9p.
       useNixStoreImage = true;
+      writableStore = true;
       memorySize = 7168;
       diskSize = 48 * 1024;
       additionalPaths = [image candidate];
@@ -23,6 +24,7 @@ in pkgs.testers.runNixOSTest {
   testScript = ''
     import shlex
     neko7.start()
+    neko7.wait_for_unit("register-nix-paths.service")
     neko7.wait_for_unit("incus-preseed.service")
     neko7.succeed("test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp ${../../../justfile} /root/fixture/justfile; cp ${../../../tools/instance-ops.sh} /root/fixture/tools/instance-ops.sh")
     recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
@@ -44,6 +46,9 @@ in pkgs.testers.runNixOSTest {
             print(output)
             diagnose(name)
             raise Exception("exact-image instance creation/readiness failed")
+        ${pkgs.lib.optionalString tcg ''
+          neko7.succeed("grep -Fx " + shlex.quote(name) + " /run/incus-ci-tcg-launches")
+        ''}
     # Exact production image, no synthetic image substitution. The private
     # artifact entrypoints are precisely the steps used by the public recipes
     # after nix build; public build wrappers are tested separately.
@@ -108,6 +113,9 @@ in pkgs.testers.runNixOSTest {
     neko7.succeed("incus list local: name=restore --format json | jq -e 'length == 1 and .[0].status == \"Stopped\" and ([.[0].expanded_devices[] | select(.type == \"nic\")] | length == 0)'")
     neko7.succeed("incus start local:restore --project default")
     ready("restore")
+    ${pkgs.lib.optionalString tcg ''
+      neko7.succeed("grep -Fx restore /run/incus-ci-tcg-launches")
+    ''}
     assert run("restore", "readlink -e /run/current-system") == original_generation
     assert run("restore", ${builtins.toJSON stateProbe.verify}) == original_state
     neko7.fail(guest("restore", "test -e /etc/neko7/fixture-release"))

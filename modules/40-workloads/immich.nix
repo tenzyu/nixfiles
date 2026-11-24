@@ -35,10 +35,8 @@ in {
       name = "immich";
       extraModules = [{environment.etc."neko7/fixture-release".text = "candidate";}];
     }).neko7-immich-system;
-  in lib.mkIf (system == "x86_64-linux") {
-    packages = releases;
-    checks.incus-workload-immich = import ./_internal/incus-lifecycle.nix {
-      inherit inputs self system candidate;
+    lifecycle = tcg: import ./_internal/incus-lifecycle.nix {
+      inherit inputs self system candidate tcg;
       name = "immich";
       image = releases.neko7-immich-image;
       guestMemory = "4GiB";
@@ -47,6 +45,10 @@ in {
         verify = "grep -Fx preserved /var/lib/immich/fixture-data; runuser -u postgres -- psql -At -d immich -c 'SELECT value FROM fixture_acceptance' | grep -Fx 82";
       };
     };
+  in lib.mkIf (system == "x86_64-linux") {
+    packages = releases;
+    checks.incus-workload-immich = lifecycle false;
+    checks.incus-workload-immich-tcg = lifecycle true;
     checks.personal-workload-immich = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {
