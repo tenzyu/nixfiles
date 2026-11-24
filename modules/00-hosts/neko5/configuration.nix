@@ -30,28 +30,34 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeiSmoim2RKyd6smA5t86Pr7Lt+nOF1oXEHQjsw74O5 neko7-to-neko5"
     ];
 
-    # Boot-menu experiment. Keep the ordinary neko5 generation as the control.
-    specialisation.neko5-slim.configuration = {lib, ...}: {
-      local.features = {
-        neko5-slim-desktop.enable = true;
-        hyprland-core.enable = lib.mkForce false;
-        hyprland-tenzyu.enable = lib.mkForce false;
-        wayland-session.enable = lib.mkForce false;
-      };
-      local.users.tenzyu.features = {
-        hyprland-core.enable = lib.mkForce false;
-        hyprland-tenzyu.enable = lib.mkForce false;
-        waybar.enable = lib.mkForce false;
-        hyprpaper.enable = lib.mkForce false;
-        # The system-side HID/audio/thermal policy stays enabled; these
-        # user-side shortcuts and launchers specifically target Hyprland.
-        neko5-osu-first.enable = lib.mkForce false;
-      };
-      home-manager.users.tenzyu.xdg.configFile = {
-        "waybar/config".enable = false;
-        "waybar/style.css".enable = false;
-      };
-    };
+    # A module in imports stays opaque to the seed's recursive freeform merge.
+    # Keep priority wrappers native until the child NixOS module is evaluated.
+    imports = [
+      ({...}: {
+        # Boot-menu experiment. Keep the ordinary neko5 generation as the control.
+        specialisation.neko5-slim.configuration = {lib, ...}: {
+          local.features = {
+            neko5-slim-desktop.enable = true;
+            hyprland-core.enable = lib.mkForce false;
+            hyprland-tenzyu.enable = lib.mkForce false;
+            wayland-session.enable = lib.mkForce false;
+          };
+          local.users.tenzyu.features = {
+            hyprland-core.enable = lib.mkForce false;
+            hyprland-tenzyu.enable = lib.mkForce false;
+            waybar.enable = lib.mkForce false;
+            hyprpaper.enable = lib.mkForce false;
+            # The system-side HID/audio/thermal policy stays enabled; these
+            # user-side shortcuts and launchers specifically target Hyprland.
+            neko5-osu-first.enable = lib.mkForce false;
+          };
+          home-manager.users.tenzyu.xdg.configFile = {
+            "waybar/config".enable = false;
+            "waybar/style.css".enable = false;
+          };
+        };
+      })
+    ];
 
     local = {
       context = {
