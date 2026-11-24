@@ -1,17 +1,18 @@
 # neko5 compositor experiments
 
-Keep the ordinary neko5 Hyprland generation as recovery. The two boot
-specialisations share the physical host, canonical HOME routes, kernel,
+Jay is the normal neko5 generation; Gamescope is the only specialisation.
+The two boot profiles share the physical host, canonical HOME routes, kernel,
 Mesa/i915 system driver, official osu! package, HID, audio, thermal, network
 and SSH policy. No new flake inputs, kernel watermark tuning or HOME migration.
 Only one native DRM session runs at a time.
 
 | Boot entry | Role | Desktop usability |
 |---|---|---|
-| neko5-slim | Jay 1.15.0 reference | Ten numbered workspaces, Super+Q close |
+| neko5 | Jay 1.15.0 reference | Ten numbered workspaces, Super+Q close |
 | neko5-gamescope | Gamescope 3.16.23 standalone DRM game probe | **Not eligible:** no desktop workspaces; internal Xwayland required even for native clients |
 
-Jay is the selected daily baseline. Sway, KWin and Weston were retired
+Jay is the selected daily baseline and primary boot. Hyprland modules remain
+in the repository but are disabled on neko5; no dedicated fallback entry. Sway, KWin and Weston were retired
 by the operator; their experimental code remains in Git history, not in
 new generations. Gamescope remains a standalone presentation research
 probe, not an eligible desktop replacement. It uses native xdg-shell
@@ -29,11 +30,10 @@ accesses server 0). Do not add desktop features merely to qualify it.
   Hz at 60 Hz); do not change game config or renderer between profiles.
   Confirm the in-game settings on every boot. These mutable game settings
   are operator-verified, not overwritten by Nix.
-- PipeWire **64 frames / 48000 Hz**, min/default/max 64 in every specialisation.
+- PipeWire **64 frames / 48000 Hz**, min/default/max 64 in both profiles.
   Verify active output and osu! in `pw-top` while playing. ALSA period-size 128,
   count 3 retained from existing policy. If graph rate or quantum differs,
-  invalidate the run. Do not silently lower constraints. Ordinary Hyprland
-  fallback is untouched; manually match settings if used as an extra control.
+  invalidate the run. Do not silently lower constraints. Previous boot generations remain available until the operator deletes them.
 - Direct scanout requested where supported, tearing permitted for fullscreen,
   no VRR requested, no overlays/capture during performance runs. Neither
   eligibility nor permission proves actual hardware scanout or async flips.
@@ -51,15 +51,13 @@ new revision has passed.
 Build from the PR checkout without activation first:
 
 ```sh
-for p in slim gamescope; do
-  nix eval --raw ".#nixosConfigurations.neko5.config.specialisation.neko5-$p.configuration.system.build.toplevel.drvPath"
-done
-# Choose one to build first, or build the entire generation to stage all entries.
-nix build --no-link .#nixosConfigurations.neko5.config.specialisation.neko5-slim.configuration.system.build.toplevel
+nix eval --raw .#nixosConfigurations.neko5.config.system.build.toplevel.drvPath
+nix eval --raw .#nixosConfigurations.neko5.config.specialisation.neko5-gamescope.configuration.system.build.toplevel.drvPath
+nix build --no-link .#nixosConfigurations.neko5.config.system.build.toplevel
 sudo nixos-rebuild boot --flake .#neko5
 ```
 
-Staging the parent generation builds both specialisations (extra closure
+Staging the parent generation builds Jay and the Gamescope specialisation (extra closure
 and build time). Only run the last command after reviewing CI, build and
 existing HOME admission requirements. Do not switch during an active session.
 Reboot into the desired systemd-boot entry; log in on the local VT and run
@@ -83,11 +81,11 @@ For Gamescope exit the game; it does not have desktop workspace controls.
 
 For recovery use another VT (Ctrl+Alt+F2) or SSH. `loginctl list-sessions`
 and `loginctl terminate-session SESSION_ID` only for the experimental
-local session after saving work; do not terminate SSH. Reboot into ordinary
-neko5 or the previous known-good generation if needed. No automatic lock UI
+local session after saving work; do not terminate SSH. Reboot into the previous known-good generation if needed. No Hyprland
+fallback specialisation is generated. No automatic lock UI
 in these trial sessions: do not leave them unattended. Portal/IME/lock/suspend
 and authorization remain runtime acceptance checks; Gamescope
-use generic GTK portal only in this trial (no promised screen sharing).
+uses generic GTK portal only in this trial (no promised screen sharing).
 
 ## Record comparable results
 
@@ -139,12 +137,23 @@ the regression discussion; the exact runtime settings were not captured.
 Jay's Xcursor loader uses explicit Adwaita 24 and a store-backed search path
 before compositor startup; do not disable hardware cursor as a workaround.
 Fcitx5 is started from Jay's graphics-initialized hook using the existing
-Mozc-enabled package. Its tagged ordinary connection receives input-method
-capability (plus normal desktop capabilities) rather than all privileged
-protocols. Super+Ctrl+I restarts the tagged Fcitx instance if needed. Existing
+Mozc-enabled package. The tagged ordinary-socket attempt did not restore Japanese input. Start only
+the trusted Nix-packaged Fcitx5 with Jay's documented privileged socket
+(`privileged = true`); this grants all Jay protocol capabilities to that
+process, not root. Super+Ctrl+I restarts Fcitx5, Super+I toggles its active
+state via fcitx5-remote. QT_IM_MODULE=fcitx is scoped to Jay session apps;
+GTK native text-input-v3 remains the first path. Existing
 user IME profile/dictionaries are retained; use fcitx5-configtool to select
 Mozc if it is absent. Verify cursor in empty workspace and Firefox; verify
 Ctrl+Space or the existing IME trigger, preedit and Japanese commit in Firefox
-and other native clients. Some toolkits may need per-app IM module settings.
+and other native clients. For GTK fallback, launch a new GTK app with GTK_IM_MODULE=fcitx and test.
+Run fcitx5-diagnose, fcitx5-remote and fcitx5-remote -n if still broken.
+Do not replace existing dictionaries or force user profile changes.
 Recheck 480 Hz Draw, direct scanout, and Q64 with the new IME process resident.
 No hardware-cursor, scheduler or kernel tuning is changed.
+
+## Research record
+
+See [append-only presentation research log](../research/neko5-presentation-log.md).
+Discord VC + osu! at Q64 is an open stability issue; do not change quantum,
+RT priorities, kernel or ALSA policy in the primary migration commit.

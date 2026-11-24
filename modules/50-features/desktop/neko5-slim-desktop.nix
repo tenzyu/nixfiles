@@ -33,6 +33,7 @@
         # Jay resolves server cursors before reading the TOML child environment.
         export XCURSOR_THEME=Adwaita
         export XCURSOR_SIZE=24
+        export QT_IM_MODULE=fcitx
         export XCURSOR_PATH=${pkgs.adwaita-icon-theme}/share/icons:/run/current-system/sw/share/icons
       '' }
       echo "neko5 experiment: ${compositor}; physical 1366x768, osu! fullscreen / Limit8x; PipeWire 64/48000."
@@ -64,7 +65,7 @@
     options.neko5Experiment.compositor = lib.mkOption {
       type = lib.types.enum ["jay" "gamescope"];
       default = "jay";
-      description = "Compositor for the isolated neko5 presentation experiment.";
+      description = "Primary Jay desktop or standalone Gamescope presentation probe.";
     };
 
     config = lib.mkIf config.local.features.neko5-slim-desktop.enable (lib.mkMerge [
@@ -72,7 +73,7 @@
         assertions = [
           {
             assertion = config.local.features.neko5-hardware.enable && !config.programs.hyprland.enable;
-            message = "neko5-slim-desktop is an alternative neko5 session, not a second compositor.";
+            message = "neko5-slim-desktop requires neko5 hardware and exclusive compositor ownership.";
           }
         ];
 
@@ -122,15 +123,9 @@
           tearing.mode = "variant3"
           vrr.mode = "never"
           on-graphics-initialized = [
-            { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH"] },
-            { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], tag = "neko5-fcitx5" } },
+            { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH", "QT_IM_MODULE"] },
+            { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], privileged = true } },
           ]
-
-          # The normal socket supports per-client capability rules. Grant only
-          # input-method (plus ordinary desktop capabilities) to this tagged IME.
-          [[clients]]
-          match.tag = "neko5-fcitx5"
-          capabilities = ["input-method", "layer-shell", "drm-lease"]
 
           [[outputs]]
           match.connector = "eDP-1"
@@ -171,7 +166,8 @@
           logo-q = "close"
           logo-ctrl-shift-q = "quit"
           logo-shift-r = "reload-config-toml"
-          logo-ctrl-i = { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], tag = "neko5-fcitx5" } }
+          logo-ctrl-i = { type = "exec", exec = { prog = "${config.i18n.inputMethod.package}/bin/fcitx5", args = ["-r"], privileged = true } }
+          logo-i = { type = "exec", exec = ["${config.i18n.inputMethod.package}/bin/fcitx5-remote", "-t"] }
           logo-1 = { type = "show-workspace", name = "1" }
           logo-shift-1 = [{ type = "move-to-workspace", name = "1" }, { type = "show-workspace", name = "1" }]
           logo-2 = { type = "show-workspace", name = "2" }

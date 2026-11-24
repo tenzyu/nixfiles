@@ -10,12 +10,13 @@ jay = tomllib.loads(data["jay"])
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"
-assert jay["clients"] == [{"match": {"tag": "neko5-fcitx5"},
-                            "capabilities": ["input-method", "layer-shell", "drm-lease"]}]
+assert not jay.get("clients")
 ime = jay["on-graphics-initialized"][1]["exec"]
 assert ime["prog"].endswith("/bin/fcitx5") and ime["args"] == ["-r"]
-assert ime["tag"] == "neko5-fcitx5" and not ime.get("privileged", False)
+assert ime["privileged"] is True and "tag" not in ime
 assert keys["logo-ctrl-i"]["exec"] == ime
+assert keys["logo-i"]["exec"][0].endswith("/bin/fcitx5-remote")
+assert keys["logo-i"]["exec"][1:] == ["-t"]
 assert jay["vrr"]["mode"] == "never"
 assert jay["xwayland"]["enabled"] is False
 assert jay["outputs"][0]["mode"] == {"width": 1366, "height": 768}

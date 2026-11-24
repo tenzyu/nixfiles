@@ -168,7 +168,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Evaluate all neko5 experiment specialisations and preserve the control
+      - name: Evaluate primary Jay and standalone Gamescope
         shell: bash
         run: |
           set -euo pipefail
@@ -190,17 +190,14 @@ jobs:
                   audio = audio."default.clock.rate" == 48000 && audio."default.clock.allowed-rates" == [48000] && audio."default.clock.quantum" == 64 && audio."default.clock.min-quantum" == 64 && audio."default.clock.max-quantum" == 64;
                   drv = s.system.build.toplevel.drvPath;
                 };
-              specs = {
-                neko5-slim = "jay";
-                neko5-gamescope = "gamescope";
-              };
             in {
-              control = c.programs.hyprland.enable && h.local.features.waybar.enable && h.local.features.hyprpaper.enable && !c.local.features.neko5-slim-desktop.enable;
-              profiles = builtins.mapAttrs (name: compositor: check compositor c.specialisation.${name}.configuration) specs;
-              jay = c.specialisation.neko5-slim.configuration.home-manager.users.tenzyu.xdg.configFile."jay/config.toml".text;
+              primary = check "jay" c;
+              probe = check "gamescope" c.specialisation.neko5-gamescope.configuration;
+              onlyProbe = builtins.attrNames c.specialisation == ["neko5-gamescope"];
+              jay = h.xdg.configFile."jay/config.toml".text;
             }
           ' > /tmp/neko5-experiments.json
-          jq -e '.control and (.profiles | length == 2 and all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
+          jq -e '.onlyProbe and ([.primary,.probe] | all(.[]; .profile and .slim and .systemPolicy and .identity and .audio and (.drv | endswith(".drv"))))' /tmp/neko5-experiments.json
           python3 scripts/desktop/check-experiment-config.py /tmp/neko5-experiments.json
           python3 -m py_compile scripts/desktop/slim-memory.py
 

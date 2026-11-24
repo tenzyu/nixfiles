@@ -30,39 +30,20 @@
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBeiSmoim2RKyd6smA5t86Pr7Lt+nOF1oXEHQjsw74O5 neko7-to-neko5"
     ];
 
-    # A module in imports stays opaque to the seed's recursive freeform merge.
-    # Keep priority wrappers native until the child NixOS module is evaluated.
+    # Jay is the normal neko5 generation. Only Gamescope is an alternative
+    # native DRM session. Keep the old Hyprland modules in the repository.
     imports = [
-      ({lib, ...}: {
-        # Separate native KMS sessions, never nested. Keep the original entry
-        # unchanged and preserve priority wrappers until child evaluation.
-        specialisation = lib.mapAttrs (_: compositor: {
-          configuration = {lib, ...}: {
-            neko5Experiment.compositor = compositor;
-            local.features = {
-              neko5-slim-desktop.enable = true;
-              hyprland-core.enable = lib.mkForce false;
-              hyprland-tenzyu.enable = lib.mkForce false;
-              wayland-session.enable = lib.mkForce false;
-            };
-            local.users.tenzyu.features = {
-              hyprland-core.enable = lib.mkForce false;
-              hyprland-tenzyu.enable = lib.mkForce false;
-              waybar.enable = lib.mkForce false;
-              hyprpaper.enable = lib.mkForce false;
-              neko5-osu-first.enable = lib.mkForce false;
-            };
-            home-manager.users.tenzyu.xdg.configFile = {
-              "waybar/config".enable = false;
-              "waybar/style.css".enable = false;
-            };
-          };
-        }) {
-          neko5-slim = "jay";
-          neko5-gamescope = "gamescope";
+      ({...}: {
+        specialisation.neko5-gamescope.configuration = {lib, ...}: {
+          neko5Experiment.compositor = lib.mkForce "gamescope";
         };
       })
     ];
+    neko5Experiment.compositor = "jay";
+    home-manager.users.tenzyu.xdg.configFile = {
+      "waybar/config".enable = false;
+      "waybar/style.css".enable = false;
+    };
 
     local = {
       context = {
@@ -97,7 +78,10 @@
         fcitx5.enable = true;
 
         intel-graphics.enable = true;
-        wayland-session.enable = true;
+        wayland-session.enable = false;
+        neko5-slim-desktop.enable = true;
+        hyprland-core.enable = false;
+        hyprland-tenzyu.enable = false;
         desktop-performance.enable = true;
         gaming-mouse.enable = true;
         open-tablet-driver.enable = true;
@@ -148,18 +132,19 @@
 
         kitty.enable = true;
         rofi.enable = true;
-        waybar.enable = true;
+        waybar.enable = false;
         mako.enable = true;
         wlogout.enable = true;
-        hyprpaper.enable = true;
+        hyprpaper.enable = false;
         packages-desktop.enable = true;
         firefox.enable = true;
         chromium.enable = true;
         zed-editor.enable = false;
-        hyprland-tenzyu.enable = true;
+        hyprland-tenzyu.enable = false;
+        hyprland-core.enable = false;
         obsidian.enable = true;
         osu-lazer.enable = true;
-        neko5-osu-first.enable = true;
+        neko5-osu-first.enable = false;
         parsec.enable = true;
         dolphin.enable = true;
         steam.enable = true;
