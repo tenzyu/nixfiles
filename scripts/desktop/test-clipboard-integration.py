@@ -37,7 +37,7 @@ case "${PICK:-first}" in
   *) head -n 1 "$FIXTURE/menu" ;;
 esac""")
         self.stub("tofi-run", 'printf "%s\\n" "${COMMAND:-}"')
-        self.stub("jay", """printf '%s\\n' "$@" > "$FIXTURE/jay"
+        self.stub("jay", """printf '%s\\n' "$@" > "$FIXTURE/jay-calls"
 [[ -z "${RESTORE_FAIL:-}" ]]""")
         self.stub("alacritty", 'printf "%s\\n" "$@" > "$FIXTURE/terminal"')
         self.stub("notify-send", 'printf "%s\\n" "$*" >> "$FIXTURE/notices"')
@@ -73,17 +73,17 @@ esac""")
     def test_restore(self):
         result = self.picker("1\t日本語\n2\tabcdefghijklmnopqrstuvwxyz1234\n", PICK="last")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "jay").read_text(), "run-privileged\ncclip\ncopy\n2\n")
+        self.assertEqual((self.root / "jay-calls").read_text(), "run-privileged\ncclip\ncopy\n2\n")
 
     def test_cancel_and_invalid(self):
         self.assertEqual(self.picker("1\ttext\n", PICK="cancel").returncode, 0)
         self.assertEqual(self.picker("1\ttext\n", PICK="invalid").returncode, 1)
-        self.assertFalse((self.root / "jay").exists())
+        self.assertFalse((self.root / "jay-calls").exists())
 
     def test_empty_and_failure(self):
         self.assertEqual(self.picker("").returncode, 0)
         self.assertEqual(self.picker("1\ttext\n", LIST_FAIL="1").returncode, 1)
-        self.assertFalse((self.root / "jay").exists())
+        self.assertFalse((self.root / "jay-calls").exists())
         self.assertEqual(self.picker("1\ttext\n", RESTORE_FAIL="1").returncode, 1)
 
     def test_private_daemon_directory(self):
@@ -109,7 +109,7 @@ esac""")
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "ran").read_text(), "ok")
         self.assertIn("--working-directory", (self.root / "terminal").read_text())
-        self.assertEqual((self.root / "jay").read_text(), "control-center\n")
+        self.assertEqual((self.root / "jay-calls").read_text(), "control-center\n")
 
 
 if __name__ == "__main__":
