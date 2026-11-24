@@ -75,8 +75,8 @@ Jay shortcuts:
 | Super+Shift+1..9,0 | Move focused window to workspace and follow |
 | Super+F | Fullscreen |
 | Super+Enter | Alacritty |
-| Super+Space | Application launcher |
-| Super+V | Clipboard history via cliphist/rofi |
+| Super+Space | tofi application launcher |
+| Super+V | Clipboard history via richclip/tofi |
 | Super+Shift+S / Print | Copy area / full display screenshot |
 | Super+Tab / Super+Shift+Tab | Cycle numbered workspaces forward / backward |
 | Super+Shift+V | Vertical split |
@@ -87,9 +87,11 @@ Jay shortcuts:
 Jay's native named-action cycle tracks the last workspace selected by its
 keyboard bindings (1–10, including empty workspaces); mouse/bar changes
 are not reflected in this state. Numbered keys resynchronize the cycle.
-Clipboard text/image watchers start with Jay's privileged socket. Screenshots
-use grim/slurp, not Hyprland's grimblast. Selection cancellation leaves the
-clipboard unchanged.
+The single richclipd Wayland capture process starts on Jay's privileged socket;
+the tofi picker runs on the ordinary socket and restores an item by UUID via
+richclip IPC. Screenshots still use grim/slurp and wl-copy, not Hyprland's
+grimblast. Selection cancellation leaves the clipboard unchanged. Existing
+cliphist data is untouched and its CLI remains available for legacy history.
 
 For Gamescope exit the game; it does not have desktop workspace controls.
 
@@ -172,3 +174,29 @@ See [append-only presentation research log](../research/neko5-presentation-log.m
 Discord VC + osu! ERR remains unresolved. Global Q64 is superseded by
 the osu!-playback-specific rule on operator request. Keep RT priorities,
 kernel and ALSA policy unchanged. Hardware verification pending.
+
+## Daily software replacements
+
+The normal neko5 generation selects Alacritty, Fileman, tofi, dua-cli,
+richclip and GitUI. Kitty, Dolphin, Rofi, ncdu and Lazygit are no longer
+selected on this host. Ark and the existing osu! skin MIME association remain:
+Fileman does not handle opening an arbitrary archive on its command line or
+recognize .osk as an archive in this upstream revision. QDirStat and dust
+remain available for treemap and summary use. The GTK FileChooser portal is
+unchanged. No historical clipboard migration or deletion is performed.
+
+Fileman and richclip are source-packaged from exact upstream Git revisions
+with their upstream Cargo.lock; no shell installer or unpinned source is used.
+Richclip's upstream capture policy skips token-like runs of 30 or more ASCII
+characters (including some commit hashes), caps each format at 4 MiB and
+expires items after 30 days by default. Direct clipboard copy/paste remains
+independent of history. If richclipd survives a compositor shutdown, stop the
+old instance before starting Jay again; its single-instance socket rejects
+duplicate daemons. No cloud labelling worker is installed.
+
+Smoke test after building and booting: Super+Enter, Super+Space,
+Super+V (text, HTML and screenshot restore, cancel), Fileman copy/move/trash,
+archive extraction, .osk association, USB/network share, `dua i` and `lg`.
+Check Japanese input and Herdr clipboard as before. Keep existing generation
+for rollback. No full performance A/B is required for this selection;
+actual game/audio/Wayland behavior still needs a local smoke test.

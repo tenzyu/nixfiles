@@ -4,7 +4,6 @@
       # Install the config files normally. Apply reloads at the next app launch,
       # outside Home Manager activation and its protected HOME write checks.
       xdg.configFile = lib.genAttrs [
-        "kitty/kitty.conf"
         "mako/config"
         "waybar/config"
         "waybar/style.css"
@@ -76,6 +75,7 @@
 
         pipewire.enable = true;
         udiskie.enable = true;
+        fileman.enable = true;
         fcitx5.enable = true;
 
         intel-graphics.enable = true;
@@ -115,7 +115,9 @@
         zsh.enable = true;
         nh.enable = true;
         nix-tools.enable = true;
+        dua.enable = true;
         git-tools.enable = true;
+        gitui.enable = true;
         disk-tools.enable = true;
         herdr.enable = true;
 
@@ -132,8 +134,11 @@
         zoxide.enable = true;
 
         jay.enable = true;
-        kitty.enable = true;
-        rofi.enable = true;
+        kitty.enable = false;
+        alacritty.enable = true;
+        rofi.enable = false;
+        tofi.enable = true;
+        richclip.enable = true;
         waybar.enable = false;
         mako.enable = true;
         wlogout.enable = true;
@@ -148,7 +153,8 @@
         osu-lazer.enable = true;
         neko5-osu-first.enable = false;
         parsec.enable = true;
-        dolphin.enable = true;
+        dolphin.enable = false;
+        fileman.enable = true;
         steam.enable = true;
         discord.enable = true;
         prismlauncher.enable = true;

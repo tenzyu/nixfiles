@@ -10,9 +10,8 @@
         jq
         jqp
         zip
-        ncdu
         crosspipe
-      ];
+      ] ++ lib.optional (!config.local.features.dua.enable) pkgs.ncdu;
     };
   };
 }

@@ -60,7 +60,10 @@
     ...
   }: let
     jay = pkgs.unstable.jay;
-    terminal = pkgs.unstable.alacritty;
+    terminal = if config.programs.alacritty.enable then config.programs.alacritty.package else pkgs.unstable.alacritty;
+    hasRichclip = config.local.features.richclip.enable;
+    hasTofi = config.local.features.tofi.enable;
+    richclip = pkgs.unstable.callPackage ../../../assets/packages/richclip.nix {};
     hasIme = osConfig != null && osConfig.i18n.inputMethod.enable && osConfig.i18n.inputMethod.type == "fcitx5";
     ime = if hasIme then osConfig.i18n.inputMethod.package else null;
     clipboardHistory = ''
@@ -94,7 +97,9 @@
     '') (lib.range 1 10);
   in {
     config = lib.mkIf config.local.features.jay.enable {
-      home.packages = [terminal pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.cliphist pkgs.wayland-utils];
+      home.packages = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.wayland-utils]
+        ++ lib.optional (!config.programs.alacritty.enable) terminal
+        ++ lib.optional (!hasRichclip) pkgs.cliphist;
       xdg.configFile."jay/config.toml".text = ''
           # Native Wayland desktop.
           keymap = """
@@ -114,8 +119,12 @@
           vrr.mode = "never"
           on-graphics-initialized = [
             { type = "exec", exec = ["${pkgs.dbus}/bin/dbus-update-activation-environment", "--systemd", "WAYLAND_DISPLAY", "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "XDG_SESSION_DESKTOP", "XCURSOR_THEME", "XCURSOR_SIZE", "XCURSOR_PATH", "QT_IM_MODULE"] },
+            ${if hasRichclip then ''
+              { type = "exec", exec = { prog = "${richclip}/bin/richclipd", args = [], privileged = true } },
+            '' else ''
             { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "text", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
             { type = "exec", exec = { prog = "${lib.getExe' pkgs.wl-clipboard "wl-paste"}", args = ["--type", "image", "--watch", "${lib.getExe pkgs.cliphist}", "store"], privileged = true } },
+            ''}
             ${lib.optionalString hasIme ''
               { type = "exec", exec = { prog = "${ime}/bin/fcitx5", args = ["-r"], privileged = true } },
             ''}
@@ -144,7 +153,7 @@
 
           [shortcuts]
           logo-Return = { type = "exec", exec = "${lib.getExe terminal}" }
-          logo-space = { type = "exec", exec = ["rofi", "-show", "drun"] }
+          logo-space = { type = "exec", exec = ${builtins.toJSON (if hasTofi then ["${pkgs.tofi}/bin/tofi-drun" "--drun-launch=true" "--terminal=alacritty"] else ["rofi" "-show" "drun"])} }
           logo-b = { type = "exec", exec = "firefox" }
           logo-o = { type = "exec", exec = "osu-lazer" }
           logo-h = "focus-left"
@@ -157,7 +166,11 @@
           logo-shift-l = "move-right"
           logo-d = "split-horizontal"
           logo-shift-v = "split-vertical"
-          logo-v = { type = "exec", exec = { shell = ${builtins.toJSON clipboardHistory} } }
+          ${if hasRichclip then ''
+            logo-v = { type = "exec", exec = ["richclip-picker"] }
+          '' else ''
+            logo-v = { type = "exec", exec = { shell = ${builtins.toJSON clipboardHistory} } }
+          ''}
           logo-shift-s = { type = "exec", exec = { shell = ${builtins.toJSON screenshotArea}, privileged = true } }
           Print = { type = "exec", exec = { shell = "${lib.getExe pkgs.grim} - | ${lib.getExe' pkgs.wl-clipboard "wl-copy"} --type image/png", privileged = true } }
           logo-Tab = "$next-workspace"
