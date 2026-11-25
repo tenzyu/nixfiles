@@ -4,9 +4,6 @@ title: "Safety, ownership and acceptance"
 description: "Durable configuration constraints and explicit operational gates"
 status: stable
 sources:
-  - id: gc
-    resource: https://github.com/tenzyu/nixfiles/blob/2fc7eda8beb95be233255483e8da14bbe48882b6/assets/nix-store-clean/cli.py
-    title: "Nix store cleaner"
   - id: home
     resource: https://github.com/tenzyu/nixfiles/blob/3cea74d0db3dc6409045470f8be76688146216de/modules/50-features/home/home-migration.nix
     title: "Reviewed Home holding and cutover declaration"
@@ -78,7 +75,7 @@ Parsec owns its saved settings and controller mappings. The #64 implementation s
 
 The #63 Minecraft operator keeps the same-boot admission guard after a manager job whose result is unconfirmed. Diagnose both managers, then clear the guard only after reconciliation while holding the original lock. A failed post-stop backup never requests an automatic restart. Use the reported archive target to verify any candidate archive separately from service recovery. Keep ARK and Rust disabled on neko7 and leave updates, retention and sharing with their existing owners. [Minecraft runbook](../../modules/50-features/game-servers/_internal/minecraft-backup/README.md#diagnose-and-recover).
 
-The local Safety Core operations follow real consumers. Keep Python for the Home mover, Shell for Minecraft publication, Parsec's anonymous stage, and the separate TypeScript process boundaries. Keep Rust as an opt-in lookup fixture outside host closures. No proposed implementation or packaged fixture substitutes for host acceptance. [Consumer and port decisions](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md#q8--safety-core-and-rust).
+The local Safety Core operations follow real consumers. Keep Python for the Home mover, Shell for Minecraft publication, Parsec's anonymous stage, and the separate TypeScript process boundaries. The Rust lookup experiment has been retired to the [archive](../archive/README.md); no Rust safety port is maintained. No proposed implementation or packaged fixture substitutes for host acceptance. [Consumer and port decisions](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md#q8--safety-core-and-rust).
 
 ## Evidence requirements
 

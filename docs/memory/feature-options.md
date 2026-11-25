@@ -72,8 +72,7 @@ A Git revert restores the original source layout and HM declaration.
 guarded by `hyprland-tenzyu.enable` instead of its own selection, making the
 feature toggle misleading. Its two existing XWayland rules are now a
 `60-integrations/desktop` contribution to `hyprland-tenzyu`, with no rule
-content changes. A host regression asserts both rules remain evaluated and
-the unreachable feature name is no longer advertised by the typed registry.
+content changes. The former migration regression is archived; inspect the integration source and evaluated rules when changing this capability.
 
 ## Native Nix operators vs the composition helpers
 
