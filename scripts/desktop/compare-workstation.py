@@ -45,13 +45,19 @@ def compare(before, after):
         require(params.count(PROFILING) == 1, f"{profile}: profiling")
         if PROFILING not in old["policy"]["kernelParams"]:
             policy["kernelParams"] = [p for p in params if p != PROFILING]
+        mime = dict(policy["mime"])
+        require(old["policy"]["mime"]["inode/directory"] == ["dev.fileman.Files.desktop"] and
+                mime["inode/directory"] == ["thunar.desktop"],
+                f"{profile}: unexpected file manager association")
+        mime["inode/directory"] = old["policy"]["mime"]["inode/directory"]
+        policy["mime"] = mime
         require(old["policy"] == policy, f"{profile}: protected native policy changed")
         old_names, new_names = (Counter(s["homePackages"]) for s in (old, new))
-        require(old_names - new_names == Counter({"alacritty": 1}) and
+        require(old_names - new_names == Counter({"alacritty": 1, "fileman": 1}) and
                 new_names - old_names == Counter({"foot": 1}),
                 f"{profile}: unexpected direct package delta: "
                 f"{dict(old_names-new_names)} -> {dict(new_names-old_names)}")
-        allowed = {"alacritty", "foot"}
+        allowed = {"alacritty", "foot", "fileman", "firefox"}
         if profile == "primary":
             allowed.add("jay-rofi-actions")
         def protected(s):
@@ -59,7 +65,7 @@ def compare(before, after):
                            if p["name"] not in allowed)
         require(protected(old) == protected(new),
                 f"{profile}: unrelated package derivation changed")
-        print(f"{profile}: only approved terminal and resource-policy deltas")
+        print(f"{profile}: only approved terminal, file manager, Firefox and resource-policy deltas")
     print("Protected source contract: PASS; physical behavior remains unverified.")
 
 
