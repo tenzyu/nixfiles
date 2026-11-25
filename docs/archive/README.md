@@ -12,6 +12,7 @@ All historical bytes are retained at [pre-cleanup main 050bd373eaa2](https://git
 | Superseded agent memory experiments | [retrieval study](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/memory/retrieval-evaluation.md) · [update log](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/memory/log.md) · [manifest](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/memory/provenance.json) |
 | Prior framework CLI and trace | [framework-cli](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/tools/framework-cli) |
 | Rust safety experiment | [adr02-rust](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/tools/adr02-rust) |
+| Former Nix GC interface | [assets/nix-store-clean](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/assets/nix-store-clean) |
 | Former CI machinery | [workflow](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/.github/workflows/nix-validation.yml) · [scripts/ci](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/scripts/ci) |
 | Former desktop migration comparisons | [scripts/desktop](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/scripts/desktop) |
 

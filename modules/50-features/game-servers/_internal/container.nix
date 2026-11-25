@@ -33,7 +33,7 @@
   in [
     "d ${d.home} 0750 ${spec.user} ${spec.user} - -"
 
-    # Service-owned data and backups, whether under /home or /srv.
+    # Service-owned data and backups at the canonical /srv root.
     "d ${d.gameDir} 0750 ${spec.user} ${spec.user} - -"
     "d ${d.serverDir} 0750 ${spec.user} ${spec.user} - -"
     "d ${d.backupsDir} 0750 ${spec.user} ${spec.user} - -"

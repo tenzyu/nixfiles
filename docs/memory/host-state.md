@@ -3,22 +3,11 @@ type: Host Inventory
 title: "Host declarations and evidence"
 description: "Source selection, recorded host observations, and unresolved state"
 status: stable
-source_revision: ed50586c0c041f110397f8a312979b9537db0c81
-sources:
-  - id: neko5
-    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko5/configuration.nix
-    title: "neko5 host declaration"
-  - id: neko6
-    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko6/configuration.nix
-    title: "neko6 host declaration"
-  - id: neko7
-    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko7/configuration.nix
-    title: "neko7 host declaration"
 ---
 
 # Host declarations, not live inventory
 
-**Source reference:** `ed50586c0c04` on 2026-11-25 (candidate source). Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
+**Source authority:** [host declarations](../../modules/00-hosts). Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
 
 | Host | Intended platform | Declared capabilities | State-version caveat |
 | --- | --- | --- | --- |
@@ -46,7 +35,6 @@ The current host explicitly selects:
 game-ark.enable = false;
 game-rust.enable = false;
 game-minecraft.enable = true;
-game-srv.enable = true;
 game-server-tools.enable = true;
 sops-nix.enable = true;
 t3code-tailnet.enable = true;
