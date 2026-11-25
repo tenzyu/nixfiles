@@ -56,7 +56,7 @@ This keeps positive user-option contributions, honors native NixOS user `mkForce
 
 Explicit host opt-outs now defeat soft HM defaults. Unselected HM features can still activate through their own native defaults. NixOS user-feature overrides remain observable in HM at their evaluated value, but not at their original NixOS priority. The existing `adapter-home-default` fixture must change `embeddedDefault = true` to `false`; changing the expectation without evaluating the actual embedded HM would be insufficient.
 
-Regression requirements: null / both booleans, equal-priority conflicts, `mkDefault` / `mkForce`, disabled users, NixOS/HM separate scopes, system/user same-name projection, standalone HM, package-policy isolation, Steam soft dependency, and feature trace provenance. Verify `nix run -L .#framework-test` and compare evaluated feature / packages / service settings across neko5, neko6 and neko7 before merge. No activation or Home Manager switch is authorized by this ADR.
+Regression requirements: null / both booleans, equal-priority conflicts, `mkDefault` / `mkForce`, disabled users, NixOS/HM separate scopes, system/user same-name projection, standalone HM, package-policy isolation, Steam soft dependency, and feature trace provenance. Verify `nix build -L --no-link .#checks.x86_64-linux.framework` and compare evaluated feature / packages / service settings across neko5, neko6 and neko7 before merge. No activation or Home Manager switch is authorized by this ADR.
 
 ## Unresolved / acceptance gates
 

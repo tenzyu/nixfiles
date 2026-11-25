@@ -12,7 +12,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 ## Persistent state and services
 
 - [Secrets and Tailscale](secrets-and-tailscale.md) — provider, identity and service credential boundaries.
-- [Minecraft and game server features](game-server-features.md) · [historical /srv migration](game-server-srv-migration.md) · [service layout](service-layout.md) — do not replay an initial migration on migrated data.
+- [Minecraft and game server features](game-server-features.md) · [historical /srv migration](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/cookbook/game-server-srv-migration.md) · [service layout](service-layout.md) — do not replay an initial migration on migrated data.
 - [Parsec settings review](../../assets/parsec-activation/README.md) — check saved decoder, display and controller settings before a separate manual edit.
 - [Nix store cleanup](nix-store-clean.md) · [Home Manager data migration](../../assets/home-layout/README.md) — review result roots or inventory Home routes before separately approved mutations.
 - [HOME maintenance decision](../adr/0003-home-layout-reuse-first.md) — favor native app settings and tolerable drift over a global HOME authority; keep existing migration safeguards until independently retired.
@@ -24,7 +24,6 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [Compute platform operations](compute-platform-operations.md) — dashboards, preview gateway, independent personal-data workloads and authority boundaries.
 - [Existing workload migration](compute-workload-migration.md) — independent Minecraft, T3 and SplitCast release profiles and cutover.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.
-- [neko5 desktop and Gamescope](neko5-desktop.md) — daily Jay session, independent probe, audio and clipboard acceptance.
-- [osu! display experiments](../../scripts/osu-performance/README-display.md) · [latency lab](../../scripts/osu-performance/README-lab.md) — experimental evidence, not physical latency proof.
+- [neko5 desktop and Gamescope](neko5-desktop.md) owns current presentation policy; [archive](../archive/README.md) retains earlier experiments.
 
 For architectural reasons and rejected alternatives see [LLM Wiki](../memory/index.md); for work not yet accepted see [Roadmap](../../ROADMAP.md).

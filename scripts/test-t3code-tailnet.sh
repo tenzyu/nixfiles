@@ -3,7 +3,7 @@
 set -euo pipefail
 tmp=$(mktemp -d)
 trap 'rm -rf -- "$tmp"' EXIT
-nix eval --raw .#nixosConfigurations.neko7.config.systemd.services.t3code-tailnet.script > "$tmp/restore"
+cp "$1" "$tmp/restore"
 cat > "$tmp/tailscale" <<'STUB'
 #!/usr/bin/env bash
 set -eu

@@ -39,11 +39,6 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
-    nix-unit = {
-      url = "github:nix-community/nix-unit";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
-      inputs.treefmt-nix.follows = "treefmt-nix";
-    };
     systems.url = "github:nix-systems/default";
     flake-utils = {
       url = "github:numtide/flake-utils";

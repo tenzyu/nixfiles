@@ -1,5 +1,5 @@
-{flakeRef}: let
-  f = builtins.getFlake flakeRef;
+{flake}: let
+  f = flake;
   inherit (f.inputs.nixpkgs) lib;
   c = f.nixosConfigurations.neko5.config;
   h = c.home-manager.users.tenzyu;
@@ -20,8 +20,8 @@
       names = map (p: p.name or "") s.environment.systemPackages;
     in {
       profile = s.local.features.jay.enable == (compositor == "jay") && sh.local.features.jay.enable == (compositor == "jay") && s.local.features.gamescope.enable == (compositor == "gamescope");
-      launcher = (builtins.elem "start-jay" names) == (compositor == "jay") && (builtins.elem "start-gamescope" names) == (compositor == "gamescope") && !(builtins.elem "neko5-slim-session" names);
-      legacyDesktopDisabled = !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
+      launcher = (builtins.elem "start-jay" names) == (compositor == "jay") && (builtins.elem "start-gamescope" names) == (compositor == "gamescope");
+      legacyDesktopDisabled = !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable;
       systemPolicy = s.local.features.neko5-hardware.enable && (builtins.elem "preempt=full" s.boot.kernelParams) && s.powerManagement.cpuFreqGovernor == "powersave" && (s.systemd.services ? neko5-hwp-epp) && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
       resourcePolicy = !s.zramSwap.enable && s.swapDevices != [] && lib.all (p: builtins.elem p s.boot.kernelParams) [
         "transparent_hugepage=never" "zswap.enabled=1" "zswap.compressor=lz4" "zswap.max_pool_percent=25" "zswap.shrinker_enabled=1"
@@ -40,9 +40,9 @@
       in !has "cliphist" && !has "grimblast"
         && has "cclip-picker" == (compositor == "jay")
         && has "jay-rofi-actions" == (compositor == "jay")
-        && !has "jay-tofi-actions" && !has "tofi"
+        && !has "tofi"
         && sh.programs.rofi.enable && !sh.local.features.tofi.enable
-        && !sh.local.features.packages-desktop.enable && sh.local.features.desktop-tools.enable
+        && sh.local.features.desktop-tools.enable
         && sh.local.features.obs-studio.enable && sh.programs.obs-studio.enable
         && sh.local.features.easyeffects.enable && has "easyeffects"
         && s.services.gvfs.enable && s.services.udisks2.enable

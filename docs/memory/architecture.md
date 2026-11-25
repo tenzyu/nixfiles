@@ -85,7 +85,7 @@ Value transformations (`lib.pipe`), overlay fixed points (`lib.composeManyExtens
 
 ## Verification interfaces
 
-`nix run -L .#framework-test` runs the existing unit tests, checks the editor-facing option types through `debug.options`, and evaluates fixture configurations through the actual adapter. The fixtures cover direct options, imports, priority, user projection, cross-scope assertions, package policy and standalone Home Manager. Host regressions check explicit feature selections, removed profile registrations, Steam projection, login shells and the evaluated disabled features. The type checks exercise the option tree consumed by nixd. Live Zed completion and host activation require separate observations.
+`nix build -L --no-link .#checks.x86_64-linux.framework` runs native Nix tests of typed options, projection, priority, direct imports, user policy and standalone Home Manager. Host-policy checks separately cover actual NixOS configurations. Live nixd completion and activation require separate evidence.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../../ROADMAP.md).
 
@@ -93,6 +93,5 @@ See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](..
 
 Feature modules remain under the numbered `50-features/` tree, grouped by domain. The directory name is an ownership and navigation aid; configuration semantics come from their explicit `flake.modules.*` declarations, not directory ordering. The `50-features/bundles/` category holds the shared defaults and package collections. Conditional multi-feature contributions belong under `60-integrations/`, using the existing feature aspect rather than a separate activation switch.
 
-`feature-trace` reads the Git flake working tree and recursively discovers `.nix` source files under `50-features/` while skipping private `_` directories. Nix evaluates tracked files, including local edits. For feature traces, `definitions` contains evaluated option definitions where available, and `source_hints` contains textual matches that can guide editor navigation. Home Manager feature status comes from evaluated settings. The locations in its feature rows are source hints. `--why` reports the effective NixOS option value and surviving provenance from `definitionsWithLocations`, together with `highestPrio` as `winning_priority`. The priority applies to the **surviving group**; discarded definitions and original override wrappers cannot be reconstructed. Home rows have `winning_priority = null` because nested HM option metadata is not yet exposed through a stable path.
+Use `nix eval`/`nix repl` for evaluated values and native `options.<path>.definitionsWithLocations` for surviving definitions; use `rg` for source navigation. See [inspection](../cookbook/inspect.md).
 
-The previous `osu-lazer-hyprland` aspect was a no-op compatibility placeholder. Its removal does not modify the `neko5-osu-first` performance module or Hyprland's effective runtime settings.
