@@ -79,7 +79,7 @@
               # Initial admission budget, not an adaptive resource governor.
               # Counts allocated resources, including stopped instances.
               "limits.instances" = "8";
-              "limits.virtual-machines" = "0"; # VM admission deferred pending lifecycle evidence
+              "limits.virtual-machines" = "3";
               "limits.cpu" = "8";
               "limits.memory" = "8GiB";
               "restricted" = "true";

@@ -99,6 +99,10 @@ jobs:
           nix build -L --no-link .#neko7-${{ matrix.workload }}-system
       - name: Boot actual service module and test private reachability
         run: nix build -L --no-link .#checks.x86_64-linux.personal-workload-${{ matrix.workload }}
+      - name: Execute exact image lifecycle and isolated restore (TCG guest)
+        run: |
+          df -h
+          nix build -L --no-link .#checks.x86_64-linux.incus-workload-${{ matrix.workload }}-tcg
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest
@@ -218,7 +222,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kind: [container]
+        kind: [container, vm-tcg]
     steps:
       - uses: actions/checkout@v5
         with:

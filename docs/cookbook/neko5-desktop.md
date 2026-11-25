@@ -6,8 +6,8 @@ source but disabled on neko5, with no dedicated fallback. Sway, KWin and
 Weston are retired. Both boot entries preserve HOME, kernel, Mesa/i915,
 official osu! package, HID, audio, thermal, network and SSH policy.
 
-The workstation selects desktop tools, OBS Studio and EasyEffects independently.
-The kernel/resource experiment is intentionally outside this integration.
+For the selective workstation composition, resource policy, research sources and
+matched measurement contract see [purpose-built workstation](../research/neko5-workstation.md).
 
 ## Source ownership and fixed settings
 

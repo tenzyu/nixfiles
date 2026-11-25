@@ -42,6 +42,20 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate and inspect the actual neko5 kernel configuration
+        if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/blocked-vm-kernel'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cfg="$(nix build -L --no-link --print-out-paths .#nixosConfigurations.neko5.config.boot.kernelPackages.kernel.configfile)"
+          grep -Fx 'CONFIG_NR_CPUS=8' "$cfg"
+          grep -Fx '# CONFIG_MEM_ALLOC_PROFILING is not set' "$cfg"
+          grep -Fx '# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set' "$cfg"
+          grep -Fx 'CONFIG_ZSWAP=y' "$cfg"
+          grep -Fx 'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y' "$cfg"
+          grep -Fx 'CONFIG_TRANSPARENT_HUGEPAGE=y' "$cfg"
+          grep -Fx 'CONFIG_PREEMPT_DYNAMIC=y' "$cfg"
+
       # Do not use 'nix flake check' in a PR gate: it builds *all* checks,
       # including unrelated Rust and system-level derivations.
       - name: Build narrowly scoped, deterministic checks
@@ -187,17 +201,17 @@ jobs:
           set -euo pipefail
           nix eval --impure --json --file scripts/desktop/evaluate-desktop.nix \
             --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-desktop.json
-          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .legacyDesktopDisabled and .systemPolicy and .identity and .audio and .realtime and .hardwareAudio and .desktopPackages and (.drv | endswith(".drv"))))' /tmp/neko5-desktop.json
+          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .legacyDesktopDisabled and .systemPolicy and .resourcePolicy and .identity and .audio and .realtime and .hardwareAudio and .desktopPackages and (.drv | endswith(".drv"))))' /tmp/neko5-desktop.json
           python3 scripts/desktop/check-desktop-config.py /tmp/neko5-desktop.json
           python3 -m py_compile scripts/desktop/memory-snapshot.py
           python3 scripts/desktop/test-clipboard-integration.py
 
-      - name: Compare protected desktop composition against accepted Jay head
-        if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/ready-native-infrastructure'
+      - name: Compare protected workstation source against stack parent
+        if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/blocked-vm-kernel'
         shell: bash
         run: |
           set -euo pipefail
-          base="f013e73cbb42a338929873419dd51abd9a8898b8"
+          base="$(git rev-parse HEAD^1)"
           nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
             --argstr flakeRef "git+file://$PWD?rev=$base" result > /tmp/neko5-workstation-before.json
           nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
