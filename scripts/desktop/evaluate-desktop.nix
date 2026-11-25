@@ -45,6 +45,9 @@
         && sh.local.features.obs-studio.enable && sh.programs.obs-studio.enable
         && sh.local.features.easyeffects.enable && has "easyeffects"
         && s.services.gvfs.enable && s.services.udisks2.enable
+        && s.programs.thunar.enable && sh.local.features.thunar.enable
+        && !sh.local.features.fileman.enable && !has "fileman"
+        && sh.programs.firefox.policies.Preferences."widget.use-xdg-desktop-portal.file-picker".Value == 0
         && builtins.length herdr == 1
         && (if compositor == "jay"
           then (builtins.head herdr).unwrapped.drvPath == f.nixosConfigurations.neko5.pkgs.llm-agents.herdr.drvPath
