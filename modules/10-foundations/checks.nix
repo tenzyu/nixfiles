@@ -3,7 +3,9 @@
     inherit (inputs.nixpkgs) lib;
     hosts = self.nixosConfigurations;
     desktop = (import ../../scripts/desktop/evaluate-desktop.nix {flake = self;}).result;
-    jay = builtins.fromTOML desktop.jay;
+    # Parse only for inspection: fromTOML rejects derivation string contexts.
+    # The actual Home Manager file retains its runtime store references.
+    jay = builtins.fromTOML (builtins.unsafeDiscardStringContext desktop.jay);
     primary = hosts.neko5.config;
     server = hosts.neko7.config;
     hm = primary.home-manager.users.tenzyu;
