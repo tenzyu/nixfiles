@@ -30,7 +30,7 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix build -L --no-link .#checks.x86_64-linux.validation
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
 
   stateful:
     name: Home Manager migration and recovery
