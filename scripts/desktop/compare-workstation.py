@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Stacked change gate: protect the accepted desktop and its package identities.
-
-This compares evaluated declarations, not measured performance or closures.
-The only allowed native baseline policy delta is compressed profiling.
-"""
+"""Compare stack-parent source declarations, permitting only reviewed deltas."""
 from collections import Counter
 import json
 from pathlib import Path
@@ -13,36 +9,58 @@ import tomllib
 PROFILING = "sysctl.vm.mem_profiling=1,compressed"
 
 
+def require(condition, message):
+    if not condition:
+        raise AssertionError(message)
+
+
+def compare_jay(before, after):
+    old, new = (tomllib.loads(x) for x in (before, after))
+    a, b = old["shortcuts"], new["shortcuts"]
+    require(a["logo-Return"]["exec"].endswith("/bin/alacritty"), "old terminal")
+    require(b["logo-Return"]["exec"].endswith("/bin/foot"), "new terminal")
+    a["logo-Return"]["exec"] = b["logo-Return"]["exec"]
+    for key, mode in (("logo-space", "drun"), ("logo-r", "run")):
+        launch = a[key]["exec"]
+        require(launch[1:] == ["-show", mode, "-replace", "-terminal", "alacritty"],
+                f"{key}: unexpected old Rofi launch")
+        launch[-1] = "foot"
+    for key, mode in (("logo-shift-space", "desktop"), ("logo-shift-r", "custom")):
+        prev, curr = a[key]["exec"], b[key]["exec"]
+        require(prev[0].endswith("/bin/jay-rofi-actions") and
+                curr[0].endswith("/bin/jay-rofi-actions") and prev[1:] == [mode],
+                f"{key}: unexpected action owner")
+        expected = [mode, "foot"] if mode == "custom" else [mode]
+        require(curr[1:] == expected, f"{key}: unexpected new action")
+        a[key]["exec"] = curr
+    require(old == new, "unexpected Jay TOML delta outside terminal routing")
+
+
 def compare(before, after):
-    if tomllib.loads(before["jay"]) != tomllib.loads(after["jay"]):
-        raise AssertionError("Protected Jay TOML changed")
+    compare_jay(before["jay"], after["jay"])
     for profile in ("primary", "probe"):
-        old = before[profile]
-        new = after[profile]
+        old, new = before[profile], after[profile]
         policy = dict(new["policy"])
         params = policy["kernelParams"]
-        old_params = old["policy"]["kernelParams"]
-        expected_count = 1 if PROFILING not in old_params else 0
-        if params.count(PROFILING) != 1:
-            raise AssertionError(f"{profile}: expected exactly one compressed profiling parameter")
-        if expected_count:
+        require(params.count(PROFILING) == 1, f"{profile}: profiling")
+        if PROFILING not in old["policy"]["kernelParams"]:
             policy["kernelParams"] = [p for p in params if p != PROFILING]
-        if old["policy"] != policy:
-            changed = sorted(k for k in old["policy"].keys() | policy.keys()
-                             if old["policy"].get(k) != policy.get(k))
-            raise AssertionError(f"{profile}: protected policy changed: {changed}")
-        old_packages = Counter(old["homePackages"])
-        new_packages = Counter(new["homePackages"])
-        if old_packages != new_packages:
-            raise AssertionError(
-                f"{profile}: package selection changed: "
-                f"removed={dict(old_packages - new_packages)}, "
-                f"added={dict(new_packages - old_packages)}"
-            )
-        if Counter(old["homePackageDrvs"]) != Counter(new["homePackageDrvs"]):
-            raise AssertionError(f"{profile}: direct home package derivations changed")
-        print(f"{profile}: protected policy and direct home package derivations unchanged")
-    print("Protected Jay TOML unchanged; source equivalence only.")
+        require(old["policy"] == policy, f"{profile}: protected native policy changed")
+        old_names, new_names = (Counter(s["homePackages"]) for s in (old, new))
+        require(old_names - new_names == Counter({"alacritty": 1}) and
+                new_names - old_names == Counter({"foot": 1}),
+                f"{profile}: unexpected direct package delta: "
+                f"{dict(old_names-new_names)} -> {dict(new_names-old_names)}")
+        allowed = {"alacritty", "foot"}
+        if profile == "primary":
+            allowed.add("jay-rofi-actions")
+        def protected(s):
+            return Counter((p["name"], p["drv"]) for p in s["homePackageEntries"]
+                           if p["name"] not in allowed)
+        require(protected(old) == protected(new),
+                f"{profile}: unrelated package derivation changed")
+        print(f"{profile}: only approved terminal and resource-policy deltas")
+    print("Protected source contract: PASS; physical behavior remains unverified.")
 
 
 if __name__ == "__main__":
