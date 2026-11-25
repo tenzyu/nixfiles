@@ -85,9 +85,6 @@
             hostPath = d.tailscaleDir;
             isReadOnly = false;
           };
-        }
-        // lib.optionalAttrs (d.gameDir != "${d.home}/${spec.key}") {
-          # Data outside the bound service HOME needs its own mount.
           "${d.gameDir}" = {
             hostPath = d.gameDir;
             isReadOnly = false;

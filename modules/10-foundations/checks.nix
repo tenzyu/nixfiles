@@ -1,90 +1,111 @@
-{lib, ...}: let
-  fs = lib.fileset;
-  # Keep the source of each check limited to what it actually inspects.
-  deprecatedSource = fs.toSource {
-    root = ../..;
-    fileset = fs.unions [../. ../../README.md];
-  };
-  featureShapeSource = fs.toSource {
-    root = ../..;
-    fileset = fs.fileFilter (file: file.hasExt "nix") ../.;
-  };
-in {
-  perSystem = {pkgs, ...}: {
-    checks.deprecated-patterns =
-      pkgs.runCommand "check-deprecated-patterns" {
-        src = deprecatedSource;
-        nativeBuildInputs = [pkgs.ripgrep];
-      } ''
-        set -euo pipefail
-        cd "$src"
+{inputs, self, ...}: {
+  perSystem = {pkgs, config, system, ...}: let
+    inherit (inputs.nixpkgs) lib;
+    hosts = self.nixosConfigurations;
+    desktop = (import ../../scripts/desktop/evaluate-desktop.nix {flake = self;}).result;
+    jay = builtins.fromTOML desktop.jay;
+    primary = hosts.neko5.config;
+    server = hosts.neko7.config;
+    hm = primary.home-manager.users.tenzyu;
+    keys = jay.shortcuts;
+    packages = hm.home.packages;
+    package = name: lib.findFirst (p: lib.getName p == name)
+      (throw "Missing selected desktop package: ${name}") packages;
+    profilePasses = p: lib.all (name: p.${name}) [
+      "profile" "launcher" "legacyDesktopDisabled" "systemPolicy" "identity"
+      "audio" "realtime" "hardwareAudio" "desktopPackages"
+    ] && lib.hasSuffix ".drv" p.drv;
+    checks = {
+      host-evaluation = lib.all (host: lib.hasSuffix ".drv" host.config.system.build.toplevel.drvPath)
+        (lib.attrValues hosts);
+      state-versions = lib.all (host: hosts.${host}.config.system.stateVersion == "26.05") ["neko5" "neko7"];
+      remote-builder-trust = lib.all (host: !hosts.${host}.config.nix.settings.accept-flake-config) ["neko5" "neko7"]
+        && builtins.length server.users.users.nixbuilder.openssh.authorizedKeys.keys == 1
+        && lib.all (key: lib.hasPrefix "restrict,command=" key && lib.hasInfix "/bin/nix-daemon --stdio" key && lib.hasInfix "ssh-ed25519 " key)
+          server.users.users.nixbuilder.openssh.authorizedKeys.keys
+        && lib.elem "nixbuilder" server.nix.settings.trusted-users
+        && lib.any (m: m.protocol == "ssh-ng" && m.sshUser == "nixbuilder") primary.nix.buildMachines;
+      neko5-desktop = desktop.onlyProbe && desktop.audioIsolated && desktop.presentationCcsScope
+        && profilePasses desktop.primary && profilePasses desktop.probe;
+      presentation = jay.direct-scanout && jay.tearing.mode == "variant3"
+        && (builtins.head jay.outputs).tearing.mode == "variant2"
+        && (builtins.head jay.outputs).match.connector == "eDP-1"
+        && (builtins.head jay.outputs).mode == {width = 1366; height = 768;}
+        && (builtins.head jay.outputs).scale == 1.0
+        && jay.vrr.mode == "never" && !jay.xwayland.enabled;
+      clipboard-ime = desktop.alacrittyOsc52 == "OnlyCopy" && desktop.herdrReusesStock
+        && keys.logo-v.exec == ["cclip-picker"]
+        && lib.hasSuffix "/bin/fcitx5-remote" (builtins.head keys.logo-i.exec)
+        && keys.logo-ctrl-i.exec.privileged
+        && keys.logo-shift-s.exec.privileged && keys.Print.exec.privileged;
+      associations = desktop.skinAssociation == ["org.kde.ark.desktop"]
+        && desktop.fileAssociation == ["dev.fileman.Files.desktop"];
+    };
+    failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
+    fastChecks = [
+      "framework" "host-policy" "desktop-packages" "docs" "clipboard"
+      "t3-serve" "opencode-direnv" "parsec-activation"
+      "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
+      "game-backup-minecraft"
+    ];
+  in {
+    checks = lib.optionalAttrs (system == "x86_64-linux") {
+      host-policy =
+        assert lib.assertMsg (failures == []) ("Host contract violations: " + builtins.toJSON failures);
+        pkgs.runCommand "host-policy" {} "touch $out";
 
-        bad=0
-
-        if rg -n \
-          -g '!modules/10-foundations/checks.nix' \
-          -g '!result' \
-          -g '!result-*' \
-          -e 'flake\.effects' \
-          -e 'feature\.system' \
-          -e 'feature\.users' \
-          -e 'resolveClosure' \
-          -e 'callProjection' \
-          -e 'projectionToModule' \
-          -e '99-flake-runtime' \
-          modules README.md; then
-          bad=1
-        fi
-
-        if find modules/ -name 'zsh copy.nix' 2>/dev/null | grep -q .; then
-          echo "error: modules/zsh copy.nix must not exist" >&2
-          bad=1
-        fi
-
-        if [ "$bad" -ne 0 ]; then
-          echo "failing check: deprecated patterns must be removed" >&2
-          exit 1
-        fi
-
-        mkdir -p "$out"
-        echo "deprecated-patterns: ok" > "$out/result"
+      # Validate the packaged artifacts, not mocked upstream implementation.
+      desktop-packages = pkgs.runCommand "desktop-packages" {} ''
+        test -x ${package "cclip"}/bin/cclip
+        test -x ${package "cclip"}/bin/cclipd
+        test -x ${package "fileman"}/bin/fileman
+        test -f ${package "fileman"}/share/applications/dev.fileman.Files.desktop
+        test -x ${package "cclip-start"}/bin/cclip-start
+        test -x ${package "cclip-picker"}/bin/cclip-picker
+        test -x ${package "jay-rofi-actions"}/bin/jay-rofi-actions
+        service=${package "mako"}/share/dbus-1/services/org.freedesktop.Notifications.service
+        test -f "$service"
+        grep -Fx 'SystemdService=mako.service' "$service"
+        grep -Fx 'BusName=org.freedesktop.Notifications' ${package "mako"}/lib/systemd/user/mako.service
+        touch "$out"
       '';
 
-    checks.feature-name-shape =
-      pkgs.runCommand "check-feature-name-shape" {
-        src = featureShapeSource;
+      clipboard = pkgs.runCommand "clipboard-integration" {
+        nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.util-linux];
       } ''
-        set -euo pipefail
-        cd "$src"
-
-        bad=0
-        for f in $(find modules/ -name '*.nix'); do
-          leaf="$(basename "$f" .nix)"
-          case "$leaf" in
-            _*)
-              ;;
-            *[!a-z0-9-]*)
-              echo "error: $f has non-kebab-case feature name '$leaf'" >&2
-              bad=1
-              ;;
-            -*)
-              echo "error: $f has feature name starting with '-' ($leaf)" >&2
-              bad=1
-              ;;
-            *-)
-              echo "error: $f has feature name ending with '-' ($leaf)" >&2
-              bad=1
-              ;;
-          esac
-        done
-
-        if [ "$bad" -ne 0 ]; then
-          echo "failing check: feature name shape" >&2
-          exit 1
-        fi
-
-        mkdir -p "$out"
-        echo "feature-name-shape: ok" > "$out/result"
+        cp -r ${../../scripts/desktop} desktop
+        chmod -R u+w desktop
+        # Fixture subprocesses use /bin/bash; the sandbox does not provide it.
+        substituteInPlace desktop/test-clipboard-integration.py --replace-fail /bin/bash ${pkgs.bash}/bin/bash
+        python3 desktop/test-clipboard-integration.py
+        touch "$out"
       '';
+
+      t3-serve = pkgs.runCommand "t3-serve-contract" {
+        nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.jq];
+      } ''
+        cp ${../../scripts/test-t3code-tailnet.sh} test.sh
+        chmod u+w test.sh
+        substituteInPlace test.sh --replace-fail /usr/bin/env ${pkgs.coreutils}/bin/env
+        bash test.sh ${pkgs.writeText "t3-serve-restore" server.systemd.services.t3code-tailnet.script}
+        touch "$out"
+      '';
+
+      # The pinned nixpkgs package owns Markdown parsing and local URL resolution.
+      docs = pkgs.runCommand "documentation-links" {
+        nativeBuildInputs = [pkgs.lychee];
+      } ''
+        cd ${self}
+        lychee --offline --root-dir "$PWD" README.md AGENTS.md MEMORY.md ROADMAP.md 'docs/**/*.md'
+        touch "$out"
+      '';
+
+      # Nix tracks actual derivation inputs and substitution; no source-path
+      # selector, test-of-selector or branch-name-dependent policy.
+      validation = pkgs.linkFarm "nixfiles-validation" (map (name: {
+        inherit name;
+        path = config.checks.${name};
+      }) fastChecks);
+    };
   };
 }
