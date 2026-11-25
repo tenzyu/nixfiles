@@ -17,6 +17,10 @@
         inherit inputs self system;
         vm = false;
       };
+      compute-host-vm = import ./_internal/compute-host-test.nix {
+        inherit inputs self system;
+        vm = true;
+      };
     };
   };
 }

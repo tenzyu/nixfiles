@@ -22,7 +22,6 @@ on:
       - 'modules/10-foundations/_internal/tailnet-ingress-test.nix'
       - 'modules/10-foundations/compute-host-checks.nix'
       - 'modules/10-foundations/_internal/compute-host-test.nix'
-      - 'modules/10-foundations/_internal/incus-tcg-fixture.nix'
       - '.github/workflows/compute-host.yml'
       - 'flake.lock'
       - 'flake.nix'
@@ -99,6 +98,9 @@ jobs:
           nix build -L --no-link .#neko7-${{ matrix.workload }}-system
       - name: Boot actual service module and test private reachability
         run: nix build -L --no-link .#checks.x86_64-linux.personal-workload-${{ matrix.workload }}
+      - name: Evaluate native exact-image lifecycle checks
+        run: |
+          nix eval --raw .#checks.x86_64-linux.incus-workload-${{ matrix.workload }}.drvPath
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest
@@ -247,5 +249,12 @@ jobs:
           nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
           nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
           nix eval --raw "$attr.system.build.toplevel.drvPath"
+      - name: Evaluate native VM lifecycle checks
+        run: |
+          nix eval --raw .#checks.x86_64-linux.compute-host-vm.drvPath
       - name: Build and execute NixOS machine test
         run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
+      - name: Record acceptance boundary
+        if: always()
+        run: |
+          echo 'Hosted evidence is not native Incus KVM acceptance. Native compute-host-vm and exact-image lifecycle checks must pass on an approved compatible test host before merge or activation.' >> "$GITHUB_STEP_SUMMARY"

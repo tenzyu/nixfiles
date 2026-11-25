@@ -1,4 +1,4 @@
-{inputs, ...}: let
+{inputs, self, ...}: let
   nixpkgs = inputs.nixpkgs;
   module = {pkgs, ...}: {
     services.syncthing = {
@@ -35,8 +35,24 @@ in {
       inherit nixpkgs system module;
       name = "syncthing";
     };
+    candidate = (import ./_internal/incus-image.nix {
+      inherit nixpkgs system module;
+      name = "syncthing";
+      extraModules = [{environment.etc."neko7/fixture-release".text = "candidate";}];
+    }).neko7-syncthing-system;
+    lifecycle = import ./_internal/incus-lifecycle.nix {
+      inherit inputs self system candidate;
+      name = "syncthing";
+      image = releases.neko7-syncthing-image;
+      guestMemory = "2GiB";
+      stateProbe = {
+        seed = "mkdir -p /var/lib/syncthing/fixture; echo preserved > /var/lib/syncthing/fixture/data";
+        verify = "grep -Fx preserved /var/lib/syncthing/fixture/data; sha256sum /var/lib/syncthing/.config/syncthing/cert.pem";
+      };
+    };
   in lib.mkIf (system == "x86_64-linux") {
     packages = releases;
+    checks.incus-workload-syncthing = lifecycle;
     checks.personal-workload-syncthing = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {
