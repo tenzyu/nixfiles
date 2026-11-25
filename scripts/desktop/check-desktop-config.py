@@ -7,7 +7,8 @@ from pathlib import Path
 
 data = json.loads(Path(sys.argv[1]).read_text())
 jay = tomllib.loads(data["jay"])
-assert data["alacrittyOsc52"] == "OnlyCopy"
+assert data["footOsc52"] == "copy-enabled"
+assert data["footServer"] is False
 assert data["herdrReusesStock"] is True
 assert data["skinAssociation"] == ["org.kde.ark.desktop"]
 assert data["fileAssociation"] == ["dev.fileman.Files.desktop"]
@@ -44,13 +45,13 @@ assert keys["logo-f"] == "toggle-fullscreen"
 assert keys["logo-v"]["exec"] == ["cclip-picker"]
 for key, mode in [("logo-space", "drun"), ("logo-r", "run")]:
     assert keys[key]["exec"][0].endswith("/bin/rofi")
-    assert keys[key]["exec"][1:] == ["-show", mode, "-replace", "-terminal", "alacritty"]
+    assert keys[key]["exec"][1:] == ["-show", mode, "-replace", "-terminal", "foot"]
 for key, mode in [("logo-shift-r", "custom"), ("logo-shift-space", "desktop")]:
     assert keys[key]["exec"][0].endswith("/bin/jay-rofi-actions")
-    assert keys[key]["exec"][1:] == [mode]
+    assert keys[key]["exec"][1:] == ([mode, "foot"] if mode == "custom" else [mode])
 assert keys["logo-ctrl-shift-r"] == "reload-config-toml"
 assert keys["logo-shift-v"] == "split-vertical"
-assert keys["logo-Return"]["exec"].endswith("/bin/alacritty")
+assert keys["logo-Return"]["exec"].endswith("/bin/foot")
 assert keys["logo-b"]["exec"] == "firefox"
 assert keys["logo-o"]["exec"] == "osu-lazer"
 assert jay["outputs"][0]["match"]["connector"] == "eDP-1"
