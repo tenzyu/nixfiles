@@ -35,6 +35,11 @@
         options = ["fmask=0077" "dmask=0077"];
       };
 
+      # This is the native NixOS module evaluation context, not the host seed.
+      assertions = [{
+        assertion = config.swapDevices != [];
+        message = "neko5 zswap requires its existing physical swap device.";
+      }];
       swapDevices = [
         {device = "/dev/disk/by-uuid/3781b9e2-45a4-4697-865f-e79bf30644f1";}
       ];

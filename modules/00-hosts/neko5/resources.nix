@@ -1,5 +1,5 @@
 {
-  configurations.nixos.neko5.module = {config, lib, ...}: {
+  configurations.nixos.neko5.module = {lib, ...}: {
     # The physical i5-10210U is 4C/8T; retain all eight logical CPUs and
     # all existing scheduler, DRM, audio, security and device support.
     # Nixpkgs' generic 384-CPU image and default allocation instrumentation
@@ -54,9 +54,5 @@
     # socket activation; no listener process while idle. Never remove SSH.
     services.openssh.startWhenNeeded = true;
 
-    assertions = [{
-      assertion = config.swapDevices != [];
-      message = "neko5 zswap requires its existing physical swap device.";
-    }];
   };
 }
