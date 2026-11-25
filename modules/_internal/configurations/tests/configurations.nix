@@ -139,19 +139,30 @@
     "zoxide"
   ];
   desktopFeatures = [
+    "alacritty"
+    "cclip"
     "chromium"
+    "desktop-tools"
+    "easyeffects"
+    "fileman"
     "firefox"
     "hyprpaper"
+    "jay"
     "kitty"
     "mako"
+    "obs-studio"
     "packages-desktop"
     "rofi"
+    "tofi"
     "waybar"
     "wlogout"
   ];
   trackedFeatures = cliFeatures ++ desktopFeatures;
   expectedEnabled = {
-    neko5 = lib.sort builtins.lessThan trackedFeatures;
+    neko5 = lib.sort builtins.lessThan (cliFeatures ++ [
+      "alacritty" "cclip" "chromium" "desktop-tools" "easyeffects" "fileman" "firefox" "jay"
+      "mako" "obs-studio" "rofi" "wlogout"
+    ]);
     neko6 = cliFeatures;
     neko7 = cliFeatures;
   };
@@ -547,9 +558,17 @@ in {
       expr = let
         host = flake.nixosConfigurations.neko5;
         home = host.config.home-manager.users.tenzyu;
-        selected = home.programs.waybar.package;
+        # Waybar is retained but no longer selected in the daily Jay desktop.
+        # Exercise its hardware integration without enabling it on the host.
+        legacy = (host.extendModules {
+          modules = [{
+            local.users.tenzyu.features.waybar.enable = lib.mkForce true;
+          }];
+        }).config.home-manager.users.tenzyu;
+        selected = legacy.programs.waybar.package;
       in {
-        enabled = home.programs.waybar.enable;
+        dailyDisabled = !home.programs.waybar.enable;
+        enabled = legacy.programs.waybar.enable;
         hasFix = lib.versionAtLeast (lib.getVersion selected) "0.16.0";
         fromPinnedUnstable = selected.drvPath == host.pkgs.unstable.waybar.drvPath;
         otherHostsUnchanged = lib.all
@@ -561,6 +580,7 @@ in {
           ["neko6" "neko7"];
       };
       expected = {
+        dailyDisabled = true;
         enabled = true;
         hasFix = true;
         fromPinnedUnstable = true;
@@ -671,14 +691,30 @@ in {
 
     testUnselectableHyprlandRulesRemainAttachedToTheirRealFeature = {
       expr = let
-        home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
-        rules = home.wayland.windowManager.hyprland.settings.window_rule;
-        emptyXwaylandRules = builtins.filter (rule:
+        host = flake.nixosConfigurations.neko5;
+        home = host.config.home-manager.users.tenzyu;
+        legacy = (host.extendModules {
+          modules = [{
+            local.features = {
+              jay.enable = lib.mkForce false;
+              hyprland-core.enable = lib.mkForce true;
+              hyprland-tenzyu.enable = lib.mkForce true;
+            };
+            local.users.tenzyu.features = {
+              jay.enable = lib.mkForce false;
+              hyprland-core.enable = lib.mkForce true;
+              hyprland-tenzyu.enable = lib.mkForce true;
+            };
+          }];
+        }).config.home-manager.users.tenzyu;
+        select = rules: builtins.filter (rule:
           (rule.match.class or null) == "^$"
           && (rule.match.xwayland or false)
         ) rules;
+        emptyXwaylandRules = select (legacy.wayland.windowManager.hyprland.settings.window_rule or []);
       in {
         ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
+        dailyRulesAbsent = select (home.wayland.windowManager.hyprland.settings.window_rule or []) == [];
         inheritedRules = builtins.length emptyXwaylandRules;
         exactRules = emptyXwaylandRules == [
           {
@@ -693,6 +729,7 @@ in {
       };
       expected = {
         ghostFeature = false;
+        dailyRulesAbsent = true;
         inheritedRules = 2;
         exactRules = true;
       };

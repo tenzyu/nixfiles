@@ -26,6 +26,12 @@
     osuLauncher = pkgs.writeShellScriptBin "osu-lazer" ''
       set -euo pipefail
 
+      # Gen9 i915 rejects Y_TILED_CCS for async flips. Scope the opt-in to
+      # this process tree, not the desktop or other Mesa clients.
+      ${lib.optionalString config.local.osuLazer.disableIntelCcs ''
+        export INTEL_DEBUG="''${INTEL_DEBUG:+$INTEL_DEBUG,}noccs"
+      '' }
+
       for candidate in \
         "${pkgs.unstable.osu-lazer-bin}/bin/osu!" \
         "${pkgs.unstable.osu-lazer-bin}/bin/osu-lazer" \
@@ -52,9 +58,15 @@
       ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer-raw"
     '';
   in {
+    options.local.osuLazer.disableIntelCcs = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Disable Intel Mesa CCS only for the osu! launcher.";
+    };
+
     config = lib.mkIf config.local.features.osu-lazer.enable {
-      # Opt-in, automatically reverted PipeWire graph-quantum experiment only.
-      # No audio changes occur when launching osu-lazer normally.
+      # The legacy global-quantum lab is opt-in only. Normal launches use
+      # the separate neko5 PipeWire integration when selected.
       home.packages = [osuLaunchers osuAudioLab];
 
       xdg.desktopEntries.osu-lazer = {

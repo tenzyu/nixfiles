@@ -3,26 +3,26 @@ type: Host Inventory
 title: "Host declarations and evidence"
 description: "Source selection, recorded host observations, and unresolved state"
 status: stable
-source_revision: 438aa02b426db0a5962dd0102f0cbb04a5191c06
+source_revision: ed50586c0c041f110397f8a312979b9537db0c81
 sources:
   - id: neko5
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko5/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko5/configuration.nix
     title: "neko5 host declaration"
   - id: neko6
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko6/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko6/configuration.nix
     title: "neko6 host declaration"
   - id: neko7
-    resource: https://github.com/tenzyu/nixfiles/blob/438aa02b426db0a5962dd0102f0cbb04a5191c06/modules/00-hosts/neko7/configuration.nix
+    resource: https://github.com/tenzyu/nixfiles/blob/ed50586c0c041f110397f8a312979b9537db0c81/modules/00-hosts/neko7/configuration.nix
     title: "neko7 host declaration"
 ---
 
 # Host declarations, not live inventory
 
-**Source reference:** `438aa02b426d` on 2026-11-18. Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
+**Source reference:** `ed50586c0c04` on 2026-11-25 (candidate source). Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
 
 | Host | Intended platform | Declared capabilities | State-version caveat |
 | --- | --- | --- | --- |
-| `neko5` | Laptop / Hyprland desktop | Intel graphics, osu!lazer, remote Nix builds, PipeWire, Tailscale, XDG Home Manager | `local.context.systemStateVersion = "26.05"`; source setting corroborated by a prior operator correction, not an ongoing live measurement |
+| `neko5` | Laptop / Jay desktop | Intel graphics, osu!lazer, remote Nix builds, PipeWire, Tailscale, XDG Home Manager | `local.context.systemStateVersion = "26.05"`; source setting corroborated by a prior operator correction, not an ongoing live measurement |
 | `neko6` | NixOS-WSL | Docker (rootful), CLI programs, SSH, Home Manager | Host has no explicit `local.context.systemStateVersion`; original WSL install lineage is **unknown** |
 | `neko7` | Proxmox NixOS guest | NVIDIA/CUDA, distributed Nix builder, T3 Code, SplitCast production consumer, Minecraft, Tailscale | Explicit `local.context.systemStateVersion = "26.05"`; active generation must be checked separately |
 
@@ -30,9 +30,9 @@ Each host's `local.users.tenzyu.context.homeStateVersion` is declared as `26.05`
 
 ## neko5: desktop and latency work
 
-The host selects Hyprland, Firefox, osu!lazer, `neko5-osu-first`, `nix-remote-client` and `nix-store-clean`. Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../../assets/home-layout/README.md).
+The normal host selects Jay, Alacritty, Rofi, cclip, Fileman, Firefox, osu!lazer, `nix-remote-client` and `nix-store-clean`. Hyprland is disabled; Gamescope is the only independent research specialisation. The system-only `neko5-osu-first` selector is retired; the optional legacy HM lab remains disabled. See [desktop runbook](../cookbook/neko5-desktop.md). Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../../assets/home-layout/README.md).
 
-`sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The reported 1280×720 fullscreen/Direct Scanout baseline is an experimental constraint, not a measured end-to-end latency result.
+`sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The declared panel is 1366×768, with Direct Scanout requested; the 2026-11-25 presentation decision scopes variant2 to eDP-1 and noccs to normal neko5 osu! launches (not Gamescope or other hosts). Steady ~480 async flips/s and fast fence-ready dispatch were observed during the trial, not after deployment. See the [dated research log](../research/neko5-presentation-log.md). The 48 kHz, osu! playback quantum ceiling 64/48000 and ALC257 periods 128×3/H0 are source policy, not physical latency evidence.
 
 ## neko6: WSL
 
@@ -58,6 +58,8 @@ Thus `neko7-mc` is the only **declared** game container, with the Minecraft worl
 The [storage migration runbook](../cookbook/game-server-srv-migration.md) records a **dated 2026-11-18 operator report** of an offline copy, player login, and generation 68 becoming the default boot entry. That is historical evidence, not continuous confirmation of current Minecraft uptime. Its destructive/copy commands must **not** be rerun against an existing `/srv` destination.
 
 `sops-nix` is selected on neko7. [Secret provisioning](../cookbook/secrets-and-tailscale.md) requires a host decryption identity and an actual `sops.secrets` declaration; the feature toggle alone is not evidence that a Tailscale auth key was moved into SOPS. The `t3code-tailnet` systemd service is a controlled, on-demand Serve restore, not proof that the public/Tailnet route exists now. `opencode-neko7-service` remains a candidate aspect rather than a selected host feature. SplitCast `production` is a **consumer role**, not automatic broadcast acceptance.
+
+The [compute platform runbook](../cookbook/compute-host.md) describes the Incus substrate and operator enrollment. [Existing workload migration](../cookbook/compute-workload-migration.md) describes independent release profiles for Minecraft, T3 and gated SplitCast, without changing their persistent identities. This historical inventory does not establish that the new feature has been activated.
 
 ## Obtaining live acceptance evidence
 

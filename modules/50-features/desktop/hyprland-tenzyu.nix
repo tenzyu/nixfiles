@@ -48,6 +48,8 @@
     config = lib.mkIf config.local.features.hyprland-tenzyu.enable {
       local.features.hyprland-core.enable = lib.mkDefault true;
 
+      home.packages = [pkgs.cliphist pkgs.unstable.grimblast];
+
       wayland.windowManager.hyprland = {
         configType = "lua";
 

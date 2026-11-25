@@ -8,7 +8,7 @@ The aim is to make the important decisions visible where they belong: **hosts ch
 
 | Host | Purpose | Source-selected examples |
 | --- | --- | --- |
-| **neko5** | Wayland laptop and low-latency osu!lazer environment | Hyprland, tablet tooling, PipeWire, remote build client |
+| **neko5** | Wayland laptop and low-latency osu!lazer environment | Jay, Alacritty, Rofi, cclip, tablet tooling, PipeWire, remote build client |
 | **neko6** | NixOS-WSL command-line environment | Home Manager, Docker and WSL integration |
 | **neko7** | Proxmox guest for remote development and workloads | Remote builder, T3 Code, CUDA, SplitCast production consumer, Minecraft |
 
@@ -22,6 +22,8 @@ These are **declarations**, not claims about currently running services. Minecra
 - **Reproducibility with operational boundaries.** `flake.lock` pins inputs; PR checks test semantics and evaluate configurations. Rebuilds, secret changes, data migrations and publication are separate operator decisions.
 
 [Architecture and decisions](docs/memory/index.md) · [Practical recipes](docs/cookbook/index.md)
+
+**HOME maintenance goal:** leave ordinary application state alone unless it causes a concrete problem. Use native NixOS/Home Manager/application options, on-demand inspection and recoverable changes rather than implementing a new global authority. The existing HOME migration engine remains on `main` until separately reviewed retirement; no host migration or permission change is implied by the [HOME maintenance ADR](docs/adr/0003-home-layout-reuse-first.md).
 
 ## Explore without activating anything
 
@@ -43,6 +45,7 @@ modules/
   _internal/             typed host-to-module projection, explicitly imported
   00-hosts/              selections for neko5, neko6 and neko7
   10-foundations/        shared policy and checks
+  40-workloads/          independent NixOS workload release definitions
   50-features/           independently selectable NixOS/Home Manager features
   60-integrations/       conditional cross-feature behavior
 lib/                      pure Nix composition primitives
@@ -52,6 +55,10 @@ docs/memory/              OKF knowledge for agents: why, evidence, risks, retrie
 ```
 
 Some support assets are written in Python, TypeScript or shell; **Nix-first does not mean 100% Nix source or immutable application data**. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
+
+## Compute host operations
+
+[Instance operations](docs/cookbook/compute-instances.md) is the short entrypoint. On neko7, `just`, `just images`, and `just instances` discover the native task menu, buildable workload releases and live Incus inventory; container operations require operator approval. The image artifacts are build-only; VM admission and durable lifecycle are deferred. New guest releases do not require editing the host declaration or a CI matrix.
 
 ## Change safely
 

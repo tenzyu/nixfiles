@@ -70,7 +70,7 @@
           ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
           ll = "eza -al --icons=always";
           lt = "eza -a --tree --level=3 --icons=always";
-          lg = "lazygit";
+          lg = if config.local.features.gitui.enable then "gitui" else "lazygit";
           ta = "tmux attach -t main";
           tn = "tmux new -As main";
           tls = "tmux ls";

@@ -1,4 +1,13 @@
-{inputs, ...}: {
+{inputs, self, ...}: {
+  perSystem = {system, lib, ...}: {
+    packages = lib.optionalAttrs (system == "x86_64-linux") {
+      # Build independently; never make the host generation a GC root for
+      # the current application release.
+      neko7-minecraft-system =
+        self.nixosConfigurations.neko7.config.containers.neko7-mc.config.system.build.toplevel;
+    };
+  };
+
   flake.modules.nixos.game-minecraft = {
     config,
     lib,
@@ -65,5 +74,27 @@
         };
       };
     };
-  in mkGame spec mkMinecraftModule;
+    game = mkGame spec mkMinecraftModule;
+    profile = "/nix/var/nix/profiles/per-container/${spec.containerName}/system";
+  in
+    game // {
+      config = lib.mkMerge [
+        game.config
+        (lib.mkIf config.local.features.game-minecraft.enable {
+          # NixOS nspawn binds the host per-container profiles directory over
+          # /nix/var/nix/profiles inside the guest. SYSTEM_PATH is resolved
+          # there, not at the host's own /nix/var/nix/profiles/system.
+          # Keep config as the build input, but deploy through a native Nix
+          # generation profile (the explicit path wins over the derived path).
+          containers.${spec.containerName}.path = lib.mkForce "/nix/var/nix/profiles/system";
+          systemd.services."container@${spec.containerName}".unitConfig.ConditionPathExists = "${profile}/init";
+          system.preSwitchChecks.minecraft-workload-profile = ''
+            if ! test -L ${profile} || ! test -x ${profile}/init; then
+              echo "Seed the Minecraft workload profile from the incumbent guest before activation." >&2
+              exit 1
+            fi
+          '';
+        })
+      ];
+    };
 }
