@@ -212,27 +212,6 @@
         "type": "github"
       }
     },
-    "nix-github-actions": {
-      "inputs": {
-        "nixpkgs": [
-          "nix-unit",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1737420293,
-        "narHash": "sha256-F1G5ifvqTpJq7fdkT34e/Jy9VCyzd5XfJ9TO8fHhJWE=",
-        "owner": "nix-community",
-        "repo": "nix-github-actions",
-        "rev": "f4158fa080ef4503c8f4c820967d946c2af31ec9",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "repo": "nix-github-actions",
-        "type": "github"
-      }
-    },
     "nix-minecraft": {
       "inputs": {
         "flake-compat": "flake-compat_2",
@@ -252,30 +231,6 @@
       "original": {
         "owner": "Infinidoge",
         "repo": "nix-minecraft",
-        "type": "github"
-      }
-    },
-    "nix-unit": {
-      "inputs": {
-        "nix-github-actions": "nix-github-actions",
-        "nixpkgs": [
-          "nixpkgs-unstable"
-        ],
-        "treefmt-nix": [
-          "treefmt-nix"
-        ]
-      },
-      "locked": {
-        "lastModified": 1784925540,
-        "narHash": "sha256-11IOL5tyJbB3vMQzzhIULuPtoHJpkLFz4BaKApm6t0Q=",
-        "owner": "nix-community",
-        "repo": "nix-unit",
-        "rev": "b3d16367c54621fd073aa8c1dd510042f771f624",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "repo": "nix-unit",
         "type": "github"
       }
     },
@@ -467,7 +422,6 @@
         "lazyvim": "lazyvim",
         "llm-agents": "llm-agents",
         "nix-minecraft": "nix-minecraft",
-        "nix-unit": "nix-unit",
         "nixgl": "nixgl",
         "nixos-wsl": "nixos-wsl",
         "nixpkgs": "nixpkgs_3",

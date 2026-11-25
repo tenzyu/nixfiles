@@ -146,22 +146,6 @@ in {
     };
   };
 
-  testServiceLayoutPreservesLegacyPaths = {
-    expr = layout.mkGameDirectories {
-      key = "minecraft";
-      home = "/home/game-minecraft";
-    };
-    expected = {
-      home = "/home/game-minecraft";
-      gameDir = "/home/game-minecraft/minecraft";
-      serverDir = "/home/game-minecraft/minecraft/server";
-      backupsDir = "/home/game-minecraft/minecraft/backups";
-      secretsDir = "/home/game-minecraft/secrets";
-      stateDir = "/home/game-minecraft/.state";
-      tailscaleDir = "/home/game-minecraft/.state/tailscale";
-    };
-  };
-
   testServiceLayoutAllowsIndependentDataRoot = {
     expr = (layout.mkGameDirectories {
       key = "minecraft";
@@ -176,14 +160,17 @@ in {
       badKey = (builtins.tryEval (layout.mkGameDirectories {
         key = "../minecraft";
         home = "/home/service";
+        gameDir = "/srv/minecraft";
       }).gameDir).success;
       badRoot = (builtins.tryEval (layout.mkGameDirectories {
         key = "minecraft";
         home = "/srv/../tmp";
+        gameDir = "/srv/minecraft";
       }).gameDir).success;
       storeRoot = (builtins.tryEval (layout.mkGameDirectories {
         key = "minecraft";
         home = "/nix/store/example";
+        gameDir = "/srv/minecraft";
       }).gameDir).success;
     };
     expected = {badKey = false; badRoot = false; storeRoot = false;};
@@ -193,7 +180,8 @@ in {
     expr = let
       spec = {
         key = "minecraft";
-        home = "/home/game-minecraft";
+        home = "/var/lib/game-containers/minecraft";
+        gameDir = "/srv/minecraft";
         backupSource = "survival";
       };
       accepts = overrides:
