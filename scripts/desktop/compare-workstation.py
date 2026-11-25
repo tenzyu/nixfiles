@@ -2,7 +2,7 @@
 """Stacked change gate: protect the accepted desktop and its package identities.
 
 This compares evaluated declarations, not measured performance or closures.
-No kernel or direct package policy change is permitted in the ready slice.
+Only the explicit kernel memory-policy arguments may differ.
 """
 from collections import Counter
 import json
@@ -10,6 +10,10 @@ from pathlib import Path
 import sys
 import tomllib
 
+KERNEL_DELTA = {
+    "transparent_hugepage=never", "zswap.enabled=1", "zswap.compressor=lz4", "zswap.max_pool_percent=25",
+    "zswap.shrinker_enabled=1",
+}
 
 
 def compare(before, after):
@@ -21,7 +25,7 @@ def compare(before, after):
         policy = dict(new["policy"])
         params = policy["kernelParams"]
         old_params = old["policy"]["kernelParams"]
-        if Counter(params) != Counter(old_params):
+        if Counter(params) != Counter(old_params) + Counter(KERNEL_DELTA):
             raise AssertionError(f"{profile}: unexpected kernel parameter delta")
         policy["kernelParams"] = old_params
         if old["policy"] != policy:

@@ -19,7 +19,9 @@
       ];
 
       boot.initrd.kernelModules = [];
-      boot.kernelModules = ["kvm-intel"];
+      # Local virtualization is not a boot-time workstation capability.
+      # Retain the module for explicit modprobe when a local VM is required.
+      boot.kernelModules = [];
       boot.extraModulePackages = [];
 
       fileSystems."/" = {
@@ -33,6 +35,11 @@
         options = ["fmask=0077" "dmask=0077"];
       };
 
+      # This is the native NixOS module evaluation context, not the host seed.
+      assertions = [{
+        assertion = config.swapDevices != [];
+        message = "neko5 zswap requires its existing physical swap device.";
+      }];
       swapDevices = [
         {device = "/dev/disk/by-uuid/3781b9e2-45a4-4697-865f-e79bf30644f1";}
       ];
