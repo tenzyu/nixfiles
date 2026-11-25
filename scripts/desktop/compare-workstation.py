@@ -39,7 +39,9 @@ def compare(before, after):
                 f"removed={dict(old_packages - new_packages)}, "
                 f"added={dict(new_packages - old_packages)}"
             )
-        print(f"{profile}: protected policy and direct home package names unchanged")
+        if Counter(old["homePackageDrvs"]) != Counter(new["homePackageDrvs"]):
+            raise AssertionError(f"{profile}: direct home package derivations changed")
+        print(f"{profile}: protected policy and direct home package derivations unchanged")
     print("Protected Jay TOML unchanged; source equivalence only.")
 
 
