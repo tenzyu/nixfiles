@@ -1,5 +1,7 @@
 # ADR-0002 — Preserve existing data at commit boundaries
 
+> **2026-11-23 scope note:** [ADR-0003](0003-home-layout-reuse-first.md) drops universal HOME enforcement and aesthetic migration from the **future maintenance goals**. This ADR still governs the existing implemented migration's safety, conflict refusal, journals and recovery **when invoked**; no deployed host state or previously measured result is rewritten. Future removal is a separate acceptance decision.
+
 - **Status:** Architecture and operator policy accepted by the user on 2026-11-20 JST. R4 recorded a scoped capacity **PASS** on 2026-11-20 for Home `e5b62b4` and a scoped **FAIL** for the earlier `2ecf45d`. Both arms met the case 4 confirmation at the capacity-follow-up inputs. Case 7 carries forward on exact L. The frozen eight-case no-gain result remains in force for its inputs. Real-host acceptance **NOT RUN**.
 - **Date:** 2026-11-19
 - **Original proposal baseline:** [`0daacae75f19dc2b01712c26471b42b2c6bc9ca3`](https://github.com/tenzyu/nixfiles/commit/0daacae75f19dc2b01712c26471b42b2c6bc9ca3)

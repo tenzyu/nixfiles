@@ -26,6 +26,12 @@ sources:
 
 # Decisions and acceptance
 
+## D0 — HOME maintenance direction (2026-11-23)
+
+[ADR-0003](../adr/0003-home-layout-reuse-first.md) accepts **"HOME should require no daily attention"** as the future maintenance goal. Do not pursue physical-HOME-wide immutability, mandatory removal of every legacy dotpath, a global path-authority mechanism or automatic migration merely for tidy directory names. Prefer NixOS, Home Manager, XDG and app-native options; inspect drift on demand and retain explicit, recoverable one-off changes only when needed.
+
+**This is not an implementation rollback of D2.** The existing #65/#70 `home-migration` pre-switch admission, retained incumbent, journaling and recovery contracts still govern any use of that code on `main`. Retirement must be tested and authorized separately. [#78](https://github.com/tenzyu/nixfiles/pull/78) and [#79](https://github.com/tenzyu/nixfiles/pull/79) are archived investigations, **not** production behavior or a pending enforcement plan.
+
 ## D1 — Code wins over stale documentation
 
 Nix module implementation and exact host configuration supersede old README assertions. However, source inspection, Nix evaluation, build, activation, boot, and runtime behavior are different evidence tiers. A registered module does not mean the host enabled it; an enabled service is not proof of current runtime.
