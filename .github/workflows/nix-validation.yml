@@ -187,10 +187,22 @@ jobs:
           set -euo pipefail
           nix eval --impure --json --file scripts/desktop/evaluate-desktop.nix \
             --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-desktop.json
-          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .legacyDesktopDisabled and .systemPolicy and .identity and .audio and .realtime and .hardwareAudio and .desktopPackages and (.drv | endswith(".drv"))))' /tmp/neko5-desktop.json
+          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .legacyDesktopDisabled and .systemPolicy and .resourcePolicy and .identity and .audio and .realtime and .hardwareAudio and .desktopPackages and (.drv | endswith(".drv"))))' /tmp/neko5-desktop.json
           python3 scripts/desktop/check-desktop-config.py /tmp/neko5-desktop.json
           python3 -m py_compile scripts/desktop/memory-snapshot.py
           python3 scripts/desktop/test-clipboard-integration.py
+
+      - name: Compare protected workstation source against stack parent
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/neko5-purpose-built-workstation' && github.base_ref == 'experiment/neko5-rust-slim'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git rev-parse HEAD^1)"
+          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
+            --argstr flakeRef "git+file://$PWD?rev=$base" result > /tmp/neko5-workstation-before.json
+          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
+            --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-workstation-after.json
+          python3 scripts/desktop/compare-workstation.py /tmp/neko5-workstation-before.json /tmp/neko5-workstation-after.json
 
   refactor-baseline:
     # One-time migration evidence for PR #81; remove this job after review.
