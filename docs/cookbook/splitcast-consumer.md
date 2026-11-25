@@ -29,7 +29,7 @@ paths and use the CI workflow_dispatch `cache_strict` signed-copy audit
 before asserting cache completeness. A cache audit does not assert runtime
 deployment.
 
-SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local feature files only import those modules and map existing role-enable settings. Host files supply peer settings through `home-manager.users.<user>.services.splitcast.settings`.
+SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local features consume those modules without duplicating product behavior. Capture uses the existing embedded Home Manager role; neko7 production evaluates the upstream Home Manager module in its independent runtime artifact, including its peer setting. See [existing workload migration](compute-workload-migration.md).
 
 The current `flake.lock` pins the SplitCast input at `3b2a051efc1c5f8c483d8f7f453d49f6216c7f2d`, **not** the release revision `d2205d06b0dc695c3d9b7372fafa7facee769fa9` used by the configured binary cache. The latter is an older candidate, not verified for both current Rust/Web outputs. Keep SplitCast's own Nixpkgs lock: adding a `follows` override changes derivation inputs and can invalidate store-path compatibility.
 
@@ -37,7 +37,7 @@ The current `flake.lock` pins the SplitCast input at `3b2a051efc1c5f8c483d8f7f45
 
 To select a later cached candidate, review the intended SplitCast source revision and update `flake.lock` with `nix flake update splitcast`, then update the explicit cache URL only after verifying release provenance, signatures and actual output-store paths. Do not change the pinned source merely to make a cache tag match. A lock update does not deploy SplitCast.
 
-The capture role remains disabled. The production integration remains configured, but `services.splitcast.rustCandidate` remains false and the user unit has no autostart target. No operating-system switch or service start is part of this extraction.
+The capture role remains disabled. The neko7 production artifact is generated with `services.splitcast.rustCandidate = false` and its upstream user unit has no autostart target. The embedded Home Manager production role is disabled so it cannot own the same unit. No operating-system switch or service start is part of this extraction.
 
 Run SplitCast's own verification from its repository. This consumer reuses its package and configuration checks, rather than retaining a second implementation or test suite. The independent repository's `docs/operations.md`, `docs/design-review.md`, `docs/verification.md`, and `MEMORY.md` are the current references. The historical graphics research and isolated experiments were transferred there as non-current evidence.
 

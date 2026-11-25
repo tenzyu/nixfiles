@@ -18,6 +18,11 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [HOME maintenance decision](../adr/0003-home-layout-reuse-first.md) — favor native app settings and tolerable drift over a global HOME authority; keep existing migration safeguards until independently retired.
 - [Switch without moving HOME data](home-migration-rollout.md) — run the Home Manager pre-switch check on each host, resolve refusals, and switch one host at a time.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
+- [Personal compute platform](compute-host.md) — dynamic restricted instances, host acceptance, and native execution.
+- [Instance operations](compute-instances.md) — build-only releases, inventory and restricted container lifecycle.
+- [Flestr ingress](flestr-ingress.md) — source-grounded transport boundary and UDP evidence.
+- [Compute platform operations](compute-platform-operations.md) — dashboards, preview gateway, independent personal-data workloads and authority boundaries.
+- [Existing workload migration](compute-workload-migration.md) — independent Minecraft, T3 and SplitCast release profiles and cutover.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md) — host integration versus upstream product ownership.
 - [neko5 desktop and Gamescope](neko5-desktop.md) — daily Jay session, independent probe, audio and clipboard acceptance.
 - [osu! display experiments](../../scripts/osu-performance/README-display.md) · [latency lab](../../scripts/osu-performance/README-lab.md) — experimental evidence, not physical latency proof.

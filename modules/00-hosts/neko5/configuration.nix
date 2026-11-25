@@ -138,7 +138,11 @@
         mako.enable = true;
         wlogout.enable = true;
         hyprpaper.enable = false;
-        packages-desktop.enable = true;
+        # Select capability owners independently, not the legacy desktop bundle.
+        packages-desktop.enable = false;
+        desktop-tools.enable = true;
+        obs-studio.enable = true;
+        easyeffects.enable = true;
         firefox.enable = true;
         chromium.enable = true;
         zed-editor.enable = false;

@@ -6,6 +6,9 @@ source but disabled on neko5, with no dedicated fallback. Sway, KWin and
 Weston are retired. Both boot entries preserve HOME, kernel, Mesa/i915,
 official osu! package, HID, audio, thermal, network and SSH policy.
 
+The workstation selects desktop tools, OBS Studio and EasyEffects independently.
+The kernel/resource experiment is intentionally outside this integration.
+
 ## Source ownership and fixed settings
 
 - Host choices and eDP-1 mode: [configuration](../../modules/00-hosts/neko5/configuration.nix);

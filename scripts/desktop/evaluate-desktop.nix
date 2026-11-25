@@ -36,6 +36,10 @@
         && has "jay-rofi-actions" == (compositor == "jay")
         && !has "jay-tofi-actions" && !has "tofi"
         && sh.programs.rofi.enable && !sh.local.features.tofi.enable
+        && !sh.local.features.packages-desktop.enable && sh.local.features.desktop-tools.enable
+        && sh.local.features.obs-studio.enable && sh.programs.obs-studio.enable
+        && sh.local.features.easyeffects.enable && has "easyeffects"
+        && s.services.gvfs.enable && s.services.udisks2.enable
         && builtins.length herdr == 1
         && (if compositor == "jay"
           then (builtins.head herdr).unwrapped.drvPath == f.nixosConfigurations.neko5.pkgs.llm-agents.herdr.drvPath

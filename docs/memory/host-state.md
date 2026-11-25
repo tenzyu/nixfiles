@@ -30,7 +30,7 @@ Each host's `local.users.tenzyu.context.homeStateVersion` is declared as `26.05`
 
 ## neko5: desktop and latency work
 
-The normal host selects Jay, Alacritty, Tofi, cclip, Fileman, Firefox, osu!lazer, `nix-remote-client` and `nix-store-clean`. Hyprland is disabled; Gamescope is the only independent research specialisation. The system-only `neko5-osu-first` selector is retired; the optional legacy HM lab remains disabled. See [desktop runbook](../cookbook/neko5-desktop.md). Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../../assets/home-layout/README.md).
+The normal host selects Jay, Alacritty, Rofi, cclip, Fileman, Firefox, osu!lazer, `nix-remote-client` and `nix-store-clean`. Hyprland is disabled; Gamescope is the only independent research specialisation. The system-only `neko5-osu-first` selector is retired; the optional legacy HM lab remains disabled. See [desktop runbook](../cookbook/neko5-desktop.md). Both system and user `splitcast-capture` are explicitly **disabled**. `home-layout` is enabled as a feature, but its host TODO still identifies buggy migration scripts. Activation is check-only; data movement is not accepted without the independent [home migration runbook](../../assets/home-layout/README.md).
 
 `sops-nix` is selected in the host. This only imports/configures the provider, not a decrypted credential. The declared panel is 1366×768, with Direct Scanout requested; the 2026-11-25 presentation decision scopes variant2 to eDP-1 and noccs to normal neko5 osu! launches (not Gamescope or other hosts). Steady ~480 async flips/s and fast fence-ready dispatch were observed during the trial, not after deployment. See the [dated research log](../research/neko5-presentation-log.md). The 48 kHz, osu! playback quantum ceiling 64/48000 and ALC257 periods 128×3/H0 are source policy, not physical latency evidence.
 
@@ -58,6 +58,8 @@ Thus `neko7-mc` is the only **declared** game container, with the Minecraft worl
 The [storage migration runbook](../cookbook/game-server-srv-migration.md) records a **dated 2026-11-18 operator report** of an offline copy, player login, and generation 68 becoming the default boot entry. That is historical evidence, not continuous confirmation of current Minecraft uptime. Its destructive/copy commands must **not** be rerun against an existing `/srv` destination.
 
 `sops-nix` is selected on neko7. [Secret provisioning](../cookbook/secrets-and-tailscale.md) requires a host decryption identity and an actual `sops.secrets` declaration; the feature toggle alone is not evidence that a Tailscale auth key was moved into SOPS. The `t3code-tailnet` systemd service is a controlled, on-demand Serve restore, not proof that the public/Tailnet route exists now. `opencode-neko7-service` remains a candidate aspect rather than a selected host feature. SplitCast `production` is a **consumer role**, not automatic broadcast acceptance.
+
+The [compute platform runbook](../cookbook/compute-host.md) describes the Incus substrate and operator enrollment. [Existing workload migration](../cookbook/compute-workload-migration.md) describes independent release profiles for Minecraft, T3 and gated SplitCast, without changing their persistent identities. This historical inventory does not establish that the new feature has been activated.
 
 ## Obtaining live acceptance evidence
 

@@ -31,6 +31,7 @@
       portal = s.xdg.portal.config;
     };
     homePackages = map lib.getName h.home.packages;
+    homePackageDrvs = map (p: p.drvPath) h.home.packages;
   };
 in {
   result = {

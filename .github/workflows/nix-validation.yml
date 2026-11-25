@@ -192,9 +192,21 @@ jobs:
           python3 -m py_compile scripts/desktop/memory-snapshot.py
           python3 scripts/desktop/test-clipboard-integration.py
 
+      - name: Compare protected desktop composition against accepted Jay head
+        if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/ready-native-infrastructure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="f013e73cbb42a338929873419dd51abd9a8898b8"
+          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
+            --argstr flakeRef "git+file://$PWD?rev=$base" result > /tmp/neko5-workstation-before.json
+          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
+            --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-workstation-after.json
+          python3 scripts/desktop/compare-workstation.py /tmp/neko5-workstation-before.json /tmp/neko5-workstation-after.json
+
   refactor-baseline:
-    # One-time migration evidence for PR #81; remove this job after review.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 81
+    # One-time migration evidence for the consolidated Jay integration.
+    if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/ready-native-infrastructure'
     name: Compare accepted neko5 baseline
     runs-on: ubuntu-latest
     timeout-minutes: 20
