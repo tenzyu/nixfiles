@@ -41,7 +41,7 @@ second target manager on the assumption that a direct VT launcher has no
 session lifecycle. Verify its actual status and activation environment
 after login/logout and restart. The [GVFS module at the pinned revision](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/nixos/modules/services/desktops/gvfs.nix)
 registers D-Bus and systemd providers, enables UDisks2, and exposes GIO
-modules. Fileman selects it explicitly. Installing udiskie does not prove a
+modules. Thunar now selects it explicitly. Fileman was retired from neko5 after operator-reported instability. Installing udiskie does not prove a
 running automounter. Do not disable GVFS backends or UDisks on package-name
 evidence alone; FileChooser, trash, removable storage, network shares and
 the .osk/Ark route are separate acceptance surfaces.
@@ -54,7 +54,7 @@ the .osk/Ark route are separate acceptance surfaces.
 | Audio and real-time admission | PipeWire, WirePlumber, RTKit, ALSA | Preserve socket/graph semantics; no global quantum override |
 | Launching and clipboard | Stock Rofi, cclip, Jay native binding, Herdr OSC 52 | Rofi operation; capture session; no Tofi, no new daemon |
 | Japanese input | Fcitx5 + Mozc | Session, narrow privileged boundary as before |
-| Files and portal | Fileman, UDisks2, GVFS, GTK portal, Jay portal, dconf | Session / bus activation; keep successful provider, verify idle exit separately |
+| Files and portal | Thunar, UDisks2, GVFS, GTK portal, Jay portal, dconf | Session / bus activation; keep successful provider, verify idle exit separately |
 | Notifications | Existing systemd-owned Mako D-Bus provider | Native activation; no duplicate notification owner |
 | Connectivity / authority | NetworkManager, wpa_supplicant, logind, polkit, Tailscale, SSH | Maintain connectivity, login, removable media and recovery authority |
 | Build and agent execution | Nix client/daemon, SSH remote builder, Herdr | Remote execution when available; preserve local admission and recovery |
@@ -99,10 +99,12 @@ the offending line if either fails. Do not change min_free_kbytes,
 watermark_scale_factor, overcommit, swap priority, driver buffers or
 runtime cache policy to make a number look smaller.
 
+The selected terminal is now stock foot (no server), and Thunar replaces Fileman.
+Firefox alone uses its built-in GTK file chooser; other portals remain enabled.
 The estimated fixed-allocation opportunity is ~45 MiB, not a verified
 Effective Used delta, and not a path to 400 MiB on its own. Other candidates
-require evidence before configuration changes: a terminal comparison with
-foot (OSC 52 writes without reads, Unicode/Mozc, Herdr and remote paste);
+require evidence before configuration changes: live acceptance of the stock foot replacement (OSC 52 writes without reads,
+Unicode/Mozc, Herdr and remote paste);
 portal teardown and stale D-Bus environment; GVFS optional backend
 activation; lock/PAM/suspend/resume; system package and closure attribution.
 Retain current providers until replacement is proven. No arbitrary daemon
@@ -168,10 +170,9 @@ and mutable data remain separate. No GC is part of this work.
 ## CI and evidence tier
 
 The normal host and Gamescope reference must evaluate with the new resource
-policy and all existing audio/desktop assertions. The stack-parent gate
-compares the full parsed Jay TOML, native protected policy, and direct home
-package names and derivations against the PR base; only the added profiling
-kernel argument is permitted. It does not prove equal closure size or
+policy and all existing audio/desktop assertions. The stack-parent gate compares parsed Jay TOML, protected native policy and direct
+home package derivations against the PR base; only the resource, terminal routing,
+file-manager association and Firefox wrapper changes are permitted. It does not prove equal closure size or
 runtime behavior. The parent a8461262 CI was red: the concrete Home feature
 fixture still expected Tofi, and its historical one-time refactor comparator
 rejected the intentional Rofi shortcut transition. This stack corrects the
