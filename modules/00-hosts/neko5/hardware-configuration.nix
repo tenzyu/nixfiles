@@ -19,7 +19,9 @@
       ];
 
       boot.initrd.kernelModules = [];
-      boot.kernelModules = ["kvm-intel"];
+      # Local virtualization is not a boot-time workstation capability.
+      # Retain the module for explicit modprobe when a local VM is required.
+      boot.kernelModules = [];
       boot.extraModulePackages = [];
 
       fileSystems."/" = {

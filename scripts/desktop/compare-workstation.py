@@ -2,7 +2,7 @@
 """Stacked change gate: protect the accepted desktop and its package identities.
 
 This compares evaluated declarations, not measured performance or closures.
-Only the explicit kernel swap-policy arguments may differ.
+Only the explicit kernel memory-policy arguments may differ.
 """
 from collections import Counter
 import json
@@ -11,7 +11,7 @@ import sys
 import tomllib
 
 KERNEL_DELTA = {
-    "zswap.enabled=1", "zswap.compressor=lz4", "zswap.max_pool_percent=25",
+    "transparent_hugepage=never", "zswap.enabled=1", "zswap.compressor=lz4", "zswap.max_pool_percent=25",
     "zswap.shrinker_enabled=1",
 }
 
