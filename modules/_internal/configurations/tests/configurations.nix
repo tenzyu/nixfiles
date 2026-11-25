@@ -158,7 +158,7 @@
   expectedEnabled = {
     neko5 = lib.sort builtins.lessThan (cliFeatures ++ [
       "alacritty" "cclip" "chromium" "fileman" "firefox" "jay"
-      "mako" "packages-desktop" "tofi" "wlogout"
+      "mako" "packages-desktop" "rofi" "wlogout"
     ]);
     neko6 = cliFeatures;
     neko7 = cliFeatures;
