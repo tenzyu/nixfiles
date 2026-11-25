@@ -154,6 +154,7 @@
     "obs-studio"
     "packages-desktop"
     "rofi"
+    "thunar"
     "tofi"
     "waybar"
     "wlogout"
@@ -161,8 +162,8 @@
   trackedFeatures = cliFeatures ++ desktopFeatures;
   expectedEnabled = {
     neko5 = lib.sort builtins.lessThan (cliFeatures ++ [
-      "cclip" "chromium" "desktop-tools" "easyeffects" "fileman" "firefox" "foot" "jay"
-      "mako" "obs-studio" "rofi" "wlogout"
+      "cclip" "chromium" "desktop-tools" "easyeffects" "firefox" "foot" "jay"
+      "mako" "obs-studio" "rofi" "thunar" "wlogout"
     ]);
     neko6 = cliFeatures;
     neko7 = cliFeatures;
