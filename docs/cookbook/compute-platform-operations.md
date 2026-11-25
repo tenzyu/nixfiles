@@ -51,7 +51,32 @@ A gateway restart discards all ephemeral routes; default is 404. Stop sharing im
 
 ## Personal data workloads (independent Incus VM artifacts)
 
-Syncthing and Immich have independent pinned build-only image/system outputs and standalone NixOS service tests. Immich uses the reviewed existing unstable pin rather than permitting insecure stable packages. Inspect with `just images`; build `nix build --no-link .#neko7-syncthing-image .#neko7-immich-image`. Do not import/launch these images with real data, enroll guest identities, or perform VM updates/backups/restores until the exact-image lifecycle and hardware gates in the follow-up pass. No live migration or publication is approved.
+Use [instance operations](compute-instances.md) for the short operator command menu and one-file workload addition. The native commands below explain the lower-level mechanism; do not run both creation paths for the same instance. Immich uses the existing pinned unstable NixOS guest (3.4.1) because stable 2.x is marked insecure/EOL. No vulnerability allowlist.
+
+Both images are built from the pinned NixOS native service and VM image modules. They are not started on host activation. Each has an independent kernel, disk and service identity, disabled SSH and locked root login; access through the operator Incus agent. No host mounts, auth keys, public exposure, default credentials or live data migration. Syncthing starts with no declared devices/folders, global/local discovery, relay and NAT traversal disabled. Immich starts CPU-only with local PostgreSQL + vectorchord and Redis UNIX sockets, ML disabled initially. The web UI binds guest loopback. Suggested initial sizing, not enforced globally: Syncthing 2 vCPU/2 GiB, Immich 4 vCPU/6 GiB, adjust disk to verified data requirements. Build, import, initialize; choose a disk size that fits the actual dataset and available space (examples deliberately small for empty instances).
+
+```sh
+out=$(nix build --no-link --print-out-paths .#neko7-syncthing-image)
+sudo incus image import "$out/metadata.tar.xz" "$out/nixos.qcow2" --alias syncthing-reviewed
+sudo incus launch syncthing-reviewed syncthing --vm -c security.secureboot=false -c limits.cpu=2 -c limits.memory=2GiB
+out=$(nix build --no-link --print-out-paths .#neko7-immich-image)
+sudo incus image import "$out/metadata.tar.xz" "$out/nixos.qcow2" --alias immich-reviewed
+sudo incus launch immich-reviewed immich --vm -c security.secureboot=false -c limits.cpu=4 -c limits.memory=6GiB
+sudo incus exec syncthing -- systemctl is-active syncthing
+sudo incus exec immich -- systemctl is-active immich-server
+sudo incus exec immich -- curl -fsS http://127.0.0.1:2283/api/server/ping
+```
+
+Inspect the image/instance fingerprint, root disk size and free space before use. Configure guest Tailnet identity with the existing approved enrollment procedure (no duplicate node identity); never enable Funnel. Syncthing peer addresses use approved Tailnet addresses, port 22000; configure device IDs, folders, GUI password and initial synchronization direction explicitly. For GUI and Immich HTTP use approved guest Tailscale Serve with loopback origin; initialize admin from authorized client before exposing more broadly. Do not share media paths or sync PostgreSQL files with Syncthing. No automatic pairing, admin creation, public sharing or external tunnel.
+
+Updates: build `.#neko7-<name>-system` independently. For a stopped-write/maintenance window with verified backup, transfer the complete closure via operator Incus exec (trusted source only):
+```sh
+candidate=$(nix build --no-link --print-out-paths .#neko7-immich-system)
+nix-store --export $(nix-store -qR "$candidate") | sudo incus exec immich -- nix-store --import
+sudo incus exec immich -- nix-env -p /nix/var/nix/profiles/system --set "$candidate"
+sudo incus exec immich -- "$candidate/bin/switch-to-configuration" switch
+```
+Confirm guest profile and health; software rollback uses the guest's native system generation, not the host generation. Database migration may make software-only rollback unsafe. Before any real data, rehearse offline `incus stop NAME; incus export NAME /approved/backup/NAME.tar.gz; incus start NAME`; secure backup storage, verify checksum and restore into a **non-networked** isolated instance before considering it a valid backup (do not duplicate the live Tailscale/Syncthing identity). Immich additionally requires coordinated PostgreSQL dump and media backup; restore them together. No automatic deletion/retention of real data. Off-host backup target is not configured. Whole-VM export is the baseline, not a claim that independent data-volume lifecycle or application-consistent restore has been proven.
 
 ## Future identity and transport boundaries
 
@@ -63,4 +88,4 @@ T3 remains one existing control plane; no speculative per-agent sandbox is activ
 
 ## Repository organization
 
-Keep the native feature selection API and numbered directories. Host placement and physical resource inventory stay in `00-hosts`; flake/evaluation/check plumbing in `10-foundations`; independent workload artifacts in `40-workloads`; reusable native features in `50-features` (hardware, networking, containers, monitoring, development). Separate immutable Nix store from mutable workload state and operator secrets; avoid inventing another module DSL. This is a scoped extension, not a wholesale reorganization of unrelated hosts. The host's feature list is grouped by physical machine, ingress, execution, control plane/telemetry, workload placement and common environment without changing the typed API. CI boots the native service modules on NixOS fixture VMs and probes local readiness and external TCP denial, separately from the Incus image builds. Exact-image nested Incus lifecycle, update and isolated restore remain follow-up acceptance gates.
+Keep the native feature selection API and numbered directories. Host placement and physical resource inventory stay in `00-hosts`; flake/evaluation/check plumbing in `10-foundations`; independent workload artifacts in `40-workloads`; reusable native features in `50-features` (hardware, networking, containers, monitoring, development). Separate immutable Nix store from mutable workload state and operator secrets; avoid inventing another module DSL. This is a scoped extension, not a wholesale reorganization of unrelated hosts. The host's feature list is grouped by physical machine, ingress, execution, control plane/telemetry, workload placement and common environment without changing the typed API. CI boots the native service modules on NixOS fixture VMs and probes local readiness and external TCP denial, separately from the Incus image builds. Separate exact-image Incus lifecycle checks attempt creation, readiness, independent identity, update, export and isolated restore of each production image. Hosted TCG execution is opt-in diagnostic evidence, not a merge or hardware acceptance substitute; native KVM execution and recorded results are mandatory.

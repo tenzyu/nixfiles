@@ -58,7 +58,7 @@ Some support assets are written in Python, TypeScript or shell; **Nix-first does
 
 ## Compute host operations
 
-[Instance operations](docs/cookbook/compute-instances.md) is the short entrypoint. On neko7, `just`, `just images`, and `just instances` discover the native task menu, buildable workload releases and live Incus inventory; container operations require operator approval. The image artifacts are build-only; VM admission and durable lifecycle are deferred. New guest releases do not require editing the host declaration or a CI matrix.
+[Instance operations](docs/cookbook/compute-instances.md) is the short entrypoint. On neko7, `just`, `just images`, and `just instances` discover the native task menu, buildable workload releases and live Incus inventory; mutation recipes are documented separately and require operator approval. New guest releases do not require editing the host declaration or a CI matrix.
 
 ## Change safely
 

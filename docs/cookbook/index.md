@@ -19,7 +19,7 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 - [Switch without moving HOME data](home-migration-rollout.md) — run the Home Manager pre-switch check on each host, resolve refusals, and switch one host at a time.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md) — remote development and single-writer service migration.
 - [Personal compute platform](compute-host.md) — dynamic restricted instances, host acceptance, and native execution.
-- [Instance operations](compute-instances.md) — build-only releases, inventory and restricted container lifecycle.
+- [Instance operations](compute-instances.md) — one-file releases and native instance lifecycle.
 - [Flestr ingress](flestr-ingress.md) — source-grounded transport boundary and UDP evidence.
 - [Compute platform operations](compute-platform-operations.md) — dashboards, preview gateway, independent personal-data workloads and authority boundaries.
 - [Existing workload migration](compute-workload-migration.md) — independent Minecraft, T3 and SplitCast release profiles and cutover.

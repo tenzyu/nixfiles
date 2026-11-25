@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Host or user feature | [Host contracts](docs/memory/host-state.md) | `modules/00-hosts/<host>/configuration.nix` → selected `modules/50-features/` |
 | Projection, composition or option conflict | [Architecture](docs/memory/architecture.md) · [Composition](docs/memory/composition.md) | `modules/_internal/configurations/` and `lib/`, evaluated native options |
-| Dynamic container execution or preview | [Instance operations](docs/cookbook/compute-instances.md) · [Compute platform](docs/cookbook/compute-host.md) | Native Incus API, project restrictions and machine tests; no application-specific host configuration |
+| Dynamic execution, VM lab or preview | [Instance operations](docs/cookbook/compute-instances.md) · [Compute platform](docs/cookbook/compute-host.md) | Native Incus API, project restrictions and machine tests; no application-specific host configuration |
 | State, secrets, data migration, rollback | [Decisions](docs/memory/decisions.md) · [Evidence classes](docs/memory/evidence.md) | [Cookbook](docs/cookbook/index.md), exact host/generation/time receipt |
 | Prior failure, hypothesis or repeated task | [Memory index](docs/memory/index.md) · [Dreaming](docs/memory/dreaming.md) | Pinned commit/test/job and surviving counterexample |
 | Unfinished work | [ROADMAP](ROADMAP.md) | Current head, acceptance gates and approval owner |

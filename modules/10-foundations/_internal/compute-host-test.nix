@@ -42,7 +42,7 @@ in pkgs.testers.runNixOSTest {
       ({lib, ...}: {
         options.local.features.incus.enable = lib.mkEnableOption "Incus fixture";
       })
-    ];
+    ] ++ lib.optional tcg ./incus-tcg-fixture.nix;
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
@@ -70,21 +70,30 @@ in pkgs.testers.runNixOSTest {
 
     def agent(command):
         if command.startswith("incus exec lab:"):
-            command = command.replace(" -- ", " --mode=non-interactive --disable-stdin --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
-        return "su - agent -c " + shlex.quote(command)
+            command = command.replace(" -- ", " --mode=non-interactive --cwd / --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
+        return "su - agent -c " + shlex.quote(command) + " </dev/null"
 
     def guest_ready(name):
         try:
-            machine.wait_until_succeeds("timeout -k 5s 30s " + agent("incus exec lab:" + name + " -- systemctl is-active fixture-http"), timeout=900 if ${if vm then "True" else "False"} else 300)
+            machine.wait_until_succeeds("timeout -k 5s 30s " + agent("incus exec lab:" + name + " -- /run/current-system/sw/bin/systemctl is-active fixture-http"), timeout=900 if ${if vm then "True" else "False"} else 300)
         except Exception:
             # A present /dev/kvm is not evidence that an inner guest booted.
             # Collect firmware/kernel/agent console before fixture cleanup.
             print(machine.execute("timeout -k 5s 20s incus info " + name + " --project lab --show-log 2>&1; timeout -k 5s 20s incus console " + name + " --project lab --show-log 2>&1; free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'")[1])
+            for command in [
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/true",
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/systemctl status fixture-http incus-agent --no-pager",
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/journalctl -b -u fixture-http -u incus-agent --no-pager -n 100",
+            ]:
+                status, output = machine.execute("timeout -k 5s 20s " + command + " </dev/null 2>&1", timeout=30)
+                print(f"diagnostic: {command} (exit {status})\n{output}")
             raise
 
     machine.start()
     machine.wait_for_unit("register-nix-paths.service")
     machine.wait_for_unit("incus-preseed.service")
+    if ${if vm && !tcg then "True" else "False"}:
+        machine.succeed("test -c /dev/kvm; test -r /dev/kvm; test -w /dev/kvm")
     if ${if tcg then "True" else "False"}:
         # Keep flushes; avoid direct I/O across two virtual block stacks.
         machine.succeed("incus profile device set default root io.cache=writeback --project lab")
@@ -92,7 +101,7 @@ in pkgs.testers.runNixOSTest {
         machine.succeed("incus profile device get default root io.cache --project lab | grep -Fx writeback")
     machine.wait_for_unit("incumbent.service")
     incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
-    machine.succeed("incus version; incus project get lab limits.instances | grep -x 8; incus project get lab limits.virtual-machines | grep -x 0")
+    machine.succeed("incus version; incus project get lab limits.instances | grep -x 8; incus project get lab limits.virtual-machines | grep -x 3")
     machine.succeed("incus project get lab restricted | grep -x true")
     machine.succeed("incus project get lab restricted.devices.disk | grep -x managed")
     machine.succeed("incus network show incuslab0")
@@ -106,9 +115,6 @@ in pkgs.testers.runNixOSTest {
     machine.succeed("incus config trust add-certificate /home/agent/client.pem --projects lab --restricted")
     machine.succeed(agent("incus remote add lab https://127.0.0.1:8443 --accept-certificate --project lab"))
     machine.succeed(agent("incus list lab:"))
-    status, output = machine.execute(agent("incus create --empty lab:vm-denied --vm") + " 2>&1")
-    assert status != 0 and "Reached maximum number of instances of type" in output, output
-    machine.fail(agent("incus info lab:vm-denied"))
     machine.fail(agent("incus project set lab:lab restricted=false"))
     machine.fail(agent("incus network create lab:escape --project default"))
     machine.fail(agent("incus config set lab: core.https_address=:8443"))

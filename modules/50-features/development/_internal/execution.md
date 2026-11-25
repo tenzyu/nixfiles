@@ -7,7 +7,7 @@ Discover this contract with `cat /etc/neko7/execution.md` (also NEKO7_EXECUTION_
 | finite job in current authority | systemd-run --user --wait --collect | systemctl --user status; systemd-cgtop |
 | reproducible shell/build | nix develop; nix build | nix flake show; nix config show |
 | interactive isolated Linux container | incus launch IMAGE lab:NAME --ephemeral | incus remote list; incus list lab:; incus image list lab: |
-| distinct kernel / machine | Not admitted in this slice; use repository-owned NixOS tests | nix flake show |
+| distinct kernel / machine | incus launch IMAGE lab:NAME --vm --ephemeral | incus info lab:NAME; test -c /dev/kvm (host only) |
 | guest login / file exchange | incus exec lab:NAME -- COMMAND; incus file push | incus info lab:NAME |
 | reproducible multi-machine topology | repository-owned NixOS test | nix flake show; nix build -L .#checks.x86_64-linux.NAME |
 | OCI application | existing rootless docker | docker info; docker context ls |
