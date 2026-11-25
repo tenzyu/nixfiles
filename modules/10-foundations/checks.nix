@@ -96,6 +96,8 @@
       # The pinned nixpkgs package owns Markdown parsing and local URL resolution.
       docs = pkgs.runCommand "documentation-links" {
         nativeBuildInputs = [pkgs.lychee];
+        # Lychee initializes its TLS client even for an offline link check.
+        SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
       } ''
         cd ${self}
         lychee --offline --root-dir "$PWD" README.md AGENTS.md MEMORY.md ROADMAP.md 'docs/**/*.md'
