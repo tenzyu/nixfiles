@@ -129,7 +129,10 @@
 
         jay.enable = true;
         kitty.enable = false;
-        alacritty.enable = true;
+        # Foot uses Wayland shared-memory rendering, not a second GPU renderer.
+        # Retain Alacritty as the selectable rollback terminal, not a daemon.
+        alacritty.enable = false;
+        foot.enable = true;
         # Restore the stock Wayland-capable launcher after intermittent Tofi startup.
         rofi.enable = true;
         tofi.enable = false;
