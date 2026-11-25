@@ -85,7 +85,7 @@
       "framework" "host-policy" "desktop-packages" "docs" "clipboard"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
-      "game-backup-minecraft" "splitcast-cache-cli"
+      "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
     ];
   in {
     checks = lib.optionalAttrs (system == "x86_64-linux") {

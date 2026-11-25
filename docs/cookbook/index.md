@@ -4,6 +4,8 @@ This is the **human-facing** layer. Start with a safe read-only recipe; destruct
 
 ## Work on the configuration
 
+- [Native operator interface](operator-interface.md) — feature navigation, store inventory and safe GC, generations, services and workloads.
+
 - [Inspect safely](inspect.md) — identify hosts, evaluate a derivation and distinguish read-only from activation.
 - [Change a host](change-host.md) — minimal change, focused tests and review boundaries.
 - [PR validation](ci-validation.md) — what GitHub CI checks, and what it does not check.
