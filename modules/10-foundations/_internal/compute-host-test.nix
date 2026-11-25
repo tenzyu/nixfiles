@@ -70,7 +70,7 @@ in pkgs.testers.runNixOSTest {
 
     def agent(command):
         if command.startswith("incus exec lab:"):
-            command = command.replace(" -- ", " --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
+            command = command.replace(" -- ", " --mode=non-interactive --disable-stdin --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
         return "su - agent -c " + shlex.quote(command)
 
     def guest_ready(name):
@@ -85,6 +85,11 @@ in pkgs.testers.runNixOSTest {
     machine.start()
     machine.wait_for_unit("register-nix-paths.service")
     machine.wait_for_unit("incus-preseed.service")
+    if ${if tcg then "True" else "False"}:
+        # Keep flushes; avoid direct I/O across two virtual block stacks.
+        machine.succeed("incus profile device set default root io.cache=writeback --project lab")
+        machine.succeed("incus profile device set default root io.cache=writeback --project default")
+        machine.succeed("incus profile device get default root io.cache --project lab | grep -Fx writeback")
     machine.wait_for_unit("incumbent.service")
     incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
     machine.succeed("incus version; incus project get lab limits.instances | grep -x 8; incus project get lab limits.virtual-machines | grep -x 3")
@@ -132,6 +137,8 @@ in pkgs.testers.runNixOSTest {
     guest_ready("persistent")
     ${lib.optionalString tcg ''
       machine.succeed("grep -Fx persistent /run/incus-ci-tcg-launches; grep -Fx experiment /run/incus-ci-tcg-launches")
+      machine.succeed("incus list name=persistent --project lab --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
+      machine.succeed("incus list name=experiment --project lab --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
     ''}
     machine.succeed(agent("incus exec lab:experiment -- su - developer -c 'id -un' | grep -x developer"))
     machine.succeed(agent("incus exec lab:experiment -- touch /tmp/experiment-marker"))

@@ -67,10 +67,9 @@ in pkgs.testers.runNixOSTest {
             print(output)
             diagnose(name)
             raise Exception("exact-image instance creation/readiness failed")
-        ${pkgs.lib.optionalString tcg ''
-          neko7.succeed("grep -Fx " + shlex.quote(name) + " /run/incus-ci-tcg-launches")
-          neko7.succeed("incus list local: name=" + shlex.quote(name) + " --project default --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
-        ''}
+        if ${if tcg then "True" else "False"}:
+            neko7.succeed("grep -Fx " + shlex.quote(name) + " /run/incus-ci-tcg-launches")
+            neko7.succeed("incus list local: name=" + shlex.quote(name) + " --project default --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
     # Exact production image, no synthetic image substitution. The private
     # artifact entrypoints are precisely the steps used by the public recipes
     # after nix build; public build wrappers are tested separately.
