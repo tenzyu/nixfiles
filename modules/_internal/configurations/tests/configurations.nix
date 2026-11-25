@@ -146,6 +146,7 @@
     "easyeffects"
     "fileman"
     "firefox"
+    "foot"
     "hyprpaper"
     "jay"
     "kitty"
@@ -160,7 +161,7 @@
   trackedFeatures = cliFeatures ++ desktopFeatures;
   expectedEnabled = {
     neko5 = lib.sort builtins.lessThan (cliFeatures ++ [
-      "alacritty" "cclip" "chromium" "desktop-tools" "easyeffects" "fileman" "firefox" "jay"
+      "cclip" "chromium" "desktop-tools" "easyeffects" "fileman" "firefox" "foot" "jay"
       "mako" "obs-studio" "rofi" "wlogout"
     ]);
     neko6 = cliFeatures;
