@@ -37,6 +37,10 @@
         && has "jay-rofi-actions" == (compositor == "jay")
         && !has "jay-tofi-actions" && !has "tofi"
         && sh.programs.rofi.enable && !sh.local.features.tofi.enable
+        && sh.programs.foot.enable && !sh.programs.foot.server.enable
+        && !sh.programs.alacritty.enable && !has "alacritty" && has "foot"
+        && sh.programs.foot.settings.security.osc52 == "copy-enabled"
+        && sh.programs.foot.settings.main.term == "xterm-256color"
         && !sh.local.features.packages-desktop.enable && sh.local.features.desktop-tools.enable
         && sh.local.features.obs-studio.enable && sh.programs.obs-studio.enable
         && sh.local.features.easyeffects.enable && has "easyeffects"
@@ -64,7 +68,8 @@ in {
   jay = h.xdg.configFile."jay/config.toml".text;
   skinAssociation = h.xdg.mimeApps.defaultApplications."application/x-osu-skin";
   fileAssociation = h.xdg.mimeApps.defaultApplications."inode/directory";
-  alacrittyOsc52 = h.programs.alacritty.settings.terminal.osc52;
+  footOsc52 = h.programs.foot.settings.security.osc52;
+  footServer = h.programs.foot.server.enable;
   herdrReusesStock = let
     packages = builtins.filter (p: (p.pname or "") == "herdr") h.home.packages;
     stock = f.nixosConfigurations.neko5.pkgs.llm-agents.herdr;
