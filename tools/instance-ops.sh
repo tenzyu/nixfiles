@@ -23,7 +23,7 @@ get() { inc config get "$target" "$1" --project default; }
 guest_path=/run/wrappers/bin:/run/current-system/sw/bin
 # No implicit PTY or input forwarding from an operator's terminal.
 # The closure import is the sole command that consumes a byte stream.
-guest_stream() { inc exec "$target" --project default --mode=non-interactive --env "PATH=$guest_path" -- "$@"; }
+guest_stream() { inc exec "$target" --project default --mode=non-interactive --cwd / --env "PATH=$guest_path" -- "$@"; }
 guest() { guest_stream "$@" </dev/null; }
 managed() {
   workload=$(get user.nixfiles.workload)
@@ -39,7 +39,7 @@ ready() {
   while (( SECONDS < deadline )); do
     remaining=$((deadline - SECONDS))
     probe=$((remaining < 30 ? remaining : 30))
-    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default --mode=non-interactive --disable-stdin --env "PATH=$guest_path" -- /etc/neko7/readiness; then
+    if timeout -k 5s "${probe}s" sudo incus exec "$target" --project default --mode=non-interactive --cwd / --env "PATH=$guest_path" -- /etc/neko7/readiness </dev/null; then
       return 0
     fi
     if (( SECONDS + 2 < deadline )); then sleep 2; else break; fi
@@ -97,14 +97,20 @@ case "$action" in
     [[ $workload == "$expected_workload" && $uuid == "$expected_uuid" && $candidate == /nix/store/* ]] || exit 2
     test -x "$candidate/bin/switch-to-configuration"
     # Refuse concurrent identity changes and verify the current release is usable.
+    echo "Phase: verify incumbent readiness" >&2
     ready
     old=$(guest readlink -e /run/current-system)
     printf 'Old generation: %s\nCandidate: %s\nBackup: %s\n' "$old" "$candidate" "$dest"
+    echo "Phase: export stopped incumbent" >&2
     bundle "$dest"
+    echo "Phase: restart incumbent and verify readiness" >&2
     inc start "$target" --project default
     ready
+    echo "Phase: import candidate closure" >&2
     nix-store --export $(nix-store -qR "$candidate") | guest_stream nix-store --import
+    echo "Phase: set release profile" >&2
     guest nix-env -p /nix/var/nix/profiles/system --set "$candidate"
+    echo "Phase: activate candidate" >&2
     guest "$candidate/bin/switch-to-configuration" switch
     active=$(guest readlink -e /run/current-system)
     profile=$(guest readlink -e /nix/var/nix/profiles/system)

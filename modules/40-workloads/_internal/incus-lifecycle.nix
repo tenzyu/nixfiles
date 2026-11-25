@@ -36,9 +36,9 @@ in pkgs.testers.runNixOSTest {
       neko7.succeed("incus profile device get default root io.cache --project default | grep -Fx writeback")
     ''}
     def exec_prefix(name):
-        return "incus exec local:" + name + " --project default --mode=non-interactive --disable-stdin --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- "
+        return "incus exec local:" + name + " --project default --mode=non-interactive --cwd / --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- "
     def guest(name, command):
-        return exec_prefix(name) + "/run/current-system/sw/bin/bash -ec " + shlex.quote(command)
+        return exec_prefix(name) + "/run/current-system/sw/bin/bash -ec " + shlex.quote(command) + " </dev/null"
     def run(name, command):
         return neko7.succeed(guest(name, command)).strip()
     def diagnose(name):
@@ -51,13 +51,17 @@ in pkgs.testers.runNixOSTest {
             "journalctl -u incus -n 100 --no-pager; journalctl -k -n 100 --no-pager",
             "ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'",
             "incus config show local:" + name + " --expanded --project default",
-            exec_prefix(name) + "/run/current-system/sw/bin/systemctl --failed --no-pager",
+            exec_prefix(name) + "/run/current-system/sw/bin/true </dev/null",
+            exec_prefix(name) + "/run/current-system/sw/bin/systemctl --failed --no-pager </dev/null",
+            exec_prefix(name) + "/run/current-system/sw/bin/systemctl status incus-agent --no-pager </dev/null",
+            exec_prefix(name) + "/run/current-system/sw/bin/journalctl -b -u incus-agent -u syncthing -u immich-server -u postgresql --no-pager -n 150 </dev/null",
+            exec_prefix(name) + "/etc/neko7/readiness </dev/null",
         ]:
             status, output = neko7.execute("timeout -k 5s 30s bash -c " + shlex.quote(command) + " 2>&1", timeout=40)
             print(f"diagnostic: {command} (exit {status})\n{output}")
     def ready(name):
         try:
-            neko7.wait_until_succeeds("timeout -k 5s 30s " + exec_prefix(name) + "/etc/neko7/readiness", timeout=900)
+            neko7.wait_until_succeeds("timeout -k 5s 30s " + exec_prefix(name) + "/etc/neko7/readiness </dev/null", timeout=900)
         except Exception:
             diagnose(name)
             raise
@@ -108,8 +112,9 @@ in pkgs.testers.runNixOSTest {
       # Fixture-only fault injection: preserve native calls except for the
       # activation boundary after the real profile mutation has completed.
       neko7.succeed("mkdir -p /root/fault-bin")
-      neko7.succeed("cat >/root/fault-bin/sudo <<'EOF'\n#!${pkgs.runtimeShell}\nfor arg in \"$@\"; do\n  case \"$arg\" in */bin/switch-to-configuration) exit 77;; esac\ndone\nexec /run/wrappers/bin/sudo \"$@\"\nEOF\nchmod 0700 /root/fault-bin/sudo")
+      neko7.succeed("cat >/root/fault-bin/sudo <<'EOF'\n#!${pkgs.runtimeShell}\nfor arg in \"$@\"; do\n  case \"$arg\" in */bin/switch-to-configuration) touch /root/fault-activation-reached; exit 77;; esac\ndone\nexec /run/wrappers/bin/sudo \"$@\"\nEOF\nchmod 0700 /root/fault-bin/sudo")
       neko7.fail("cd /root/fixture && PATH=/root/fault-bin:$PATH NEKO7_READINESS_TIMEOUT=900 just _update-system original /root/interrupted ${name} " + uuid + " ${candidate}")
+      neko7.succeed("test -f /root/fault-activation-reached")
       neko7.succeed("cd /root/interrupted && sha256sum -c SHA256SUMS")
       assert run("original", "readlink -e /nix/var/nix/profiles/system") == "${candidate}"
       assert run("original", "readlink -e /run/current-system") == original_generation

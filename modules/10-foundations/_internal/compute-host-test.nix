@@ -70,16 +70,23 @@ in pkgs.testers.runNixOSTest {
 
     def agent(command):
         if command.startswith("incus exec lab:"):
-            command = command.replace(" -- ", " --mode=non-interactive --disable-stdin --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
-        return "su - agent -c " + shlex.quote(command)
+            command = command.replace(" -- ", " --mode=non-interactive --cwd / --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- ", 1)
+        return "su - agent -c " + shlex.quote(command) + " </dev/null"
 
     def guest_ready(name):
         try:
-            machine.wait_until_succeeds("timeout -k 5s 30s " + agent("incus exec lab:" + name + " -- systemctl is-active fixture-http"), timeout=900 if ${if vm then "True" else "False"} else 300)
+            machine.wait_until_succeeds("timeout -k 5s 30s " + agent("incus exec lab:" + name + " -- /run/current-system/sw/bin/systemctl is-active fixture-http"), timeout=900 if ${if vm then "True" else "False"} else 300)
         except Exception:
             # A present /dev/kvm is not evidence that an inner guest booted.
             # Collect firmware/kernel/agent console before fixture cleanup.
             print(machine.execute("timeout -k 5s 20s incus info " + name + " --project lab --show-log 2>&1; timeout -k 5s 20s incus console " + name + " --project lab --show-log 2>&1; free -m; cat /proc/pressure/{cpu,memory,io}; journalctl -k --no-pager | tail -100; ps -eLo pid,tid,stat,pcpu,wchan:32,comm | grep -E 'qemu|incus'")[1])
+            for command in [
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/true",
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/systemctl status fixture-http incus-agent --no-pager",
+                "incus exec " + name + " --project lab --mode=non-interactive --cwd / -- /run/current-system/sw/bin/journalctl -b -u fixture-http -u incus-agent --no-pager -n 100",
+            ]:
+                status, output = machine.execute("timeout -k 5s 20s " + command + " </dev/null 2>&1", timeout=30)
+                print(f"diagnostic: {command} (exit {status})\n{output}")
             raise
 
     machine.start()
