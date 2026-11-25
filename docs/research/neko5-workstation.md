@@ -41,7 +41,7 @@ second target manager on the assumption that a direct VT launcher has no
 session lifecycle. Verify its actual status and activation environment
 after login/logout and restart. The [GVFS module at the pinned revision](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/nixos/modules/services/desktops/gvfs.nix)
 registers D-Bus and systemd providers, enables UDisks2, and exposes GIO
-modules. Thunar now selects it explicitly. Fileman was retired from neko5 after operator-reported instability. Installing udiskie does not prove a
+modules. Fileman selects it explicitly. Installing udiskie does not prove a
 running automounter. Do not disable GVFS backends or UDisks on package-name
 evidence alone; FileChooser, trash, removable storage, network shares and
 the .osk/Ark route are separate acceptance surfaces.
@@ -54,7 +54,7 @@ the .osk/Ark route are separate acceptance surfaces.
 | Audio and real-time admission | PipeWire, WirePlumber, RTKit, ALSA | Preserve socket/graph semantics; no global quantum override |
 | Launching and clipboard | Stock Rofi, cclip, Jay native binding, Herdr OSC 52 | Rofi operation; capture session; no Tofi, no new daemon |
 | Japanese input | Fcitx5 + Mozc | Session, narrow privileged boundary as before |
-| Files and portal | Thunar, UDisks2, GVFS, GTK portal, Jay portal, dconf | Session / bus activation; keep successful provider, verify idle exit separately |
+| Files and portal | Fileman, UDisks2, GVFS, GTK portal, Jay portal, dconf | Session / bus activation; keep successful provider, verify idle exit separately |
 | Notifications | Existing systemd-owned Mako D-Bus provider | Native activation; no duplicate notification owner |
 | Connectivity / authority | NetworkManager, wpa_supplicant, logind, polkit, Tailscale, SSH | Maintain connectivity, login, removable media and recovery authority |
 | Build and agent execution | Nix client/daemon, SSH remote builder, Herdr | Remote execution when available; preserve local admission and recovery |
@@ -70,7 +70,7 @@ independently if the operator decides their capabilities are unnecessary.
 Installed tools, activated providers, and resident memory are different
 costs. No feature requires a new config DSL or a special boot profile.
 
-## Implemented candidate: fixed allocation policy
+## Implemented candidate: kernel-first allocation policy
 
 The operator's post-workload idle capture reported Effective Used
 1073.90 MiB and non-cache residual 769.48 MiB; the estimated reserve and
@@ -83,8 +83,8 @@ footprint. Memory PSI and swap use were zero in the supplied snapshots.
 
 | Direct operator evidence | Candidate policy | Estimate, not result |
 | --- | --- | --- |
-| zram 8,258,580,480 bytes at 50%, LZ4, priority 100; no used swap; physical swap remains | 25%, same compression and priority | Metadata observed ~30.83 MiB; 16-byte slot model predicts 15.38 MiB reduction |
-| alloc_page_ext ~29.75 MiB; profiling 1, compression 0, PAGE_OWNER disabled | boot-time sysctl.vm.mem_profiling=1,compressed | Up to ~29.75 MiB if the page extension is no longer needed |
+| zram 8,258,580,480 bytes at 50%, LZ4, priority 100; no used swap; physical swap remains | zswap/LZ4 over existing physical swap; zram disabled | ~30.83 MiB gross metadata opportunity, not net savings |
+| alloc_page_ext ~29.75 MiB; profiling 1, compression 0, PAGE_OWNER disabled | compile out allocation profiling | Up to ~29.75 MiB if the page extension is no longer needed |
 | unnecessary mapped Asahi/DZN libraries ~3.26 MiB PSS combined | Leave ICDs unchanged | Reclaimable mappings, insufficient benefit to add loader policy |
 | Jay DRM client resident ~140 MiB after workload | Protect stock Jay and Mesa | No allocation shrinkage claim |
 
@@ -92,19 +92,13 @@ Implementation: [host resource policy](../../modules/00-hosts/neko5/resources.ni
 zram capacity is not allocated compressed data; the kernel maintains
 per-slot metadata even while empty. See [kernel zram documentation](https://docs.kernel.org/admin-guide/blockdev/zram.html)
 and [pinned NixOS option](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/nixos/modules/config/zram.nix).
-Profiling compression requires spare page-flag bits; if unsupported it
-can disable profiling entirely. Treat 1/1 as a mandatory physical boot
-gate, not an assumed result. The two settings are independent; revert
-the offending line if either fails. Do not change min_free_kbytes,
+The normal kernel is configured for eight logical CPUs and allocation profiling is compiled out. The stock kernel generation remains the diagnostic and rollback route. The selected zswap compressor is LZ4. No savings from the smaller CPU limit or slab extensions are counted without measurement. Do not change min_free_kbytes,
 watermark_scale_factor, overcommit, swap priority, driver buffers or
 runtime cache policy to make a number look smaller.
 
-The selected terminal is now stock foot (no server), and Thunar replaces Fileman.
-Firefox alone uses its built-in GTK file chooser; other portals remain enabled.
-The estimated fixed-allocation opportunity is ~45 MiB, not a verified
+The estimated fixed-allocation opportunity is ~61 MiB gross, not a verified
 Effective Used delta, and not a path to 400 MiB on its own. Other candidates
-require evidence before configuration changes: live acceptance of the stock foot replacement (OSC 52 writes without reads,
-Unicode/Mozc, Herdr and remote paste);
+require evidence before configuration changes: the separately retained interaction candidate (foot, Thunar, native Firefox picker);
 portal teardown and stale D-Bus environment; GVFS optional backend
 activation; lock/PAM/suspend/resume; system package and closure attribution.
 Retain current providers until replacement is proven. No arbitrary daemon
@@ -112,7 +106,7 @@ disable, custom Mesa/Jay build, tmpfs logs or blanket default-package removal.
 
 ## Admission: comparable baseline without a second production profile
 
-Use the same physical host, kernel, panel mode, package pins, power source,
+Use the same physical host, kernel source version, panel mode, package pins, power source,
 network/SSH policy, user identity and workload. On three independent boots
 of each reviewed generation, collect five read-only snapshots 10 seconds
 apart after at least 120 seconds of settled idle. Label each phase:
@@ -139,13 +133,7 @@ RAM-dependent accounting, not physical i915 or Jay. No VM benchmark has
 been executed and no infrastructure or new production profile is included
 in this change.
 
-After separate approval to stage and boot, check zramctl and swapon
-(priority and physical swap retained), /proc/sys/vm/mem_profiling and
-mem_profiling_compressed (both 1), and /proc/allocinfo for alloc_page_ext.
-Compare metadata and residual at matched workload. Reject if compressed
-profiling disables diagnostics, swap pressure or major faults materially
-increase under the same workload, or any protected performance or
-integration acceptance regresses. See the desktop runbook for build,
+After separate approval to stage and boot, check the running kernel config, all eight online CPUs, zswap enabled/LZ4 and the existing physical swap. No zram device or allocation profiling should be active. Compare residual and Effective Used at matched workload. Reject if swap capacity/pressure, major faults or any protected performance or integration acceptance regresses. See the desktop runbook for build,
 activation and rollback boundaries.
 
 ### Integration acceptance
@@ -170,9 +158,9 @@ and mutable data remain separate. No GC is part of this work.
 ## CI and evidence tier
 
 The normal host and Gamescope reference must evaluate with the new resource
-policy and all existing audio/desktop assertions. The stack-parent gate compares parsed Jay TOML, protected native policy and direct
-home package derivations against the PR base; only the resource, terminal routing,
-file-manager association and Firefox wrapper changes are permitted. It does not prove equal closure size or
+policy and all existing audio/desktop assertions. The stack-parent gate
+compares the full parsed Jay TOML, native protected policy, and direct home
+package names and derivations against the PR base; only the explicit zswap kernel arguments are permitted. It does not prove equal closure size or
 runtime behavior. The parent a8461262 CI was red: the concrete Home feature
 fixture still expected Tofi, and its historical one-time refactor comparator
 rejected the intentional Rofi shortcut transition. This stack corrects the

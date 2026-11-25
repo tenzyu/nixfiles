@@ -1,34 +1,38 @@
 {
-  configurations.nixos.neko5.module = {config, ...}: {
-    # Empty 7.69 GiB zram had ~30.83 MiB of slot metadata. Use a compressed
-    # cache of the existing NVMe swap instead: zswap creates entries on demand,
-    # not one zram table slot for every logical page. No double compression.
-    # Swap capacity is now bounded by the physical partition (~7.45 GiB).
-    # Reject this candidate if real workload capacity or latency regresses.
-    zramSwap.enable = false;
+  configurations.nixos.neko5.module = {config, lib, ...}: {
+    # The physical i5-10210U is 4C/8T; retain all eight logical CPUs and
+    # all existing scheduler, DRM, audio, security and device support.
+    # Nixpkgs' generic 384-CPU image and default allocation instrumentation
+    # are not necessary on this fixed workstation. No Linux source patch.
+    boot.kernelPatches = [{
+      name = "neko5-workstation-kconfig";
+      patch = null;
+      structuredExtraConfig = {
+        MAXSMP = lib.mkForce lib.kernel.no;
+        NR_CPUS = lib.mkForce (lib.kernel.freeform "8");
+        MEM_ALLOC_PROFILING = lib.mkForce lib.kernel.no;
+        MEM_ALLOC_PROFILING_ENABLED_BY_DEFAULT = lib.mkForce (lib.kernel.option lib.kernel.no);
+        ZSWAP_COMPRESSOR_DEFAULT_ZSTD = lib.mkForce lib.kernel.no;
+        ZSWAP_COMPRESSOR_DEFAULT_LZ4 = lib.mkForce lib.kernel.yes;
+      };
+    }];
 
-    # Linux >=6.18 no longer has the zpool parameter. Use native kernel
-    # arguments rather than the pinned NixOS zswap module's legacy zpool
-    # setting. Zstd is the stock nixpkgs kernel's configured compressor.
-    # No custom kernel build for an already-supported mechanism.
+    # Empty zram held ~30.83 MiB of slot metadata. A dynamic compressed
+    # cache backed by the existing NVMe swap avoids that up-front table.
+    # Swap capacity is now bounded by the physical partition (~7.45 GiB).
+    zramSwap.enable = false;
+    # Linux >= 6.18 uses zsmalloc directly; the old zpool parameter is gone.
+    # Keep LZ4, existing VM watermarks, memory cgroups, oomd and PREEMPT_DYNAMIC.
     boot.kernelParams = [
       "zswap.enabled=1"
-      "zswap.compressor=zstd"
+      "zswap.compressor=lz4"
       "zswap.max_pool_percent=25"
       "zswap.shrinker_enabled=1"
-
-      # Allocation provenance has already been captured. Avoid the observed
-      # ~29.75 MiB page_ext overhead and profiling hot-path instrumentation.
-      # '0' at runtime cannot release boot-time metadata. Re-enable at boot
-      # with sysctl.vm.mem_profiling=1 for a separate diagnostic session.
-      "sysctl.vm.mem_profiling=never"
     ];
 
     assertions = [{
       assertion = config.swapDevices != [];
       message = "neko5 zswap requires its existing physical swap device.";
     }];
-    # Retain memory cgroups, oomd, all reclaim watermarks, CPU count,
-    # preemption, driver parameters and thermal/security mitigations.
   };
 }

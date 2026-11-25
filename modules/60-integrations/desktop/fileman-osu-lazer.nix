@@ -1,8 +1,8 @@
 {
-  flake.modules.homeManager.osu-lazer = {config, lib, pkgs, ...}: {
-    config = lib.mkIf ((config.local.features.fileman.enable || config.local.features.thunar.enable) && config.local.features.osu-lazer.enable) {
-      # Keep the existing .osk archive association across file manager changes.
-      # Preserve Ark rather than silently regressing skin management.
+  flake.modules.homeManager.fileman = {config, lib, pkgs, ...}: {
+    config = lib.mkIf (config.local.features.fileman.enable && config.local.features.osu-lazer.enable) {
+      # Fileman does not open .osk archives directly yet. Keep the existing
+      # Ark association rather than silently regressing skin management.
       home.packages = [pkgs.kdePackages.ark];
       xdg.dataFile."mime/packages/osu-skin.xml".text = ''
         <?xml version="1.0" encoding="UTF-8"?>

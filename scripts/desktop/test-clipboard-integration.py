@@ -38,7 +38,6 @@ case "${PICK:-first}" in
 esac""")
         self.stub("jay", """printf '%s\\n' "$@" > "$FIXTURE/jay-calls"
 [[ -z "${RESTORE_FAIL:-}" ]]""")
-        self.stub("foot", 'printf "%s\\n" "$@" > "$FIXTURE/foot-terminal"')
         self.stub("alacritty", 'printf "%s\\n" "$@" > "$FIXTURE/terminal"')
         self.stub("notify-send", 'printf "%s\\n" "$*" >> "$FIXTURE/notices"')
 
@@ -109,18 +108,6 @@ esac""")
         self.assertIn("--working-directory", (self.root / "terminal").read_text())
         self.assertEqual((self.root / "jay-calls").read_text(), "control-center\n")
 
-    def test_foot_actions_preserve_argv(self):
-        script = HERE / "rofi-actions.sh"
-        result = subprocess.run(["bash", "-euo", "pipefail", str(script),
-                                 "custom", "foot"], env=self.env,
-                                capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "foot-terminal").read_text().splitlines(),
-                         ["--working-directory", os.path.join(self.env["HOME"], ".nixfiles")])
-        self.assertFalse((self.root / "terminal").exists())
-        result = subprocess.run(["bash", str(script), "custom", "not-a-terminal"],
-                                env=self.env, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 2)
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,7 +32,6 @@
     };
     homePackages = map lib.getName h.home.packages;
     homePackageDrvs = map (p: p.drvPath) h.home.packages;
-    homePackageEntries = map (p: {name = lib.getName p; drv = p.drvPath;}) h.home.packages;
   };
 in {
   result = {

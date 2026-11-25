@@ -40,14 +40,6 @@
     # Preserve direct scanout while avoiding the Gen9 CCS async-flip rejection.
     home-manager.users.tenzyu.local.osuLazer.disableIntelCcs = true;
 
-    # Firefox 149+ prefers the XDG portal file picker. Bypass only this
-    # interface on native Firefox; leave ScreenCast and other portals intact.
-    # Mozilla bug 1982187 describes the same missing-dialog symptom.
-    home-manager.users.tenzyu.programs.firefox.policies.Preferences."widget.use-xdg-desktop-portal.file-picker" = {
-      Value = 0;
-      Status = "locked";
-    };
-
     local = {
       context = {
         flakePath = "/home/tenzyu/.nixfiles";
@@ -78,8 +70,7 @@
 
         pipewire.enable = true;
         udiskie.enable = true;
-        fileman.enable = false;
-        thunar.enable = true;
+        fileman.enable = true;
         fcitx5.enable = true;
 
         intel-graphics.enable = true;
@@ -138,10 +129,7 @@
 
         jay.enable = true;
         kitty.enable = false;
-        # Foot uses Wayland shared-memory rendering, not a second GPU renderer.
-        # Retain Alacritty as the selectable rollback terminal, not a daemon.
-        alacritty.enable = false;
-        foot.enable = true;
+        alacritty.enable = true;
         # Restore the stock Wayland-capable launcher after intermittent Tofi startup.
         rofi.enable = true;
         tofi.enable = false;
@@ -165,8 +153,7 @@
         neko5-osu-first.enable = false;
         parsec.enable = true;
         dolphin.enable = false;
-        fileman.enable = false;
-        thunar.enable = true;
+        fileman.enable = true;
         steam.enable = true;
         discord.enable = true;
         prismlauncher.enable = true;

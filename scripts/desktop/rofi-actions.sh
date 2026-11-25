@@ -1,15 +1,13 @@
 # Static, allowlisted actions; applications and commands use native Rofi modes.
 case "${1:-}" in
   custom)
-    terminal="${2:-alacritty}"
-    case "$terminal" in foot|alacritty) ;; *) exit 2 ;; esac
     selection="$(printf '%s\n' 'Nixfiles shell' 'Nixfiles GitUI' 'System monitor' 'Disk usage' |
       rofi -dmenu -replace -i -no-custom -format s -p Commands)" || exit 0
     case "$selection" in
-      'Nixfiles shell') exec "$terminal" --working-directory "$HOME/.nixfiles" ;;
-      'Nixfiles GitUI') exec "$terminal" --working-directory "$HOME/.nixfiles" -e gitui ;;
-      'System monitor') exec "$terminal" -e btop ;;
-      'Disk usage') exec "$terminal" -e dua i ;;
+      'Nixfiles shell') exec alacritty --working-directory "$HOME/.nixfiles" ;;
+      'Nixfiles GitUI') exec alacritty --working-directory "$HOME/.nixfiles" -e gitui ;;
+      'System monitor') exec alacritty -e btop ;;
+      'Disk usage') exec alacritty -e dua i ;;
       *) exit 0 ;;
     esac
     ;;
