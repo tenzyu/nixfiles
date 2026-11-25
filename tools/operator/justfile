@@ -1,0 +1,60 @@
+# Existing just/fzf supply the menu; native tools own operations.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Search across host, user, scope, feature; jump to local definitions.
+features:
+    @nixfiles-feature-browser
+
+# Inspect the actual flake with the upstream Nix TUI (no activation).
+inspect:
+    nix run --no-update-lock-file .#operator-inspect -- -p "$PWD"
+
+# Read current/booted/next-boot generation identities and filesystem usage.
+store-summary:
+    readlink -e /run/current-system /run/booted-system /nix/var/nix/profiles/system
+    df -h /nix/store
+    nix path-info --store daemon -Sh /run/current-system
+
+# Browse native GC roots. No removal.
+store-roots:
+    nix-store --store daemon --gc --print-roots | less
+
+# Browse the daemon's dead-path snapshot. No removal.
+store-dead:
+    nix-store --store daemon --gc --print-dead | less
+
+# Explicit interactive native GC, all existing roots and generations retained.
+store-clean:
+    @nixfiles-store-gc
+
+# Inspect native system generations (never remove them here).
+generations:
+    nix-env --list-generations -p /nix/var/nix/profiles/system
+
+# Compare the booted and active closure using upstream nvd.
+generation-diff:
+    nix run --no-update-lock-file .#operator-diff -- diff /run/booted-system /run/current-system
+
+# Choose a requisited store path and ask Nix why the running closure needs it.
+closure-why:
+    target=$(nix-store --store daemon -qR /run/current-system | fzf --no-multi); nix why-depends --store daemon /run/current-system "$target"
+
+# Local system service failures; native pager and permissions.
+failed-services:
+    systemctl --failed
+
+# Local user service failures.
+failed-user-services:
+    systemctl --user --failed
+
+# Current boot warnings, using native journal pagination.
+journal:
+    journalctl -b -p warning
+
+# Discover available workload images using the existing compute recipe.
+images:
+    just --justfile justfile images
+
+# Existing compute operator inventory (uses the existing Incus privilege boundary).
+instances:
+    just --justfile justfile instances
