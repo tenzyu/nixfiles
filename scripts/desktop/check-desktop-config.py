@@ -11,7 +11,7 @@ assert data["footOsc52"] == "copy-enabled"
 assert data["footServer"] is False
 assert data["herdrReusesStock"] is True
 assert data["skinAssociation"] == ["org.kde.ark.desktop"]
-assert data["fileAssociation"] == ["dev.fileman.Files.desktop"]
+assert data["fileAssociation"] == ["thunar.desktop"]
 keys = jay["shortcuts"]
 assert jay["direct-scanout"] is True
 assert jay["tearing"]["mode"] == "variant3"
