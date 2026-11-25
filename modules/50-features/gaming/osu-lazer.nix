@@ -46,17 +46,6 @@
       exit 127
     '';
 
-    osuAudioLab = pkgs.writeShellScriptBin "osu-audio-quantum-lab" ''
-      export PW_METADATA="${pkgs.pipewire}/bin/pw-metadata"
-      export FLOCK="${pkgs.util-linux}/bin/flock"
-      exec ${pkgs.bash}/bin/bash ${../../../scripts/osu-performance/audio-quantum-lab.sh} "$@"
-    '';
-
-    osuLaunchers = pkgs.runCommand "osu-lazer-launchers" {} ''
-      mkdir -p "$out/bin"
-      ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer"
-      ln -s ${osuLauncher}/bin/osu-lazer "$out/bin/osu-lazer-raw"
-    '';
   in {
     options.local.osuLazer.disableIntelCcs = lib.mkOption {
       type = lib.types.bool;
@@ -65,9 +54,7 @@
     };
 
     config = lib.mkIf config.local.features.osu-lazer.enable {
-      # The legacy global-quantum lab is opt-in only. Normal launches use
-      # the separate neko5 PipeWire integration when selected.
-      home.packages = [osuLaunchers osuAudioLab];
+      home.packages = [osuLauncher];
 
       xdg.desktopEntries.osu-lazer = {
         name = "osu! lazer";
