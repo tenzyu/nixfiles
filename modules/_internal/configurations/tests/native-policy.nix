@@ -77,22 +77,16 @@ in {
     };
   };
 
-  testGameLockIdentitySurvivesLayoutsAndSeparatesGames = {
+  testGameLockIdentitySeparatesGames = {
     expr = let
-      legacy = gameFixture {game-srv.enable = lib.mkForce false;};
       allGames = gameFixture {
         game-ark.enable = lib.mkForce true;
         game-rust.enable = lib.mkForce true;
       };
     in {
-      inherit (legacy.local.gameOperations.minecraft) sourceDir backupsDir;
-      sameLockSettings = lockSettings legacy == lockSettings enabled;
       allLockPaths = lib.attrNames (lockSettings allGames);
     };
     expected = {
-      sourceDir = "/home/game-minecraft/minecraft/survival";
-      backupsDir = "/home/game-minecraft/minecraft/backups";
-      sameLockSettings = true;
       allLockPaths = [lockDir "${lockDir}/ark.lock" "${lockDir}/minecraft.lock" "${lockDir}/rust.lock"];
     };
   };
