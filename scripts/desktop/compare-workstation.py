@@ -6,7 +6,10 @@ from pathlib import Path
 import sys
 import tomllib
 
-PROFILING = "sysctl.vm.mem_profiling=1,compressed"
+KERNEL_DELTA = {
+    "zswap.enabled=1", "zswap.compressor=zstd", "zswap.max_pool_percent=25",
+    "zswap.shrinker_enabled=1", "sysctl.vm.mem_profiling=never",
+}
 
 
 def require(condition, message):
@@ -42,9 +45,12 @@ def compare(before, after):
         old, new = before[profile], after[profile]
         policy = dict(new["policy"])
         params = policy["kernelParams"]
-        require(params.count(PROFILING) == 1, f"{profile}: profiling")
-        if PROFILING not in old["policy"]["kernelParams"]:
-            policy["kernelParams"] = [p for p in params if p != PROFILING]
+        previous = old["policy"]["kernelParams"]
+        require(all(params.count(p) == 1 for p in KERNEL_DELTA),
+                f"{profile}: missing or duplicate memory policy")
+        require(Counter(params) == Counter(previous) + Counter(KERNEL_DELTA),
+                f"{profile}: unexpected kernel command-line delta")
+        policy["kernelParams"] = previous
         mime = dict(policy["mime"])
         require(old["policy"]["mime"]["inode/directory"] == ["dev.fileman.Files.desktop"] and
                 mime["inode/directory"] == ["thunar.desktop"],
