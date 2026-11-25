@@ -6,6 +6,9 @@ source but disabled on neko5, with no dedicated fallback. Sway, KWin and
 Weston are retired. Both boot entries preserve HOME, kernel, Mesa/i915,
 official osu! package, HID, audio, thermal, network and SSH policy.
 
+For the selective workstation composition, resource policy, research sources and
+matched measurement contract see [purpose-built workstation](../research/neko5-workstation.md).
+
 ## Source ownership and fixed settings
 
 - Host choices and eDP-1 mode: [configuration](../../modules/00-hosts/neko5/configuration.nix);
