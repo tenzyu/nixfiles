@@ -4,7 +4,7 @@
 
 NixOS owns the host substrate, Incus owns dynamic instances, and T3 Code owns agent sessions and projects. The Incus `lab` project is a shared execution permission boundary, not a T3 project or knowledge partition. No repository name is embedded in it. No custom scheduler, registry, governor or execution API. Use native systemd/Nix for finite jobs and NixOS tests for reproducible multi-machine evidence; use Incus for interactive or persistent environments.
 
-Incus uses a directory pool on the existing filesystem (no repartition, migration, or new filesystem). Its default project is operator-only; the restricted lab project has a separate NAT bridge, managed volumes and no arbitrary host disk, GPU, proxy, privileged container or raw VM attachment. This does not provide network egress isolation from the rest of the host/LAN, per-agent identity, or a security sandbox for an agent already running as an administrator. Both projects share physical CPU, memory and I/O. The lab has aggregate CPU/memory/instance limits; VM admission is disabled pending lifecycle evidence. No storage quota or automatic VM memory overcommit is configured; inspect PSI, available memory, disk and OOM logs before unusually large experiments.
+Incus uses a directory pool on the existing filesystem (no repartition, migration, or new filesystem). Its default project is operator-only; the restricted lab project has a separate NAT bridge, managed volumes and no arbitrary host disk, GPU, proxy, privileged container or raw VM attachment. This does not provide network egress isolation from the rest of the host/LAN, per-agent identity, or a security sandbox for an agent already running as an administrator. Both projects share physical CPU, memory and I/O. The lab has aggregate allocation limits (eight instances, three VMs, eight CPUs and 8 GiB RAM); no storage quota or automatic VM memory overcommit is configured; inspect PSI, available memory, disk and OOM logs before unusually large experiments.
 
 Native preseed is declarative for the pool, bridges, project and default profile; it merges on daemon initialization/restart, not a continuous reconciliation loop. Do not edit these definitions independently or use the default profile as a per-application configuration. Runtime-created instances and custom profiles remain Incus-owned. A soft Incus daemon restart is intended to preserve running guests; a host reboot still stops everything.
 
@@ -55,7 +55,7 @@ Do not grant `incus-admin`, `incus` group access, host socket access or unrestri
 
 ## Native dynamic execution
 
-[Instance operations](compute-instances.md) documents read-only inventory, build-only workload artifacts and ephemeral lab containers. [Flestr ingress](flestr-ingress.md) describes the verified source-level transport boundary; no physical port is opened.
+[Instance operations](compute-instances.md) is the short entrypoint for adding, updating, backing up and retiring durable instances and running ephemeral lab instances. [Flestr ingress](flestr-ingress.md) describes the verified source-level transport boundary; no physical port is opened.
 
 Run these as the enrolled user, including from an existing T3 project shell. Select a trusted image and pin its fingerprint for reproducible tests. Names below are examples; choose unique names per session.
 
@@ -67,9 +67,15 @@ incus file push ./artifact lab:experiment/tmp/artifact
 incus stop lab:experiment
 incus list lab:
 
+incus launch images:debian/13 lab:machine-a --vm --ephemeral
+incus launch images:debian/13 lab:machine-b --vm --ephemeral
+incus exec lab:machine-a -- sh
+incus exec lab:machine-b -- sh
+incus stop lab:machine-a
+incus stop lab:machine-b
 ```
 
-Use `incus exec --user UID --group GID --cwd /home/USER` when an ordinary guest user is needed; create that account using the guest's own configuration. Incus VM exec needs a functioning guest agent. External aliases and image downloads are not CI fixtures. Durable VM operations are not admitted by this integration; managed volumes can survive instance removal if deliberately created separately. Stopping an ephemeral instance deletes it, so export required evidence first.
+Use `incus exec --user UID --group GID --cwd /home/USER` when an ordinary guest user is needed; create that account using the guest's own configuration. Incus VM exec needs a functioning guest agent. External aliases and image downloads are not CI fixtures. Persistent instances omit `--ephemeral`; managed volumes can survive instance removal if deliberately created separately. Stopping an ephemeral instance deletes it, so export required evidence first.
 
 An HTTP preview can listen on its instance address; discover it with `incus list lab:`. For remote browser access, an operator/client can use an existing SSH connection with local forwarding to that private address (for example `ssh -N -L 18080:INSTANCE_IP:8080 neko7`). Do not add public proxy listeners. For approved Tailnet HTTP endpoints, use an explicitly authorized Tailscale Serve route to a host-loopback listener; preserve existing Serve routes. Do not use Funnel. The generic Caddy gateway can publish operator-approved ephemeral routes without repository-specific host changes; the repository owns its build/start/test command and guest image if special dependencies are needed. See [platform operations](compute-platform-operations.md). NixOS tests may instantiate any number of declarative guests without installing a project-specific host feature.
 
@@ -79,6 +85,6 @@ Operator: `sudo incus list --all-projects`, `sudo incus info INSTANCE --project 
 
 ## Evidence and recovery
 
-CI builds the pinned native module and exercises real container lifecycle, restricted authorization, network reachability, cleanup and daemon restart independence. The separate service module checks and image builds do not prove exact-image Incus VM startup, update or restore. VM lifecycle admission is deferred; the restricted lab permits zero VMs. Do not deploy the personal-data VM images or rely on their recovery paths until the follow-up has passed. Hosted CI does not close actual host firewall coexistence, GPU parity, WAN behavior or physical performance.
+CI builds the pinned native module, imports locally built NixOS guest images, enrolls a restricted client, launches a persistent and ephemeral guest, proves guest-user execution, file separation and HTTP reachability, rejects unauthorized operations, checks cleanup and daemon restart independence. Hosted CI builds images, runs service and container tests, and evaluates native VM checks. Native KVM lifecycle execution remains mandatory before merge or activation. The retired software-emulation diagnostic did not establish hardware acceptance; [historical source and evidence](https://github.com/tenzyu/nixfiles/tree/5b7c1fea748bf7ee3877703dbef9ecdb738d2e36) remain available. On an approved compatible test host run `nix build -L --no-link .#checks.x86_64-linux.compute-host-vm .#checks.x86_64-linux.incus-workload-syncthing .#checks.x86_64-linux.incus-workload-immich`. Do not run them in the live Incus instance namespace or enroll a privileged persistent runner as a workaround. A green hosted CI does not close hardware acceptance, actual host firewall coexistence, GPU parity, WAN behavior or physical performance.
 
 On failed host acceptance, retain logs and use the previous NixOS generation through the approved console/recovery procedure. Disabling the feature does not migrate/delete Incus instance data; stop or export instances first. Do not remove `/var/lib/incus` or repeat initialization as a recovery shortcut.
