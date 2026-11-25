@@ -23,6 +23,7 @@
       launcher = (builtins.elem "start-jay" names) == (compositor == "jay") && (builtins.elem "start-gamescope" names) == (compositor == "gamescope") && !(builtins.elem "neko5-slim-session" names);
       legacyDesktopDisabled = !s.programs.hyprland.enable && !sh.local.features.waybar.enable && !sh.local.features.hyprpaper.enable && !sh.local.features.neko5-osu-first.enable;
       systemPolicy = s.local.features.neko5-hardware.enable && (builtins.elem "preempt=full" s.boot.kernelParams) && s.powerManagement.cpuFreqGovernor == "powersave" && (s.systemd.services ? neko5-hwp-epp) && s.services.tailscale.enable && s.services.pipewire.enable && s.services.openssh.enable && s.nix.distributedBuilds;
+      resourcePolicy = s.zramSwap.enable && s.zramSwap.memoryPercent == 25 && s.zramSwap.algorithm == "lz4" && s.zramSwap.priority == 100 && (builtins.elem "sysctl.vm.mem_profiling=1,compressed" s.boot.kernelParams);
       identity = s.networking.hostName == c.networking.hostName && s.system.stateVersion == c.system.stateVersion && sh.home.stateVersion == h.home.stateVersion && sh.home.homeDirectory == h.home.homeDirectory && routes sh == routes h;
       audio = rate."default.clock.rate" == 48000 && rate."default.clock.allowed-rates" == [48000] && !(audio.pipewire ? "99-neko5-experiment") && !(audio.client ? "90-neko5-osu-quantum") && rules == { "stream.rules" = [{ matches = [{ "node.name" = "alsa_playback.osu!"; }]; actions.update-props."node.max-latency" = "64/48000"; }]; };
       realtime = s.security.rtkit.enable && clientRt == { "module.rt.args" = rtArgs; } && pulseRt == clientRt && !(audio.pipewire ? "90-neko5-rtkit") && !(audio.client ? "90-neko5-rtkit");
@@ -36,6 +37,10 @@
         && has "jay-rofi-actions" == (compositor == "jay")
         && !has "jay-tofi-actions" && !has "tofi"
         && sh.programs.rofi.enable && !sh.local.features.tofi.enable
+        && !sh.local.features.packages-desktop.enable && sh.local.features.desktop-tools.enable
+        && sh.local.features.obs-studio.enable && sh.programs.obs-studio.enable
+        && sh.local.features.easyeffects.enable && has "easyeffects"
+        && s.services.gvfs.enable && s.services.udisks2.enable
         && builtins.length herdr == 1
         && (if compositor == "jay"
           then (builtins.head herdr).unwrapped.drvPath == f.nixosConfigurations.neko5.pkgs.llm-agents.herdr.drvPath
