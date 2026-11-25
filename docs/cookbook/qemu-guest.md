@@ -22,7 +22,7 @@ This reduces an implicit dependency path and removes a double definition.
 Do not change `system.stateVersion`, guest network, containers, or
 host activation as part of this refactor.
 
-**Acceptance**: the normal `framework-test` and all three NixOS
+**Acceptance**: the native `checks.x86_64-linux.framework` and all three NixOS
 `system.build.toplevel.drvPath` evaluations pass; Nix test asserts
 `qemu-guest-profile` is selected **only** on neko7, native
 `services.qemuGuest.enable` remains true, and all expected Virtio
