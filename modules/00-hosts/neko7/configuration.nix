@@ -67,7 +67,6 @@
         game-ark.enable = false;
         game-rust.enable = false;
         game-minecraft.enable = true;
-        game-srv.enable = true;
         game-server-tools.enable = true;
         neko7-workload-profiles.enable = true;
 

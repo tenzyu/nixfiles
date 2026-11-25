@@ -12,15 +12,14 @@
     pkgs,
     ...
   }: let
-    useSrv = config.local.features.game-srv.enable;
     layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "ark";
       user = "game-ark";
       uid = 27007;
       gid = 27007;
-      home = if useSrv then "/var/lib/game-containers/ark" else "/home/game-ark";
-      gameDir = if useSrv then "/srv/ark" else "/home/game-ark/ark";
+      home = "/var/lib/game-containers/ark";
+      gameDir = "/srv/ark";
       containerName = "neko7-ark";
       guestService = "ark-survival-evolved";
       backupSource = "server/ShooterGame/Saved";
