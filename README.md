@@ -35,7 +35,7 @@ nix eval .#nixosConfigurations --apply builtins.attrNames --json
 nix eval --raw .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
 ```
 
-The final command **evaluates** a derivation path; it neither builds a system nor switches a machine. To run focused repository tests: `nix run -L .#framework-test`. See the [inspection cookbook](docs/cookbook/inspect.md) for expected results, CI checks and troubleshooting.
+The final command **evaluates** a derivation path; it neither builds a system nor switches a machine. To run focused repository tests: `nix build -L --no-link .#checks.x86_64-linux.validation`. See the [inspection cookbook](docs/cookbook/inspect.md) for expected results, CI checks and troubleshooting.
 
 ## Find the right part
 
@@ -49,9 +49,9 @@ modules/
   50-features/           independently selectable NixOS/Home Manager features
   60-integrations/       conditional cross-feature behavior
 lib/                      pure Nix composition primitives
-tools/framework-cli/      developer-facing inspection and regression tooling
 docs/cookbook/            inspection, change and recovery procedures for humans
-docs/memory/              OKF knowledge for agents: why, evidence, risks, retrieval
+docs/memory/              current decisions, architecture and evidence boundaries
+  archive/                immutable links to historical evidence
 ```
 
 Some support assets are written in Python, TypeScript or shell; **Nix-first does not mean 100% Nix source or immutable application data**. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
@@ -71,3 +71,5 @@ Start at the relevant [host declaration](modules/00-hosts/). Follow a selected c
 [Cookbook](docs/cookbook/index.md) is for operating this infrastructure. The [LLM Wiki](docs/memory/index.md) is a compact, source-linked map of why choices exist, what has been verified and where to look next. [MEMORY.md](MEMORY.md) is a small retrieval entrypoint, not a copy of either collection; [ROADMAP.md](ROADMAP.md) tracks unresolved acceptance.
 
 The writing follows a few strong precedents in the Nix ecosystem—[mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), and [kclejeune/system](https://github.com/kclejeune/system)—without presenting this personal environment as a generic Nix starter.
+
+Historical research and retired interfaces are indexed in [Archive](docs/archive/README.md), not active configuration or validation inputs.

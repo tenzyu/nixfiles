@@ -29,7 +29,7 @@ host generations. **Source names and direct host selections remain stable.**
 | Application settings | HM `programs.<name>.*` | Prefer typed options over additional hand-written JSON or shell glue |
 | Package exception | `flake.local.featurePolicies.<feature>` | Scope unfree / insecure exceptions to active features, not global user defaults |
 | Host identity or credential | NixOS `sops.*` options and `services.tailscale.authKeyFile` | Host `sops-nix.enable` imports the provider; it does not mean a particular secret is provisioned |
-| Minecraft data and systemd hardening | `services.minecraft-servers.dataDir`, `systemd.services.*.serviceConfig`, `containers.*.bindMounts` | neko7 explicitly selects `game-srv` and places its world under `/srv/minecraft`; see migration evidence |
+| Minecraft data and systemd hardening | `services.minecraft-servers.dataDir`, `systemd.services.*.serviceConfig`, `containers.*.bindMounts` | neko7 places its world under `/srv/minecraft`; see migration evidence |
 | Host SSH identity | `modules/00-hosts/<host>/` | Feature enablement must not silently copy a personal public key to every host |
 
 ## Upstream documentation checked
@@ -60,7 +60,7 @@ For example, `steam` contributes `gaming-core.enable = lib.mkDefault true` in bo
 
 ## Validation and rollback
 
-Run `nix run -L .#framework-test` and evaluate all three host derivations.
+Run `nix build -L --no-link .#checks.x86_64-linux.framework` and evaluate all three host derivations.
 The focused Nix test checks presence of the XDG entry, selected NetworkManager
 group membership and the early udev package's host scoping. This does **not**
 prove a device was opened or an SSH/Wayland session was started.
@@ -72,8 +72,7 @@ A Git revert restores the original source layout and HM declaration.
 guarded by `hyprland-tenzyu.enable` instead of its own selection, making the
 feature toggle misleading. Its two existing XWayland rules are now a
 `60-integrations/desktop` contribution to `hyprland-tenzyu`, with no rule
-content changes. A host regression asserts both rules remain evaluated and
-the unreachable feature name is no longer advertised by the typed registry.
+content changes. The former migration regression is archived; inspect the integration source and evaluated rules when changing this capability.
 
 ## Native Nix operators vs the composition helpers
 

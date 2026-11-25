@@ -1,10 +1,9 @@
 # Documentation
 
-Two interfaces, one source of truth:
+- [Cookbook](cookbook/index.md): current operating procedures and acceptance gates.
+- [Architecture and decisions](memory/index.md): current design and evidence boundaries.
+- [Roadmap](../ROADMAP.md): unresolved acceptance only.
+- [Archive](archive/README.md): immutable historical research, experiments, previous contracts and retired interfaces.
+- [Repository overview](../README.md): source structure and entrypoints.
 
-- **[Cookbook](cookbook/index.md)** — read-only inspection, configuration changes, incidents, data migration and operational recovery for people.
-- **[LLM Wiki / Memory](memory/index.md)** — source-grounded architecture, decisions, evidence boundaries and progressive retrieval for agents.
-
-[Repository overview](../README.md) · [Outstanding acceptance work](../ROADMAP.md)
-
-The Nix source and exact recorded receipts prevail over prose. The Wiki records why and where, not a duplicate catalogue of every `local.features` flag.
+The Nix source is canonical for declarations, actual native checks for tested contracts and dated receipts for runtime observations. Do not use the archive as operational instructions. Avoid parallel registries, compatibility redirects and duplicate normative prose.

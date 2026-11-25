@@ -34,7 +34,7 @@ The kernel/resource experiment is intentionally outside this integration.
   `INTEL_DEBUG=noccs` only to its process tree; the Gamescope probe and other
   hosts retain defaults. Nix does not overwrite mutable in-game settings.
   Keep the default 1.5 ms flip margin and i915 FBC/PSR/DC/DDB policies.
-  See [dated presentation evidence](../research/neko5-presentation-log.md).
+  See [dated presentation evidence](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/research/neko5-presentation-log.md).
 - Fileman v0.5.2 uses pinned official x86_64 binary; Ark remains for .osk
   because Fileman cannot handle that archive path. GTK FileChooser portal
   unchanged. cclip 3.3.1 builds pinned C/Meson source (no official binary
@@ -136,7 +136,7 @@ multiplexers must independently support OSC 52 forwarding.
 Portal realtime PID-namespace lookup failed with ENOTDIR; direct RTKit
 restored both data-loops to RR/20. H0 trial observed zero ERR across 299
 valid playback samples with Discord VC/video. See the [dated research
-log](../research/neko5-presentation-log.md); these are not fresh runtime
+log](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/research/neko5-presentation-log.md); these are not fresh runtime
 receipts. No new daemon, RT limit or app patch.
 
 Before approved switch, stop osu!/VC/video. Review and remove only the

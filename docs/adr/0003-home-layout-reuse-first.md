@@ -43,7 +43,7 @@ A tolerable legacy entry is cheaper than a universal process-interposition syste
 
 ## Transitional reality on main — do not silently remove safeguards
 
-As of this decision, `main` **still includes** the accepted `home-migration` / `home-layout` mechanism, its pre-switch admission logic, journal and Python runner; see [ADR-0002](0002-invariant-safety.md), [rollout runbook](../cookbook/home-migration-rollout.md), and [Home migration README](../../assets/home-layout/README.md). That existing mechanism and its historical tests are real source, not evidence of successful host deployment. This ADR **does not disable, simplify, replace, or certify it**.
+As of this decision, `main` **still includes** the accepted `home-migration` / `home-layout` mechanism, its pre-switch admission logic, journal and Python runner; see [ADR-0002](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md), [rollout runbook](../cookbook/home-migration-rollout.md), and [Home migration README](../../assets/home-layout/README.md). That existing mechanism and its historical tests are real source, not evidence of successful host deployment. This ADR **does not disable, simplify, replace, or certify it**.
 
 Its eventual retirement is a distinct, reviewed implementation change, not part of this documentation-only cherry-pick. Until then:
 - Keep current holding/adopted routes, conservative refusal behavior, and recovery records intact.
