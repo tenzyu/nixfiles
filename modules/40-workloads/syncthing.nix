@@ -40,8 +40,8 @@ in {
       name = "syncthing";
       extraModules = [{environment.etc."neko7/fixture-release".text = "candidate";}];
     }).neko7-syncthing-system;
-    lifecycle = tcg: import ./_internal/incus-lifecycle.nix {
-      inherit inputs self system candidate tcg;
+    lifecycle = import ./_internal/incus-lifecycle.nix {
+      inherit inputs self system candidate;
       name = "syncthing";
       image = releases.neko7-syncthing-image;
       guestMemory = "2GiB";
@@ -52,8 +52,7 @@ in {
     };
   in lib.mkIf (system == "x86_64-linux") {
     packages = releases;
-    checks.incus-workload-syncthing = lifecycle false;
-    checks.incus-workload-syncthing-tcg = lifecycle true;
+    checks.incus-workload-syncthing = lifecycle;
     checks.personal-workload-syncthing = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {

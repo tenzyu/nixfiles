@@ -6,14 +6,11 @@
     ...
   }: let
     layout = import ../../../lib/service-layout.nix {inherit lib;};
-    useSrv = config.local.features.game-srv.enable;
-    dirs = name: layout.mkGameDirectories (
-      {
-        key = name;
-        home = if useSrv then "/var/lib/game-containers/${name}" else "/home/game-${name}";
-      }
-      // lib.optionalAttrs useSrv {gameDir = "/srv/${name}";}
-    );
+    dirs = name: layout.mkGameDirectories {
+      key = name;
+      home = "/var/lib/game-containers/${name}";
+      gameDir = "/srv/${name}";
+    };
     ark = dirs "ark";
     rust = dirs "rust";
     minecraft = config.local.gameOperations.minecraft or null;

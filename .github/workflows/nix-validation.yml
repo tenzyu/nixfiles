@@ -6,12 +6,8 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      full:
-        description: "Build every declared flake check (expensive)"
-        type: boolean
-        default: false
       cache_strict:
-        description: "Verify signed SplitCast cache copies in isolated store (expensive)"
+        description: Verify signed SplitCast cache copies in an isolated store
         type: boolean
         default: false
 
@@ -19,298 +15,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: nix-validation-${{ github.workflow }}-${{ github.ref }}
+  group: nix-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
     name: Nix evaluation and focused regression tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      # For multi-commit pushes use the event's before SHA; PRs use merge-parent.
-      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^1' }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          # Fetch full history: push 'before' may span multiple commits.
-          # For pull requests, HEAD^ is the synthetic merge's base parent.
-          fetch-depth: 0
-
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build -L --no-link .#checks.x86_64-linux.validation
 
-      # Do not use 'nix flake check' in a PR gate: it builds *all* checks,
-      # including unrelated Rust and system-level derivations.
-      - name: Build narrowly scoped, deterministic checks
-        run: |
-          nix build -L --no-link \
-            .#checks.x86_64-linux.framework-cli \
-            .#checks.x86_64-linux.deprecated-patterns \
-            .#checks.x86_64-linux.feature-name-shape
-
-      - name: Validate Markdown, OKF provenance and memory routes
-        run: |
-          python3 -m unittest discover -v -s scripts/ci -p 'test_docs.py'
-          python3 -m unittest discover -v -s scripts/ci -p 'test_memory.py'
-          python3 scripts/ci/check_docs.py
-          python3 scripts/ci/wiki_scan.py --summary
-          python3 scripts/ci/retrieval_eval.py --smoke
-          python3 scripts/ci/retrieval_eval.py --rank > /tmp/nixfiles-retrieval-route-report.json
-          python3 -m json.tool /tmp/nixfiles-retrieval-route-report.json > /dev/null
-          python3 -c 'import json; r=json.load(open("/tmp/nixfiles-retrieval-route-report.json")); print("Lexical path recall@{} (NOT answer accuracy): {}".format(r["k"], r["route_hits"]))'
-
-      - name: Test selective-check mapping
-        run: python3 -m unittest discover -v -s scripts/ci -p 'test_select_checks.py'
-
-      - name: Select focused checks from the event diff
-        id: selection
-        run: python3 scripts/ci/select-checks.py --github-output >> "$GITHUB_OUTPUT"
-
-      - name: Build affected feature checks
-        if: steps.selection.outputs.checks != ''
-        shell: bash
-        env:
-          SELECTED_CHECKS: ${{ steps.selection.outputs.checks }}
-        run: |
-          set -euo pipefail
-          read -r -a attrs <<< "$SELECTED_CHECKS"
-          nix build -L --no-link "${attrs[@]}"
-
-      - name: Exercise the offline osu! lab fixture
-        if: steps.selection.outputs.osu_lab == 'yes'
-        run: python3 scripts/osu-performance/test-osu-lab.py
-
-      - name: Validate SplitCast cache audit CLI
-        run: |
-          bash -n scripts/ci/audit-splitcast-cache.sh
-          bash scripts/ci/audit-splitcast-cache.sh --help
-          if bash scripts/ci/audit-splitcast-cache.sh --unknown-option; then
-            echo "cache audit accepted an invalid option" >&2
-            exit 1
-          fi
-
-      - name: Audit SplitCast cache paths when inputs or consumers change
-        if: steps.selection.outputs.cache_probe == 'yes'
-        run: bash scripts/ci/audit-splitcast-cache.sh
-
-      - name: Exercise the neko7 Serve route without a daemon
-        run: bash scripts/test-t3code-tailnet.sh
-
-      - name: Test framework semantics and editor option types
-        id: framework
-        run: nix run -L .#framework-test
-
-      # The interactive framework CLI intentionally redacts subprocess output.
-      # On CI failure, independently evaluate the public source fixture to
-      # distinguish evaluation errors from assertion failures (names only).
-      - name: Diagnose configuration adapter failures
-        if: failure() && steps.framework.outcome == 'failure'
-        shell: bash
-        run: |
-          nix eval --impure --json --show-trace \
-            --file modules/_internal/configurations/tests/configurations.nix \
-            --argstr flakeRef "git+file://$PWD" failures \
-            --apply 'failures: map (failure: failure.name) failures'
-
-      # Compatibility state is not the Nixpkgs release. Keep the verified
-      # neko5 baseline and the explicitly declared neko7 baseline stable.
-      - name: Build and check Mako's systemd-owned D-Bus provider when changed
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! git diff --name-only "$NIX_CHECK_BASE" HEAD | grep -Fxq 'modules/50-features/desktop/mako.nix'; then
-            echo 'Mako provider unchanged'
-            exit 0
-          fi
-          provider="$(nix build -L --no-link --print-out-paths --impure --expr '
-            let
-              flake = builtins.getFlake (toString ./.);
-              home = flake.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
-            in
-              builtins.head (builtins.filter (pkg: (pkg.pname or "") == "mako") home.home.packages)
-          ')"
-          service="$provider/share/dbus-1/services/org.freedesktop.Notifications.service"
-          test -f "$service"
-          test ! -e "$provider/share/dbus-1/services/fr.emersion.mako.service"
-          test -f "$provider/lib/systemd/user/mako.service"
-          grep -Fxq 'Name=org.freedesktop.Notifications' "$service"
-          grep -Fxq 'SystemdService=mako.service' "$service"
-          grep -Fxq 'Type=dbus' "$provider/lib/systemd/user/mako.service"
-          grep -Fxq 'BusName=org.freedesktop.Notifications' "$provider/lib/systemd/user/mako.service"
-
-      - name: Guard explicitly pinned NixOS state compatibility
-        shell: bash
-        run: |
-          set -euo pipefail
-          for host in neko5 neko7; do
-            actual="$(nix eval --raw ".#nixosConfigurations.${host}.config.system.stateVersion")"
-            if [[ "$actual" != "26.05" ]]; then
-              echo "::error::${host} system.stateVersion drifted: expected 26.05, got ${actual}" >&2
-              exit 1
-            fi
-          done
-
-      - name: Verify Nix daemon and remote-builder trust boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          for host in neko5 neko7; do
-            value="$(nix eval --json ".#nixosConfigurations.${host}.config.nix.settings.accept-flake-config")"
-            if [[ "$value" != "false" ]]; then
-              echo "::error::${host} must not auto-accept flake-provided Nix configuration" >&2
-              exit 1
-            fi
-          done
-          nix eval --json .#nixosConfigurations.neko7.config.users.users.nixbuilder.openssh.authorizedKeys.keys |
-            jq -e 'length == 1 and (.[0] | startswith("restrict,command=") and contains("/bin/nix-daemon --stdio") and contains("ssh-ed25519 "))'
-          nix eval --json .#nixosConfigurations.neko7.config.nix.settings.trusted-users |
-            jq -e 'index("nixbuilder") != null'
-          nix eval --json .#nixosConfigurations.neko5.config.nix.buildMachines |
-            jq -e 'any(.[]; .protocol == "ssh-ng" and .sshUser == "nixbuilder")'
-
-      - name: Evaluate all NixOS host derivations without building systems
-        shell: bash
-        run: |
-          set -euo pipefail
-          for host in neko5 neko6 neko7; do
-            echo "::group::Evaluate ${host}"
-            nix eval --raw ".#nixosConfigurations.${host}.config.system.build.toplevel.drvPath"
-            echo "::endgroup::"
-          done
-
-      - name: Evaluate primary Jay and standalone Gamescope
-        shell: bash
-        run: |
-          set -euo pipefail
-          nix eval --impure --json --file scripts/desktop/evaluate-desktop.nix \
-            --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-desktop.json
-          jq -e '.onlyProbe and .audioIsolated and ([.primary,.probe] | all(.[]; .profile and .launcher and .legacyDesktopDisabled and .systemPolicy and .identity and .audio and .realtime and .hardwareAudio and .desktopPackages and (.drv | endswith(".drv"))))' /tmp/neko5-desktop.json
-          python3 scripts/desktop/check-desktop-config.py /tmp/neko5-desktop.json
-          python3 -m py_compile scripts/desktop/memory-snapshot.py
-          python3 scripts/desktop/test-clipboard-integration.py
-
-      - name: Compare protected desktop composition against accepted Jay head
-        if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/ready-native-infrastructure'
-        shell: bash
-        run: |
-          set -euo pipefail
-          base="f013e73cbb42a338929873419dd51abd9a8898b8"
-          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
-            --argstr flakeRef "git+file://$PWD?rev=$base" result > /tmp/neko5-workstation-before.json
-          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
-            --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-workstation-after.json
-          python3 scripts/desktop/compare-workstation.py /tmp/neko5-workstation-before.json /tmp/neko5-workstation-after.json
-
-  refactor-baseline:
-    # One-time migration evidence for the consolidated Jay integration.
-    if: github.event_name == 'pull_request' && github.head_ref == 'consolidate/ready-native-infrastructure'
-    name: Compare accepted neko5 baseline
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: cachix/install-nix-action@v31
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compare evaluated policy and complete Jay TOML
-        shell: bash
-        run: |
-          set -euo pipefail
-          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
-            --argstr flakeRef "git+file://$PWD?rev=3b2cf50538544b48e367da86a8a78ac1a016f6b7" result > /tmp/neko5-before.json
-          nix eval --impure --json --file scripts/desktop/baseline-snapshot.nix \
-            --argstr flakeRef "git+file://$PWD" result > /tmp/neko5-after.json
-          python3 scripts/desktop/compare-baseline.py /tmp/neko5-before.json /tmp/neko5-after.json
-
-  desktop-packages:
-    name: Build changed neko5 desktop packages
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      NIX_CHECK_BASE: ${{ github.event_name == 'push' && github.event.before || 'HEAD^1' }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Detect changed desktop package definitions
-        id: desktop
-        shell: bash
-        run: |
-          set -euo pipefail
-          changed="$(git diff --name-only "$NIX_CHECK_BASE" HEAD)"
-          for name in cclip fileman; do
-            if printf '%s\n' "$changed" | grep -Eq "^assets/packages/$name\.nix$|^modules/50-features/desktop/$name\.nix$|^flake\.lock$"; then
-              echo "$name=true" >> "$GITHUB_OUTPUT"
-            fi
-          done
-          if printf '%s\n' "$changed" | grep -Eq '^scripts/desktop/(cclip-(start|picker)|rofi-actions)\.sh$|^modules/60-integrations/desktop/jay-(cclip|rofi)\.nix$|^modules/50-features/desktop/rofi\.nix$|^\.github/workflows/nix-validation\.yml$'; then
-            echo "cclip=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: cachix/install-nix-action@v31
-        if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and smoke-test selected desktop packages
-        if: steps.desktop.outputs.cclip == 'true' || steps.desktop.outputs.fileman == 'true'
-        shell: bash
-        env:
-          BUILD_CCLIP: ${{ steps.desktop.outputs.cclip }}
-          BUILD_FILEMAN: ${{ steps.desktop.outputs.fileman }}
-        run: |
-          set -euo pipefail
-          build_package() {
-            PKG_NAME="$1" nix build -L --no-link --print-out-paths --impure --expr '
-              let
-                f = builtins.getFlake (toString ./.);
-                h = f.nixosConfigurations.neko5.config.home-manager.users.tenzyu;
-                name = builtins.getEnv "PKG_NAME";
-              in builtins.head (builtins.filter (p: (p.pname or "") == name || (p.name or "") == name) h.home.packages)
-            '
-          }
-          if [[ "$BUILD_CCLIP" == true ]]; then
-            out="$(build_package cclip)"
-            "$out/bin/cclip" -h >/dev/null
-            "$out/bin/cclipd" -h >/dev/null 2>&1
-            test -x "$out/bin/cclipd"
-            if ldd "$out/bin/cclipd" | grep -F 'not found'; then exit 1; fi
-            # writeShellApplication runs ShellCheck during build, not evaluation.
-            for wrapper in cclip-start cclip-picker jay-rofi-actions; do
-              wrapper_out="$(build_package "$wrapper")"
-              test -x "$wrapper_out/bin/$wrapper"
-            done
-          fi
-          if [[ "$BUILD_FILEMAN" == true ]]; then
-            out="$(build_package fileman)"
-            test -x "$out/bin/fileman"
-            test -f "$out/share/applications/dev.fileman.Files.desktop"
-          fi
-
-  osu-first:
-    name: Offline osu-first launcher
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - name: Test launcher logic without games or services
-        run: |
-          bash -n scripts/osu-performance/osu-first.sh
-          bash scripts/osu-performance/test-osu-first.sh
-
-  full-audit:
-    name: On-demand full flake check (expensive)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+  stateful:
+    name: Home Manager migration and recovery
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -320,11 +43,14 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix flake check -L --show-trace
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
 
   cache-audit:
     name: On-demand signed SplitCast cache verification
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.cache_strict }}
+    if: github.event_name == 'workflow_dispatch' && inputs.cache_strict
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

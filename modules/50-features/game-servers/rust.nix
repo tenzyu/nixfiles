@@ -12,15 +12,14 @@
     pkgs,
     ...
   }: let
-    useSrv = config.local.features.game-srv.enable;
     layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "rust";
       user = "game-rust";
       uid = 27008;
       gid = 27008;
-      home = if useSrv then "/var/lib/game-containers/rust" else "/home/game-rust";
-      gameDir = if useSrv then "/srv/rust" else "/home/game-rust/rust";
+      home = "/var/lib/game-containers/rust";
+      gameDir = "/srv/rust";
       containerName = "neko7-rust";
       guestService = "rust-dedicated";
       backupSource = "server/server";

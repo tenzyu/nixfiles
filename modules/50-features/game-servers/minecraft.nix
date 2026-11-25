@@ -14,15 +14,14 @@
     pkgs,
     ...
   }: let
-    useSrv = config.local.features.game-srv.enable;
     layout = import ../../../lib/service-layout.nix {inherit lib;};
     spec = {
       key = "minecraft";
       user = "game-minecraft";
       uid = 27009;
       gid = 27009;
-      home = if useSrv then "/var/lib/game-containers/minecraft" else "/home/game-minecraft";
-      gameDir = if useSrv then "/srv/minecraft" else "/home/game-minecraft/minecraft";
+      home = "/var/lib/game-containers/minecraft";
+      gameDir = "/srv/minecraft";
       containerName = "neko7-mc";
       guestService = "minecraft-server-survival";
       backupSource = "survival";
@@ -43,10 +42,6 @@
       d = layout.mkGameDirectories spec;
     in {
       nixpkgs.overlays = [inputs.nix-minecraft.overlay];
-
-      # The legacy layout keeps Minecraft data under /home.
-      systemd.services.${spec.guestService}.serviceConfig.ProtectHome =
-        lib.mkIf (!useSrv) (lib.mkForce false);
 
       users.users.minecraft.uid = spec.uid;
       users.groups.minecraft.gid = spec.gid;

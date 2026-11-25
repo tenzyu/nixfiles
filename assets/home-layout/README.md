@@ -178,7 +178,7 @@ current、booted、Nix profile の generation を別々に記録する。
 
 ```sh
 nix build --no-link -L .#checks.x86_64-linux.home-migration
-nix run -L .#framework-test
+nix build -L --no-link .#checks.x86_64-linux.framework
 ```
 
 Home check は packaged runner の故障試験と、使い捨て NixOS VM の native switch／embedded HM を実行する。

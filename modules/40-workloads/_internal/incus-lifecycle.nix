@@ -1,14 +1,14 @@
-{inputs, self, system, name, image, candidate, guestMemory, stateProbe, tcg ? false}: let
+{inputs, self, system, name, image, candidate, guestMemory, stateProbe}: let
   pkgs = inputs.nixpkgs.legacyPackages.${system};
 in pkgs.testers.runNixOSTest {
-  name = "incus-workload-${name}${pkgs.lib.optionalString tcg "-tcg"}";
+  name = "incus-workload-${name}";
   qemu.forceAccel = true;
   globalTimeout = 75 * 60;
   nodes.neko7 = {
     imports = [
       self.modules.nixos.incus
       ({lib, ...}: {options.local.features.incus.enable = lib.mkEnableOption "Incus fixture";})
-    ] ++ pkgs.lib.optional tcg ../../10-foundations/_internal/incus-tcg-fixture.nix;
+    ];
     local.features.incus.enable = true;
     virtualisation = {
       cores = 4;
@@ -28,13 +28,6 @@ in pkgs.testers.runNixOSTest {
     neko7.wait_for_unit("incus-preseed.service")
     neko7.succeed("test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp ${../../../justfile} /root/fixture/justfile; cp ${../../../tools/instance-ops.sh} /root/fixture/tools/instance-ops.sh")
     recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
-    ${pkgs.lib.optionalString tcg ''
-      # The disposable test host runs over a second virtual block stack.
-      # Incus writeback keeps guest flush semantics (unlike unsafe), but
-      # avoids O_DIRECT/io_uring through that stack. Native KVM gate unchanged.
-      neko7.succeed("incus profile device set default root io.cache=writeback --project default")
-      neko7.succeed("incus profile device get default root io.cache --project default | grep -Fx writeback")
-    ''}
     def exec_prefix(name):
         return "incus exec local:" + name + " --project default --mode=non-interactive --cwd / --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- "
     def guest(name, command):
@@ -77,9 +70,6 @@ in pkgs.testers.runNixOSTest {
             print(output)
             diagnose(name)
             raise Exception("exact-image instance creation/readiness failed")
-        if ${if tcg then "True" else "False"}:
-            neko7.succeed("grep -Fx " + shlex.quote(name) + " /run/incus-ci-tcg-launches")
-            neko7.succeed("incus list local: name=" + shlex.quote(name) + " --project default --format=json | jq -e 'length == 1 and .[0].expanded_devices.root[\"io.cache\"] == \"writeback\"'")
     # Exact production image, no synthetic image substitution. The private
     # artifact entrypoints are precisely the steps used by the public recipes
     # after nix build; public build wrappers are tested separately.
@@ -145,9 +135,6 @@ in pkgs.testers.runNixOSTest {
     neko7.succeed("incus list local: name=restore --format json | jq -e 'length == 1 and .[0].status == \"Stopped\" and ([.[0].expanded_devices[] | select(.type == \"nic\")] | length == 0)'")
     neko7.succeed("incus start local:restore --project default")
     ready("restore")
-    ${pkgs.lib.optionalString tcg ''
-      neko7.succeed("grep -Fx restore /run/incus-ci-tcg-launches")
-    ''}
     assert run("restore", "readlink -e /run/current-system") == original_generation
     assert run("restore", ${builtins.toJSON stateProbe.verify}) == original_state
     neko7.fail(guest("restore", "test -e /etc/neko7/fixture-release"))

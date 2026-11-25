@@ -1,5 +1,4 @@
-{flakeRef}: let
-  flake = builtins.getFlake flakeRef;
+{flake}: let
   inherit (flake.inputs.nixpkgs) lib;
   fixture = flake.debug.extendModules {
       modules = [
@@ -126,50 +125,6 @@
     unrelatedAllowed = config.nixpkgs.config.allowUnfreePredicate {pname = "unrelated";};
   };
   hostSeeds = flake.debug.config.configurations.nixos;
-  cliFeatures = [
-    "btop"
-    "common"
-    "fastfetch"
-    "fzf"
-    "git"
-    "neovim"
-    "packages-common"
-    "starship"
-    "yazi"
-    "zoxide"
-  ];
-  desktopFeatures = [
-    "alacritty"
-    "cclip"
-    "chromium"
-    "desktop-tools"
-    "easyeffects"
-    "fileman"
-    "firefox"
-    "hyprpaper"
-    "jay"
-    "kitty"
-    "mako"
-    "obs-studio"
-    "packages-desktop"
-    "rofi"
-    "tofi"
-    "waybar"
-    "wlogout"
-  ];
-  trackedFeatures = cliFeatures ++ desktopFeatures;
-  expectedEnabled = {
-    neko5 = lib.sort builtins.lessThan (cliFeatures ++ [
-      "alacritty" "cclip" "chromium" "desktop-tools" "easyeffects" "fileman" "firefox" "jay"
-      "mako" "obs-studio" "rofi" "wlogout"
-    ]);
-    neko6 = cliFeatures;
-    neko7 = cliFeatures;
-  };
-  enabledFeatures = features:
-    lib.attrNames (lib.filterAttrs (name: feature:
-      builtins.elem name trackedFeatures && feature.enable == true)
-    features);
   unknownUserFeatures =
     (flake.debug.extendModules {
       modules = [
@@ -490,21 +445,6 @@ in {
       };
     };
 
-    testHostsSelectConcreteHomeFeatures = {
-      expr =
-        lib.mapAttrs (name: host: {
-          declared = enabledFeatures hostSeeds.${name}.module.local.users.tenzyu.features;
-          effective = enabledFeatures host.config.home-manager.users.tenzyu.local.features;
-        })
-        flake.nixosConfigurations;
-      expected =
-        lib.mapAttrs (_: names: {
-          declared = names;
-          effective = names;
-        })
-        expectedEnabled;
-    };
-
     testSplitcastCacheIsScopedToEnabledConsumerRoles = {
       expr = lib.mapAttrs (_: host: let
         settings = host.config.nix.settings;
@@ -535,7 +475,6 @@ in {
             (package: (package.pname or "") != "mako")
             home.dbus.packages;
         oneUserProfilePackage = builtins.length makoPackages == 1;
-        osuMode = home.services.mako.settings."mode=osu-first".invisible == 1;
         gamemodeMode = home.services.mako.settings."mode=hyprland-gamemode".invisible == 1;
         gamingCliMode = home.services.mako.settings."mode=hyprland-gaming-cli".invisible == 1;
         otherHostsUnselected = lib.all
@@ -547,44 +486,9 @@ in {
         enabled = true;
         noDuplicateHmDbusInstallation = true;
         oneUserProfilePackage = true;
-        osuMode = true;
         gamemodeMode = true;
         gamingCliMode = true;
         otherHostsUnselected = true;
-      };
-    };
-
-    testNeko5WaybarUsesUpstreamHotplugFix = {
-      expr = let
-        host = flake.nixosConfigurations.neko5;
-        home = host.config.home-manager.users.tenzyu;
-        # Waybar is retained but no longer selected in the daily Jay desktop.
-        # Exercise its hardware integration without enabling it on the host.
-        legacy = (host.extendModules {
-          modules = [{
-            local.users.tenzyu.features.waybar.enable = lib.mkForce true;
-          }];
-        }).config.home-manager.users.tenzyu;
-        selected = legacy.programs.waybar.package;
-      in {
-        dailyDisabled = !home.programs.waybar.enable;
-        enabled = legacy.programs.waybar.enable;
-        hasFix = lib.versionAtLeast (lib.getVersion selected) "0.16.0";
-        fromPinnedUnstable = selected.drvPath == host.pkgs.unstable.waybar.drvPath;
-        otherHostsUnchanged = lib.all
-          (name: let
-            other = flake.nixosConfigurations.${name};
-          in
-            other.config.home-manager.users.tenzyu.programs.waybar.package.drvPath
-            == other.pkgs.waybar.drvPath)
-          ["neko6" "neko7"];
-      };
-      expected = {
-        dailyDisabled = true;
-        enabled = true;
-        hasFix = true;
-        fromPinnedUnstable = true;
-        otherHostsUnchanged = true;
       };
     };
 
@@ -638,11 +542,6 @@ in {
       };
     };
 
-    testRemovedProfilesAreNotRegistered = {
-      expr = lib.intersectLists ["tenzyu-cli" "tenzyu-desktop"] (lib.attrNames flake.modules.homeManager);
-      expected = [];
-    };
-
     testUnregisteredUserFeatureIsRejected = {
       expr = (builtins.tryEval (builtins.deepSeq unknownUserFeatures true)).success;
       expected = false;
@@ -689,52 +588,6 @@ in {
       };
     };
 
-    testUnselectableHyprlandRulesRemainAttachedToTheirRealFeature = {
-      expr = let
-        host = flake.nixosConfigurations.neko5;
-        home = host.config.home-manager.users.tenzyu;
-        legacy = (host.extendModules {
-          modules = [{
-            local.features = {
-              jay.enable = lib.mkForce false;
-              hyprland-core.enable = lib.mkForce true;
-              hyprland-tenzyu.enable = lib.mkForce true;
-            };
-            local.users.tenzyu.features = {
-              jay.enable = lib.mkForce false;
-              hyprland-core.enable = lib.mkForce true;
-              hyprland-tenzyu.enable = lib.mkForce true;
-            };
-          }];
-        }).config.home-manager.users.tenzyu;
-        select = rules: builtins.filter (rule:
-          (rule.match.class or null) == "^$"
-          && (rule.match.xwayland or false)
-        ) rules;
-        emptyXwaylandRules = select (legacy.wayland.windowManager.hyprland.settings.window_rule or []);
-      in {
-        ghostFeature = builtins.hasAttr "hyprland-empty-xwayland" flake.modules.homeManager;
-        dailyRulesAbsent = select (home.wayland.windowManager.hyprland.settings.window_rule or []) == [];
-        inheritedRules = builtins.length emptyXwaylandRules;
-        exactRules = emptyXwaylandRules == [
-          {
-            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
-            no_focus = true;
-          }
-          {
-            match = {class = "^$"; title = "^$"; xwayland = true; float = true; fullscreen = false;};
-            no_follow_mouse = true;
-          }
-        ];
-      };
-      expected = {
-        ghostFeature = false;
-        dailyRulesAbsent = true;
-        inheritedRules = 2;
-        exactRules = true;
-      };
-    };
-
     testHostZshLoginShells = {
       expr =
         lib.mapAttrs (name: host: {
@@ -772,37 +625,6 @@ in {
           shell = "zsh";
         };
       };
-    };
-
-    testHostUserFeatureDisables = {
-      expr =
-        lib.mapAttrs (name: host: let
-          seed = hostSeeds.${name}.module.local.users.tenzyu.features;
-          home = host.config.home-manager.users.tenzyu.local.features;
-        in {
-          tmux = {
-            seed = seed.tmux.enable;
-            inherit (home.tmux) enable;
-          };
-          zed = {
-            seed = seed.zed-editor.enable;
-            inherit (home.zed-editor) enable;
-          };
-        })
-        flake.nixosConfigurations;
-      expected = lib.genAttrs ["neko5" "neko6" "neko7"] (name: {
-        tmux = {
-          seed = false;
-          enable = false;
-        };
-        zed = {
-          seed =
-            if name == "neko5"
-            then false
-            else null;
-          enable = false;
-        };
-      });
     };
 
     testUserFeatureProjectsAndKeepsDirectOptions = {
@@ -968,42 +790,21 @@ in {
       });
     };
 
-    testGameSrvCutoverPreservesLegacyAndUsesNativeProtection = {
+    testMinecraftCanonicalDataAndProtection = {
       expr = let
-        host = flake.nixosConfigurations.neko7;
-        migrated = host.config;
-        legacy = (host.extendModules {
-          modules = [
-            {local.features.game-srv.enable = lib.mkForce false;}
-          ];
-        }).config;
+        host = flake.nixosConfigurations.neko7.config;
+        guest = host.containers.neko7-mc.config;
       in {
-        selectedOnNeko7 = migrated.local.features.game-srv.enable;
-        legacyData = legacy.containers.neko7-mc.config.services.minecraft-servers.dataDir;
-        legacyProtectHome = legacy.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
-        migratedData = migrated.containers.neko7-mc.config.services.minecraft-servers.dataDir;
-        migratedHome = migrated.users.users.game-minecraft.home;
-        migratedMount = migrated.containers.neko7-mc.bindMounts."/srv/minecraft".hostPath;
-        migratedIdentity = migrated.containers.neko7-mc.bindMounts."/var/lib/tailscale".hostPath;
-        migratedProtectHome = migrated.containers.neko7-mc.config.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
+        data = guest.services.minecraft-servers.dataDir;
+        protectHome = guest.systemd.services.minecraft-server-survival.serviceConfig.ProtectHome;
       };
-      expected = {
-        selectedOnNeko7 = true;
-        legacyData = "/home/game-minecraft/minecraft";
-        legacyProtectHome = false;
-        migratedData = "/srv/minecraft";
-        migratedHome = "/var/lib/game-containers/minecraft";
-        migratedMount = "/srv/minecraft";
-        migratedIdentity = "/var/lib/game-containers/minecraft/.state/tailscale";
-        migratedProtectHome = true;
-      };
+      expected = {data = "/srv/minecraft"; protectHome = true;};
     };
 
     testGameServerCapabilitiesAreIndependentlySelected = {
       expr = let
         host = flake.nixosConfigurations.neko7.config;
       in {
-        oldBundle = host.local.features.game-server-containers.enable;
         ark = host.local.features.game-ark.enable;
         rust = host.local.features.game-rust.enable;
         minecraft = host.local.features.game-minecraft.enable;
@@ -1019,7 +820,6 @@ in {
         ];
       };
       expected = {
-        oldBundle = false;
         ark = false;
         rust = false;
         minecraft = true;

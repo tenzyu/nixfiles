@@ -1,32 +1,20 @@
 # Read-only inspection
 
-## Prerequisites
-
-A checkout with Nix, flakes enabled and access to the pinned flake inputs. Commands run from the repository root. If direnv already loaded the shell, run the commands directly; do not repeatedly wrap them in `nix develop -c`.
-
-## Observe the declared configuration
+Run from the checkout in the existing direnv shell:
 
 ```sh
 git rev-parse HEAD
 nix flake show
 nix eval .#nixosConfigurations --apply builtins.attrNames --json
 nix eval --raw .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
+nix eval --json .#nixosConfigurations.neko5.options.services.openssh.enable.definitionsWithLocations --apply 'map (d: d.file)'
+rg -n 'flake.modules.(nixos|homeManager).ssh' modules
 ```
 
-Expected: the host list contains `neko5`, `neko6` and `neko7`; the last expression yields a `.drv` store path. Failure can mean missing flake inputs, an evaluation error, or a policy constraint; **no successful output here proves an active generation or a running unit**.
-
-## Validate the source
+Use the effective `config` for values and `options.<path>.definitionsWithLocations` for surviving definition locations. Native priority merging does not expose discarded definitions as current provenance. `nix repl` and nixd provide interactive exploration. The historical feature-trace CLI is archived.
 
 ```sh
-python3 scripts/ci/check_docs.py
-python3 -m unittest discover -v -s scripts/ci -p 'test_docs.py'
-python3 scripts/ci/wiki_scan.py --summary
-python3 scripts/ci/retrieval_eval.py --smoke
-nix run -L .#framework-test
+nix build -L --no-link .#checks.x86_64-linux.validation
 ```
 
-The Python checks inspect files, source metadata and retrieval routes without OS activation. The Nix command builds/runs the focused framework tests and can fetch dependencies. The CI-equivalent Nix matrix is in [PR validation](ci-validation.md); `nix flake check` is deliberately not the fast-path PR gate.
-
-## Stop conditions
-
-Do not interpret `nixos-rebuild test` as an inspection command: it activates a configuration. Do not run `switch`, VM resets, secret bootstrap, GC prune or `home-layout-migrate apply` as part of a documentation or inspection task. Record a failure with its exact revision and command before retrying.
+See [validation](ci-validation.md) for focused checks. No command here activates a host or moves data. `nixos-rebuild test` activates units and is not an inspection command; stop on evaluation, build or permission failure.

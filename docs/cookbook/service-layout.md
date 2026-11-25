@@ -30,7 +30,7 @@ options stay unchanged.
 - Never change a running service's UID or ownership recursively during
   activation.
 
-Run `nix run -L .#framework-test` and the repository's focused host evaluation
+Run `nix build -L --no-link .#checks.x86_64-linux.framework` and the repository's focused host evaluation
 workflow. See upstream
 [NixOS module system](https://nixos.org/manual/nixos/stable/#sec-writing-modules)
 and [systemd.exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html).

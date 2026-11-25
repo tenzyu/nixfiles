@@ -58,7 +58,6 @@
         fonts.enable = true;
 
         nix.enable = true;
-        nix-store-clean.enable = true;
         nix-remote-client.enable = true;
         stub-ld.enable = true;
 
@@ -139,7 +138,6 @@
         wlogout.enable = true;
         hyprpaper.enable = false;
         # Select capability owners independently, not the legacy desktop bundle.
-        packages-desktop.enable = false;
         desktop-tools.enable = true;
         obs-studio.enable = true;
         easyeffects.enable = true;
@@ -150,7 +148,6 @@
         hyprland-core.enable = false;
         obsidian.enable = true;
         osu-lazer.enable = true;
-        neko5-osu-first.enable = false;
         parsec.enable = true;
         dolphin.enable = false;
         fileman.enable = true;
