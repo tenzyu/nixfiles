@@ -45,7 +45,7 @@
     # Mozilla bug 1982187 describes the same missing-dialog symptom.
     home-manager.users.tenzyu.programs.firefox.policies.Preferences."widget.use-xdg-desktop-portal.file-picker" = {
       Value = 0;
-      Status = "default";
+      Status = "locked";
     };
 
     local = {
