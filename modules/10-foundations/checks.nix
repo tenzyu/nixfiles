@@ -10,6 +10,40 @@
     server = hosts.neko7.config;
     hm = primary.home-manager.users.tenzyu;
     keys = jay.shortcuts;
+    startup = map (action: action.exec) jay.on-graphics-initialized;
+    privileged = action: builtins.isAttrs action && (action.privileged or false);
+    # These are local integration contracts, not tests of upstream Jay.
+    startupContract = builtins.length startup == 3
+      && builtins.isList (builtins.elemAt startup 0)
+      && lib.hasSuffix "/bin/dbus-update-activation-environment" (builtins.head (builtins.elemAt startup 0))
+      && (builtins.elemAt startup 1) == {prog = "cclip-start"; args = []; privileged = true;}
+      && lib.hasSuffix "/bin/fcitx5" (builtins.elemAt startup 2).prog
+      && (builtins.elemAt startup 2).args == ["-r"]
+      && privileged (builtins.elemAt startup 2)
+      && !((builtins.elemAt startup 2) ? tag)
+      && keys.logo-ctrl-i.exec == builtins.elemAt startup 2
+      && builtins.length (builtins.filter privileged startup) == 2
+      && (jay.clients or []) == [];
+    shortcutPrivileges = lib.attrNames (lib.filterAttrs (_: action:
+      builtins.isAttrs action && privileged (action.exec or null)) keys)
+      == ["Print" "logo-ctrl-i" "logo-shift-s"];
+    workspaceContract = jay.workspace-display-order == "sorted"
+      && jay.actions.next-workspace == "$workspace-2"
+      && jay.actions.previous-workspace == "$workspace-10"
+      && keys.logo-Tab == "$next-workspace" && keys.logo-shift-Tab == "$previous-workspace"
+      && lib.all (n: let
+        name = toString n;
+        key = toString (if n == 10 then 0 else n);
+        action = "$workspace-${name}";
+        next = toString (if n == 10 then 1 else n + 1);
+        prev = toString (if n == 1 then 10 else n - 1);
+      in keys."logo-${key}" == action
+        && keys."logo-shift-${key}" == [{type = "move-to-workspace"; inherit name;} action]
+        && jay.actions."workspace-${name}" == [
+          {type = "show-workspace"; inherit name;}
+          {type = "define-action"; name = "next-workspace"; action = "$workspace-${next}";}
+          {type = "define-action"; name = "previous-workspace"; action = "$workspace-${prev}";}
+        ]) (lib.range 1 10);
     packages = hm.home.packages;
     package = name: lib.findFirst (p: lib.getName p == name)
       (throw "Missing selected desktop package: ${name}") packages;
@@ -39,7 +73,10 @@
         && keys.logo-v.exec == ["cclip-picker"]
         && lib.hasSuffix "/bin/fcitx5-remote" (builtins.head keys.logo-i.exec)
         && keys.logo-ctrl-i.exec.privileged
-        && keys.logo-shift-s.exec.privileged && keys.Print.exec.privileged;
+        && keys.logo-shift-s.exec.privileged && keys.Print.exec.privileged
+        && builtins.tail keys.logo-i.exec == ["-t"]
+        && startupContract && shortcutPrivileges;
+      workspace-cycle = workspaceContract;
       associations = desktop.skinAssociation == ["org.kde.ark.desktop"]
         && desktop.fileAssociation == ["dev.fileman.Files.desktop"];
     };
@@ -48,7 +85,7 @@
       "framework" "host-policy" "desktop-packages" "docs" "clipboard"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
-      "game-backup-minecraft"
+      "game-backup-minecraft" "splitcast-cache-cli"
     ];
   in {
     checks = lib.optionalAttrs (system == "x86_64-linux") {
@@ -67,7 +104,9 @@
         test -x ${package "jay-rofi-actions"}/bin/jay-rofi-actions
         service=${package "mako"}/share/dbus-1/services/org.freedesktop.Notifications.service
         test -f "$service"
+        grep -Fx 'Name=org.freedesktop.Notifications' "$service"
         grep -Fx 'SystemdService=mako.service' "$service"
+        grep -Fx 'Type=dbus' ${package "mako"}/lib/systemd/user/mako.service
         grep -Fx 'BusName=org.freedesktop.Notifications' ${package "mako"}/lib/systemd/user/mako.service
         touch "$out"
       '';
@@ -90,6 +129,20 @@
         chmod u+w test.sh
         substituteInPlace test.sh --replace-fail /usr/bin/env ${pkgs.coreutils}/bin/env
         bash test.sh ${pkgs.writeText "t3-serve-restore" server.systemd.services.t3code-tailnet.script}
+        touch "$out"
+      '';
+
+      # Only the offline argument boundary; signed remote verification is on demand.
+      splitcast-cache-cli = pkgs.runCommand "splitcast-cache-cli" {nativeBuildInputs = [pkgs.bash];} ''
+        script=${../../scripts/ci/audit-splitcast-cache.sh}
+        bash -n "$script"
+        bash "$script" --help
+        status=0
+        bash "$script" --unknown-option || status=$?
+        test "$status" = 2
+        status=0
+        bash "$script" --strict extra || status=$?
+        test "$status" = 2
         touch "$out"
       '';
 
