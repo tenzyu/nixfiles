@@ -1,6 +1,6 @@
-# Archive — historical evidence
+# Archive of historical evidence
 
-All historical bytes are retained at [pre-cleanup main 050bd373eaa2](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371). These links identify an immutable Git revision rather than duplicating inactive code in the live repository. Do not use these documents as current instructions.
+The repository retains the historical files at [pre-cleanup main 050bd373eaa2](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371). The links use an immutable Git revision. The current repository does not duplicate the inactive code. These documents are historical records, not current instructions.
 
 | Historical material | Archived source |
 | --- | --- |
@@ -16,4 +16,4 @@ All historical bytes are retained at [pre-cleanup main 050bd373eaa2](https://git
 | Former CI machinery | [workflow](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/.github/workflows/nix-validation.yml) · [scripts/ci](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/scripts/ci) |
 | Former desktop migration comparisons | [scripts/desktop](https://github.com/tenzyu/nixfiles/tree/050bd373eaa20e65134b33d79888d77c784a9371/scripts/desktop) |
 
-Current authority: [documentation](../README.md), [decisions](../memory/decisions.md), [cookbook](../cookbook/index.md), [source](../../README.md), and [outstanding acceptance](../../ROADMAP.md). Historical evidence is not a claim that a host runs the current configuration.
+For current requirements, see [documentation](../README.md), [decisions](../memory/decisions.md), [cookbook](../cookbook/index.md), [source](../../README.md), and [outstanding acceptance](../../ROADMAP.md). Historical evidence is not a claim that a host runs the current configuration.

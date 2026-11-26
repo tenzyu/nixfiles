@@ -1,6 +1,6 @@
 # Instance operations
 
-Nix owns releases; Incus owns instances and mutable state. Run the menu from the nixfiles checkout on neko7. `just status` reads native inventories; it is not an application-health registry.
+Nix manages releases. Incus manages instances and mutable state. Before using the recipes, complete the native KVM acceptance checks and obtain separate operator approval for activation and the intended operations. Run the menu from the nixfiles checkout on neko7. `just status` reads native inventories. It does not report application health.
 
 ```sh
 just

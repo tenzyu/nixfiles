@@ -5,8 +5,7 @@
 - Keep feature selection in the host list and declare each secret in the
   consuming module using native `sops.secrets` and
   `config.sops.secrets.<name>.path`.
-- Start with a manifest per host. Split files when recipients, rotation,
-  or maintainers differ. Give each file only the recipients that need it.
+- Start with a manifest per host. If recipients, rotation schedules, or maintainers differ, split the files. Give each file only the recipients that need it.
   Keep plaintext values and decryption identities outside Git and the Nix store.
 - On neko7, trust extends to root in the guest and to the Proxmox
   administrators who can inspect the VM's memory and storage. SOPS protects
@@ -23,7 +22,7 @@
 | As needed | NixOS user password hashes | Set `neededForUsers = true` and use the runtime path in `hashedPasswordFile`. |
 | Out of scope | Public configuration, public SSH keys, and persistent application state | Keep public configuration in its normal modules. Back up mutable state through the owning service. |
 
-The current host declarations select the decryption identity only. Each
+The current host declarations select only the decryption identity. Each
 application still needs its own credential declaration and acceptance.
 
 The SplitCast Rust candidate stays gated. Its file input above carries an
@@ -42,8 +41,8 @@ identity in a separate Bitwarden Secure Note for recovery. Routine
 activation reads the local key and works offline. Rebuilds do not
 auto-generate a replacement identity.
 
-On a host that has no identity yet, create the directory and run
-`age-keygen -o /var/lib/sops-nix/key.txt` as root with a restrictive umask.
+If a host has no identity, create the directory.
+As root with a restrictive umask, run `age-keygen -o /var/lib/sops-nix/key.txt`.
 Record only the recipient printed by
 `age-keygen -y /var/lib/sops-nix/key.txt` in the SOPS policy. Confirm a
 Bitwarden restore derives the same public recipient and decrypts a
@@ -52,9 +51,9 @@ as well. A replacement host can restore the saved age identity before
 activating any service that needs it.
 
 For an intentional age key replacement, keep a verified recovery identity
-and both the old and new keys until acceptance. Update the recipient
-policy, run `sops updatekeys` for the affected files, and verify decryption
-with the new identity before retiring the old one. If a recipient was
+and both the old and new keys until acceptance. Update the recipient policy.
+Run `sops updatekeys` for the affected files.
+Before retiring the old identity, verify decryption with the new identity. If a recipient was
 compromised, review historical ciphertext, rotate affected SOPS data
 keys, and rotate or revoke exposed service credentials at the provider.
 Changing recipients cannot revoke a token or remove old Git history.
@@ -71,9 +70,9 @@ reencrypt for the next host key before removing the old one.
 
    ```nix
    {config, ...}: {
-     systemd.services.example.serviceConfig.LoadCredential = [
-       "api-key:${config.sops.secrets.example-api-key.path}"
-     ];
+   	systemd.services.example.serviceConfig.LoadCredential = [
+   		"api-key:${config.sops.secrets.example-api-key.path}"
+   	];
    }
    ```
 
@@ -83,8 +82,8 @@ reencrypt for the next host key before removing the old one.
    `sops.templates` with placeholders and restrict the rendered file's
    owner and mode. Choose a format or encoding that the consumer parses
    safely.
-4. Use an `EnvironmentFile` only for env-only applications, accounting
-   for inheritance by child processes and for diagnostic output.
+4. Use an `EnvironmentFile` only for applications that require environment variables.
+   Account for inheritance by child processes and diagnostic output.
    [systemd.exec credential and environment options](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Credentials)
 
 Audit the receiving process too. Both ARK implementations embed
@@ -92,10 +91,8 @@ Audit the receiving process too. Both ARK implementations embed
 environment files into SOPS would leave the argv and logging exposure.
 Resolve that consumption path before migrating the credential.
 
-SOPS changes take effect on the NixOS activation path. Use
-`reloadUnits` where the app can reopen and reload the source, or
-`restartUnits` when the app reads on start or systemd must refresh
-its credential snapshot. Schedule interruptions explicitly. Keep
+SOPS changes take effect on the NixOS activation path. If the application can reopen and reload the secret, use `reloadUnits`.
+If the application reads the secret at startup or systemd must refresh its credential snapshot, use `restartUnits`. Schedule interruptions explicitly. Keep
 provider token expiry, refresh, and revocation with the credential's
 owner.
 
@@ -128,42 +125,40 @@ owns the guest, replace both existing auth path definitions together.
 
 ```nix
 {
-  config,
-  lib,
-  ...
+	config,
+	lib,
+	...
 }: let
-  secretName = "game-minecraft-tailscale-authkey";
-  guestPath = "/run/host-game-secrets/minecraft-tailscale-authkey";
+	secretName = "game-minecraft-tailscale-authkey";
+	guestPath = "/run/host-game-secrets/minecraft-tailscale-authkey";
 in {
-  sops.secrets.${secretName} = {
-    sopsFile = ./secrets/neko7.yaml;
-    key = "minecraft_tailscale_authkey";
-    owner = "root";
-    mode = "0400";
-    restartUnits = ["container@neko7-mc.service"];
-  };
+	sops.secrets.${secretName} = {
+		sopsFile = ./secrets/neko7.yaml;
+		key = "minecraft_tailscale_authkey";
+		owner = "root";
+		mode = "0400";
+		restartUnits = ["container@neko7-mc.service"];
+	};
 
-  containers.neko7-mc = {
-    bindMounts.${guestPath} = {
-      hostPath = config.sops.secrets.${secretName}.path;
-      isReadOnly = true;
-    };
-    config = {
-      services.tailscale.authKeyFile = guestPath;
-      systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathExists = guestPath;
-    };
-  };
+	containers.neko7-mc = {
+		bindMounts.${guestPath} = {
+			hostPath = config.sops.secrets.${secretName}.path;
+			isReadOnly = true;
+		};
+		config = {
+			services.tailscale.authKeyFile = guestPath;
+			systemd.services.tailscaled-autoconnect.unitConfig.ConditionPathExists = guestPath;
+		};
+	};
 
-  systemd.services."container@neko7-mc" = lib.mkIf config.sops.useSystemdActivation {
-    after = ["sops-install-secrets.service"];
-    requires = ["sops-install-secrets.service"];
-  };
+	systemd.services."container@neko7-mc" = lib.mkIf config.sops.useSystemdActivation {
+		after = ["sops-install-secrets.service"];
+		requires = ["sops-install-secrets.service"];
+	};
 }
 ```
 
-A single-file bind holds the inode of the mounted file. SOPS rotates to
-a new generation, so the container must restart to pick up a rotated
-credential. Schedule the downtime explicitly. After any approved test
+A single-file bind mount holds the inode of the mounted file. SOPS rotates the secret to a new generation. Restart the container to use the rotated credential. Schedule the downtime explicitly. After any approved test
 activation, verify the guest mount is read-only, compare the Tailscale
 node ID, and check Minecraft from neko5 before approving a switch.
 
@@ -181,7 +176,7 @@ that credential. It accesses neko7's trusted Nix daemon. See the
 - Verify neko5 and neko7 resolve the local key file and do not import
   either SSH host key. Try a synthetic ciphertext for each recipient
   on both hosts. Only its intended host should decrypt it.
-- Native Tailscale should have exactly one auth ownership path: `services.tailscale.authKeyFile` and the generated `tailscaled-autoconnect`; never the old custom `tailscale-autoconnect`.
+- Native Tailscale must have exactly one auth ownership path through `services.tailscale.authKeyFile` and the generated `tailscaled-autoconnect`. Do not use the old custom `tailscale-autoconnect`.
 - Before any runtime switch, inspect existing node identities, boot activation behavior, network reachability, and secret permissions. Keep an offline rollback and previously working auth files.
 
-Upstream: [sops-nix](https://github.com/Mic92/sops-nix) and [NixOS Tailscale module](https://github.com/NixOS/nixpkgs/blob/nixos-26.05/nixos/modules/services/networking/tailscale.nix).
+Upstream documentation includes [sops-nix](https://github.com/Mic92/sops-nix) and [NixOS Tailscale module](https://github.com/NixOS/nixpkgs/blob/nixos-26.05/nixos/modules/services/networking/tailscale.nix).
