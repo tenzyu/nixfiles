@@ -1,0 +1,80 @@
+name: Semantic Unslop A/B evidence
+on:
+  push:
+    branches: [verify/semantic-unslop-ab]
+permissions:
+  contents: read
+jobs:
+  compare:
+    name: Compare ${{ matrix.unit }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - unit: policy
+            candidate: 6af6146aaf9f41dd12df730a28fdf6af30adbc2b
+          - unit: feature-projection
+            candidate: f971e590c397861806ba7a3376b016644d4e3e7d
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.candidate }}
+          path: candidate
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare actual evaluated configurations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp baseline/flake.lock candidate/flake.lock
+          mkdir evidence
+          cat > "$RUNNER_TEMP/snapshot.nix" <<'NIX'
+          let
+            f = builtins.getFlake ("git+file://" + builtins.getEnv "SNAPSHOT_PATH" + "?rev=" + builtins.getEnv "SNAPSHOT_REV");
+            inherit (builtins) mapAttrs hashString toJSON;
+            featureValues = mapAttrs (_: feature: feature.enable);
+            home = c: {
+              features = featureValues c.local.features;
+              activationDrv = c.home.activationPackage.drvPath;
+              packages = map (p: p.drvPath) c.home.packages;
+              userServices = hashString "sha256" (toJSON c.systemd.user.services);
+            };
+            os = host: let c = host.config; in {
+              features = featureValues c.local.features;
+              userFeatures = mapAttrs (_: user: featureValues user.features) c.local.users;
+              policy = c.local.nixpkgsPolicy;
+              systemDrv = c.system.build.toplevel.drvPath;
+              packages = map (p: p.drvPath) c.environment.systemPackages;
+              systemUnits = hashString "sha256" (toJSON (mapAttrs (_: unit: unit.text or null) c.systemd.units));
+              homes = mapAttrs (_: user: home user) c.home-manager.users;
+            };
+          in {
+            nixos = mapAttrs (_: host: os host) f.nixosConfigurations;
+            standalone = mapAttrs (_: h: (home h.config) // {policy = h.config.local.nixpkgsPolicy;}) f.homeConfigurations;
+          }
+          NIX
+          for side in baseline candidate; do
+            export SNAPSHOT_PATH="$PWD/$side"
+            export SNAPSHOT_REV="$(git -C "$side" rev-parse HEAD)"
+            printf '%s\n' "$SNAPSHOT_REV" > "evidence/$side.sha"
+            nix eval --impure --json --no-write-lock-file --file "$RUNNER_TEMP/snapshot.nix" > "evidence/$side.raw.json"
+            jq -S . "evidence/$side.raw.json" > "evidence/$side.json"
+            rm "evidence/$side.raw.json"
+          done
+          diff -u evidence/baseline.json evidence/candidate.json > evidence/diff.txt
+      - name: Upload paired evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-unslop-${{ matrix.unit }}
+          path: evidence/
+          if-no-files-found: error
