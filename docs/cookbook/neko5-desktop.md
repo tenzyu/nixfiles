@@ -7,7 +7,7 @@ Weston are retired. Both boot entries preserve HOME, kernel, Mesa/i915,
 official osu! package, HID, audio, thermal, network and SSH policy.
 
 The workstation selects desktop tools, OBS Studio, and EasyEffects independently.
-The kernel/resource experiment is intentionally outside this integration.
+The proposed [resource policy](../../modules/00-hosts/neko5/resources.nix) applies to both boot entries. Physical acceptance remains mandatory.
 
 ## Source ownership and fixed settings
 
@@ -153,18 +153,67 @@ Record missing telemetry as unknown rather than PASS. Reject missing workspaces 
 desktop, unsafe close/exit, native fullscreen/input/audio failure or material
 pacing regression. Gamescope is a probe only.
 
-For the idle-memory measurement, close foreground applications after five minutes.
-Take three samples at 30-second intervals over SSH from neko7:
+For resource acceptance, use the same installed hardware, workload, power
+policy and compositor in baseline and candidate. Use three independent
+boots per generation; after 120 seconds of settling, collect five samples
+10 seconds apart at VT, Jay idle, and post-workload idle. Run the native
+kernel-config check and build the full toplevel before any approved boot.
 
 ```sh
-ssh neko5 'python3 /home/tenzyu/.nixfiles/scripts/desktop/memory-snapshot.py'
+nix build --no-link .#checks.x86_64-linux.neko5-kernel-config
+nix build --no-link .#nixosConfigurations.neko5.config.system.build.toplevel
+python3 scripts/desktop/memory-snapshot.py
 ```
 
-Use actual checkout path. PSS covers readable processes only; distinguish
-effective used (MemTotal − MemAvailable) from non-cache residual.
-600 MiB is the historical target, 400 MiB exploratory; no cache dropping or
-watermark manipulation. Gamescope lacks an equivalent empty desktop idle
-state. Jay's earlier 480 Hz Draw and direct scanout are dated observations.
+### Repeatable paired resource experiment
+
+From a clean committed candidate checkout, prepare two GC-rooted full
+closures outside the repository. Baseline is the exact main commit after
+#88/#89; candidate is the committed checkout. No activation is performed.
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab prepare
+python3 scripts/desktop/memory-ab.py ~/neko5-ab boot-commands
+```
+
+Use the printed native boot command only after the existing approval and
+HOME checks. Reboot into the chosen normal neko5 generation, not Gamescope.
+Alternate A/B boots (A B A B A B), keeping power, peripherals, ambient
+conditions and the workload identical. At the text VT before Jay, after
+starting Jay and leaving it idle, and after the fixed workload and return
+to idle, respectively:
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture vt
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture jay-idle
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture post-workload
+```
+
+The collector detects the arm from the actual active/booted closure,
+requires a distinct boot identity, waits 120 seconds and captures five
+samples at 10-second intervals using the existing read-only snapshot.
+Keep the candidate checkout available even when booting baseline.
+No cache dropping, automated reboot or automatic activation. Retain the
+manifest and result symlinks until acceptance; if prepare fails, inspect
+the partial directory and use a new experiment directory.
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab report
+```
+
+Exit 2 means incomplete receipts; a complete memory report is not a physical
+acceptance PASS. Preserve raw PSI, swap, PSS coverage and reclaim evidence.
+The operator must still record workload/power/thermal equivalence and the
+protected functionality above. Rollback is the existing native boot menu.
+
+Report per-boot medians and the range across boots for MemTotal minus
+MemAvailable, alongside PSS, swap, reclaim and pressure. Target 400 MiB;
+600 MiB was a historical target. Neither is achieved merely by changing
+watermarks or accounting. No cache dropping. Preserve eight online CPUs,
+swap availability, SSH, audio, GPU and the preceding presentation criteria.
+Rollback on regression using the previous generation. The earlier 1073.90
+MiB receipt was not a controlled paired baseline. Historical research:
+[original investigation](https://github.com/tenzyu/nixfiles/blob/9ea65f72b546d2e4b9de329e88eba54aaccccb23/docs/research/neko5-workstation.md).
 
 CI checks both profiles, parsed TOML, audio and identity invariants,
 selected package builds and offline routing. It does not prove KMS,

@@ -48,7 +48,7 @@
     package = name: lib.findFirst (p: lib.getName p == name)
       (throw "Missing selected desktop package: ${name}") packages;
     profilePasses = p: lib.all (name: p.${name}) [
-      "profile" "launcher" "legacyDesktopDisabled" "systemPolicy" "identity"
+      "profile" "launcher" "legacyDesktopDisabled" "systemPolicy" "resourcePolicy" "identity"
       "audio" "realtime" "hardwareAudio" "desktopPackages"
     ] && lib.hasSuffix ".drv" p.drv;
     checks = {
@@ -82,7 +82,7 @@
     };
     failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
     fastChecks = [
-      "framework" "host-policy" "desktop-packages" "docs" "clipboard"
+      "framework" "host-policy" "neko5-kernel-config" "neko5-memory-ab" "desktop-packages" "docs" "clipboard"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
       "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
@@ -92,6 +92,29 @@
       host-policy =
         assert lib.assertMsg (failures == []) ("Host contract violations: " + builtins.toJSON failures);
         pkgs.runCommand "host-policy" {} "touch $out";
+
+      # Check the actual generated kernel config, not merely requested options.
+      neko5-kernel-config = pkgs.runCommand "neko5-kernel-config" {} ''
+        cfg=${primary.boot.kernelPackages.kernel.configfile}
+        grep -Fx 'CONFIG_NR_CPUS=8' "$cfg"
+        grep -Fx '# CONFIG_MEM_ALLOC_PROFILING is not set' "$cfg"
+        grep -Fx '# CONFIG_DAMON_STAT_ENABLED_DEFAULT is not set' "$cfg"
+        grep -Fx 'CONFIG_ZSWAP=y' "$cfg"
+        grep -Fx 'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y' "$cfg"
+        grep -Fx 'CONFIG_TRANSPARENT_HUGEPAGE=y' "$cfg"
+        grep -Fx 'CONFIG_PREEMPT_DYNAMIC=y' "$cfg"
+        touch "$out"
+      '';
+
+      neko5-memory-ab = pkgs.runCommand "neko5-memory-ab" {
+        nativeBuildInputs = [pkgs.python3];
+      } ''
+        cp ${../../scripts/desktop/memory-ab.py} memory-ab.py
+        cp ${../../scripts/desktop/test-memory-ab.py} test-memory-ab.py
+        python3 memory-ab.py --help
+        python3 test-memory-ab.py
+        touch "$out"
+      '';
 
       # Validate the packaged artifacts, not mocked upstream implementation.
       desktop-packages = pkgs.runCommand "desktop-packages" {} ''
