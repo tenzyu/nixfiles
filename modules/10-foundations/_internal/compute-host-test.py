@@ -35,10 +35,18 @@ if vm:
 machine.wait_for_unit("incumbent.service")
 incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
 machine.succeed("incus version")
-for key in ["limits.instances", "limits.virtual-machines", "limits.cpu", "limits.memory", "limits.disk"]:
-    assert not machine.succeed("incus project get lab " + key).strip(), key
-for key in ["limits.cpu", "limits.memory"]:
-    assert not machine.succeed("incus profile get default " + key + " --project lab").strip(), key
+def assert_unpartitioned():
+    project = json.loads(machine.succeed("incus query /1.0/projects/lab"))
+    profile = json.loads(machine.succeed("incus query '/1.0/profiles/default?project=lab'"))
+    assert not any(k.startswith("limits.") for k in project["config"]), project
+    assert not any(k.startswith("limits.") for k in profile["config"]), profile
+assert_unpartitioned()
+# Reproduce the old main preseed, then reapply the current native preseed.
+machine.succeed("incus profile set default limits.cpu=2 limits.memory=2GiB --project lab")
+machine.succeed("incus project set lab limits.instances=8 limits.virtual-machines=0 limits.cpu=8 limits.memory=8GiB")
+machine.succeed("incus project get lab limits.instances | grep -Fx 8")
+machine.succeed("systemctl restart incus-preseed.service")
+assert_unpartitioned()
 machine.succeed("incus project get lab restricted | grep -x true")
 machine.succeed("incus project get lab restricted.devices.disk | grep -x managed")
 machine.succeed("incus network show incuslab0")
@@ -88,6 +96,8 @@ if not vm:
 # Discovery must work with the actual restricted credential, without sudo.
 pool = json.loads(machine.succeed(agent("incus query 'lab:/1.0/storage-pools/default/resources?project=lab'")))
 assert pool["space"]["total"] > 0, pool
+resources = json.loads(machine.succeed(agent("incus query 'lab:/1.0/resources?project=lab'")))
+assert resources["cpu"]["total"] > 0 and resources["memory"]["total"] > 0, resources
 after_config = json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]
 # Volatile config keys may change asynchronously (e.g. NIC state).
 assert {k: v for k, v in after_config["config"].items() if not k.startswith("volatile.")} == {k: v for k, v in before_config["config"].items() if not k.startswith("volatile.")}

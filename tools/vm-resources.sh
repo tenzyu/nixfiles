@@ -2,9 +2,11 @@
 # Native CLI convenience only; no scheduler or persistent state.
 vm_resources() {
   local remote=$1 project=$2; shift 2
-  local cpu memory disk
-  cpu=$(nproc --all) || return
-  memory=$(awk '/^MemTotal:/ {printf "%dMiB\n", int($2 / 1024)}' /proc/meminfo) || return
+  local cpu memory disk resources
+  # Read the backend itself rather than the calling process's cgroup/CPU view.
+  resources=$("$@" query "$remote:/1.0/resources?project=$project") || return
+  cpu=$(jq -er '.cpu.total | select(type == "number" and . > 0) | floor | tostring' <<< "$resources") || return
+  memory=$(jq -er '.memory.total | select(type == "number" and . >= 1048576) | (. / 1048576 | floor | tostring) + "MiB"' <<< "$resources") || return
   disk=$("$@" query "$remote:/1.0/storage-pools/default/resources?project=$project" |
     jq -er '.space.total | select(type == "number" and . > 0) | floor | tostring') || return
   [[ $cpu =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*MiB$ && $disk =~ ^[1-9][0-9]*$ ]] || return 2

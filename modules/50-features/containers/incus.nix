@@ -20,7 +20,12 @@
       inherit project;
       name = "default";
       # Containers share the host scheduler, memory and filesystem by default.
-      config = {};
+      # Incus preseed merges existing config. Empty values explicitly unset
+      # legacy keys (Incus 7.6 CreateConfig skips empty values).
+      config = lib.optionalAttrs (project == "lab") {
+        "limits.cpu" = "";
+        "limits.memory" = "";
+      };
       devices = {
         root = {
           type = "disk";
@@ -43,7 +48,7 @@
         pkgs.jq
         pkgs.util-linux
         (pkgs.writeShellScriptBin "neko7-lab-vm" ''
-          export PATH=${lib.makeBinPath [pkgs.coreutils pkgs.gawk pkgs.jq pkgs.incus]}:$PATH
+          export PATH=${lib.makeBinPath [pkgs.coreutils pkgs.jq pkgs.incus]}:$PATH
           set -euo pipefail
           ${builtins.readFile ../../../tools/vm-resources.sh}
           launch_lab_vm "$@"
@@ -84,7 +89,12 @@
               # Bridge networks live in the operator project. The restricted
               # client can only attach to the designated lab bridge.
               "features.networks" = "false";
-              # This project is an authorization boundary, not a capacity partition.
+              # Unset legacy preseed limits even on an already initialized host.
+              # Empty means absent, not zero; retain all authorization restrictions.
+              "limits.instances" = "";
+              "limits.virtual-machines" = "";
+              "limits.cpu" = "";
+              "limits.memory" = "";
               "restricted" = "true";
               "restricted.networks.access" = "incuslab0";
               "restricted.devices.disk" = "managed";

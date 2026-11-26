@@ -246,8 +246,8 @@ jobs:
 
           nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
             .config["core.https_address"] == "127.0.0.1:8443"
-            and (.projects[] | select(.name == "lab") | .config.restricted == "true" and (.config | keys | all(startswith("limits.") | not)))
-            and (.profiles[] | select(.project == "lab") | .config | keys | all(startswith("limits.") | not))
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true" and (.config | to_entries | all((.key | startswith("limits.") | not) or .value == "")))
+            and (.profiles[] | select(.project == "lab") | .config | to_entries | all((.key | startswith("limits.") | not) or .value == ""))
           '
           nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
           nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'

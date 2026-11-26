@@ -63,8 +63,9 @@ def ready(name):
         raise
 
 
-def new_instance(name):
-    status, output = neko7.execute(recipe + shlex.join(["_new-image", workload, name, image, "16GiB", "2", guest_memory]) + " 2>&1", timeout=1200)
+def new_instance(name, automatic=False):
+    args = ["_new-image-auto", workload, name, image] if automatic else ["_new-image", workload, name, image, "16GiB", "2", guest_memory]
+    status, output = neko7.execute(recipe + shlex.join(args) + " 2>&1", timeout=1200)
     if status != 0:
         print(output)
         diagnose(name)
@@ -72,9 +73,18 @@ def new_instance(name):
 # Exact production image, no synthetic image substitution. The private
 # artifact entrypoints are precisely the steps used by the public recipes
 # after nix build; public build wrappers are tested separately.
-# Two vCPUs let guest service initialization and the agent make progress
-# concurrently. Production defaults and the hardware gate are unchanged.
-new_instance("original")
+# Explicit small overrides are fixture-only for the secondary identity.
+# The original exercises the same host-derived resource path as production.
+# The incumbent uses the real no-sizing path, not fixture resource overrides.
+new_instance("original", automatic=True)
+import json
+resources = json.loads(neko7.succeed("incus query /1.0/resources"))
+pool = json.loads(neko7.succeed("incus query /1.0/storage-pools/default/resources"))
+actual = json.loads(neko7.succeed("incus list local: name=original --format json"))[0]
+assert actual["expanded_config"]["limits.cpu"] == str(resources["cpu"]["total"])
+assert actual["expanded_config"]["limits.memory"] == str(resources["memory"]["total"] // 1048576) + "MiB"
+assert actual["expanded_devices"]["root"]["size"] == str(pool["space"]["total"]) + "B"
+assert int(run("original", "nproc")) == resources["cpu"]["total"]
 # The production recipe already succeeded at the same readiness probe.
 # The next command verifies actual guest exec and reads persistent identity.
 original_id = run("original", "cat /etc/machine-id")

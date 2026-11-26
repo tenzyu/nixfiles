@@ -34,6 +34,9 @@ update name backup:
 backup name directory:
     bash tools/instance-ops.sh backup "$1" "$2"
 
+_new-image-auto workload name image:
+    bash tools/instance-ops.sh new "$@"
+
 # Test-only explicit override; normal creation uses host capacity.
 _new-image workload name image disk cpu memory:
     bash tools/instance-ops.sh new "$@"
