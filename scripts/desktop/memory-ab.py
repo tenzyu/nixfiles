@@ -11,15 +11,22 @@ import time
 from pathlib import Path
 
 BASELINE = "291cfbe33a2c920faeaa6b1f76ef8f0a4b208138"
-ROOT = Path(__file__).resolve().parents[2]
 PHASES = ("vt", "jay-idle", "post-workload")
 ARMS = ("baseline", "candidate")
 SAMPLES = 5
 BOOTS = 3
 
 
-def command(*args):
-    return subprocess.check_output(args, cwd=ROOT, text=True).strip()
+def repository_root():
+    # Only repository-dependent actions need a checkout; CI imports this file standalone.
+    root = Path(__file__).resolve().parent.parent.parent
+    if not (root / "flake.nix").is_file():
+        raise ValueError("This action requires the nixfiles checkout.")
+    return root
+
+
+def command(root, *args):
+    return subprocess.check_output(args, cwd=root, text=True).strip()
 
 
 def write_new(path, value):
@@ -33,19 +40,20 @@ def manifest(directory):
 
 
 def prepare(directory):
-    if command("git", "status", "--porcelain"):
+    root = repository_root()
+    if command(root, "git", "status", "--porcelain"):
         raise ValueError("Use a clean committed checkout.")
-    candidate = command("git", "rev-parse", "HEAD")
+    candidate = command(root, "git", "rev-parse", "HEAD")
     if candidate == BASELINE:
         raise ValueError("Candidate must differ from baseline.")
     directory.mkdir(parents=True, exist_ok=False)
     refs = {}
     for arm, rev in zip(ARMS, (BASELINE, candidate)):
-        flake = "git+" + ROOT.as_uri() + "?rev=" + rev
+        flake = "git+" + root.as_uri() + "?rev=" + rev
         link = directory / arm
         subprocess.run(["nix", "build", "--out-link", str(link),
                         flake + "#nixosConfigurations.neko5.config.system.build.toplevel"],
-                       cwd=ROOT, check=True)
+                       cwd=root, check=True)
         refs[arm] = {"rev": rev, "flake": flake, "closure": str(link.resolve(strict=True))}
     if refs["baseline"]["closure"] == refs["candidate"]["closure"]:
         raise ValueError("The two system closures are identical.")
@@ -72,6 +80,7 @@ def current_identity():
 
 
 def capture(directory, phase):
+    root = repository_root()
     refs = manifest(directory)
     if os.uname().nodename.split(".")[0] != "neko5":
         raise ValueError("Capture must run on physical neko5.")
@@ -93,8 +102,8 @@ def capture(directory, phase):
     for index in range(SAMPLES):
         if current_identity() != (boot, closure):
             raise ValueError("Generation changed during capture.")
-        sample = json.loads(command("sudo", "-n", sys.executable,
-                                    str(ROOT / "scripts/desktop/memory-snapshot.py")))
+        sample = json.loads(command(root, "sudo", "-n", sys.executable,
+                                    str(root / "scripts/desktop/memory-snapshot.py")))
         identity = sample["identity"]
         if (identity["boot_id"], identity["current_system"], identity["booted_system"]) != (boot, closure, closure):
             raise ValueError("Snapshot identity mismatch.")
