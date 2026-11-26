@@ -82,7 +82,7 @@
     };
     failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
     fastChecks = [
-      "framework" "host-policy" "desktop-packages" "docs" "clipboard"
+      "framework" "host-policy" "desktop-packages" "docs" "clipboard" "memory-snapshot"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
       "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
@@ -119,6 +119,13 @@
         # Fixture subprocesses use /bin/bash; the sandbox does not provide it.
         substituteInPlace desktop/test-clipboard-integration.py --replace-fail /bin/bash ${pkgs.bash}/bin/bash
         python3 desktop/test-clipboard-integration.py
+        touch "$out"
+      '';
+
+      memory-snapshot = pkgs.runCommand "memory-snapshot-tests" {
+        nativeBuildInputs = [pkgs.python3];
+      } ''
+        python3 ${../../scripts/desktop}/test-memory-snapshot.py
         touch "$out"
       '';
 
