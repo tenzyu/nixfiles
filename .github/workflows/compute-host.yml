@@ -213,16 +213,24 @@ jobs:
         run: |
           set -euo pipefail
           attr=.#nixosConfigurations.neko7.config
-          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
-          nix eval --raw "$attr.virtualisation.incus.package.version"
-          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
-
-          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+          evidence=$(nix eval --json "$attr" --apply 'cfg: {
+            enabled = cfg.virtualisation.incus.enable;
+            version = cfg.virtualisation.incus.package.version;
+            incusDrv = cfg.virtualisation.incus.package.drvPath;
+            preseed = cfg.virtualisation.incus.preseed;
+            groups = cfg.users.users.tenzyu.extraGroups;
+            containers = builtins.attrNames cfg.containers;
+            hostDrv = cfg.system.build.toplevel.drvPath;
+          }')
+          jq -e '.enabled == true' <<< "$evidence"
+          jq -er '.version | select(type == "string")' <<< "$evidence"
+          jq -er '.incusDrv | select(type == "string")' <<< "$evidence"
+          jq -e '.preseed |
             .config["core.https_address"] == "127.0.0.1:8443"
             and (.projects[] | select(.name == "lab") | .config.restricted == "true")
-          '
-          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
-          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
-          nix eval --raw "$attr.system.build.toplevel.drvPath"
+          ' <<< "$evidence"
+          jq -e '.groups | index("incus-admin") == null and index("incus") == null' <<< "$evidence"
+          jq -e '.containers | index("neko7-mc") != null' <<< "$evidence"
+          jq -er '.hostDrv | select(type == "string")' <<< "$evidence"
       - name: Build and execute NixOS machine test
         run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
