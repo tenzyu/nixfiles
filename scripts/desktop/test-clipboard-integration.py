@@ -95,6 +95,26 @@ esac""")
         self.assertNotIn("-p", args)
         self.assertNotIn("-S", args)
 
+    def test_screenshot_commit_boundary(self):
+        self.stub("slurp", '[[ "${CANCEL:-0}" != 1 ]] || exit 1; printf "0,0 20x20"')
+        self.stub("grim", 'printf "image"; [[ "${CAPTURE_FAIL:-0}" != 1 ]]')
+        self.stub("wl-copy", '[[ "$*" == "--type image/png" ]] || exit 7; cat > "$FIXTURE/selection"')
+        selection = self.root / "selection"
+        selection.write_text("incumbent")
+        def capture(mode, **env):
+            return subprocess.run(["bash", str(HERE / "jay-screenshot.sh"), mode],
+                                  env=dict(self.env, **env), capture_output=True)
+        self.assertEqual(capture("area", CANCEL="1").returncode, 0)
+        self.assertEqual(selection.read_text(), "incumbent")
+        for mode in ("area", "full"):
+            self.assertNotEqual(capture(mode, CAPTURE_FAIL="1").returncode, 0)
+            self.assertEqual(selection.read_text(), "incumbent")
+            self.assertEqual(list(self.root.glob("jay-screenshot.*")), [])
+        for mode in ("area", "full"):
+            self.assertEqual(capture(mode).returncode, 0)
+            self.assertEqual(selection.read_text(), "image")
+            self.assertEqual(list(self.root.glob("jay-screenshot.*")), [])
+
     def test_launcher_modes(self):
         script = self.root / "actions.sh"
         script.write_text((HERE / "rofi-actions.sh").read_text())
