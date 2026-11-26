@@ -43,7 +43,7 @@ The one-rename fixture on `79cdd9e` preserved the migrated Zsh history and v2 jo
 
 When both roots contain user data, preserve both and hold the group while authority is unresolved. Apparent equality conveys no authority to mutate either copy. Apply requires a separate approved offline window. Retiring a named copy requires its own authorization and a reversible recovery path. Existing links and references need operator review. After interruption, reconcile the journal with the actual entries and preserve ambiguous copies. A generation rollback does not undo a data move.
 
-Nix determines which store paths are live and performs garbage collection. Inspect native GC roots and system generation links. Do not add a custom cleanup command or routinely prune generations. Explicit approval remains necessary for destructive maintenance. [Store maintenance](../cookbook/nix-store-clean.md).
+Nix determines store reachability and performs garbage collection. The accepted `nix.gc` policy runs native GC with `--delete-older-than 7d`. Do not add a second generation-pruning mechanism or a custom reachability classifier. The manual operator command retains all existing roots and generations. Inspect native GC roots and system generation links before manual cleanup. Separate destructive maintenance requires explicit approval. [Store maintenance](../cookbook/nix-store-clean.md).
 
 ## D3. One persistent service writer
 
