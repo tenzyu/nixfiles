@@ -2,8 +2,10 @@
   lib,
   featuresLib,
 }: rec {
-  enabledUsers = users:
-    lib.filterAttrs (_name: user: user.enable or true) users;
+  inherit (import ../../../../lib/users.nix {
+    inherit lib;
+    features = import ../../../../lib/features.nix {inherit lib;};
+  }) enabledUsers;
 
   compactNixosUsers = users:
     lib.mapAttrs (name: user: {
