@@ -39,11 +39,14 @@ in pkgs.testers.runNixOSTest {
   nodes.machine = {
     imports = [
       self.modules.nixos.incus
+      self.modules.nixos.execution-discovery
       ({lib, ...}: {
         options.local.features.incus.enable = lib.mkEnableOption "Incus fixture";
+        options.local.features.execution-discovery.enable = lib.mkEnableOption "Execution discovery fixture";
       })
     ];
     local.features.incus.enable = true;
+    local.features.execution-discovery.enable = true;
     virtualisation = {
       cores = 4;
       # The nested QEMU process and image reads must not traverse the

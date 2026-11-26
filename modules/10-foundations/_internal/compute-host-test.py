@@ -60,6 +60,11 @@ machine.succeed(agent("incus remote get-client-certificate > /home/agent/client.
 machine.succeed("incus config trust add-certificate /home/agent/client.pem --projects lab --restricted")
 machine.succeed(agent("incus remote add lab https://127.0.0.1:8443 --accept-certificate --project lab"))
 machine.succeed(agent("incus list lab:"))
+capabilities = json.loads(machine.succeed(agent("neko7-capabilities")))
+assert capabilities["incus"]["lab_authenticated"], capabilities
+assert ("qemu" if vm else "lxc") in capabilities["incus"]["advertised_drivers"], capabilities
+if vm:
+    assert capabilities["host_kvm_device_present"], capabilities
 machine.fail(agent("incus project set lab:lab restricted=false"))
 machine.fail(agent("incus network create lab:escape --project default"))
 machine.fail(agent("incus config set lab: core.https_address=:8443"))

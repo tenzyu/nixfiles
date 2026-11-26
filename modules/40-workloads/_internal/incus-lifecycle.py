@@ -76,8 +76,9 @@ def new_instance(name, automatic=False):
 # Explicit small overrides are fixture-only for the secondary identity.
 # The original exercises the same host-derived resource path as production.
 # The incumbent uses the real no-sizing path, not fixture resource overrides.
-new_instance("original", automatic=True)
 import json
+initial_pool = json.loads(neko7.succeed("incus query /1.0/storage-pools/default/resources"))
+new_instance("original", automatic=True)
 resources = json.loads(neko7.succeed("incus query /1.0/resources"))
 pool = json.loads(neko7.succeed("incus query /1.0/storage-pools/default/resources"))
 actual = json.loads(neko7.succeed("incus list local: name=original --format json"))[0]
@@ -85,6 +86,15 @@ assert actual["expanded_config"]["limits.cpu"] == str(resources["cpu"]["total"])
 assert actual["expanded_config"]["limits.memory"] == str(resources["memory"]["total"] // 1048576) + "MiB"
 assert actual["expanded_devices"]["root"]["size"] == str(pool["space"]["total"]) + "B"
 assert int(run("original", "nproc")) == resources["cpu"]["total"]
+# Verify usable guest filesystem and memory, not just Incus config.
+# Tolerances are test-only, for partition/filesystem and kernel overhead.
+root_bytes = int(run("original", "df -B1 --output=size / | tail -1"))
+memory_kib = int(run("original", "awk '/^MemTotal:/ {print $2}' /proc/meminfo"))
+used_delta = pool["space"]["used"] - initial_pool["space"]["used"]
+print(json.dumps({"guest_root_bytes": root_bytes, "guest_memory_kib": memory_kib, "pool_total_bytes": pool["space"]["total"], "pool_used_delta_bytes": used_delta, "host_memory_bytes": resources["memory"]["total"]}))
+assert root_bytes >= pool["space"]["total"] * 0.8, "Guest filesystem did not grow with its virtual disk"
+assert memory_kib * 1024 >= resources["memory"]["total"] * 0.8, "Guest memory does not reflect the discovered host capacity"
+assert used_delta < pool["space"]["total"] * 0.5, "Empty VM materialized most of its virtual disk"
 # The production recipe already succeeded at the same readiness probe.
 # The next command verifies actual guest exec and reads persistent identity.
 original_id = run("original", "cat /etc/machine-id")
