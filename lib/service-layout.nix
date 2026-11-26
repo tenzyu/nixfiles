@@ -16,6 +16,7 @@ in rec {
       && !(lib.hasSuffix "/.." path)
       && !(lib.hasInfix "/./" path)
       && !(lib.hasSuffix "/." path)
+      && path != "/nix/store"
       && !(lib.hasPrefix "/nix/store/" path);
     home = spec.home;
     gameDir = spec.gameDir;
