@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: dc52f2edf496227439a73600401d011baaab182c
+          ref: 695c9a50f20dca28147bd0dbe2831068ae43da77
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
@@ -62,15 +62,15 @@ jobs:
             hostDrv = cfg.system.build.toplevel.drvPath;
           }')
           jq -e '.enabled == true' <<< "$evidence"
-          jq -er '.version | select(type == "string")' <<< "$evidence"
-          jq -er '.incusDrv | select(type == "string")' <<< "$evidence"
+          jq -ej '.version | select(type == "string")' <<< "$evidence"
+          jq -ej '.incusDrv | select(type == "string")' <<< "$evidence"
           jq -e '.preseed |
             .config["core.https_address"] == "127.0.0.1:8443"
             and (.projects[] | select(.name == "lab") | .config.restricted == "true")
           ' <<< "$evidence"
           jq -e '.groups | index("incus-admin") == null and index("incus") == null' <<< "$evidence"
           jq -e '.containers | index("neko7-mc") != null' <<< "$evidence"
-          jq -er '.hostDrv | select(type == "string")' <<< "$evidence"
+          jq -ej '.hostDrv | select(type == "string")' <<< "$evidence"
           CANDIDATE
           bash -n "$RUNNER_TEMP/baseline.sh" "$RUNNER_TEMP/candidate.sh"
           if (( PAIR % 2 )); then order=(baseline candidate); else order=(candidate baseline); fi
