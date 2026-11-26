@@ -3,7 +3,7 @@ name: Nix validation
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
     inputs:
       cache_strict:
