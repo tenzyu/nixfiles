@@ -50,11 +50,17 @@ def prepare(boundary: Path, source: Path, destination: Path) -> None:
 
 def validate(stage: Path) -> None:
     root = world = level = False
+    required = {PurePosixPath(name) for name in ("survival", "survival/world", "survival/world/level.dat")}
+    seen = set()
     with tarfile.open(stage, "r|gz") as archive:
         for member in archive:
             path = PurePosixPath(member.name)
             if not path.parts or path.parts[0] != "survival" or ".." in path.parts:
                 raise ValueError(f"archive member outside survival: {member.name!r}")
+            if path in required:
+                if path in seen:
+                    raise ValueError(f"duplicate required archive member: {member.name!r}")
+                seen.add(path)
             if path == PurePosixPath("survival"):
                 root = member.isdir()
             if path == PurePosixPath("survival/world"):
