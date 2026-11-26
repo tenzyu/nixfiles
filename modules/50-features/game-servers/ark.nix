@@ -1,11 +1,5 @@
 {...}: {
-  flake.local.featurePolicies.game-ark.unfree = [
-    "steamcmd"
-    "steam"
-    "steam-run"
-    "steam-original"
-    "steam-unwrapped"
-  ];
+  flake.local.featurePolicies.game-ark.unfree = import ./_internal/steam-unfree.nix;
   flake.modules.nixos.game-ark = {
     config,
     lib,
