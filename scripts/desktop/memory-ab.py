@@ -111,6 +111,7 @@ def capture(directory, phase):
 def report(directory):
     refs = manifest(directory)
     groups = {arm: {} for arm in ARMS}
+    hardware = set()
     for path in sorted(directory.glob("*.json")):
         if path.name == "manifest.json":
             continue
@@ -123,12 +124,17 @@ def report(directory):
             raise ValueError(f"Wrong closure: {path}")
         for sample in samples:
             identity = sample["identity"]
+            hardware.add((sample["hostname"], identity["machine"], identity["product"], identity["vendor"]))
+            if sample["effective_uid"] != 0:
+                raise ValueError(f"Non-root snapshot: {path}")
             if (identity["boot_id"], identity["current_system"], identity["booted_system"]) != (boot, refs[arm]["closure"], refs[arm]["closure"]):
                 raise ValueError(f"Wrong boot or generation: {path}")
         phases = groups[arm].setdefault(boot, {})
         if phase in phases:
             raise ValueError(f"Duplicate boot/phase: {path}")
         phases[phase] = samples
+    if len(hardware) > 1:
+        raise ValueError("Receipts mix hardware identities.")
     if set(groups["baseline"]) & set(groups["candidate"]):
         raise ValueError("Boot IDs overlap across arms.")
     complete = all(len(groups[arm]) >= BOOTS and

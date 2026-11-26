@@ -82,7 +82,7 @@
     };
     failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
     fastChecks = [
-      "framework" "host-policy" "neko5-kernel-config" "desktop-packages" "docs" "clipboard"
+      "framework" "host-policy" "neko5-kernel-config" "neko5-memory-ab" "desktop-packages" "docs" "clipboard"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
       "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
@@ -103,6 +103,16 @@
         grep -Fx 'CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4=y' "$cfg"
         grep -Fx 'CONFIG_TRANSPARENT_HUGEPAGE=y' "$cfg"
         grep -Fx 'CONFIG_PREEMPT_DYNAMIC=y' "$cfg"
+        touch "$out"
+      '';
+
+      neko5-memory-ab = pkgs.runCommand "neko5-memory-ab" {
+        nativeBuildInputs = [pkgs.python3];
+      } ''
+        cp ${../../scripts/desktop/memory-ab.py} memory-ab.py
+        cp ${../../scripts/desktop/test-memory-ab.py} test-memory-ab.py
+        python3 memory-ab.py --help
+        python3 test-memory-ab.py
         touch "$out"
       '';
 
