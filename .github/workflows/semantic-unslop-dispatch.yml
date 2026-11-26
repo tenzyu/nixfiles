@@ -1,0 +1,111 @@
+name: Semantic Unslop dispatch and integration acceptance
+on:
+  push:
+    branches: [verify/semantic-unslop-dispatch]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: verification
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: e1849f0bcc6a2e2ec9036dc3a21479073ff37973
+          path: candidate
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare actual and counterfactual configurations
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          cmp baseline/flake.lock candidate/flake.lock
+          export BASE_PATH="$PWD/baseline" CAND_PATH="$PWD/candidate"
+          export BASE_REV="$(git -C baseline rev-parse HEAD)" CAND_REV="$(git -C candidate rev-parse HEAD)"
+          printf '%s\n' "$BASE_REV" > evidence/baseline.sha
+          printf '%s\n' "$CAND_REV" > evidence/candidate.sha
+          nix eval --impure --json --no-write-lock-file --file verification/.github/semantic-unslop/snapshot.nix > evidence/snapshots.json
+          python3 verification/.github/semantic-unslop/compare.py
+      - name: Build and compare actual game command packages
+        run: |
+          set -euo pipefail
+          old="$(jq -r .baseline evidence/gameDrvs.json)"
+          new="$(jq -r .candidate evidence/gameDrvs.json)"
+          oldout="$(nix build -L --no-link --print-out-paths "$old^out")"
+          newout="$(nix build -L --no-link --print-out-paths "$new^out")"
+          cp "$oldout/bin/game" evidence/baseline-game.sh
+          cp "$newout/bin/game" evidence/candidate-game.sh
+          python3 verification/.github/semantic-unslop/dispatch.py evidence/baseline-game.sh evidence/candidate-game.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semantic-unslop-final-ab
+          path: evidence/
+          if-no-files-found: error
+  regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: e1849f0bcc6a2e2ec9036dc3a21479073ff37973
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+  stateful:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: e1849f0bcc6a2e2ec9036dc3a21479073ff37973
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
+  realize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: e1849f0bcc6a2e2ec9036dc3a21479073ff37973
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Realize changed neko7 system closure
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          git rev-parse HEAD > evidence/candidate.sha
+          target=.#nixosConfigurations.neko7.config.system.build.toplevel
+          nix eval --raw --no-update-lock-file "$target.drvPath" > evidence/system.drv
+          out="$(nix build -L --no-update-lock-file --no-link --print-out-paths "$target")"
+          test -d "$out"
+          printf '%s\n' "$out" > evidence/output.path
+          nix path-info --recursive --json "$out" > evidence/closure.json
+          nix path-info --size --closure-size "$out" > evidence/size.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semantic-unslop-final-neko7
+          path: evidence/
+          if-no-files-found: error
