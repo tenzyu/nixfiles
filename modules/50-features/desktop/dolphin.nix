@@ -4,7 +4,7 @@
     lib,
     ...
   }: {
-    config = lib.mkIf config.local.features.dolphin.enable ({
+    config = lib.mkIf config.local.features.dolphin.enable {
       xdg.menus.enable = true;
       xdg.mime.enable = true;
 
@@ -34,7 +34,7 @@
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.dolphin.enable {
+    config = lib.mkIf config.local.features.dolphin.enable ({
       home.packages = with pkgs; [
         kdePackages.ark
         kdePackages.dolphin
