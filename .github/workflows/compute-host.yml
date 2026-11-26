@@ -22,6 +22,7 @@ on:
       - 'modules/10-foundations/_internal/tailnet-ingress-test.nix'
       - 'modules/10-foundations/compute-host-checks.nix'
       - 'modules/10-foundations/_internal/compute-host-test.nix'
+      - 'modules/10-foundations/_internal/compute-host-test.py'
       - '.github/workflows/compute-host.yml'
       - 'flake.lock'
       - 'flake.nix'
