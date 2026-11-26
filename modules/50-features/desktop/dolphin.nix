@@ -34,18 +34,21 @@
     pkgs,
     ...
   }: {
-    config = lib.mkIf config.local.features.dolphin.enable ({
-      home.packages = with pkgs; [
-        kdePackages.ark
-        kdePackages.dolphin
-        kdePackages.ffmpegthumbs
-        kdePackages.kdegraphics-thumbnailers
-        kdePackages.kimageformats
-        kdePackages.kio-extras
-        kdePackages.kservice
-        libheif
-        qt6.qtimageformats
-      ];
-    } // import ./_internal/osu-skin-mime.nix {inherit lib pkgs;});
+    config = lib.mkIf config.local.features.dolphin.enable (lib.mkMerge [
+      {
+        home.packages = with pkgs; [
+          kdePackages.ark
+          kdePackages.dolphin
+          kdePackages.ffmpegthumbs
+          kdePackages.kdegraphics-thumbnailers
+          kdePackages.kimageformats
+          kdePackages.kio-extras
+          kdePackages.kservice
+          libheif
+          qt6.qtimageformats
+        ];
+      }
+      (import ./_internal/osu-skin-mime.nix {inherit lib pkgs;})
+    ]);
   };
 }
