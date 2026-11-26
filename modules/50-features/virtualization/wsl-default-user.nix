@@ -19,11 +19,5 @@
     };
   };
 
-  flake.modules.homeManager.wsl-default-user = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.wsl-default-user.enable {};
-  };
+  flake.modules.homeManager.wsl-default-user = {};
 }
