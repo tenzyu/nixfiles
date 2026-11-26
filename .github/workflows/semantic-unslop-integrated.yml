@@ -1,0 +1,120 @@
+name: Semantic Unslop integrated evidence
+on:
+  push:
+    branches: [verify/semantic-unslop-integrated]
+permissions:
+  contents: read
+jobs:
+  compare:
+    name: Compare all hosts and enabled variants
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          path: candidate
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare exact evaluated outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp baseline/flake.lock candidate/flake.lock
+          mkdir evidence
+          cat > "$RUNNER_TEMP/snapshot.nix" <<'NIX'
+          let
+            f = builtins.getFlake ("git+file://" + builtins.getEnv "SNAPSHOT_PATH" + "?rev=" + builtins.getEnv "SNAPSHOT_REV");
+            inherit (builtins) mapAttrs hashString toJSON attrNames;
+            inherit (f.inputs.nixpkgs) lib;
+            featureValues = mapAttrs (_: feature: feature.enable);
+            digest = value: hashString "sha256" (toJSON value);
+            packageDrvs = map (p: p.drvPath);
+            home = c: {
+              features = featureValues c.local.features;
+              activationDrv = c.home.activationPackage.drvPath;
+              packages = packageDrvs c.home.packages;
+              userServices = digest c.systemd.user.services;
+            };
+            guest = container: let c = container.config; in {
+              systemDrv = c.system.build.toplevel.drvPath;
+              packages = packageDrvs c.environment.systemPackages;
+              systemUnits = digest (mapAttrs (_: unit: unit.text or null) c.systemd.units);
+              mounts = container.bindMounts;
+            };
+            os = c: {
+              features = featureValues c.local.features;
+              userFeatures = mapAttrs (_: user: featureValues user.features) c.local.users;
+              policy = c.local.nixpkgsPolicy;
+              systemDrv = c.system.build.toplevel.drvPath;
+              packages = packageDrvs c.environment.systemPackages;
+              systemUnits = digest (mapAttrs (_: unit: unit.text or null) c.systemd.units);
+              homes = mapAttrs (_: user: home user) c.home-manager.users;
+              gameOperations = c.local.gameOperations or {};
+              gameGuests = mapAttrs (_: container: guest container) c.containers;
+            };
+            allGames = (f.nixosConfigurations.neko7.extendModules {
+              modules = [{local.features = {
+                game-ark.enable = lib.mkForce true;
+                game-rust.enable = lib.mkForce true;
+              };}];
+            }).config;
+            probe = f.nixosConfigurations.neko5.config.specialisation.neko5-gamescope.configuration;
+          in {
+            nixos = mapAttrs (_: host: os host.config) f.nixosConfigurations;
+            standalone = mapAttrs (_: h: (home h.config) // {policy = h.config.local.nixpkgsPolicy;}) f.homeConfigurations;
+            gamescope = os probe;
+            allGames = os allGames;
+            helperKeys = attrNames f.lib.helpers;
+            operatorFeatures = f.operator.features;
+          }
+          NIX
+          for side in baseline candidate; do
+            export SNAPSHOT_PATH="$PWD/$side"
+            export SNAPSHOT_REV="$(git -C "$side" rev-parse HEAD)"
+            printf '%s\n' "$SNAPSHOT_REV" > "evidence/$side.sha"
+            nix eval --impure --json --no-write-lock-file --file "$RUNNER_TEMP/snapshot.nix" | jq -S . > "evidence/$side.json"
+          done
+          diff -u evidence/baseline.json evidence/candidate.json > evidence/diff.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semantic-unslop-integrated-ab
+          path: evidence/
+          if-no-files-found: error
+  regressions:
+    name: Integrated focused regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+  stateful:
+    name: Integrated home migration and recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
