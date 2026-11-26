@@ -3,13 +3,7 @@
     "obsidian"
   ];
 
-  flake.modules.nixos.obsidian = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.obsidian.enable {};
-  };
+  flake.modules.nixos.obsidian = {};
 
   flake.modules.homeManager.obsidian = {
     config,

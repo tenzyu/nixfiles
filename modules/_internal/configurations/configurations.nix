@@ -9,7 +9,6 @@
   modulesLib = import ./lib/modules.nix {inherit lib;};
   featuresLib = import ./lib/features.nix {inherit lib;};
   usersLib = import ./lib/users.nix {inherit lib featuresLib;};
-  policiesLib = import ../../10-foundations/_policy/lib.nix {inherit lib fpConfig;};
   composition = import ../../../lib/composition.nix {inherit lib;};
   seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib composition;};
 
@@ -21,15 +20,15 @@
 
   helpers = fpConfig.flake.lib.helpers;
 
-  nixosModuleList = lib.mapAttrsToList modulesLib.tagNixosModule nixosModules;
-  homeModuleList = lib.mapAttrsToList modulesLib.tagHomeModule homeModules;
+  nixosModuleList = lib.mapAttrsToList (modulesLib.tagModule "nixos") nixosModules;
+  homeModuleList = lib.mapAttrsToList (modulesLib.tagModule "homeManager") homeModules;
 
   optionsMaterializers = import ./materializers/options.nix {
     inherit lib nixosFeatureNames homeFeatureNames featuresLib composition;
   };
 
   policyMaterializers = import ../../10-foundations/_policy/materializer.nix {
-    inherit lib policiesLib usersLib;
+    inherit lib fpConfig usersLib;
   };
 
   userMaterializers = import ./materializers/users.nix {

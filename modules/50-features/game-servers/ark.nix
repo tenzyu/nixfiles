@@ -1,11 +1,5 @@
 {...}: {
-  flake.local.featurePolicies.game-ark.unfree = [
-    "steamcmd"
-    "steam"
-    "steam-run"
-    "steam-original"
-    "steam-unwrapped"
-  ];
+  flake.local.featurePolicies.game-ark.unfree = import ./_internal/steam-unfree.nix;
   flake.modules.nixos.game-ark = {
     config,
     lib,
@@ -13,34 +7,7 @@
     ...
   }: let
     layout = import ../../../lib/service-layout.nix {inherit lib;};
-    spec = {
-      key = "ark";
-      user = "game-ark";
-      uid = 27007;
-      gid = 27007;
-      home = "/var/lib/game-containers/ark";
-      gameDir = "/srv/ark";
-      containerName = "neko7-ark";
-      guestService = "ark-survival-evolved";
-      backupSource = "server/ShooterGame/Saved";
-      hostAddress = "10.77.10.1";
-      localAddress = "10.77.10.2";
-      tailscaleHostname = "neko7-ark";
-
-      udpPorts = [
-        7777
-        7778
-        27015
-      ];
-
-      tcpPorts = [
-        # ARK RCON / optional browser RCON UI.
-        # Tailscale policy should expose these to owner/admin only.
-        27020
-        4326
-        4327
-      ];
-    };
+    spec = (import ./_internal/specs.nix).ark;
     inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkArkModule = spec: {
       lib,
