@@ -7,33 +7,7 @@
     ...
   }: let
     layout = import ../../../lib/service-layout.nix {inherit lib;};
-    spec = {
-      key = "rust";
-      user = "game-rust";
-      uid = 27008;
-      gid = 27008;
-      home = "/var/lib/game-containers/rust";
-      gameDir = "/srv/rust";
-      containerName = "neko7-rust";
-      guestService = "rust-dedicated";
-      backupSource = "server/server";
-      hostAddress = "10.77.20.1";
-      localAddress = "10.77.20.2";
-      tailscaleHostname = "neko7-rust";
-
-      udpPorts = [
-        # Rust game / query.
-        28015
-        28017
-      ];
-
-      tcpPorts = [
-        # Rust RCON / Rust+.
-        # Tailscale policy should expose these to owner/admin only.
-        28016
-        28082
-      ];
-    };
+    spec = (import ./_internal/specs.nix).rust;
     inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkRustModule = spec: {
       lib,
@@ -332,7 +306,7 @@
         };
       };
 
-      systemd.services.rust-dedicated-update = {
+      systemd.services."${spec.guestService}-update" = {
         description = "Install or update Rust Dedicated Server";
         wants = ["network-online.target"];
         after = ["network-online.target"];
