@@ -17,15 +17,6 @@ HELP
 if (($# < 1)); then usage; exit 2; fi
 action=$1; shift
 
-declare -A service=(
-  [ark]=ark-survival-evolved
-  [rust]=rust-dedicated
-  [minecraft]=minecraft-server-survival
-)
-declare -A update_service=(
-  [ark]=ark-survival-evolved-update
-  [rust]=rust-dedicated-update
-)
 # Paths are injected from the evaluated Nix game-layout contract at build time.
 declare -A data=(
   [ark]="$GAME_ARK_DATA"
@@ -36,12 +27,6 @@ declare -A backups=(
   [rust]="$GAME_RUST_BACKUPS"
 )
 
-container() {
-  case "$1" in
-    minecraft) printf 'neko7-mc' ;;
-    *) printf 'neko7-%s' "$1" ;;
-  esac
-}
 require_game() {
   game=${1:-}
   if [[ ! -v service[$game] ]]; then
@@ -50,7 +35,7 @@ require_game() {
     exit 2
   fi
   unit=${service[$game]}
-  node=$(container "$game")
+  node=${nodes[$game]}
 }
 up() { sudo systemctl is-active --quiet "container@${node}.service"; }
 inside() { sudo nixos-container run "$node" -- "$@"; }
@@ -173,7 +158,7 @@ case "$action" in
           exit 1
         fi
         archive="$destination/${game}-$(date +%Y%m%d-%H%M%S).tar.gz"
-        if sudo -u "game-$game" tar -C "$(dirname "$source")" -czf "$archive" "$(basename "$source")"; then
+        if sudo -u "${archive_users[$game]}" tar -C "$(dirname "$source")" -czf "$archive" "$(basename "$source")"; then
           echo "Created: $archive"
           if ((was_running)); then inside systemctl start "$unit"; fi
         else

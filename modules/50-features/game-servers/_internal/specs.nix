@@ -55,4 +55,22 @@
       28082
     ];
   };
+
+  minecraft = {
+    key = "minecraft";
+    user = "game-minecraft";
+    uid = 27009;
+    gid = 27009;
+    home = "/var/lib/game-containers/minecraft";
+    gameDir = "/srv/minecraft";
+    containerName = "neko7-mc";
+    guestService = "minecraft-server-survival";
+    backupSource = "survival";
+    hostAddress = "10.77.30.1";
+    localAddress = "10.77.30.2";
+    tailscaleHostname = "neko7-minecraft";
+    autoStart = true;
+    udpPorts = [];
+    tcpPorts = [25565];
+  };
 }

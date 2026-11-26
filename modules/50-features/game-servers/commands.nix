@@ -7,6 +7,14 @@
   }: let
     layout = import ../../../lib/service-layout.nix {inherit lib;};
     specs = import ./_internal/specs.nix;
+    steamGames = removeAttrs specs ["minecraft"];
+    shellMap = name: values: ''
+      declare -A ${name}=(
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value:
+        "  [${lib.escapeShellArg key}]=${lib.escapeShellArg value}"
+      ) values)}
+      )
+    '';
     ark = layout.mkGameOperation specs.ark;
     rust = layout.mkGameOperation specs.rust;
     minecraft = config.local.gameOperations.minecraft or null;
@@ -25,7 +33,12 @@
             export GAME_RUST_BACKUPS=${lib.escapeShellArg rust.backupsDir}
             readonly minecraft_operator=${lib.escapeShellArg (if minecraft == null then "" else "${minecraftOperator}/bin/minecraft-operator")}
             readonly operator_sudo=${lib.escapeShellArg "${config.security.wrapperDir}/sudo"}
-          '' + builtins.readFile ./_internal/game.sh;
+          ''
+          + shellMap "service" (lib.mapAttrs (_: spec: spec.guestService) specs)
+          + shellMap "update_service" (lib.mapAttrs (_: spec: "${spec.guestService}-update") steamGames)
+          + shellMap "nodes" (lib.mapAttrs (_: spec: spec.containerName) specs)
+          + shellMap "archive_users" (lib.mapAttrs (_: spec: spec.user) steamGames)
+          + builtins.readFile ./_internal/game.sh;
         })
       ];
     };
