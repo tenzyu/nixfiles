@@ -9,13 +9,7 @@
     "dotnet-runtime-6.0.36"
   ];
 
-  flake.modules.nixos.osu-lazer = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.osu-lazer.enable {};
-  };
+  flake.modules.nixos.osu-lazer = {};
 
   flake.modules.homeManager.osu-lazer = {
     config,

@@ -4,13 +4,7 @@
     "discord-unwrapped"
   ];
 
-  flake.modules.nixos.discord = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.discord.enable {};
-  };
+  flake.modules.nixos.discord = {};
 
   flake.modules.homeManager.discord = {
     config,
