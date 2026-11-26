@@ -76,6 +76,17 @@ machine.fail(agent("incus delete lab:operator-owned --project default --force"))
 machine.succeed("incus info operator-owned")
 machine.succeed(agent(f"incus launch lab:fixture lab:persistent{vm_flag}"))
 guest_ready("persistent")
+if not vm:
+    # Regression for both migration order and repeat application with live
+    # unbounded instances: legacy project limits require profile defaults
+    # during validation, so remove project keys first.
+    boot_id = machine.succeed(agent("incus exec lab:persistent -- cat /proc/sys/kernel/random/boot_id")).strip()
+    machine.succeed("incus profile set default limits.cpu=2 limits.memory=2GiB --project lab")
+    machine.succeed("incus project set lab limits.instances=8 limits.virtual-machines=0 limits.cpu=8 limits.memory=8GiB")
+    machine.succeed("systemctl restart incus-preseed.service")
+    assert_unpartitioned()
+    guest_ready("persistent")
+    assert machine.succeed(agent("incus exec lab:persistent -- cat /proc/sys/kernel/random/boot_id")).strip() == boot_id
 status, output = machine.execute(agent(f"incus launch lab:fixture lab:experiment{vm_flag} --ephemeral") + " 2>&1")
 if status != 0:
     print(output)
@@ -129,6 +140,7 @@ before = machine.succeed(agent("incus exec lab:persistent -- cat /proc/sys/kerne
 pid = machine.succeed("incus info persistent --project lab | grep '^PID:'").strip()
 machine.succeed("systemctl restart incus.service")
 machine.wait_for_unit("incus-preseed.service")
+assert_unpartitioned()
 guest_ready("persistent")
 assert machine.succeed(agent("incus exec lab:persistent -- cat /proc/sys/kernel/random/boot_id")).strip() == before
 assert machine.succeed("incus info persistent --project lab | grep '^PID:'").strip() == pid

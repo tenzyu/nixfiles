@@ -20,12 +20,7 @@
       inherit project;
       name = "default";
       # Containers share the host scheduler, memory and filesystem by default.
-      # Incus preseed merges existing config. Empty values explicitly unset
-      # legacy keys (Incus 7.6 CreateConfig skips empty values).
-      config = lib.optionalAttrs (project == "lab") {
-        "limits.cpu" = "";
-        "limits.memory" = "";
-      };
+      config = {};
       devices = {
         root = {
           type = "disk";
@@ -89,12 +84,7 @@
               # Bridge networks live in the operator project. The restricted
               # client can only attach to the designated lab bridge.
               "features.networks" = "false";
-              # Unset legacy preseed limits even on an already initialized host.
-              # Empty means absent, not zero; retain all authorization restrictions.
-              "limits.instances" = "";
-              "limits.virtual-machines" = "";
-              "limits.cpu" = "";
-              "limits.memory" = "";
+              # Authorization boundary only; no aggregate allocation budgets.
               "restricted" = "true";
               "restricted.networks.access" = "incuslab0";
               "restricted.devices.disk" = "managed";
@@ -111,6 +101,32 @@
           ];
         };
       };
+
+      # Preseed merges configuration, but supplying empty aggregate keys on
+      # every run makes Incus validate totals even when no limit was set.
+      # Migrate only persisted legacy keys, before removing profile defaults.
+      # The native unset operations use Incus's ETag-aware update path.
+      systemd.services.incus-preseed.preStart = ''
+        set -euo pipefail
+        incus=${config.virtualisation.incus.package}/bin/incus
+        jq=${lib.getExe pkgs.jq}
+        projects=$("$incus" query 'local:/1.0/projects?recursion=1')
+        exists=$(printf '%s' "$projects" | "$jq" -r 'if type == "array" then any(.[]; .name == "lab") else error("Unexpected project inventory") end')
+        if [ "$exists" = true ]; then
+          project=$("$incus" query local:/1.0/projects/lab)
+          keys=$(printf '%s' "$project" | "$jq" -r '.config | keys[] | select(. == "limits.instances" or . == "limits.virtual-machines" or . == "limits.cpu" or . == "limits.memory")')
+          if [ -n "$keys" ]; then
+            mapfile -t remove <<< "$keys"
+            "$incus" project unset local:lab "''${remove[@]}"
+          fi
+          profile=$("$incus" query 'local:/1.0/profiles/default?project=lab')
+          keys=$(printf '%s' "$profile" | "$jq" -r '.config | keys[] | select(. == "limits.cpu" or . == "limits.memory")')
+          if [ -n "$keys" ]; then
+            mapfile -t remove <<< "$keys"
+            "$incus" profile unset local:default "''${remove[@]}" --project lab
+          fi
+        fi
+      '';
 
       assertions = [{
         assertion = lib.versionAtLeast config.virtualisation.incus.package.version "7.6.0";
