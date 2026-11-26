@@ -9,7 +9,6 @@
   modulesLib = import ./lib/modules.nix {inherit lib;};
   featuresLib = import ./lib/features.nix {inherit lib;};
   usersLib = import ./lib/users.nix {inherit lib featuresLib;};
-  policiesLib = import ../../10-foundations/_policy/lib.nix {inherit lib fpConfig;};
   composition = import ../../../lib/composition.nix {inherit lib;};
   seedLib = import ./lib/seed.nix {inherit lib featuresLib usersLib composition;};
 
@@ -29,7 +28,7 @@
   };
 
   policyMaterializers = import ../../10-foundations/_policy/materializer.nix {
-    inherit lib policiesLib usersLib;
+    inherit lib fpConfig usersLib;
   };
 
   userMaterializers = import ./materializers/users.nix {

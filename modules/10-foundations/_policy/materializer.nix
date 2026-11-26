@@ -1,8 +1,12 @@
 {
   lib,
-  policiesLib,
+  fpConfig,
   usersLib,
-}: rec {
+}: let
+  features = import ../../../lib/features.nix {inherit lib;};
+  policies = import ../../../lib/policies.nix {inherit lib features;};
+  policyForFeatures = policies.policyForFeatures fpConfig;
+in {
   nixpkgsPolicyModule = {
     config,
     lib,
@@ -43,14 +47,14 @@
     lib,
     ...
   }: let
-    systemPolicy = policiesLib.policyForFeatures config.local.features;
+    systemPolicy = policyForFeatures config.local.features;
 
     userPolicies =
       lib.mapAttrsToList
-      (_userName: user: policiesLib.policyForFeatures user.features)
+      (_userName: user: policyForFeatures user.features)
       (usersLib.enabledUsers config.local.users);
 
-    policy = policiesLib.mergePolicies ([systemPolicy] ++ userPolicies);
+    policy = policies.mergePolicies ([systemPolicy] ++ userPolicies);
   in {
     config = {
       local.nixpkgsPolicy.unfree = lib.mkAfter policy.unfree;
@@ -63,7 +67,7 @@
     lib,
     ...
   }: let
-    policy = policiesLib.policyForFeatures config.local.features;
+    policy = policyForFeatures config.local.features;
   in {
     config = {
       local.nixpkgsPolicy.unfree = lib.mkAfter policy.unfree;
