@@ -192,6 +192,47 @@ nix build --no-link .#nixosConfigurations.neko5.config.system.build.toplevel
 python3 scripts/desktop/memory-snapshot.py
 ```
 
+### Repeatable paired resource experiment
+
+From a clean committed candidate checkout, prepare two GC-rooted full
+closures outside the repository. Baseline is the exact main commit after
+#88/#89; candidate is the committed checkout. No activation is performed.
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab prepare
+python3 scripts/desktop/memory-ab.py ~/neko5-ab boot-commands
+```
+
+Use the printed native boot command only after the existing approval and
+HOME checks. Reboot into the chosen normal neko5 generation, not Gamescope.
+Alternate A/B boots (A B A B A B), keeping power, peripherals, ambient
+conditions and the workload identical. At the text VT before Jay, after
+starting Jay and leaving it idle, and after the fixed workload and return
+to idle, respectively:
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture vt
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture jay-idle
+python3 scripts/desktop/memory-ab.py ~/neko5-ab capture post-workload
+```
+
+The collector detects the arm from the actual active/booted closure,
+requires a distinct boot identity, waits 120 seconds and captures five
+samples at 10-second intervals using the existing read-only snapshot.
+Keep the candidate checkout available even when booting baseline.
+No cache dropping, automated reboot or automatic activation. Retain the
+manifest and result symlinks until acceptance; if prepare fails, inspect
+the partial directory and use a new experiment directory.
+
+```sh
+python3 scripts/desktop/memory-ab.py ~/neko5-ab report
+```
+
+Exit 2 means incomplete receipts; a complete memory report is not a physical
+acceptance PASS. Preserve raw PSI, swap, PSS coverage and reclaim evidence.
+The operator must still record workload/power/thermal equivalence and the
+protected functionality above. Rollback is the existing native boot menu.
+
 Report per-boot medians and the range across boots for MemTotal minus
 MemAvailable, alongside PSS, swap, reclaim and pressure. Target 400 MiB;
 600 MiB was a historical target. Neither is achieved merely by changing
