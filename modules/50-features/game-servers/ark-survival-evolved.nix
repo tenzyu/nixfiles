@@ -1,11 +1,5 @@
 {
-  flake.local.featurePolicies.ark-survival-evolved.unfree = [
-    "steamcmd"
-    "steam"
-    "steam-run"
-    "steam-original"
-    "steam-unwrapped"
-  ];
+  flake.local.featurePolicies.ark-survival-evolved.unfree = import ./_internal/steam-unfree.nix;
 
   flake.modules.nixos.ark-survival-evolved = {
     config,

@@ -5,13 +5,7 @@
 }: let
   inherit (lib) mkMerge mkIf;
   # NOTE: これ伝播するわけじゃないから別途必要
-  steamUnfreeNames = [
-    "steamcmd"
-    "steam"
-    "steam-run"
-    "steam-original"
-    "steam-unwrapped"
-  ];
+  steamUnfreeNames = import ./steam-unfree.nix;
   mkSteamUnfreePolicy = spec: {lib, ...}: {
     nixpkgs.config.allowUnfreePredicate = pkg:
       builtins.elem

@@ -1,11 +1,5 @@
 {...}: {
-  flake.local.featurePolicies.game-rust.unfree = [
-    "steamcmd"
-    "steam"
-    "steam-run"
-    "steam-original"
-    "steam-unwrapped"
-  ];
+  flake.local.featurePolicies.game-rust.unfree = import ./_internal/steam-unfree.nix;
   flake.modules.nixos.game-rust = {
     config,
     lib,
