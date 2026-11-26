@@ -32,7 +32,7 @@ scratch=$(mktemp -d) || exit 1
   fi
 ) </dev/null > "$scratch/diagnostics" 2>&1 &
 observer=$!
-{command}
+{command} 2>&1
 status=$?
 touch "$scratch/done"
 wait "$observer"
