@@ -1,11 +1,11 @@
 # Architecture and decisions
 
-- [Architecture](architecture.md): flake-parts, typed host seed and native module boundaries.
+- [Architecture](architecture.md): flake-parts, the typed host seed, and native module boundaries.
 - [Feature ownership](feature-options.md): selection and effect ownership.
 - [Composition](composition.md): pure values versus module merging.
 - [Host boundaries](host-state.md): current source selections and runtime boundaries.
 - [Decisions](decisions.md): data safety, ownership and acceptance.
-- [Evidence](evidence.md): evaluation, build, test and live evidence distinctions.
+- [Evidence](evidence.md): what evaluation, builds, tests, and live observations prove.
 - [Maintenance](dreaming.md): reconcile current source and decisions.
 
-[Cookbook](../cookbook/index.md) owns operating procedures; [Roadmap](../../ROADMAP.md) owns outstanding work. [Archive](../archive/README.md) holds immutable past evidence. There is no second feature registry or retrieval test harness.
+The [Cookbook](../cookbook/index.md) contains operating procedures. The [Roadmap](../../ROADMAP.md) lists outstanding work. The [archive](../archive/README.md) links to historical evidence at immutable Git revisions. There is no second feature registry or retrieval benchmark.
