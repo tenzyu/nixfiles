@@ -1,6 +1,6 @@
 # nixfiles
 
-This repository contains my personal Nix-first configuration for a latency-sensitive Linux laptop, a WSL workstation and a remote Proxmox guest. It is not a general-purpose installer.
+This repository contains my personal Nix-first configuration for a latency-sensitive Linux laptop, a WSL workstation and a remote Proxmox guest. The configuration targets the three hosts listed below.
 
 Hosts select features. Features implement native NixOS and Home Manager options. Integrations define conditional interactions between features. The typed configuration layer provides editor completion and retains NixOS merge, priority and override semantics.
 
@@ -12,7 +12,7 @@ Hosts select features. Features implement native NixOS and Home Manager options.
 | **neko6** | NixOS-WSL command-line environment | Home Manager, Docker and WSL integration |
 | **neko7** | Proxmox guest for remote development and workloads | Remote builder, T3 Code, CUDA, SplitCast production consumer, Minecraft |
 
-These are **declarations**, not claims about currently running services. Minecraft is selected on neko7; SplitCast capture is disabled on neko5. Live state, secret provisioning and the booted NixOS generation require independent evidence. [Host boundaries](docs/memory/host-state.md).
+The table lists source declarations. It does not describe the live services. Minecraft is selected on neko7; SplitCast capture is disabled on neko5. Verify live state, provisioned secrets, and the booted NixOS generation separately. See [host declarations and evidence](docs/memory/host-state.md).
 
 ## Configuration structure
 
@@ -25,9 +25,9 @@ These are **declarations**, not claims about currently running services. Minecra
 
 Leave ordinary application state in HOME alone unless it causes a concrete problem. Use native NixOS/Home Manager/application options, on-demand inspection and recoverable changes rather than implementing a new global authority. The existing HOME migration engine remains on `main` until separately reviewed retirement; no host migration or permission change is implied by the [HOME maintenance ADR](docs/adr/0003-home-layout-reuse-first.md).
 
-## Explore without activating anything
+## Inspect the configuration
 
-With Nix and flakes available, from a checkout:
+If Nix and flakes are available, run these commands in the checkout:
 
 ```sh
 nix flake show
@@ -35,9 +35,9 @@ nix eval .#nixosConfigurations --apply builtins.attrNames --json
 nix eval --raw .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
 ```
 
-The final command **evaluates** a derivation path; it neither builds a system nor switches a machine. To run focused repository tests: `nix build -L --no-link .#checks.x86_64-linux.validation`. See the [inspection cookbook](docs/cookbook/inspect.md) for expected results, CI checks and troubleshooting.
+The final command evaluates a derivation path without building or activating the system. To run the focused repository tests, use `nix build -L --no-link .#checks.x86_64-linux.validation`. See the [inspection cookbook](docs/cookbook/inspect.md) for expected results, CI checks and troubleshooting.
 
-## Find the right part
+## Repository layout
 
 ```text
 flake.nix                 flake-parts entrypoint and pinned inputs
@@ -58,13 +58,13 @@ Support assets also use Python, TypeScript and shell. Applications retain mutabl
 
 ## Compute host operations
 
-[Instance operations](docs/cookbook/compute-instances.md) is the short entrypoint. On neko7, `just`, `just images`, and `just instances` discover the native task menu, buildable workload releases and live Incus inventory; container operations require operator approval. The image artifacts are build-only; VM admission and durable lifecycle are deferred. New guest releases do not require editing the host declaration or a CI matrix.
+See [instance operations](docs/cookbook/compute-instances.md). On neko7, `just` lists tasks, `just images` lists buildable releases, and `just instances` lists live Incus instances. Obtain operator approval before changing containers. The image artifacts support builds only. VM admission and persistent VM operations remain deferred. New guest releases do not require editing the host declaration or a CI matrix.
 
 ## Change safely
 
 Start at the relevant [host declaration](modules/00-hosts/). Follow a selected capability to its implementation and its native option effects. Run focused checks and inspect the evaluation diff before requesting any activation. For the complete workflow, use [Change a host](docs/cookbook/change-host.md), [CI validation](docs/cookbook/ci-validation.md), and the [operational runbooks](docs/cookbook/index.md).
 
-**No README command deploys anything.** `nixos-rebuild test` is not read-only; it activates units. A system rollback does not revert world files, secrets or user data. Human approval is required for host actions.
+The commands on this page do not deploy software. `nixos-rebuild test` activates units and is not read-only. A system rollback does not revert world files, secrets or user data. Human approval is required for host actions.
 
 ## Documentation
 

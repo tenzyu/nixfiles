@@ -1,4 +1,4 @@
-# XDG home layout / 既存ホームの移行
+# 既存 HOME データを移行・復旧する
 
 > **運用上の位置付け（2026-11-23）** [ADR-0003](../../docs/adr/0003-home-layout-reuse-first.md) により、HOME の見た目のためだけの新規移行や全域強制は追求しない。この README は **既に main にある移行・復旧機構を使う場合の安全手順**であり、今すぐ移行を実行する指示ではない。コードを撤去するまでは既存のチェック・journal・衝突拒否を維持する。
 
@@ -7,25 +7,25 @@ neko5 の既存 TODO は旧 Home 移行の不具合を記録している。こ�
 
 ## 調査と holding generation
 
-対象ユーザーの未適用の Home Manager generation から runner を使用する。
+対象ユーザーの未適用の Home Manager generation から `home-layout-migrate` を実行する。
 
 ```sh
 generation=$(nix build --no-link --print-out-paths \
-  .#nixosConfigurations.neko5.config.home-manager.users.tenzyu.home.activationPackage)
+	.#nixosConfigurations.neko5.config.home-manager.users.tenzyu.home.activationPackage)
 "$generation/home-layout-migrate" inventory
 "$generation/home-layout-migrate" check --group codex
 ```
 
 `inventory` は旧・移行先・候補の実効ルートと、宣言上のシェル／user service 環境を表示する。
-実際に稼働しているアプリとそれを起動した shell、GUI、service のルートを別途照合する。
+稼働中のアプリのルートを、それを起動した shell、GUI、service のルートと照合する。
 既存の split や独自ラッパーを見つけた場合は、正しいルートが判明するまで対象の writer を停止する。
 初回導入には検証した incumbent を記録する。以下は Codex が旧ルートを使っている場合の例。
 feature の選択は `local.users.<user>.features` に置く。
 
 ```nix
 home-manager.users.tenzyu.local.homeMigration = {
-  legacyGroups = ["codex"];
-  adoptedRoutes.codex = "legacy";
+	legacyGroups = ["codex"];
+	adoptedRoutes.codex = "legacy";
 };
 ```
 
@@ -52,29 +52,13 @@ XDG base の変更では、候補の両ルートが空でも適用済み generat
 
 ## グループと保存先
 
-| group | 所有 feature | 旧パスと意図した保存先 |
-|---|---|---|
-| `rust` | common | `.cargo`, `.rustup` → XDG data、Cargo bin も PATH に反映 |
-| `go` | common | `go/` → XDG data。既存の明示的な GOBIN/GOMODCACHE は独立した保存先 |
-| `npm` | common | `.npm`, `.npm-init.js` → XDG cache/config。npm runtime scratch に移動対象なし |
-| `node-history`, `gtk2` | common | Node REPL 履歴 → XDG state、GTK2 rc → XDG config |
-| `dotnet` | common | `.nuget/packages` → XDG cache、`.dotnet` → `$DOTNET_CLI_HOME/.dotnet` |
-| `codex`, `gemini` | home-layout | `.codex` → `$CODEX_HOME`、`.gemini` → `$GEMINI_CLI_HOME/.gemini` |
-| `bun` | home-layout | Bun cache を先に分離し、残りの `.bun` → XDG data。Bun bin も PATH に反映 |
-| `claude` | home-layout | `.claude` と `.claude.json` → XDG config の同じツリー。旧ルート保持時は CLAUDE_CONFIG_DIR を設定しない |
-| `bash-history`, `zsh` | home-layout / zsh | Bash と Zsh 履歴 → XDG state。Zsh は native `history.path` を使用 |
-| `firefox` | firefox | `.mozilla/firefox` → managed Firefox wrapper の `configPath` |
-| `android-mic` | android-mic + home-layout | `.android` → `$ANDROID_USER_HOME/.android`。adb の HOME と FHS 内 PATH は同じラッパーを使用 |
-
-`common` と `home-layout` の環境設定は手動で導入したツールにも使える。例えば Codex の
-パッケージ feature が false でも `home-layout` が選択されていれば Codex のルートを扱う。
-Parsec の `.parsec` はこの移行の範囲外。
+移行前に [グループと保存先の一覧](groups.md) を確認する。
 
 ## 承認された移行ウィンドウ
 
 対象の UID・ホスト・候補 generation・グループ・外部 XDG mount・退避先を確認する。
-対応するバックアップと復元手順を先に確保する。ログインセッション、GUI、user unit、タイマー、
-自動再起動元、シェル終了時の履歴保存を停止する。メンテナンス環境では mount や親ディレクトリの
+操作前にバックアップを確保し、復元手順を確認する。
+ログインセッション、GUI、user unit、タイマー、自動再起動元、シェル終了時の履歴保存を停止する。メンテナンス環境では mount や親ディレクトリの
 差し替えと、対象データへの全 writer を除外する。HOME の `flock` はこの runner 同士を直列化する。
 `--offline` は運用上確立した排他の確認であり、プロセス走査で排他を保証するものではない。
 
@@ -84,7 +68,7 @@ runner="$generation/home-layout-migrate"
 "$runner" apply --group codex --offline --expect TOKEN
 ```
 
-`plan` の `expect` は対象・計画・実行環境に結び付く。変更があれば計画を取り直す。
+`plan` の `expect` は対象・計画・実行環境を識別する。いずれかが変わった場合は `plan` を再実行する。
 `check`、`inventory`、`plan` は読み取り専用。`check --require-noop` は移行の必要なしで
 `0`、操作や参照修復の保留で `2`、衝突・不明・検査エラーで `1`。
 
@@ -183,4 +167,4 @@ nix build -L --no-link .#checks.x86_64-linux.framework
 
 Home check は packaged runner の故障試験と、使い捨て NixOS VM の native switch／embedded HM を実行する。
 VM のデータは fixture 専用。アプリの環境・保存の流れは fixture adapter で確認する。
-物理ホスト、認証、実アプリやハードウェアの受入は別の検証。
+物理ホスト、認証、実アプリ、ハードウェアは別途検証する。

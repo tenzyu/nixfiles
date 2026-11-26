@@ -15,12 +15,12 @@ sources:
 
 # neko7 の OpenCode user service を移行する
 
-この手順はレビュー用です。OS 適用、unit の変更、停止、起動はそれぞれ事前承認が必要です。`opencode-neko7-service` は無効のままにしてください。既存の手動管理 unit と候補は同じ名前、ポート、データを使います。両方を同時に起動しないでください。別のポートでも同じ DB に同時書込してはいけません。
+この手順はレビュー用です。OS の適用、unit の変更、停止、起動の前に、それぞれ承認を得てください。`opencode-neko7-service` は無効のままにしてください。既存の手動管理 unit と候補は同じ名前、ポート、データを使います。両方を同時に起動しないでください。別のポートでも同じ DB に同時書込してはいけません。
 
 ## 移行前に確認する
 
-1. 既存接続を終了できる停止時間と、切り戻し担当者を決めます。移行時に既存セッションが切断されます。
-2. 現行 unit ファイルと有効化状態を、秘密値を含めて公開しない安全な場所にバックアップします。環境ファイルは表示せず、別途安全にバックアップします。
+1. 既存の接続を停止できる時間帯を決めてください。切り戻しの担当者も決めてください。移行時に既存セッションが切断されます。
+2. 現行 unit ファイルと有効化状態を、秘密値を公開しない安全な場所にバックアップしてください。環境ファイルは表示せず、別途バックアップしてください。
 3. 稼働中の実行ファイルと候補のバージョンとストアパスを確認します。候補は実行中の 2.2.1 と同じ nixpkgs revision を `nixpkgs-opencode` input に固定します。feature の assertion は別バージョンを拒否します。将来バージョンを変更する場合は、データ互換性を検証し、承認を受けたうえで assertion を見直します。
 4. 現行と候補の `WorkingDirectory`、`EnvironmentFile`、待受アドレス、PATH、必要なコマンドを比較します。候補は `nix develop` を実行しません。PATH の先頭は引き続きユーザープロファイルなので、エージェントが呼ぶコマンドはそのプロファイルに依存します。`EnvironmentFile` に PATH があれば systemd はそちらを優先します。秘密値を出力せずに確認してください。
 5. 現行 unit の依存関係、再起動設定、リソース制限、環境と候補を比較します。特にログイン後の user manager と linger の状態を確認します。候補は linger を変更しません。
@@ -30,7 +30,7 @@ sources:
 ## 承認後に移行する
 
 1. 利用者に停止を通知し、新規リクエストを止めます。
-2. 既存の手動管理 unit を停止します。unit の停止後も OpenCode の子プロセスや別のサーバーが残っていないこと、ポート 4096 が空いていることを確認します。確認できなければ中止します。
+2. 既存の手動管理 unit を停止します。unit の停止後も OpenCode の子プロセスや別のサーバーが残っていないこと、ポート 4096 が空いていることを確認します。確認できなければ中止してください。
 3. 全 writer が停止した状態で OpenCode の永続データを整合性のある方法でバックアップします。DB と関連する WAL ファイルも対象に含めます。バックアップを復元できることを別の隔離環境で確認します。
 4. 手動 unit とその有効化リンクを安全に退避します。既存ファイルが残ったまま Home Manager を適用しないでください。元の状態を復元できるようパスとリンク先を記録します。
 5. neko7 の `local.users.tenzyu.features.opencode-neko7-service.enable` を有効にした構成を、承認された手順で適用します。適用時に Home Manager がサービスを起動または再起動する場合があります。
@@ -45,6 +45,6 @@ sources:
 4. バックアップした手動 unit と有効化状態を復元し、user manager に変更を読み込ませます。
 5. 手動 unit だけを起動し、クライアント接続とセッションを確認します。復旧できなければ新しいサーバーを追加起動せず、停止した状態で調査します。
 
-## Wiki context
+## Configuration status
 
 The candidate user service is **not enabled** in neko7's host declaration. The documented version comes from the package assertion. The current running version requires a separate check. See [host state](../memory/host-state.md) and [roadmap](../../ROADMAP.md).

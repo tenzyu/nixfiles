@@ -1,46 +1,17 @@
-# neko5 desktop and Gamescope
+# Operate and verify the neko5 desktop and Gamescope
 
-Jay is the daily desktop; Gamescope is an independent native DRM research
-specialisation, not a desktop replacement. Hyprland remains selectable in
+Jay is the daily desktop. Gamescope is a separate native DRM research
+specialisation. Hyprland remains selectable in
 source but disabled on neko5, with no dedicated fallback. Sway, KWin and
 Weston are retired. Both boot entries preserve HOME, kernel, Mesa/i915,
 official osu! package, HID, audio, thermal, network and SSH policy.
 
-The workstation selects desktop tools, OBS Studio and EasyEffects independently.
+The workstation selects desktop tools, OBS Studio, and EasyEffects independently.
 The kernel/resource experiment is intentionally outside this integration.
 
 ## Source ownership and fixed settings
 
-- Host choices and eDP-1 mode: [configuration](../../modules/00-hosts/neko5/configuration.nix);
-  [independent specialisation](../../modules/00-hosts/neko5/specialisations.nix);
-  [physical performance policy](../../modules/00-hosts/neko5/performance.nix).
-- Jay owns session, portal, native workspace actions and screenshots.
-  Selected Alacritty, Rofi, cclip, Fcitx5 and Herdr integrations compose its
-  TOML or scoped package settings; no implicit alternate launcher or cliphist fallback.
-- [PipeWire host policy](../../modules/60-integrations/audio/neko5-pipewire.nix):
-  48 kHz, ALC257 analog sink periods 128 × 3, headroom 0, suspend timeout 5 s;
-  direct RTKit for PipeWire-Pulse. Keep RTKit limits and thermal protection.
-- [osu! client integration](../../modules/60-integrations/audio/neko5-pipewire-osu-lazer.nix):
-  XDG drop-in visible in the AppImage FHS namespace; match
-  `alsa_playback.osu!` and cap graph negotiation at `64/48000`. Keep
-  native `node.latency = 441/44100`. Q64 expected, smaller possible.
-  Shared playback clients share quantum; independent USB capture is not
-  forced. The XDG RTKit drop-in is client-context-wide, not stream-specific.
-  No global quantum override or manual RT promotion.
-- Native 1366×768 (~60 Hz), scale 1, Jay direct scanout requested,
-  tearing `variant2` on eDP-1 only (generic default `variant3`), VRR never,
-  XWayland disabled. Keep official osu! fullscreen, OpenGL, embedded OTD,
-  `Limit8x` (~480 Draw Hz). The normal neko5 osu! launcher exports
-  `INTEL_DEBUG=noccs` only to its process tree; the Gamescope probe and other
-  hosts retain defaults. Nix does not overwrite mutable in-game settings.
-  Keep the default 1.5 ms flip margin and i915 FBC/PSR/DC/DDB policies.
-  See [dated presentation evidence](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/research/neko5-presentation-log.md).
-- Fileman v0.5.2 uses pinned official x86_64 binary; Ark remains for .osk
-  because Fileman cannot handle that archive path. GTK FileChooser portal
-  unchanged. cclip 3.3.1 builds pinned C/Meson source (no official binary
-  found). Alacritty, dua-cli and GitUI replace Kitty, ncdu and Lazygit.
-  Restore stock Rofi 2.0 (native Wayland) after the operator observed slow
-  or missing Tofi launches; cclip/Herdr capture remains unchanged. QDirStat and dust remain available.
+Use the [neko5 desktop configuration reference](neko5-desktop-reference.md#source-ownership-and-fixed-settings) to check the expected settings before a build or activation.
 
 ## Build, enter and recover
 
@@ -52,18 +23,18 @@ nix eval --raw .#nixosConfigurations.neko5.config.specialisation.neko5-gamescope
 nix build --no-link .#nixosConfigurations.neko5.config.system.build.toplevel
 ```
 
-Only with separate operator approval, after CI/build and HOME admission
-review: `sudo nixos-rebuild boot --flake .#neko5`. This stages both profiles;
-do not switch during a session. After reboot and local text VT login,
-`start-jay` on normal neko5 or `start-gamescope` on the probe (launches osu!
-directly). No nested compositor or shared launcher. Gamescope exits with the
+Wait for CI, the build, HOME admission review, and separate operator approval.
+Then run `sudo nixos-rebuild boot --flake .#neko5` to stage both profiles.
+Do not switch during a session. After reboot, log in on a local text VT.
+Run `start-jay` on normal neko5 or `start-gamescope` on the research specialisation.
+`start-gamescope` launches osu! directly. No nested compositor or shared launcher. Gamescope exits with the
 game, uses native xdg-shell, unsets DISPLAY for osu!, and still needs its
 internal Xwayland server (pinned source accesses server 0). It has no
 desktop workspaces or promised screen sharing.
 
-Recover via another VT (Ctrl+Alt+F2) or SSH; save work before
-`loginctl terminate-session SESSION_ID`, and never terminate the SSH
-session. Reboot to the previous known-good generation if necessary.
+To recover, open another VT with **Ctrl+Alt+F2** or connect over SSH.
+Save your work before you run `loginctl terminate-session SESSION_ID`.
+Never terminate the SSH session. Reboot to the previous known-good generation if necessary.
 Rollback does not reverse mutable data. No automatic lock UI is promised:
 do not leave sessions unattended. Lock/suspend/authorization are live
 acceptance checks.
@@ -84,8 +55,9 @@ acceptance checks.
 | Super+F / Super+Q / Super+Ctrl+Shift+Q | Fullscreen / close window / exit session |
 | Super+Ctrl+I / Super+I | Restart Fcitx5 / toggle IME |
 
-The native workspace cycle tracks keyboard selections, not mouse/bar changes;
-numbered keys resynchronise. Run mode uses Rofi's stock command runner; use an explicit shell or
+The native workspace cycle tracks keyboard selections only.
+Changes made with the mouse or bar do not update its state.
+Use a numbered workspace key to resynchronise. Run mode uses Rofi's stock command runner; use an explicit shell or
 terminal for shell operators. Custom and desktop action menus use fixed allowlists.
 
 ## Clipboard, cursor and Japanese input
@@ -144,8 +116,9 @@ temporary trial drop-ins if present, using the actual XDG directory:
 `pipewire/client.conf.d/99-neko5-rtkit-probe.*.conf`,
 `pipewire/pipewire-pulse.conf.d/99-neko5-rtkit-probe.conf`,
 `wireplumber/wireplumber.conf.d/99-neko5-headroom-probe.conf`.
-Restart PipeWire-Pulse after applying, relaunch affected clients; verify
-data-loops RR/20, sink H0, driver Q64 and follower 441 during play.
+After applying the configuration, restart PipeWire-Pulse.
+Relaunch affected clients. During play, verify data loops at RR/20,
+sink H0, driver Q64, and follower 441.
 Test Discord-only / osu! exit / restart graph lifecycle, capture graph,
 40-minute ERR deltas, audible continuity and pacing. Roll back generation
 and restart affected processes on regression. Do not invoke the old global
@@ -180,8 +153,8 @@ Record missing telemetry as unknown rather than PASS. Reject missing workspaces 
 desktop, unsafe close/exit, native fullscreen/input/audio failure or material
 pacing regression. Gamescope is a probe only.
 
-For idle memory, close foreground apps after five minutes, sample three
-times at 30-second intervals over neko7 SSH:
+For the idle-memory measurement, close foreground applications after five minutes.
+Take three samples at 30-second intervals over SSH from neko7:
 
 ```sh
 ssh neko5 'python3 /home/tenzyu/.nixfiles/scripts/desktop/memory-snapshot.py'

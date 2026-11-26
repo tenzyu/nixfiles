@@ -1,6 +1,6 @@
 # ADR-0002 shell fixtures
 
-The actor is the unprivileged Nix build user. Each case provisions its own temporary root and lock where applicable. The [Bash runner](../../assets/safety/shell/test-operations.sh) sources the packaged library. Faults affect only temporary fixture data.
+The unprivileged Nix build user runs the fixtures. Each case creates its own temporary root and, where needed, a lock. The [Bash runner](../../assets/safety/shell/test-operations.sh) sources the packaged library. Faults affect only temporary fixture data.
 
 | Case | Pre-state and operation | Expected result and observations |
 | --- | --- | --- |
@@ -12,4 +12,4 @@ The actor is the unprivileged Nix build user. Each case provisions its own tempo
 | `OWNED-01` | Move the owned stage aside and install a different regular file at its stage name. | Refuse publication and cleanup. Both the original data and the substitute survive. |
 | `RECOVERY-01` | Rerun with the stage abandoned in `LOCK-01`. Remove root write permission before EXIT to make cleanup fail, both before and after publication. | Rerun publishes once and leaves the abandoned stage and unrelated entry alone. A further rerun preserves the final on conflict. Cleanup failure preserves a prior exit status or reports failure alongside a confirmed final. |
 
-This suite exercises namespace changes at controlled points. Coverage excludes adversarial races against the trusted parent and stage entry, real cross-mount and ENOSPC setups, power loss, host acceptance and cross-language contention. The fixture IDs describe evidence for this Bash implementation.
+This suite exercises namespace changes at controlled points. Coverage excludes adversarial races against the trusted parent and stage entry, real cross-mount and ENOSPC setups, power loss, host acceptance, and cross-language contention. The fixture IDs describe evidence for this Bash implementation.

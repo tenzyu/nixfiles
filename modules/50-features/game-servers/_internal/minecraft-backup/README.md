@@ -1,13 +1,12 @@
-# Managed Minecraft backups
+# Back up Minecraft and recover failed operations
 
 Use the installed `game backup minecraft` command. It uses the existing
 NixOS operator authorization and fixed `local.gameOperations.minecraft`
-policy. Backup needs a running container and a readable guest unit. If the
+policy. Before you run a backup, confirm that the container is running and the guest unit is readable. If the
 unit is cleanly inactive, it stays inactive. If the unit is running, the
 operator preflights the archive as the game UID and then stops the guest
 unit. The operator verifies the stopped unit's job, status, cgroup and exit
-record before starting the writer. An inactive container leaves guest
-quiescence unknown and the backup refuses without starting it.
+record before starting the writer. If the container is inactive, the backup command cannot verify that guest writers have stopped. It refuses without starting the container.
 
 The host takes a nonblocking exclusive flock on the root-owned tmpfiles
 inode and keeps it through managed start, stop, restart, send, console,
@@ -28,11 +27,9 @@ name is a conflict. Each new archive has mode 0600 and contains the
 `survival/` tree and regular `world/level.dat` data. Restore declarative
 settings through Nix.
 
-Backup prints the target archive path before preflight or any service
-stop. Keep that output to identify the candidate after an interruption.
+The backup command prints the archive path before preflight or any service stop. Save that output to identify the archive after an interruption.
 Only confirmed publication allows a previously running unit to resume.
-An archive error or an uncertain publication leaves it in the stopped
-state observed before capture. A failed resume is reported independently
+If archive creation fails or publication remains uncertain, the backup command leaves the guest unit stopped. A failed resume is reported independently
 of archive publication. Inspect the named archive and any retained stage
 after an unknown outcome. Keep existing finals and the lock inode.
 
@@ -62,10 +59,9 @@ while admission is blocked. An unavailable query makes the command exit
 services and archives untouched. Keep its output and the previous command's
 output when escalating an unknown outcome.
 
-Only an authorized host operator can clear the guard. Coordinate with
-other operators so nothing bypasses the lifecycle lock during recovery.
+Only an authorized host operator can clear the guard. Before recovery, coordinate with other operators to prevent operations that bypass the lifecycle lock.
 On `neko7`, open a root Bash shell and acquire the existing inode read-only.
-The shell must stay open through inspection and clearance.
+Keep the shell open until you finish inspection and clear the guard.
 
 ```bash
 sudo bash --noprofile --norc
@@ -73,14 +69,14 @@ lock_dir=/run/nixfiles-game-locks
 lock=$lock_dir/minecraft.lock
 guard=$lock.job
 [[ $(realpath -e -- "$lock_dir") == "$lock_dir" &&
-   $(stat -fLc '%T' -- "$lock_dir") == tmpfs ]] || exit 1
+	 $(stat -fLc '%T' -- "$lock_dir") == tmpfs ]] || exit 1
 for dir in / /run "$lock_dir"; do
-  metadata=$(stat -Lc '%u:%a' -- "$dir") || exit 1
-  [[ ${metadata%:*} == 0 ]] && (( (8#${metadata#*:} & 022) == 0 )) || exit 1
+	metadata=$(stat -Lc '%u:%a' -- "$dir") || exit 1
+	[[ ${metadata%:*} == 0 ]] && (( (8#${metadata#*:} & 022) == 0 )) || exit 1
 done
 [[ $(stat -Lc '%U:%G:%a' -- "$lock_dir") == root:wheel:750 &&
-   -f $lock && ! -L $lock &&
-   $(stat -Lc '%U:%G:%a:%h' -- "$lock") == root:wheel:440:1 ]] || exit 1
+	 -f $lock && ! -L $lock &&
+	 $(stat -Lc '%U:%G:%a:%h' -- "$lock") == root:wheel:440:1 ]] || exit 1
 exec 9<"$lock" || exit 1
 [[ $lock -ef /proc/self/fd/9 ]] && flock -xn 9 || exit 1
 [[ -d $guard && ! -L $guard && $(stat -c '%u:%a' -- "$guard") == 0:700 ]] || exit 1
@@ -96,8 +92,7 @@ exec 9<"$lock" || exit 1
 - Keep the guard if a relevant request or its effects can still run, the
   manager is unreachable, or the evidence is ambiguous. If the container
   is down, establish from host evidence that the old guest manager and its
-  processes exited and that the host request has settled. A failed guest
-  query alone does not establish that. A missing client PID, a single
+  processes exited and that the host request has settled. A failed guest query alone does not prove that the old manager and its processes exited or that the host request settled. A missing client PID, a single
   `Job=0` or an empty job listing does not settle an earlier request. Do
   not cancel jobs or change service state just to make the checks pass.
 - Once you have established that the previous requests and transitions have
@@ -118,54 +113,8 @@ Leave the result unconfirmed until it has been reconciled separately.
 
 ## Why keep the guard
 
-The pinned Nixpkgs packages systemd 260.5. In that release the manager
-enqueues a job and then replies with its object path. The synchronous
-client subscribes before dispatch and waits for the corresponding
-`JobRemoved`. Disconnect closes the client's bus and may fail its wait.
-Service jobs are outside the job GC used for units like devices, even if
-the bus tracker loses its last client. `ListJobs` is a snapshot of the
-current queue. [Nixpkgs package](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/pkgs/os-specific/linux/systemd/default.nix#L202-L211),
-[manager enqueue and reply](https://github.com/systemd/systemd/blob/v260.5/src/core/dbus-unit.c#L1985-L2010),
-[systemctl dispatch and wait](https://github.com/systemd/systemd/blob/v260.5/src/systemctl/systemctl-start-unit.c#L388-L430),
-[disconnect handling](https://github.com/systemd/systemd/blob/v260.5/src/shared/bus-wait-for-jobs.c#L48-L78),
-[job GC eligibility](https://github.com/systemd/systemd/blob/v260.5/src/core/job.c#L1465-L1476),
-[manager job API](https://github.com/systemd/systemd/blob/v260.5/man/org.freedesktop.systemd1.xml#L1288-L1294),
-[current job queue](https://github.com/systemd/systemd/blob/v260.5/man/org.freedesktop.systemd1.xml#L1425-L1439).
-
-`--no-block` returns at admission. `--job-mode=fail` applies to conflicting
-queued work and provides no exclusion during archive creation. Canceling a
-job can leave a unit transition in progress. Freezing stops scheduling the
-unit's processes, so it does not produce a clean application stop and is
-automatically undone before a unit job executes. A unit path condition
-is tested at start and `RefuseManualStart=` still allows activation by
-dependencies. A transient coordinator would still need to exclude concurrent managed operations
-and coordinate the host and guest managers. The
-fixed flock and the same-boot guard retain those admission semantics with
-the existing native lifecycle owners. [systemctl options](https://github.com/systemd/systemd/blob/v260.5/man/systemctl.xml#L2215-L2249),
-[blocking semantics](https://github.com/systemd/systemd/blob/v260.5/man/systemctl.xml#L2424-L2433),
-[cancellation](https://github.com/systemd/systemd/blob/v260.5/man/org.freedesktop.systemd1.xml#L1638-L1649),
-[freeze](https://github.com/systemd/systemd/blob/v260.5/man/systemctl.xml#L651-L663),
-[manual start policy](https://github.com/systemd/systemd/blob/v260.5/man/systemd.unit.xml#L1011-L1025),
-[path conditions](https://github.com/systemd/systemd/blob/v260.5/man/systemd.unit.xml#L1744-L1754),
-[transient units](https://github.com/systemd/systemd/blob/v260.5/man/systemd-run.xml#L69-L81),
-[pinned container transport](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/pkgs/by-name/ni/nixos-container/nixos-container.pl#L383-L389),
-[nsenter child exit handling](https://github.com/util-linux/util-linux/blob/v2.42.4/sys-utils/nsenter.c#L563-L579).
+See [why the Minecraft job guard is required](guard-design.md).
 
 ## Verification
 
-`nix build -L --no-link .#checks.x86_64-linux.game-backup-minecraft` runs the
-packaged operator and writer with inert lifecycle and privilege-transition
-mocks. It injects I/O faults and restores the archive into an isolated
-directory. The same packaged fixture can use the real `setpriv` by
-building `(import ./test.nix { inherit pkgs; root = fixturePath;
-mockIdentity = false; }).runner` and running it in a private user and
-mount namespace with UID/GID 0 and 27009 mapped and a fresh tmpfs at
-`fixturePath`. It still uses inert managers.
-
-Real host acceptance is **NOT RUN**. It requires a separately authorized,
-dated test of the native sudo wrapper and tmpfiles inode, the installed
-guest manager's clean-stop properties, the destination's local persistent
-filesystem, and the absence of bypass writers. An unexpected unit state
-or missing privilege or filesystem capability is a refusal. The fixtures
-establish descriptor retention and syscall ordering, with no power-loss
-claim.
+Follow the [Minecraft backup verification procedure](verify.md) before you claim acceptance.

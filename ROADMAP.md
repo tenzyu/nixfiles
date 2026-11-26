@@ -1,6 +1,6 @@
 # Roadmap
 
-This document tracks **unverified work**, not features already deployed. Host activation, service changes, destructive cleanup and publication require separate authorization.
+This roadmap lists work that still requires verification. Host activation, service changes, destructive cleanup and publication require separate authorization.
 
 | Priority | Work | Current implementation evidence | Acceptance criteria / failure boundary |
 | --- | --- | --- | --- |
@@ -18,6 +18,6 @@ This document tracks **unverified work**, not features already deployed. Host ac
 | P2 | Framework/editor regression tests | Native Nix evaluation tests and nixd | Test real nixd completion and evaluated host-option provenance; static docs validation cannot prove those editor behaviors |
 | P2 | Host declaration ergonomics | Hosts declare concrete features using the typed seed and native Home Manager options for scoped settings | Verify live nixd/Zed completion for the host, user and embedded Home Manager option paths |
 
-## Completion criteria
+## Criteria for closing an item
 
-Move an item out of this roadmap only with a concrete commit, test evidence, affected host/generation and successful acceptance criteria. Source-only checks are not real hardware/runtime checks. Rollbacks of NixOS generations do not reverse Home Manager data migrations. Document ongoing decisions in [docs/memory/decisions.md](docs/memory/decisions.md) and retain prior evidence in [docs/memory/log.md](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/memory/log.md).
+Close an item only when you have the commit, test evidence, affected host and generation, and evidence that the acceptance criteria pass. Source checks do not verify hardware or runtime behavior. Rollbacks of NixOS generations do not reverse Home Manager data migrations. Document ongoing decisions in [docs/memory/decisions.md](docs/memory/decisions.md) and retain prior evidence in [docs/memory/log.md](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/memory/log.md).

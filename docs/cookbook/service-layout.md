@@ -13,18 +13,17 @@ Use `mkStaticServiceAccount` to declare identical host and container UID/GID val
 bind mounts. **Do not enable private-user remapping without a separate
 UID mapping test.**
 
-The API remains available to internal modules via a normal Nix import. Public
+Internal modules access the API through a normal Nix import. Public
 `flake.lib.helpers`, host `configuration.nix`, and native NixOS
 options stay unchanged.
 
 ## Edge cases
 
-- Refuse relative roots, traversal, `/nix/store` and non-component game keys.
+- The helpers reject relative roots, traversal, `/nix/store`, and game keys that are not single path components.
 - Symlinks and mount boundaries affect paths at runtime.
   Validate using `realpath`, `findmnt`, UID/GID, and permissions *before*
   copying data or switching services.
-- Two services must not be assigned the same data root without an explicit
-  sharing contract.
+- Two services must not share a data root unless an explicit agreement defines how they share it.
 - Never change a running service's UID or ownership recursively during
   activation.
 

@@ -24,6 +24,6 @@ sources:
 | **OBSERVED** | Host, boot/generation, timestamp, unit/process/output receipt | Tomorrow's state or an unrelated host |
 | **INFERRED/UNKNOWN** | Hypothesis, uncertainty and discriminating observation | A success or authorization |
 
-Keep the failed run's identity after a later fix. A source-selected `sops-nix` provider does not prove an age key or decrypted secret; a past Minecraft login does not prove current service health; an accepted PR does not grant runtime access.
+Keep the failed run's identity after a later fix. Selecting `sops-nix` in source does not prove that an age key or decrypted secret exists. A past Minecraft login does not prove current service health. An accepted PR does not grant runtime access.
 
-When correcting a claim, identify the earlier claim and source IDs, the contradictory evidence, what it supersedes, remaining uncertainty and the exact evidence for the new scope. Never mark `verified: human:...` for an agent-authored result. [Decisions](decisions.md) gives operational boundaries; [Dreaming](dreaming.md) gives the update flow.
+When correcting a claim, identify the earlier claim and source IDs, the contradictory evidence, what it supersedes, remaining uncertainty and the exact evidence for the new scope. Never mark `verified: human:...` for an agent-authored result. The [configuration decisions](decisions.md) define operational limits. The [knowledge maintenance procedure](dreaming.md) describes how to update records.

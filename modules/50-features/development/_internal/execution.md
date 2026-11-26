@@ -1,6 +1,6 @@
 # Execution capability contract
 
-Discover this contract with `cat /etc/neko7/execution.md` (also NEKO7_EXECUTION_GUIDE in login shells). It applies independently of the agent frontend and repository.
+Read the execution contract with `cat /etc/neko7/execution.md`. Login shells also expose `NEKO7_EXECUTION_GUIDE`. The contract applies to every agent frontend and repository.
 
 | Need | Native execution interface | Live discovery |
 | --- | --- | --- |
@@ -15,4 +15,4 @@ Discover this contract with `cat /etc/neko7/execution.md` (also NEKO7_EXECUTION_
 | host resource pressure | /proc/pressure/{cpu,memory,io}; free; df | systemd-cgtop |
 | operator telemetry | loopback Grafana on 13000, Prometheus 9090 | ssh local forwarding; no public listener |
 
-Fail closed if the relevant command, authenticated remote, image or authority is unavailable. A feature description is not proof that the current agent identity has permission. Do not use sudo, request admin certificates, alter Tailnet routes, start public tunnels, touch real data or deploy permanent services without explicit approval. Incus deletes an ephemeral instance when it stops. Export required results first. The operator must authorize preview endpoint publication separately from VM creation. Shared lab credentials are not per-agent isolation. Do not assume GPU or physical-device access. Do not use a second registry to track live resources.
+If the required command, authenticated remote, image, or permission is unavailable, stop. A feature description is not proof that the current agent identity has permission. Obtain explicit approval before you use `sudo`, request admin certificates, alter Tailnet routes, start public tunnels, modify real data, or deploy permanent services. Incus deletes an ephemeral instance when it stops. Export required results first. The operator must authorize preview endpoint publication separately from VM creation. Shared lab credentials are not per-agent isolation. Do not assume GPU or physical-device access. Do not use a second registry to track live resources.

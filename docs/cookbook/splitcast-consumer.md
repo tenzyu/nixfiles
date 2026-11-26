@@ -21,7 +21,7 @@ sources:
 
 # Consume the independent SplitCast flake
 
-The cache URL and public signing key are enabled only when a host selects
+The configuration enables the cache URL and public signing key only when a host selects
 `splitcast-production` or `splitcast-capture`. The common Nix module no
 longer grants SplitCast's signing key to hosts with no SplitCast consumer.
 Matching cache tags and revisions does not prove validity. Inspect actual store
@@ -29,13 +29,13 @@ paths and use the CI workflow_dispatch `cache_strict` signed-copy audit
 before asserting cache completeness. A cache audit does not assert runtime
 deployment.
 
-SplitCast source is not vendored here. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local features consume those modules without duplicating product behavior. Capture uses the existing embedded Home Manager role; neko7 production evaluates the upstream Home Manager module in its independent runtime artifact, including its peer setting. See [existing workload migration](compute-workload-migration.md).
+nixfiles does not vendor SplitCast source. The `splitcast` input provides packages, NixOS prerequisites and the Home Manager agent module. The local features consume those modules without duplicating product behavior. Capture uses the existing embedded Home Manager role; neko7 production evaluates the upstream Home Manager module in its independent runtime artifact, including its peer setting. See [existing workload migration](compute-workload-migration.md).
 
-The current `flake.lock` pins the SplitCast input at `3b2a051efc1c5f8c483d8f7f453d49f6216c7f2d`, **not** the release revision `d2205d06b0dc695c3d9b7372fafa7facee769fa9` used by the configured binary cache. The latter is an older candidate, not verified for both current Rust/Web outputs. Keep SplitCast's own Nixpkgs lock: adding a `follows` override changes derivation inputs and can invalidate store-path compatibility.
+The current `flake.lock` pins the SplitCast input at `3b2a051efc1c5f8c483d8f7f453d49f6216c7f2d`, **not** the release revision `d2205d06b0dc695c3d9b7372fafa7facee769fa9` used by the configured binary cache. The latter is an older candidate, not verified for both current Rust/Web outputs. Keep SplitCast's own Nixpkgs lock. A `follows` override changes derivation inputs and can invalidate store-path compatibility.
 
-`modules/50-features/media/_internal/cache.nix` configures that release URL and the public key from `nix/cache-public-key` at the release revision. Nix still requires signatures on substitution; the diagnostic metadata audit does not establish that the locked outputs can actually be substituted. The release is `nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1`. Its manifest SHA-256 is `fbc58a9d412b7a7c4e59f37c21835fc5cf464e677603f534bf355db43c688387`.
+`modules/50-features/media/_internal/cache.nix` configures that release URL and the public key from `nix/cache-public-key` at the release revision. Nix still requires signatures during substitution. The metadata audit does not establish that the cache can supply the locked outputs. The release is `nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1`. Its manifest SHA-256 is `fbc58a9d412b7a7c4e59f37c21835fc5cf464e677603f534bf355db43c688387`.
 
-To select a later cached candidate, review the intended SplitCast source revision and update `flake.lock` with `nix flake update splitcast`, then update the explicit cache URL only after verifying release provenance, signatures and actual output-store paths. Do not change the pinned source merely to make a cache tag match. A lock update does not deploy SplitCast.
+To select a later cached candidate, review the intended SplitCast source revision. Run `nix flake update splitcast` to update `flake.lock`. Verify release provenance, signatures, and output store paths before updating the cache URL. Do not change the pinned source merely to make a cache tag match. A lock update does not deploy SplitCast.
 
 The capture role remains disabled. The neko7 production artifact is generated with `services.splitcast.rustCandidate = false` and its upstream user unit has no autostart target. The embedded Home Manager production role is disabled so it cannot own the same unit. No operating-system switch or service start is part of this extraction.
 

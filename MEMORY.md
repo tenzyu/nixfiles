@@ -1,6 +1,6 @@
-# nixfiles agent retrieval
+# Find documentation for a task
 
-Read only the pages relevant to the task. Source code is authoritative for declarations, tests for their tested contracts, and dated host receipts for runtime claims. An old note or PR cannot prove current activation.
+Read only the pages relevant to your task. Use source code for declarations, test results for tested behavior, and dated host records for runtime claims. An old note or PR cannot prove current activation.
 
 | Task | First read | Then verify |
 | --- | --- | --- |
@@ -11,8 +11,8 @@ Read only the pages relevant to the task. Source code is authoritative for decla
 | Prior failure, hypothesis or repeated task | [Current decisions](docs/memory/index.md) · [Maintenance](docs/memory/dreaming.md) | Pinned commit/test/job and surviving counterexample |
 | Unfinished work | [ROADMAP](ROADMAP.md) | Current head, acceptance gates and approval owner |
 
-Keep `configurations.nixos.<host>.module`, `local.features.<name>.enable` and `local.users.<name>.features.<name>.enable`; prefer native Nix semantics. Preserve Direct Scanout success on neko5; SplitCast product implementation is upstream. Don't infer secrets, deployment, performance or authorization from Git. Use ordinary commands inside an active direnv shell. Never activate hosts, migrate live state, rotate credentials, expose services or merge without explicit approval.
+Keep `configurations.nixos.<host>.module`, `local.features.<name>.enable`, and `local.users.<name>.features.<name>.enable`. Prefer native Nix semantics. Preserve working Direct Scanout on neko5. Make SplitCast product changes in its own repository. Don't infer secrets, deployment, performance or authorization from Git. Use ordinary commands inside an active direnv shell. Never activate hosts, migrate live state, rotate credentials, expose services or merge without explicit approval.
 
 After a decision changes or evidence disproves an assumption, update only the affected documentation using primary evidence. Retain historical failures. [Memory update contract](docs/memory/dreaming.md).
 
-Read current source and [canonical docs](docs/README.md); historical material is in [Archive](docs/archive/README.md). No separate retrieval tooling is required.
+Read the current source and [documentation index](docs/README.md). Find historical material in the [archive](docs/archive/README.md). No separate retrieval tooling is required.

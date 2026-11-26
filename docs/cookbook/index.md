@@ -26,6 +26,6 @@ Start with a read-only procedure. Destructive or service-affecting operations ne
 - [Compute platform operations](compute-platform-operations.md) covers dashboards, the preview gateway, independent personal-data workloads and resource ownership.
 - [Existing workload migration](compute-workload-migration.md) covers independent Minecraft, T3 and SplitCast release profiles and cutover.
 - [QEMU guest](qemu-guest.md) · [SplitCast consumer](splitcast-consumer.md). These distinguish host integration from upstream product ownership.
-- [neko5 desktop and Gamescope](neko5-desktop.md) owns current presentation policy; [archive](../archive/README.md) retains earlier experiments.
+- [neko5 desktop and Gamescope](neko5-desktop.md) describes current presentation policy. The [archive](../archive/README.md) retains earlier experiments.
 
-For architectural reasons and rejected alternatives see [LLM Wiki](../memory/index.md); for work not yet accepted see [Roadmap](../../ROADMAP.md).
+See the [architecture and decisions](../memory/index.md) for design rationale and rejected alternatives. See the [roadmap](../../ROADMAP.md) for work that still requires acceptance.

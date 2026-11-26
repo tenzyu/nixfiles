@@ -23,7 +23,7 @@ This reference covers source declarations for `nixfiles` at `0daacae75f19dc2b017
 | --- | --- | --- |
 | System daemon or privilege | NixOS `services.*`, `users.users.*`, `security.*` | `networkmanager-access` adds only the selected user to the NM group; it must not be hidden in `networkmanager.nix` |
 | Hardware access through early udev rule | NixOS `services.udev.packages` | `otd-access` ships `70-wacom-browser.rules` as a separate rule package; `services.udev.extraRules` generates a late `99-local.rules`, which is unsuitable for some `TAG+="uaccess"` matches |
-| Login shell | NixOS `programs.zsh.enable`, `users.users.<name>.shell` | The existing host/selected-user projection remains unchanged |
+| Login shell | NixOS `programs.zsh.enable`, `users.users.<name>.shell` | The existing projection from the host's selected users remains unchanged |
 | Home configuration files | HM `xdg.configFile.<name>.source` | `zsh` owns `zsh/zshrc.d` relative to `xdg.configHome`, rather than using an absolute target via `home.file` |
 | Application settings | HM `programs.<name>.*` | Prefer typed options over additional hand-written JSON or shell glue |
 | Package exception | `flake.local.featurePolicies.<feature>` | Scope unfree / insecure exceptions to active features, not global user defaults |
@@ -53,18 +53,17 @@ matching their feature names. The udev rule name/order and group membership are 
 
 ## Canonical feature selection
 
-The typed host seed accepts `null | false | true` for each feature. `null` emits no target definition; explicit `false` and `true` emit a regular-priority definition. This rule applies to NixOS, standalone Home Manager and embedded Home Manager. In embedded HM, the adapter also preserves other positive NixOS user-feature contributions without mistaking a default `false` for an explicit selection. The target NixOS/HM evaluator, not the adapter, resolves `mkDefault`, regular definitions, `mkForce` and conflicts.
+The typed host seed accepts `null | false | true` for each feature. `null` emits no target definition; explicit `false` and `true` emit a regular-priority definition. This rule applies to NixOS, standalone Home Manager and embedded Home Manager. In embedded HM, the adapter also preserves other positive NixOS user-feature contributions without mistaking a default `false` for an explicit selection. The target NixOS or Home Manager evaluator resolves `mkDefault`, regular definitions, `mkForce`, and conflicts. The adapter does not resolve them.
 
 For example, `steam` contributes `gaming-core.enable = lib.mkDefault true` in both system and HM modules. It is a soft default. `gaming-core = null` allows it. An explicit `false` takes precedence at regular priority. A `mkDefault true` contribution alone does not establish a hard requirement. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
 
 ## Validation and rollback
 
-Run `nix build -L --no-link .#checks.x86_64-linux.framework` and evaluate all three host derivations.
+Run `nix build -L --no-link .#checks.x86_64-linux.framework`. Evaluate all three host derivations.
 The focused Nix test checks presence of the XDG entry, selected NetworkManager
 group membership and the early udev package's host scoping. This does **not**
 prove a device was opened or an SSH/Wayland session was started.
-On the affected host after separate activation approval, inspect the generated
-`70-wacom-browser.rules` and confirm Firefox/terminal/USB behavior.
+After separate activation approval, inspect the generated `70-wacom-browser.rules` on the affected host. Confirm Firefox, terminal, and USB behavior.
 A Git revert restores the original source layout and HM declaration.
 
 `hyprland-empty-xwayland` was also registered as a standalone feature but

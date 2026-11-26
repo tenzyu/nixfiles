@@ -6,4 +6,4 @@
 - [Archive](archive/README.md): immutable historical research, experiments, previous contracts and retired interfaces.
 - [Repository overview](../README.md): source structure and entrypoints.
 
-Use Nix source for declarations, native check results for tested contracts and dated receipts for runtime observations. Do not use the archive as operational instructions. Avoid parallel registries, compatibility redirects and duplicate normative prose.
+Use Nix source for declarations, native check results for tested contracts and dated receipts for runtime observations. The archive records historical evidence. Use the cookbook for current procedures. Do not add parallel registries, compatibility redirects, or duplicate requirements.
