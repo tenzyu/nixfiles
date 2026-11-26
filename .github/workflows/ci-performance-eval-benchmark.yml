@@ -1,0 +1,88 @@
+name: CI performance evaluation benchmark (diagnostic only)
+on:
+  push:
+    branches: [ci/performance-eval-benchmark-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: ci-performance-evaluation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  measure:
+    name: "Incus policy A/B / pair ${{ matrix.pair }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        pair: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: dc52f2edf496227439a73600401d011baaab182c
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare actual policy step scripts on identical candidate
+        env:
+          PAIR: ${{ matrix.pair }}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          nix --version
+          nproc
+          free -m
+          cat > "$RUNNER_TEMP/baseline.sh" <<'BASELINE'
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --raw "$attr.virtualisation.incus.package.version"
+          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
+          
+          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          '
+          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
+          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
+          nix eval --raw "$attr.system.build.toplevel.drvPath"
+          BASELINE
+          cat > "$RUNNER_TEMP/candidate.sh" <<'CANDIDATE'
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          evidence=$(nix eval --json "$attr" --apply 'cfg: {
+            enabled = cfg.virtualisation.incus.enable;
+            version = cfg.virtualisation.incus.package.version;
+            incusDrv = cfg.virtualisation.incus.package.drvPath;
+            preseed = cfg.virtualisation.incus.preseed;
+            groups = cfg.users.users.tenzyu.extraGroups;
+            containers = builtins.attrNames cfg.containers;
+            hostDrv = cfg.system.build.toplevel.drvPath;
+          }')
+          jq -e '.enabled == true' <<< "$evidence"
+          jq -er '.version | select(type == "string")' <<< "$evidence"
+          jq -er '.incusDrv | select(type == "string")' <<< "$evidence"
+          jq -e '.preseed |
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          ' <<< "$evidence"
+          jq -e '.groups | index("incus-admin") == null and index("incus") == null' <<< "$evidence"
+          jq -e '.containers | index("neko7-mc") != null' <<< "$evidence"
+          jq -er '.hostDrv | select(type == "string")' <<< "$evidence"
+          CANDIDATE
+          bash -n "$RUNNER_TEMP/baseline.sh" "$RUNNER_TEMP/candidate.sh"
+          if (( PAIR % 2 )); then order=(baseline candidate); else order=(candidate baseline); fi
+          for mode in "${order[@]}"; do
+            export XDG_CACHE_HOME="$RUNNER_TEMP/cache-$mode"
+            mkdir -p "$XDG_CACHE_HOME"
+            # Cold evaluator cache per arm, common store; alternate order to
+            # reduce source-store warming bias. Include evaluation in timing.
+            start=$(date +%s%N)
+            bash "$RUNNER_TEMP/$mode.sh" | tee "$RUNNER_TEMP/$mode.out"
+            end=$(date +%s%N)
+            printf 'BENCHMARK_%s_MILLISECONDS=%s\n' "$mode" "$(( (end-start)/1000000 ))"
+          done
+          diff -u "$RUNNER_TEMP/baseline.out" "$RUNNER_TEMP/candidate.out"
+          echo 'BENCHMARK_POLICY_OUTPUT_EQUIVALENT=1'
