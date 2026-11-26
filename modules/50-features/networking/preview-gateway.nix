@@ -50,7 +50,7 @@
           # Bound the proxy's IP reach to the local listener and Incus
           # private bridges. This is not an agent-facing admin API.
           IPAddressDeny = "any";
-          IPAddressAllow = ["localhost" "10.77.41.0/24"];
+          IPAddressAllow = ["localhost" "10.77.40.0/24" "10.77.41.0/24"];
           SocketBindDeny = "any";
           SocketBindAllow = ["ipv4:tcp:18080"];
           Restart = "on-failure";

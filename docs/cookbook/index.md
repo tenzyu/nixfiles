@@ -21,7 +21,7 @@ Start with a read-only procedure. Destructive or service-affecting operations ne
 - [Switch without moving HOME data](home-migration-rollout.md) describes how to run the Home Manager pre-switch check on each host, resolve refusals and switch one host at a time.
 - [OpenCode development shells](opencode-devshells.md) · [OpenCode migration](opencode-neko7-migration.md) · [T3 Code](t3code-neko7.md). These cover remote development and single-writer service migration.
 - [Personal compute platform](compute-host.md) covers dynamic restricted instances, host acceptance and native execution.
-- [Instance operations](compute-instances.md) covers build-only releases, inventory and restricted container lifecycle.
+- [Instance operations](compute-instances.md) covers releases, inventory, restricted lab execution, and persistent VM lifecycle procedures. Native KVM acceptance remains mandatory.
 - [Flestr ingress](flestr-ingress.md) documents the transport boundary and UDP test evidence.
 - [Compute platform operations](compute-platform-operations.md) covers dashboards, the preview gateway, independent personal-data workloads and resource ownership.
 - [Existing workload migration](compute-workload-migration.md) covers independent Minecraft, T3 and SplitCast release profiles and cutover.

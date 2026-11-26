@@ -19,10 +19,8 @@
     profile = project: network: {
       inherit project;
       name = "default";
-      config = lib.optionalAttrs (project == "lab") {
-        "limits.cpu" = "2";
-        "limits.memory" = "2GiB";
-      };
+      # Containers share the host scheduler, memory and filesystem by default.
+      config = {};
       devices = {
         root = {
           type = "disk";
@@ -40,7 +38,17 @@
     config = lib.mkIf config.local.features.incus.enable {
       # The NixOS Incus module requires nftables with the host firewall.
       networking.nftables.enable = true;
-      environment.systemPackages = [pkgs.just pkgs.jq pkgs.util-linux];
+      environment.systemPackages = [
+        pkgs.just
+        pkgs.jq
+        pkgs.util-linux
+        (pkgs.writeShellScriptBin "neko7-lab-vm" ''
+          export PATH=${lib.makeBinPath [pkgs.coreutils pkgs.jq pkgs.incus]}:$PATH
+          set -euo pipefail
+          ${builtins.readFile ../../../tools/vm-resources.sh}
+          launch_lab_vm "$@"
+        '')
+      ];
       systemd.tmpfiles.rules = ["d /run/lock/neko7-instances 0770 root wheel -"];
       networking.firewall.interfaces = lib.genAttrs ["incusbr0" "incuslab0"] (_: {
         allowedTCPPorts = [53];
@@ -76,12 +84,7 @@
               # Bridge networks live in the operator project. The restricted
               # client can only attach to the designated lab bridge.
               "features.networks" = "false";
-              # Initial admission budget, not an adaptive resource governor.
-              # Counts allocated resources, including stopped instances.
-              "limits.instances" = "8";
-              "limits.virtual-machines" = "0"; # VM admission deferred pending lifecycle evidence
-              "limits.cpu" = "8";
-              "limits.memory" = "8GiB";
+              # Authorization boundary only; no aggregate allocation budgets.
               "restricted" = "true";
               "restricted.networks.access" = "incuslab0";
               "restricted.devices.disk" = "managed";
@@ -98,6 +101,32 @@
           ];
         };
       };
+
+      # Preseed merges configuration, but supplying empty aggregate keys on
+      # every run makes Incus validate totals even when no limit was set.
+      # Migrate only persisted legacy keys, before removing profile defaults.
+      # The native unset operations use Incus's ETag-aware update path.
+      systemd.services.incus-preseed.preStart = ''
+        set -euo pipefail
+        incus=${config.virtualisation.incus.package}/bin/incus
+        jq=${lib.getExe pkgs.jq}
+        projects=$("$incus" query 'local:/1.0/projects?recursion=1')
+        exists=$(printf '%s' "$projects" | "$jq" -r 'if type == "array" then any(.[]; .name == "lab") else error("Unexpected project inventory") end')
+        if [ "$exists" = true ]; then
+          project=$("$incus" query local:/1.0/projects/lab)
+          keys=$(printf '%s' "$project" | "$jq" -r '.config | keys[] | select(. == "limits.instances" or . == "limits.virtual-machines" or . == "limits.cpu" or . == "limits.memory")')
+          if [ -n "$keys" ]; then
+            mapfile -t remove <<< "$keys"
+            "$incus" project unset local:lab "''${remove[@]}"
+          fi
+          profile=$("$incus" query 'local:/1.0/profiles/default?project=lab')
+          keys=$(printf '%s' "$profile" | "$jq" -r '.config | keys[] | select(. == "limits.cpu" or . == "limits.memory")')
+          if [ -n "$keys" ]; then
+            mapfile -t remove <<< "$keys"
+            "$incus" profile unset local:default "''${remove[@]}" --project lab
+          fi
+        fi
+      '';
 
       assertions = [{
         assertion = lib.versionAtLeast config.virtualisation.incus.package.version "7.6.0";

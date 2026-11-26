@@ -1,4 +1,4 @@
-{inputs, ...}: let
+{inputs, self, ...}: let
   nixpkgs = inputs.nixpkgs;
   module = {pkgs, ...}: {
     services.syncthing = {
@@ -31,12 +31,19 @@
   };
 in {
   perSystem = {system, lib, ...}: let
-    releases = import ./_internal/incus-image.nix {
-      inherit nixpkgs system module;
+    workload = import ./_internal/incus-workload.nix {
+      inherit inputs self nixpkgs system module;
       name = "syncthing";
+      injectActivationFailure = true;
+      guestMemory = "2GiB";
+      stateProbe = {
+        seed = "mkdir -p /var/lib/syncthing/fixture; echo preserved > /var/lib/syncthing/fixture/data";
+        verify = "grep -Fx preserved /var/lib/syncthing/fixture/data; sha256sum /var/lib/syncthing/.config/syncthing/cert.pem";
+      };
     };
   in lib.mkIf (system == "x86_64-linux") {
-    packages = releases;
+    inherit (workload) packages;
+    checks.incus-workload-syncthing = workload.lifecycle;
     checks.personal-workload-syncthing = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {

@@ -11,6 +11,7 @@ Follow the [Tailnet-only ingress policy](compute-host-design.md#tailnet-only-ing
 ## Before approved activation
 
 - Check `ip -4 route`, `ss -ltn`, and existing Incus state. The proposed bridge ranges are 10.77.40.0/24 and 10.77.41.0/24; API port 8443 is loopback-only. Abort on overlap, existing incompatible storage pool, or port conflict. Do not reinitialize an existing Incus installation blindly.
+- Before activation, export the existing Incus project and profile configuration. Check for unexpected live VMs and instance-specific overrides. The migration unsets legacy project quotas before profile defaults, only when the keys exist. Incus validates empty aggregate keys against existing instances, so preseed must not replay them. After activation, verify that the `lab` project and default profile have no resource-limit keys. The migration does not resize existing disks or change instance-specific configuration.
 - Confirm `/dev/kvm`, available memory and filesystem space. The operator has reported past MicroVM success; that is not an Incus acceptance result.
 - Review the nftables transition: native Incus requires nftables with the NixOS firewall. Verify existing Minecraft NAT, Tailscale, SSH, T3 HTTPS and rootless Docker connectivity after activation. From a non-Tailnet uplink peer, confirm application TCP/UDP and forwarded guest connections fail; from a Tailnet peer, confirm SSH/Serve still work. Inspect `sudo nft list table inet tailnet_ingress` and the deny counters. Check the Tailnet policy for Funnel access. Use an out-of-band Proxmox console. Retain the previous generation.
 - Build the host closure and pass the CI tests. Only then request explicit approval for activation. Neither merging nor CI results authorize activation.
@@ -43,7 +44,7 @@ Do not grant the agent `incus-admin` or `incus` group access, host socket access
 
 ## Native dynamic execution
 
-[Instance operations](compute-instances.md) documents read-only inventory, build-only workload artifacts and ephemeral lab containers. [Flestr ingress](flestr-ingress.md) describes the verified source-level transport boundary; no physical port is opened.
+[Instance operations](compute-instances.md) describes how to create, update, back up, and retire persistent instances and run ephemeral `lab` instances. [Flestr ingress](flestr-ingress.md) describes the verified source-level transport boundary; no physical port is opened.
 
 Run these as the enrolled user, including from an existing T3 project shell. Select a trusted image and pin its fingerprint for reproducible tests. Names below are examples; choose unique names per session.
 
@@ -55,9 +56,15 @@ incus file push ./artifact lab:experiment/tmp/artifact
 incus stop lab:experiment
 incus list lab:
 
+neko7-lab-vm machine-a images:debian/13
+neko7-lab-vm machine-b images:debian/13
+incus exec lab:machine-a -- sh
+incus exec lab:machine-b -- sh
+incus stop lab:machine-a
+incus stop lab:machine-b
 ```
 
-Use `incus exec --user UID --group GID --cwd /home/USER` when an ordinary guest user is needed; create that account using the guest's own configuration. Incus VM exec needs a functioning guest agent. External aliases and image downloads are not CI fixtures. Durable VM operations are not admitted by this integration; managed volumes can survive instance removal if deliberately created separately. Before you stop an ephemeral instance, export the evidence you need. Incus deletes the instance when it stops.
+Use `incus exec --user UID --group GID --cwd /home/USER` when an ordinary guest user is needed; create that account using the guest's own configuration. Incus VM exec needs a functioning guest agent. External aliases and image downloads are not CI fixtures. For persistent instances, omit `--ephemeral` when using native Incus creation commands. Managed volumes can survive instance removal if you create them separately. Before you stop an ephemeral instance, export the evidence you need. Incus deletes the instance when it stops.
 
 An HTTP preview can listen on its instance address; discover it with `incus list lab:`. For remote browser access, an operator/client can use an existing SSH connection with local forwarding to that private address (for example `ssh -N -L 18080:INSTANCE_IP:8080 neko7`). Do not add public proxy listeners. For approved Tailnet HTTP endpoints, use an explicitly authorized Tailscale Serve route to a host-loopback listener; preserve existing Serve routes. Do not use Funnel. The generic Caddy gateway can publish operator-approved ephemeral routes without repository-specific host changes; the repository owns its build/start/test command and guest image if special dependencies are needed. See [platform operations](compute-platform-operations.md). NixOS tests may instantiate any number of declarative guests without installing a project-specific host feature.
 
@@ -67,6 +74,6 @@ The operator can run `sudo incus list --all-projects`, `sudo incus info INSTANCE
 
 ## Evidence and recovery
 
-CI builds the pinned native module and exercises real container lifecycle, restricted authorization, network reachability, cleanup and daemon restart independence. The separate service module checks and image builds do not prove exact-image Incus VM startup, update or restore. VM lifecycle admission is deferred; the restricted lab permits zero VMs. Do not deploy the personal-data VM images or rely on their recovery paths until the follow-up has passed. Hosted CI does not close actual host firewall coexistence, GPU parity, WAN behavior or physical performance.
+CI builds the pinned native module, imports locally built NixOS guest images, enrolls a restricted client, launches a persistent and ephemeral guest, proves guest-user execution, file separation and HTTP reachability, rejects unauthorized operations, checks cleanup and daemon restart independence. Hosted CI builds images, runs service and container tests, and evaluates native VM checks. Native KVM lifecycle execution remains mandatory before merge or activation. The retired software-emulation diagnostic did not establish hardware acceptance; [historical source and evidence](https://github.com/tenzyu/nixfiles/tree/5b7c1fea748bf7ee3877703dbef9ecdb738d2e36) remain available. On an approved compatible test host run `nix build -L --no-link .#checks.x86_64-linux.compute-host-vm .#checks.x86_64-linux.incus-workload-syncthing .#checks.x86_64-linux.incus-workload-immich`. Do not run them in the live Incus instance namespace or enroll a privileged persistent runner as a workaround. A green hosted CI does not close hardware acceptance, actual host firewall coexistence, GPU parity, WAN behavior or physical performance.
 
 On failed host acceptance, retain logs and use the previous NixOS generation through the approved console/recovery procedure. Disabling the feature does not migrate/delete Incus instance data; stop or export instances first. Do not remove `/var/lib/incus` or repeat initialization as a recovery shortcut.

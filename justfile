@@ -22,9 +22,34 @@ status:
     @free -h
     @df -h / /nix/store
 
+# Build a durable VM image, then call the same artifact operation as CI.
+new workload name:
+    bash tools/instance-ops.sh create-release "$@"
+
+# Build independently, confirm, then apply under the native instance lock.
+update name backup:
+    bash tools/instance-ops.sh update-release "$@"
+
+# Stop and export to a new private bundle directory. Leaves instance stopped.
+backup name directory:
+    bash tools/instance-ops.sh backup "$1" "$2"
+
+_new-image-auto workload name image:
+    bash tools/instance-ops.sh new "$@"
+
+# Test-only explicit override; normal creation uses host capacity.
+_new-image workload name image disk cpu memory:
+    bash tools/instance-ops.sh new "$@"
+
+_update-system name directory workload uuid system:
+    bash tools/instance-ops.sh update "$@"
+
 # Ephemeral agent instances use the enrolled restricted remote directly.
 lab name image="images:debian/13":
     incus launch "$2" "lab:$1" --ephemeral
+
+lab-vm name image="images:debian/13":
+    neko7-lab-vm "$1" "$2"
 
 # Stopping an ephemeral instance deletes it; export evidence first.
 lab-stop name:

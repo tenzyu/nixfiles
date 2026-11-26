@@ -58,7 +58,7 @@ Support assets also use Python, TypeScript and shell. Applications retain mutabl
 
 ## Compute host operations
 
-See [instance operations](docs/cookbook/compute-instances.md). On neko7, `just` lists tasks, `just images` lists buildable releases, and `just instances` lists live Incus instances. Obtain operator approval before changing containers. The image artifacts support builds only. VM admission and persistent VM operations remain deferred. New guest releases do not require editing the host declaration or a CI matrix.
+See [instance operations](docs/cookbook/compute-instances.md). On neko7, `just` lists tasks, `just images` lists buildable releases, and `just instances` lists live Incus instances. Obtain operator approval before changing instances. The candidate adds VM lifecycle operations. Native KVM acceptance remains mandatory before merge or activation. New guest releases do not require editing the host declaration or a CI matrix.
 
 ## Change safely
 
