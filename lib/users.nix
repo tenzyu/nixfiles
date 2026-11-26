@@ -2,12 +2,13 @@
   lib,
   features,
 }: rec {
+  enabledUsers = users:
+    lib.filterAttrs (_name: user: user.enable or true) users;
+
   usersWithFeature = feature: cfg:
     lib.filterAttrs
-    (_name: user:
-      (user.enable or true)
-      && features.featureEnabled feature (user.features or {}))
-    cfg.local.users;
+    (_name: user: features.featureEnabled feature (user.features or {}))
+    (enabledUsers cfg.local.users);
 
   userNamesWithFeature = feature: cfg:
     lib.attrNames (usersWithFeature feature cfg);
