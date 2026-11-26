@@ -138,9 +138,44 @@ jobs:
           done
       - name: Exercise real native guest profile update and rollback
         run: |
+          set -euo pipefail
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle
+          test -r /dev/kvm && test -w /dev/kvm
+          evidence="$RUNNER_TEMP/workload-lifecycle"
+          mkdir -p "$evidence"
+          status=0
+          if ! nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle 2>&1 | tee "$evidence/build.log"; then
+            status=1
+          fi
+          # The driver starts a fresh VM on every invocation. Do not count
+          # repeated builds or Nix store hits as repeated executions.
+          driver=$(nix build -L --no-link --print-out-paths .#checks.x86_64-linux.workload-lifecycle.driver)
+          printf 'run\tresult\n' > "$evidence/results.tsv"
+          for i in {1..10}; do
+            run_dir="$evidence/run-$i"
+            mkdir -p "$run_dir/tmp" "$run_dir/out"
+            if (cd "$run_dir" && TMPDIR="$run_dir/tmp" LOGFILE=/dev/null "$driver/bin/nixos-test-driver" -o "$run_dir/out") 2>&1 | tee "$run_dir/run.log"; then
+              printf '%s\tPASS\n' "$i" >> "$evidence/results.tsv"
+            else
+              printf '%s\tFAIL\n' "$i" >> "$evidence/results.tsv"
+              status=1
+            fi
+            rm -rf -- "$run_dir/tmp"
+          done
+          cat "$evidence/results.tsv"
+          exit "$status"
+      - name: Preserve workload lifecycle executions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workload-lifecycle-evidence
+          path: |
+            ${{ runner.temp }}/workload-lifecycle/build.log
+            ${{ runner.temp }}/workload-lifecycle/results.tsv
+            ${{ runner.temp }}/workload-lifecycle/run-*/run.log
+          if-no-files-found: ignore
+          retention-days: 7
   workload-artifacts:
     name: Build ${{ matrix.workload }} deployment artifact
     runs-on: ubuntu-latest
