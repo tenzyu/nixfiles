@@ -133,7 +133,7 @@
       '';
 
       # Only the offline argument boundary; signed remote verification is on demand.
-      splitcast-cache-cli = pkgs.runCommand "splitcast-cache-cli" {nativeBuildInputs = [pkgs.bash];} ''
+      splitcast-cache-cli = pkgs.runCommand "splitcast-cache-cli" {nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.jq pkgs.gnused pkgs.gnugrep];} ''
         script=${../../scripts/ci/audit-splitcast-cache.sh}
         bash -n "$script"
         bash "$script" --help
@@ -143,6 +143,7 @@
         status=0
         bash "$script" --strict extra || status=$?
         test "$status" = 2
+        bash ${../../scripts/ci/test-splitcast-cache.sh} "$script"
         touch "$out"
       '';
 
