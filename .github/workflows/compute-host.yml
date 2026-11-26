@@ -223,14 +223,14 @@ jobs:
             hostDrv = cfg.system.build.toplevel.drvPath;
           }')
           jq -e '.enabled == true' <<< "$evidence"
-          jq -er '.version | select(type == "string")' <<< "$evidence"
-          jq -er '.incusDrv | select(type == "string")' <<< "$evidence"
+          jq -ej '.version | select(type == "string")' <<< "$evidence"
+          jq -ej '.incusDrv | select(type == "string")' <<< "$evidence"
           jq -e '.preseed |
             .config["core.https_address"] == "127.0.0.1:8443"
             and (.projects[] | select(.name == "lab") | .config.restricted == "true")
           ' <<< "$evidence"
           jq -e '.groups | index("incus-admin") == null and index("incus") == null' <<< "$evidence"
           jq -e '.containers | index("neko7-mc") != null' <<< "$evidence"
-          jq -er '.hostDrv | select(type == "string")' <<< "$evidence"
+          jq -ej '.hostDrv | select(type == "string")' <<< "$evidence"
       - name: Build and execute NixOS machine test
         run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
