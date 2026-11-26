@@ -1,0 +1,83 @@
+name: CI performance cache benchmark (diagnostic only)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ci-performance-benchmark.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ci-performance-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  measure:
+    name: "${{ matrix.workload }} / ${{ matrix.mode }} / pair ${{ matrix.pair }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        workload: [validation, splitcast]
+        pair: [1, 2, 3, 4, 5]
+        mode: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 5398f7819c00269dbc75890c59b2b45e8532ce51
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: ${{ (matrix.workload == 'splitcast' || matrix.mode == 'candidate') && 'extra-substituters = https://cache.numtide.com' || '' }}
+      - name: Configure existing signed caches
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          # Keep the benchmark identical to the existing installer policy, adding
+          # only the specified cache settings to each comparison arm.
+          if [[ "$WORKLOAD" == splitcast || "$MODE" == candidate ]]; then
+            echo 'extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=' | sudo tee -a /etc/nix/nix.conf
+          fi
+          if [[ "$WORKLOAD" == splitcast && "$MODE" == candidate ]]; then
+            policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+            jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+            jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          fi
+          sudo systemctl restart nix-daemon.service
+          git rev-parse HEAD
+          nix --version
+          nproc
+          free -m
+          df -h /nix/store
+          nix config show | grep -E '^(substituters|trusted-public-keys|require-sigs) ='
+      - name: Realize identical inputs and verify output
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          started=$(date +%s)
+          case "$WORKLOAD" in
+            validation)
+              attr=.#checks.x86_64-linux.validation
+              nix build -L --keep-going --no-link "$attr" 2>&1 | tee "$RUNNER_TEMP/build.log"
+              ;;
+            splitcast)
+              attr=.#packages.x86_64-linux.neko7-splitcast-runtime
+              out=$(nix build -L --no-link --print-out-paths "$attr" 2> "$RUNNER_TEMP/build.log") || { tail -n 150 "$RUNNER_TEMP/build.log"; exit 1; }
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+            *) exit 2 ;;
+          esac
+          elapsed=$(($(date +%s) - started))
+          printf 'BENCHMARK_REALIZE_SECONDS=%s\n' "$elapsed"
+          printf 'BENCHMARK_BUILD_EVENTS=%s\n' "$(grep -c "building '" "$RUNNER_TEMP/build.log" || true)"
+          printf 'BENCHMARK_COPY_EVENTS=%s\n' "$(grep -c "copying path '" "$RUNNER_TEMP/build.log" || true)"
+          grep -E 'copying path .*cache.numtide.com|copying path .*github.com/tenzyu/splitcast|building .*rtk-|building .*splitcast' "$RUNNER_TEMP/build.log" | tail -n 80 || true
+          nix eval --raw "$attr.drvPath"
+          nix path-info --json "$attr" | jq -c 'to_entries | map({path:.key,narHash:.value.narHash,narSize:.value.narSize})'
