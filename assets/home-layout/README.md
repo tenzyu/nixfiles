@@ -1,6 +1,6 @@
 # XDG home layout / 既存ホームの移行
 
-> **運用上の位置付け（2026-11-23）:** [ADR-0003](../../docs/adr/0003-home-layout-reuse-first.md) により、HOME の見た目のためだけの新規移行や全域強制は追求しない。この README は **既に main にある移行・復旧機構を使う場合の安全手順**であり、今すぐ移行を実行する指示ではない。コードを撤去するまでは既存のチェック・journal・衝突拒否を維持する。
+> **運用上の位置付け（2026-11-23）** [ADR-0003](../../docs/adr/0003-home-layout-reuse-first.md) により、HOME の見た目のためだけの新規移行や全域強制は追求しない。この README は **既に main にある移行・復旧機構を使う場合の安全手順**であり、今すぐ移行を実行する指示ではない。コードを撤去するまでは既存のチェック・journal・衝突拒否を維持する。
 
 neko5 の既存 TODO は旧 Home 移行の不具合を記録している。この実装の実機受入は **NOT RUN**。
 [移行と復旧の判断](../../docs/memory/decisions.md)
@@ -19,8 +19,8 @@ generation=$(nix build --no-link --print-out-paths \
 `inventory` は旧・移行先・候補の実効ルートと、宣言上のシェル／user service 環境を表示する。
 実際に稼働しているアプリとそれを起動した shell、GUI、service のルートを別途照合する。
 既存の split や独自ラッパーを見つけた場合は、正しいルートが判明するまで対象の writer を停止する。
-初回導入には検証した incumbent を記録する。以下は Codex が実際に旧ルートを使っている場合の例。
-feature の選択は従来通り `local.users.<user>.features` に置く。
+初回導入には検証した incumbent を記録する。以下は Codex が旧ルートを使っている場合の例。
+feature の選択は `local.users.<user>.features` に置く。
 
 ```nix
 home-manager.users.tenzyu.local.homeMigration = {

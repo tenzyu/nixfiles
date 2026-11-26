@@ -7,7 +7,7 @@ status: stable
 
 # Host declarations, not live inventory
 
-**Source authority:** [host declarations](../../modules/00-hosts). Git says what each host *would configure*; it does not report its presently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
+The [host declarations](../../modules/00-hosts) specify what each host would configure. Git does not report its currently booted generation, service health or installed secrets. Dated operator evidence belongs in an individual runbook.
 
 | Host | Intended platform | Declared capabilities | State-version caveat |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ The [storage migration runbook](https://github.com/tenzyu/nixfiles/blob/050bd373
 
 `sops-nix` is selected on neko7. [Secret provisioning](../cookbook/secrets-and-tailscale.md) requires a host decryption identity and an actual `sops.secrets` declaration; the feature toggle alone is not evidence that a Tailscale auth key was moved into SOPS. The `t3code-tailnet` systemd service is a controlled, on-demand Serve restore, not proof that the public/Tailnet route exists now. `opencode-neko7-service` remains a candidate aspect rather than a selected host feature. SplitCast `production` is a **consumer role**, not automatic broadcast acceptance.
 
-The [compute platform runbook](../cookbook/compute-host.md) describes the Incus substrate and operator enrollment. [Existing workload migration](../cookbook/compute-workload-migration.md) describes independent release profiles for Minecraft, T3 and gated SplitCast, without changing their persistent identities. This historical inventory does not establish that the new feature has been activated.
+The [compute platform runbook](../cookbook/compute-host.md) describes Incus instance management and operator enrollment. [Existing workload migration](../cookbook/compute-workload-migration.md) describes independent release profiles for Minecraft, T3 and gated SplitCast, without changing their persistent identities. This historical inventory does not establish that the new feature has been activated.
 
 ## Obtaining live acceptance evidence
 

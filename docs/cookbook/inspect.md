@@ -17,4 +17,4 @@ Use the effective `config` for values and `options.<path>.definitionsWithLocatio
 nix build -L --no-link .#checks.x86_64-linux.validation
 ```
 
-See [validation](ci-validation.md) for focused checks. No command here activates a host or moves data. `nixos-rebuild test` activates units and is not an inspection command; stop on evaluation, build or permission failure.
+See [validation](ci-validation.md) for focused checks. No command here activates a host or moves data. `nixos-rebuild test` activates units and is not an inspection command. Stop on evaluation, build or permission failure.

@@ -22,7 +22,7 @@ The kernel/resource experiment is intentionally outside this integration.
   direct RTKit for PipeWire-Pulse. Keep RTKit limits and thermal protection.
 - [osu! client integration](../../modules/60-integrations/audio/neko5-pipewire-osu-lazer.nix):
   XDG drop-in visible in the AppImage FHS namespace; match
-  `alsa_playback.osu!` and cap graph negotiation at `64/48000`, preserving
+  `alsa_playback.osu!` and cap graph negotiation at `64/48000`. Keep
   native `node.latency = 441/44100`. Q64 expected, smaller possible.
   Shared playback clients share quantum; independent USB capture is not
   forced. The XDG RTKit drop-in is client-context-wide, not stream-specific.
@@ -78,7 +78,7 @@ acceptance checks.
 | Super+Shift+Space / Super+Ctrl+Shift+R | Desktop actions / native Jay reload |
 | Super+Shift+S / Print | Copy area / full screenshot |
 | Super+1..9,0 / Super+Shift+1..9,0 | Select workspace / move and follow |
-| Super+Tab / Super+Shift+Tab | Cycle forward/back through 1–10 |
+| Super+Tab / Super+Shift+Tab | Cycle forward or backward through workspaces 1 to 10 |
 | Super+H/J/K/L / Super+Shift+V | Focus / vertical split |
 | Super+B / Super+O | Firefox / osu! |
 | Super+F / Super+Q / Super+Ctrl+Shift+Q | Fullscreen / close window / exit session |
@@ -156,7 +156,7 @@ quantum lab for this test. The portal remains available for other uses.
 After separately approved activation, relaunch osu! through `osu-lazer`.
 Verify effective eDP-1 variant2, the process environment, XRGB8888 Y_TILED
 (without CCS), actual Direct Scanout and steady ~480 successful async flips/s
-(DRM flags 0x203), not just the setting or Draw count. Use the same
+(DRM flags 0x203). The setting and Draw count alone are insufficient. Use the same
 fullscreen map, native mode, OpenGL and Limit8x. Verify ordinary desktop,
 other fullscreen clients, Discord/IME, audio and thermal behaviour; variant2
 can attempt unsupported async flips and fall back to sync. Reject material
@@ -167,7 +167,7 @@ previous generation) and relaunch/reload; for immediate session rollback use
 `noccs` using the prior launcher. Do not disable synchronization or change
 kernel parameters. Host activation is not implied by Git or CI.
 
-## Measure, don't infer
+## Measurement procedure
 
 For A/B: disconnect external displays; verify actual mode, renderer and
 native Wayland, same map/mods/skin/peripherals/power/thermal/background
@@ -176,7 +176,7 @@ and async flip separately, Draw/Update frequency, p95/p99 frame times,
 per-node ERR delta, input feel and temperature. Jay Control Center
 Visualize Compositing/debug log; Gamescope DRM logs. Disable instrumentation
 during timing runs. Physical latency requires independent instrumentation.
-Missing telemetry is unknown, not PASS. Reject missing workspaces for daily
+Record missing telemetry as unknown rather than PASS. Reject missing workspaces for daily
 desktop, unsafe close/exit, native fullscreen/input/audio failure or material
 pacing regression. Gamescope is a probe only.
 

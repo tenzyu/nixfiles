@@ -24,7 +24,7 @@ sources:
 The cache URL and public signing key are enabled only when a host selects
 `splitcast-production` or `splitcast-capture`. The common Nix module no
 longer grants SplitCast's signing key to hosts with no SplitCast consumer.
-Cache tag/revision equality is not a validity proof: inspect actual store
+Matching cache tags and revisions does not prove validity. Inspect actual store
 paths and use the CI workflow_dispatch `cache_strict` signed-copy audit
 before asserting cache completeness. A cache audit does not assert runtime
 deployment.
@@ -39,10 +39,10 @@ To select a later cached candidate, review the intended SplitCast source revisio
 
 The capture role remains disabled. The neko7 production artifact is generated with `services.splitcast.rustCandidate = false` and its upstream user unit has no autostart target. The embedded Home Manager production role is disabled so it cannot own the same unit. No operating-system switch or service start is part of this extraction.
 
-Run SplitCast's own verification from its repository. This consumer reuses its package and configuration checks, rather than retaining a second implementation or test suite. The independent repository's `docs/operations.md`, `docs/design-review.md`, `docs/verification.md`, and `MEMORY.md` are the current references. The historical graphics research and isolated experiments were transferred there as non-current evidence.
+Run SplitCast's own verification from its repository. This consumer reuses SplitCast's package and configuration checks instead of maintaining a second implementation or test suite. The independent repository's `docs/operations.md`, `docs/design-review.md`, `docs/verification.md`, and `MEMORY.md` are the current references. The historical graphics research and isolated experiments were transferred there as non-current evidence.
 
 Before any later deployment, evaluate the actual consumer configuration, inspect the selected package and generated TOML, confirm cgroup teardown and credential ownership, and obtain separate authorization for physical capture, privileges, firewall changes, public publication and activation. Restoring a Git input does not itself restore a running generation.
 
 ## Wiki context
 
-The input pin and role selections are code-backed; current running binary, cache availability, live streaming and PoC acceptance are **not inferred**. See [host state](../memory/host-state.md).
+Source declares the input pin and role selections. Verify the running binary, cache availability, live streaming and PoC acceptance separately. See [host state](../memory/host-state.md).

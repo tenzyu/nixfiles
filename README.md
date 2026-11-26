@@ -1,8 +1,8 @@
 # nixfiles
 
-**One flake, three NixOS environments, explicit choices.** This is my personal, Nix-first configuration for a latency-sensitive Linux laptop, a WSL workstation and a remote Proxmox guest. It is a real infrastructure repository, not a one-command installer for somebody else's machine.
+This repository contains my personal Nix-first configuration for a latency-sensitive Linux laptop, a WSL workstation and a remote Proxmox guest. It is not a general-purpose installer.
 
-The aim is to make the important decisions visible where they belong: **hosts choose capabilities; features implement them using native NixOS and Home Manager options; integrations connect them only when needed.** A small typed configuration layer makes those choices discoverable in an editor without trading away NixOS's merge, priority or override semantics.
+Hosts select features. Features implement native NixOS and Home Manager options. Integrations define conditional interactions between features. The typed configuration layer provides editor completion and retains NixOS merge, priority and override semantics.
 
 ## Environments
 
@@ -14,16 +14,16 @@ The aim is to make the important decisions visible where they belong: **hosts ch
 
 These are **declarations**, not claims about currently running services. Minecraft is selected on neko7; SplitCast capture is disabled on neko5. Live state, secret provisioning and the booted NixOS generation require independent evidence. [Host boundaries](docs/memory/host-state.md).
 
-## What makes the configuration work
+## Configuration structure
 
-- **A legible host boundary.** Each `modules/00-hosts/<host>/configuration.nix` lists concrete system and user features. It does not hide them behind an opaque bundle.
-- **Native behavior, centralized wiring.** `flake-parts` and `import-tree` discover module registrations; the typed adapter maps host choices to the NixOS/Home Manager module systems. The modules still own the actual options.
-- **Capabilities stay independently owned.** `10-foundations` supplies shared policy, `50-features` supplies opt-in implementations, and `60-integrations` holds conditional cross-feature effects. `lib/` composes ordinary values without reinventing the module system.
-- **Reproducibility with operational boundaries.** `flake.lock` pins inputs; PR checks test semantics and evaluate configurations. Rebuilds, secret changes, data migrations and publication are separate operator decisions.
+- Each `modules/00-hosts/<host>/configuration.nix` lists concrete system and user features without an implicit bundle.
+- `flake-parts` and `import-tree` discover module registrations. The typed adapter maps host choices to the NixOS and Home Manager module systems. The modules define the options.
+- `10-foundations` contains shared policy. `50-features` contains opt-in implementations. `60-integrations` defines conditional cross-feature effects. `lib/` composes ordinary Nix values without replacing the module system.
+- `flake.lock` pins inputs. Pull request checks test semantics and evaluate configurations. Rebuilds, secret changes, data migrations and publication require separate operator decisions.
 
 [Architecture and decisions](docs/memory/index.md) · [Practical recipes](docs/cookbook/index.md)
 
-**HOME maintenance goal:** leave ordinary application state alone unless it causes a concrete problem. Use native NixOS/Home Manager/application options, on-demand inspection and recoverable changes rather than implementing a new global authority. The existing HOME migration engine remains on `main` until separately reviewed retirement; no host migration or permission change is implied by the [HOME maintenance ADR](docs/adr/0003-home-layout-reuse-first.md).
+Leave ordinary application state in HOME alone unless it causes a concrete problem. Use native NixOS/Home Manager/application options, on-demand inspection and recoverable changes rather than implementing a new global authority. The existing HOME migration engine remains on `main` until separately reviewed retirement; no host migration or permission change is implied by the [HOME maintenance ADR](docs/adr/0003-home-layout-reuse-first.md).
 
 ## Explore without activating anything
 
@@ -48,13 +48,13 @@ modules/
   40-workloads/          independent NixOS workload release definitions
   50-features/           independently selectable NixOS/Home Manager features
   60-integrations/       conditional cross-feature behavior
-lib/                      pure Nix composition primitives
+lib/                      pure Nix composition functions
 docs/cookbook/            inspection, change and recovery procedures for humans
 docs/memory/              current decisions, architecture and evidence boundaries
   archive/                immutable links to historical evidence
 ```
 
-Some support assets are written in Python, TypeScript or shell; **Nix-first does not mean 100% Nix source or immutable application data**. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
+Support assets also use Python, TypeScript and shell. Applications retain mutable data. This repository consumes [SplitCast](https://github.com/tenzyu/splitcast) through a pinned flake input; product implementation and acceptance belong upstream.
 
 ## Compute host operations
 
@@ -68,8 +68,8 @@ Start at the relevant [host declaration](modules/00-hosts/). Follow a selected c
 
 ## Documentation
 
-[Cookbook](docs/cookbook/index.md) is for operating this infrastructure. The [LLM Wiki](docs/memory/index.md) is a compact, source-linked map of why choices exist, what has been verified and where to look next. [MEMORY.md](MEMORY.md) is a small retrieval entrypoint, not a copy of either collection; [ROADMAP.md](ROADMAP.md) tracks unresolved acceptance.
+[Cookbook](docs/cookbook/index.md) is for operating this infrastructure. The [LLM Wiki](docs/memory/index.md) records design decisions, verification results and source references. [MEMORY.md](MEMORY.md) is a small retrieval entrypoint, not a copy of either collection; [ROADMAP.md](ROADMAP.md) tracks unresolved acceptance.
 
-The writing follows a few strong precedents in the Nix ecosystem—[mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), and [kclejeune/system](https://github.com/kclejeune/system)—without presenting this personal environment as a generic Nix starter.
+Documentation references include [mitchellh/nixos-config](https://github.com/mitchellh/nixos-config), [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config), [NobbZ/nixos-config](https://github.com/NobbZ/nixos-config), and [kclejeune/system](https://github.com/kclejeune/system). This repository documents a personal environment.
 
 Historical research and retired interfaces are indexed in [Archive](docs/archive/README.md), not active configuration or validation inputs.

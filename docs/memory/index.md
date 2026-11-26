@@ -8,4 +8,4 @@
 - [Evidence](evidence.md): evaluation, build, test and live evidence distinctions.
 - [Maintenance](dreaming.md): reconcile current source and decisions.
 
-[Cookbook](../cookbook/index.md) owns operating procedures; [Roadmap](../../ROADMAP.md) owns outstanding work. [Archive](../archive/README.md) holds immutable past evidence. There is no second feature registry or retrieval test harness.
+The [Cookbook](../cookbook/index.md) contains operating procedures. The [Roadmap](../../ROADMAP.md) lists outstanding work. The [Archive](../archive/README.md) links to immutable past evidence. There is no second feature registry or retrieval benchmark.

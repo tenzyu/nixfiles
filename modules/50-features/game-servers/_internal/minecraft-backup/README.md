@@ -12,7 +12,7 @@ quiescence unknown and the backup refuses without starting it.
 The host takes a nonblocking exclusive flock on the root-owned tmpfiles
 inode and keeps it through managed start, stop, restart, send, console,
 exec, and backup. Update still directs the operator to declarative
-deployment. Authorization happens before opening the lock. The fixed
+deployment. The operator checks authorization before opening the lock. The fixed
 `setpriv` invocation then drops to the configured game UID/GID and clears
 supplementary groups. The writer verifies the inherited descriptor before
 preflight. Guest admin payloads receive no lock descriptor. Their foreground
@@ -39,8 +39,8 @@ after an unknown outcome. Keep existing finals and the lock inode.
 A native systemd job may outlive every client during hard interruption or
 loss of the manager connection. The root-only `minecraft.lock.job`
 directory beside the host lock lives on the current boot's `/run` tmpfs.
-The operator creates it before dispatch and it keeps later managed
-mutations out when the waiter cannot confirm success. The waiter
+The operator creates it before dispatch. If the waiter cannot confirm success,
+the guard blocks later managed mutations. The waiter
 ignores terminal interruption signals and retains the flock while the
 native command runs. A hard kill or a lost reply can still leave just the
 guard. A nonzero native command reports the manager, verb and unit, and
@@ -112,8 +112,8 @@ For an unconfirmed archive, use the path printed as `Archive target` by
 `game backup minecraft`. Treat it as the candidate to inspect.
 Inspect the final and any retained stage under the archive account with
 `gzip -t -- "$candidate"` and `tar -tzf "$candidate"`. Look for the
-expected `survival/world/level.dat`. A readable archive helps recover data,
-but does not establish that publication or the directory flush completed.
+expected `survival/world/level.dat`. A readable archive helps recover data.
+It does not prove that publication or the directory flush completed.
 Leave the result unconfirmed until it has been reconciled separately.
 
 ## Why keep the guard
@@ -138,8 +138,8 @@ job can leave a unit transition in progress. Freezing stops scheduling the
 unit's processes, so it does not produce a clean application stop and is
 automatically undone before a unit job executes. A unit path condition
 is tested at start and `RefuseManualStart=` still allows activation by
-dependencies. A transient coordinator would still need to fence the other
-managed entry points and cross the host and guest manager boundary. The
+dependencies. A transient coordinator would still need to exclude concurrent managed operations
+and coordinate the host and guest managers. The
 fixed flock and the same-boot guard retain those admission semantics with
 the existing native lifecycle owners. [systemctl options](https://github.com/systemd/systemd/blob/v260.5/man/systemctl.xml#L2215-L2249),
 [blocking semantics](https://github.com/systemd/systemd/blob/v260.5/man/systemctl.xml#L2424-L2433),

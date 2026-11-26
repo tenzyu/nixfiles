@@ -15,8 +15,7 @@ sources:
 
 # Feature option ownership and upstream option lookup
 
-Scope: source declarations for `nixfiles` at `0daacae75f19dc2b01712c26471b42b2c6bc9ca3`, not observed
-host generations. **Source names and direct host selections remain stable.**
+This reference covers source declarations for `nixfiles` at `0daacae75f19dc2b01712c26471b42b2c6bc9ca3`. It does not describe observed host generations. **Source names and direct host selections remain stable.**
 
 ## Select the narrowest existing NixOS / Home Manager option
 
@@ -45,8 +44,8 @@ A feature file owns the matching `flake.modules.nixos.<feature>` and/or
 per file where feasible; NixOS vs HM are separate module systems, but may share
 the same feature name. A system account/group policy and a program's general
 configuration are distinct features when independently selectable. Use
-`lib.mkIf config.local.features.<name>.enable` to guard effects; avoid
-turning that guard into a new bespoke option system. Cross-feature
+`lib.mkIf config.local.features.<name>.enable` to guard effects. Do not
+introduce a separate option system for this guard. Cross-feature
 contributions belong in `60-integrations`.
 
 `otd-access` and `networkmanager-access` are **moved unchanged** to files
@@ -56,7 +55,7 @@ matching their feature names. The udev rule name/order and group membership are 
 
 The typed host seed accepts `null | false | true` for each feature. `null` emits no target definition; explicit `false` and `true` emit a regular-priority definition. This rule applies to NixOS, standalone Home Manager and embedded Home Manager. In embedded HM, the adapter also preserves other positive NixOS user-feature contributions without mistaking a default `false` for an explicit selection. The target NixOS/HM evaluator, not the adapter, resolves `mkDefault`, regular definitions, `mkForce` and conflicts.
 
-For example, `steam` contributes `gaming-core.enable = lib.mkDefault true` in both system and HM modules. It is a **soft default**: `gaming-core = null` allows that default, whereas explicit `false` defeats it at regular priority. A `mkDefault true` contribution alone does not establish a hard requirement. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
+For example, `steam` contributes `gaming-core.enable = lib.mkDefault true` in both system and HM modules. It is a soft default. `gaming-core = null` allows it. An explicit `false` takes precedence at regular priority. A `mkDefault true` contribution alone does not establish a hard requirement. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
 
 ## Validation and rollback
 
@@ -69,8 +68,7 @@ On the affected host after separate activation approval, inspect the generated
 A Git revert restores the original source layout and HM declaration.
 
 `hyprland-empty-xwayland` was also registered as a standalone feature but
-guarded by `hyprland-tenzyu.enable` instead of its own selection, making the
-feature toggle misleading. Its two existing XWayland rules are now a
+guarded by `hyprland-tenzyu.enable` instead of its own selection. Its own toggle did not control the feature. Its two existing XWayland rules are now a
 `60-integrations/desktop` contribution to `hyprland-tenzyu`, with no rule
 content changes. The former migration regression is archived; inspect the integration source and evaluated rules when changing this capability.
 
@@ -79,4 +77,4 @@ content changes. The former migration regression is archived; inspect the integr
 - Prefer `builtins.intersectAttrs` to pick **existing** names from an attrset without mapping/filtering an entire set with `builtins.elem`. Values are supplied by the second attrset.
 - Use `lib.genAttrs names (_: true)` with `builtins.hasAttr` for repeated name membership checks, where building one lazy lookup set is simpler than scanning and deduplicating a list per check.
 - `namedPipeline` and `namedDisjoint` from [composition](composition.md) label plain-value transforms and reject accidental shallow collisions; they are not substitutes for `lib.mkIf`, `mkMerge` or Home Manager option definitions.
-- Keep host `local.features.<name>.enable` assignments explicit: using a generator to hide declarations makes editor navigation and intent less clear. Avoid helpers that are aliases of native Nixpkgs functions without a distinct contract.
+- Keep host `local.features.<name>.enable` assignments explicit. Generating those declarations obscures the selected features and makes editor navigation harder. Avoid helpers that are aliases of native Nixpkgs functions without a distinct contract.

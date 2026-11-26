@@ -83,8 +83,8 @@ reencrypt for the next host key before removing the old one.
    `sops.templates` with placeholders and restrict the rendered file's
    owner and mode. Choose a format or encoding that the consumer parses
    safely.
-4. Use an `EnvironmentFile` only for env-only applications, accounting
-   for inheritance by child processes and for diagnostic output.
+4. Use an `EnvironmentFile` only for applications that require environment variables.
+   Account for inheritance by child processes and diagnostic output.
    [systemd.exec credential and environment options](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Credentials)
 
 Audit the receiving process too. Both ARK implementations embed
@@ -181,7 +181,7 @@ that credential. It accesses neko7's trusted Nix daemon. See the
 - Verify neko5 and neko7 resolve the local key file and do not import
   either SSH host key. Try a synthetic ciphertext for each recipient
   on both hosts. Only its intended host should decrypt it.
-- Native Tailscale should have exactly one auth ownership path: `services.tailscale.authKeyFile` and the generated `tailscaled-autoconnect`; never the old custom `tailscale-autoconnect`.
+- Native Tailscale must have exactly one auth ownership path through `services.tailscale.authKeyFile` and the generated `tailscaled-autoconnect`. Do not use the old custom `tailscale-autoconnect`.
 - Before any runtime switch, inspect existing node identities, boot activation behavior, network reachability, and secret permissions. Keep an offline rollback and previously working auth files.
 
-Upstream: [sops-nix](https://github.com/Mic92/sops-nix) and [NixOS Tailscale module](https://github.com/NixOS/nixpkgs/blob/nixos-26.05/nixos/modules/services/networking/tailscale.nix).
+Upstream documentation includes [sops-nix](https://github.com/Mic92/sops-nix) and [NixOS Tailscale module](https://github.com/NixOS/nixpkgs/blob/nixos-26.05/nixos/modules/services/networking/tailscale.nix).

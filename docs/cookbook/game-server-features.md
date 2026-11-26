@@ -3,15 +3,15 @@
 The host now chooses `game-ark = false`, `game-rust = false`, `game-minecraft = true`, and `game-server-tools = true` independently under `local.features`. Only the Minecraft container is declared for neko7, and the canonical layout selects its `/srv/minecraft` data root. The existing `configurations.nixos.neko7.module` / `local.features.<name>.enable` declaration API remains unchanged.
 
 - The selected game module owns the storage layout (world data at `/srv/minecraft`, service HOME under `/var/lib/game-containers/minecraft`). The 2026-11-18 [cutover record](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/cookbook/game-server-srv-migration.md) reports a completed copy, player login, and generation 68 boot entry; it does not prove current uptime.
-- `game-server-tools` only installs the `game` CLI, independent of server deployment. When targeting a disabled game, CLI commands cannot start a non-existent container; selection is explicit.
-- The host itself owns `networking.nat.externalInterface = "ens18"`; each selected game module contributes its own veth entry to `networking.nat.internalInterfaces`.
+- `game-server-tools` only installs the `game` CLI, independent of server deployment. CLI commands cannot start a nonexistent container for a disabled game.
+- The host defines `networking.nat.externalInterface = "ens18"`; each selected game module contributes its own veth entry to `networking.nat.internalInterfaces`.
 - ARK and Rust remain available as optional feature modules but are not instantiated for neko7; no `neko7-ark` or `neko7-rust` container, game service, or associated veth NAT interface should appear in the evaluated configuration.
 - Per-container user IDs, IPs, file paths, port lists, `autoStart`, Tailscale identity and the Minecraft `services.minecraft-servers` integration are preserved for each feature when selected. Disabling ARK/Rust does **not** remove any existing host data directories or old container state from disk.
 - `game-ark` and `game-rust` each declare their Steam unfree policy instead of relying on the shared bundle flag. 
 - Before enabling a previously disabled game, inventory any earlier data paths; do **not** run the historical first-cutover copy on an already populated `/srv/minecraft`.
 - Source-only evaluation does not prove that an existing container restarts safely or that backups and game updates are transactional. Those operations still require separate validation.
 
-The selected Minecraft workload is now built as `.#neko7-minecraft-system` and deployed via the native per-container Nix profile. The machine name, data, identities and backup commands remain unchanged. Seed the incumbent before switching; see [existing workload migration](compute-workload-migration.md).
+The selected Minecraft workload is now built as `.#neko7-minecraft-system` and deployed via the native per-container Nix profile. The machine name, data, identities and backup commands remain unchanged. Seed the incumbent before switching. See [existing workload migration](compute-workload-migration.md).
 
 ## Backups and recovery
 

@@ -1,6 +1,6 @@
 # Validation
 
-Nix owns the test dependency graph. The same `checks.x86_64-linux` derivations are built by local operators and GitHub Actions. There is no path-to-test selector or secondary test CLI.
+Nix resolves test dependencies. The same `checks.x86_64-linux` derivations are built by local operators and GitHub Actions. There is no path-to-test selector or secondary test CLI.
 
 | Evidence | Native command |
 | --- | --- |
@@ -12,7 +12,7 @@ Nix owns the test dependency graph. The same `checks.x86_64-linux` derivations a
 | Home migration recovery (disposable machine) | `nix build -L --no-link .#checks.x86_64-linux.home-migration` |
 | Compute integration | See [compute host](compute-host.md) and `checks.x86_64-linux` |
 
-Nix derivation dependencies and substitution replace hand-maintained source diff dispatch; ordinary checks may take longer on a cold runner. Never interpret a substituted test result as a fresh hardware measurement. NixOS machine tests use the native `runNixOSTest` framework. Use `nix flake check` on a compatible test host when all declared checks (including expensive VM tests) are intended. Evaluation is not a system build, boot or activation.
+Nix derivation dependencies and substitution replace source-diff-based test selection. Ordinary checks may take longer on a cold runner. Never interpret a substituted test result as a fresh hardware measurement. NixOS machine tests use the native `runNixOSTest` framework. Use `nix flake check` on a compatible test host when all declared checks (including expensive VM tests) are intended. Evaluation is not a system build, boot or activation.
 
 On-demand GitHub Actions `cache_strict=true` runs the signed SplitCast cache copy audit; it verifies the pinned outputs and closure in an isolated store, not the live neko7 daemon. The source-owned substituter and signing key are scoped to the enabled consumer role. No external cache availability probe is an ordinary PR gate; `checks.x86_64-linux.splitcast-cache-cli` checks syntax, help and rejection of invalid arguments offline.
 

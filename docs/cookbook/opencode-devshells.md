@@ -33,9 +33,9 @@ Direnv finds the nearest `.envrc` from the invocation's working directory. The p
 
 ## Cache and garbage collection
 
-`nix develop -c` reconstructs the development shell for each command. Nix does not download every package on every invocation: an unchanged environment already in the store is reused. Repeated copy messages require another cause, such as a changed store path or garbage collection. A cold run and an immediate repeat on neko7 confirmed downloads on the first run and none on the repeat.
+`nix develop -c` reconstructs the development shell for each command. Nix reuses an unchanged environment already in the store rather than downloading every package on each invocation. Repeated copy messages require another cause, such as a changed store path or garbage collection. A cold run and an immediate repeat on neko7 confirmed downloads on the first run and none on the repeat.
 
-Nix-direnv caches the output of `nix print-dev-env --profile` under `.direnv/`. It registers GC roots for the environment and flake inputs. Subsequent exports load the cached shell environment instead of entering `nix develop` again. The plugin deliberately does not cache JSON exports, so it preserves direnv's file watching, environment-dependent exports, and approval revocation.
+Nix-direnv caches the output of `nix print-dev-env --profile` under `.direnv/`. It registers GC roots for the environment and flake inputs. Subsequent exports load the cached shell environment instead of entering `nix develop` again. The plugin does not cache JSON exports. This preserves direnv's file watching, environment-dependent exports and approval revocation.
 
 Tenzyudotcom's `.envrc` watches `nix/*.nix` in addition to nix-direnv's automatic watches for `.envrc`, `flake.nix`, and `flake.lock`. It disables fallback to a previously working devShell, so a broken flake cannot silently select old tools. It also prohibits automatic lock-file writes.
 
@@ -57,7 +57,7 @@ Review `.envrc` before running `direnv allow` in its directory. Do not configure
 
 After Home Manager activation, OpenCode discovers `~/.config/opencode/plugins/direnv.ts` globally. Config reload does not require a server restart. Check `/api/plugin` for `nixfiles.direnv` at the target location.
 
-Run commands normally with the shell tool's `workdir` set to the repository or a subdirectory. This also works for other repositories with approved `.envrc` files. Named shells remain explicit: use `nix develop .#browser-verification -c ...` when a task needs a different shell from the repository's default.
+Run commands normally with the shell tool's `workdir` set to the repository or a subdirectory. This also works for other repositories with approved `.envrc` files. Select named shells explicitly. Use `nix develop .#browser-verification -c ...` when a task needs a different shell from the repository's default.
 
 ## Limits
 

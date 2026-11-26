@@ -22,11 +22,11 @@ The neko7 Home Manager feature `t3code-neko7` enables a dedicated
 updated.
 
 This is a *new* server with its own T3 state, not a migration of existing
-OpenCode sessions. Do not run T3's own `t3 service install` for this server:
-the declarative unit already owns it. The old OpenCode service and
+OpenCode sessions. Do not run T3's own `t3 service install` for this server.
+The declarative unit already manages it. The old OpenCode service and
 `opencode-direnv` feature are not modified.
 
-## Preconditions — before activating
+## Preconditions for activation
 
 - On a first installation, check port 3773. On an existing installation, identify its owner:
   `ss -lntp | grep ':3773' || true`
@@ -50,7 +50,7 @@ codex --version
 
 A valid `codex --version` only verifies the binary. To authenticate, use
 `codex login` as the normal `tenzyu` user (never root); T3 can use the
-existing CLI login via **Settings → Providers → Codex → Configure manually**.
+existing CLI login via Settings, then Providers, Codex and Configure manually.
 For headless login, use the login method supported by the installed Codex CLI.
 Do not copy credentials into Nix sources or journal logs.
 
@@ -128,7 +128,7 @@ the base source and the unwanted start. The implementation and Wiki receipt
 are separate commits. Hosted evidence is available in the
 [SplitCast CI run](https://github.com/tenzyu/splitcast/actions/runs/44189922745).
 
-On neko7 around 07:17–07:28 JST, `t3code-neko7.service` (user) and
+On neko7 between approximately 07:17 and 07:28 JST, `t3code-neko7.service` (user) and
 `tailscaled.service` were active, `ss` showed the loopback listener, and a GET
 returned HTTP 200. The existing Serve endpoint also returned 200 locally and
 from neko5 with certificate verification (result 0). The initial batch SSH
@@ -139,7 +139,7 @@ the system profile pointed to generation 59. The actual T3/Codex session ran
 the development cycle. An interactive paired-browser reconnect and physical
 playback remain untested.
 
-The new restore unit was evaluated and built. Its generated script reported
+The review evaluated and built the new restore unit. Its generated script reported
 the existing route matched with a read-only CLI substitute forwarding live
 status requests. Fixture cases exercised missing, matching, conflicting,
 foreground and Funnel routes. The unit itself has not been activated or

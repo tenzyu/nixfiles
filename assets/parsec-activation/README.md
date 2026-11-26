@@ -21,7 +21,7 @@ The same source identifies the neko5 Dynabook touchpad as `HID Controller #14`
 (`06CB/83D7`) and describes a constantly active fake gamepad. It uses an
 all-unmapped row for that one ID and separately sets SDL environment variables
 in the XWayland launcher to limit false controller detection. Parsec documents
-per-controller mapping and unmapping in Settings → Gamepad. The on-disk
+per-controller mapping and unmapping in the Gamepad section of Settings. The on-disk
 `_00` row and the effect of the SDL flags on this device come from repository
 history. Current behavior on neko5 and the effect on real controllers remain
 unverified here.
@@ -31,7 +31,7 @@ unverified here.
 · [Parsec stuck inputs guidance](https://support.parsec.app/hc/en-us/articles/32361336267412-Parsec-Constantly-Pressing-or-Scrolling-Up-Down)
 
 The original module records an `EROFS` error when a Home Manager store
-symlink served as `config.txt`. Parsec documents that, since `150-89`, it
+symlink was used for `config.txt`. Parsec documents that, since `150-89`, it
 imports legacy assignments into `~/.parsec/config.json` on restart and clears
 the imported settings from `config.txt`. The committed Linux package version
 is `150_104a`. Parsec documents editing `config.json` directly with settings
@@ -62,7 +62,7 @@ compares contents and modes and reports read errors.
    when a mapping is absent or different. Other settings and actual file
    values stay out of the output.
 2. Review client settings in Parsec. For gamepad behavior, select the affected
-   controller in Settings → Gamepad and check raw input and per-button
+   controller in the Gamepad section of Settings and check raw input and per-button
    mappings. For a separate file edit, first make and verify an independent
    backup and establish control of every writer. Reconcile only the desired
    keys or the declared controller row, and preserve every unrelated mapping

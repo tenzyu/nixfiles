@@ -16,18 +16,18 @@ real capability explicitly without changing its authoring interface:
 configurations.nixos.neko7.module.local.features.qemu-guest-profile.enable = true;
 ```
 
-The redundant `qemu-guest-agent` and `proxmox-guest` feature
-registrations are removed; the remaining profile is unchanged.
+The refactor removes the redundant `qemu-guest-agent` and `proxmox-guest` feature
+registrations and retains the existing profile.
 This reduces an implicit dependency path and removes a double definition.
 Do not change `system.stateVersion`, guest network, containers, or
 host activation as part of this refactor.
 
-**Acceptance**: the native `checks.x86_64-linux.framework` and all three NixOS
+For acceptance, the native `checks.x86_64-linux.framework` and all three NixOS
 `system.build.toplevel.drvPath` evaluations pass; Nix test asserts
 `qemu-guest-profile` is selected **only** on neko7, native
 `services.qemuGuest.enable` remains true, and all expected Virtio
 initrd modules are preserved. Runtime guest-agent handshake to the
 Proxmox hypervisor and a boot check require separate approval.
 
-**Rollback**: Git revert to restore the two aliases and the prior
+To roll back, revert the Git commit to restore the two aliases and the prior
 declarative values. Never treat a green CI as a completed VM reboot.

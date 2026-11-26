@@ -26,4 +26,4 @@ sources:
 
 Keep the failed run's identity after a later fix. A source-selected `sops-nix` provider does not prove an age key or decrypted secret; a past Minecraft login does not prove current service health; an accepted PR does not grant runtime access.
 
-For a correction: identify earlier claim and source IDs, new contradiction, what it supersedes, remaining uncertainty and the exact proof for the new scope. Never mark `verified: human:...` for an agent-authored result. [Decisions](decisions.md) gives operational boundaries; [Dreaming](dreaming.md) gives the update flow.
+When correcting a claim, identify the earlier claim and source IDs, the contradictory evidence, what it supersedes, remaining uncertainty and the exact evidence for the new scope. Never mark `verified: human:...` for an agent-authored result. [Decisions](decisions.md) gives operational boundaries; [Dreaming](dreaming.md) gives the update flow.

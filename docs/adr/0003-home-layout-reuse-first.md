@@ -1,11 +1,11 @@
-# ADR-0003 — Make HOME unremarkable: native-first, repairable state
+# ADR-0003. Native HOME settings and recoverable state
 
 - **Status:** Accepted **maintenance direction** (2026-11-23); implementation cleanup is **not yet accepted**.
 - **Scope:** Future HOME/layout work on neko5 and neko7. This ADR changes the product goal, **not** the currently deployed state or the safety guarantees of existing migration code.
 - **Provenance:** The reuse-first survey was selectively carried over from [archived PR #78](https://github.com/tenzyu/nixfiles/pull/78). The stricter HOME Authority v1.1 problem statement and the failed admission evidence remain historical research in [PR #79](https://github.com/tenzyu/nixfiles/pull/79). They are not a mandate to implement physical-HOME enforcement.
 - **Objective:** The user should **not have to think about HOME** during ordinary use. Minimize recurring operator intervention, novel mechanisms, surprises after upgrades, and unrecoverable loss; do not maximize purity of directory names.
 
-## Decision: stop pursuing these guarantees in the everyday configuration
+## Requirements removed from everyday HOME maintenance
 
 | Abandon as a HOME-maintenance requirement | Why / accepted consequence |
 | --- | --- |
@@ -39,9 +39,9 @@ Reuse-first references carried over from #78: [Home Manager dotfiles](https://ni
 3. **Human-controlled exception and recovery:** For a necessary one-time move, identify the incumbent, active writers, both source and target, backup/restore evidence, and rollback path. Stop and report conflicts, rather than reconciling or deleting them automatically. Prefer an upstream/app-native import/export before filesystem-level moves.
 4. **Maintenance budget:** For HOME cleanliness alone, introduce **zero new permanent services, wrappers, private format parsers or activation-time migrations**. If a future concrete problem requires custom code, document the failing native workflow, owning layer, exit conditions and removal strategy in a separate ADR/PR.
 
-A tolerable legacy entry is cheaper than a universal process-interposition system. Maintain **data safety, reproducible declarations and recovery**, not universal pathname purity.
+Allow harmless legacy entries rather than implementing universal process interposition. Preserve data safety, reproducible declarations and recovery.
 
-## Transitional reality on main — do not silently remove safeguards
+## Existing safeguards on main
 
 As of this decision, `main` **still includes** the accepted `home-migration` / `home-layout` mechanism, its pre-switch admission logic, journal and Python runner; see [ADR-0002](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md), [rollout runbook](../cookbook/home-migration-rollout.md), and [Home migration README](../../assets/home-layout/README.md). That existing mechanism and its historical tests are real source, not evidence of successful host deployment. This ADR **does not disable, simplify, replace, or certify it**.
 
@@ -55,7 +55,7 @@ Its eventual retirement is a distinct, reviewed implementation change, not part 
 
 | Future change | Pass | Reject / pause |
 | --- | --- | --- |
-| Native option or app-path adjustment | Evaluation matches the intended host, no unrequested side effects, and affected application confirms read → write → restart against its intended data | Surprise credential/session loss, a competing populated root, unsupported option, or unseen active writer |
+| Native option or app-path adjustment | Evaluation matches the intended host, no unrequested side effects, and affected application confirms read, write and restart against its intended data | Surprise credential/session loss, a competing populated root, unsupported option, or unseen active writer |
 | Home Manager / NixOS generation change | Focused checks pass; the affected two-generation switch/rollback is tested in a disposable VM when behavior changes; independently verify real-host runtime **before** claiming it works | Tests skipped/errored, or rollback would strand mutable data |
 | Backup and migration | Actual recoverable backup and restored sample; source/target inspected; writer exclusion and a specific rollback plan | Collision, incomplete inventory, unproven restore, cross-filesystem surprise or unknown live writer |
 | Cleanliness audit | Read-only, on demand, actionable diagnosis; no impact on normal launches | Blocking logins, new always-on reconciler, auto-deleting dotpaths or forcing sandbox wrappers |

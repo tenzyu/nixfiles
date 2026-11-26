@@ -9,13 +9,13 @@ The host generation owns hardware, networking, native isolation mechanisms and s
 | Minecraft | Existing native nspawn machine, independently built NixOS system profile | Existing /srv/minecraft, host service account, Tailscale state and lifecycle lock |
 | T3 Code | Single native user systemd control plane, independently built T3/Codex runtime profile | Existing HOME, projects, provider auth, database, same 3773 and Serve 8445 |
 | SplitCast production | Native manual user unit and TOML produced by the original upstream module, deployed together in an independent profile | Existing HOME credentials, peer settings and host GPU/audio; Rust parity gate remains false |
-| Nix builder / SSH / Tailscale / Incus / rootless Docker / NVIDIA | Host or native user substrate | Existing daemon state, key restrictions and hardware |
+| Nix builder / SSH / Tailscale / Incus / rootless Docker / NVIDIA | Host or native user services | Existing daemon state, key restrictions and hardware |
 | llama-cpp CUDA | Installed CLI, not a declared daemon | No service migration or invented daemon |
 | ARK / Rust / OpenCode candidate | Disabled in source | No implicit activation; inspect unmanaged live units separately |
 
-Incus remains the dynamic instance manager for new container/VM jobs and services. There is no project-specific execution adapter. Do not move existing Minecraft into Incus just to standardize the runtime name: the nspawn boundary already exists, has a production backup contract and separate data ownership. The migration separates its software release from the host generation. Moving T3 into a guest would make the host control plane depend on Incus and require a new management ingress. This is deliberately not done. No new application or public listener is enabled.
+Incus remains the dynamic instance manager for new container/VM jobs and services. There is no project-specific execution adapter. Do not move existing Minecraft into Incus just to standardize the runtime name. Its existing nspawn machine has a production backup contract and separate data ownership. The migration separates its software release from the host generation. Moving T3 into a guest would make the host control plane depend on Incus and require a new management ingress. Keep T3 on the host. No new application or public listener is enabled.
 
-## First cutover — operator approved only
+## First cutover with operator approval
 
 Before activation, inventory all live system and user units, `machinectl list`, `incus list --all-projects` if installed, rootless Docker, Serve state, and the current Minecraft guest/profile. This source migration cannot attest to undeclared manually started services. Record active unit PIDs, existing profiles, routes, application version and current system generation. Do not print credentials or raw Tailnet inventory externally.
 
@@ -91,7 +91,7 @@ nixos-container run neko7-mc -- readlink -e /run/current-system
 SH
 ```
 
-On failed acceptance, reacquire the same exclusive lifecycle lock (including guard and job-state checks), stop the machine, use `sudo nix-env --profile "$profile" --rollback`, restart and verify. Software rollback is not world-data rollback: a newer Minecraft version may migrate saves irreversibly; restore an independently verified backup only with explicit approval.
+On failed acceptance, reacquire the same exclusive lifecycle lock (including guard and job-state checks), stop the machine, use `sudo nix-env --profile "$profile" --rollback`, restart and verify. Software rollback does not revert world data. A newer Minecraft version may migrate saves irreversibly. Restore an independently verified backup only with explicit approval.
 
 T3: use an independent SSH session, stop the same user unit, advance its profile, then start that same unit. Roll back the profile and restart if the new server fails acceptance. A newer T3 database schema may require its own application backup/recovery; no automatic state downgrade.
 
@@ -109,4 +109,4 @@ Native profile updates are performed by the operator, not automatically by arbit
 
 ## Evidence
 
-The CI workflow evaluates the actual host and all three artifact derivations, checks that their derivations are not referenced by the host generation, builds each artifact in an independent job, and tests native nspawn profile v1 → v2 → v1 with persistent state, host-generation identity and an unrelated service PID unchanged. It does not replay live credentials, prove production data/schema rollback, or attest to hardware/media performance. The real deployment gate is the approved first cutover above.
+The CI workflow evaluates the actual host and all three artifact derivations, checks that their derivations are not referenced by the host generation, builds each artifact in an independent job, and tests a native nspawn profile upgrade from v1 to v2 and rollback to v1 with persistent state, host-generation identity and an unrelated service PID unchanged. It does not replay live credentials, prove production data/schema rollback, or attest to hardware/media performance. The real deployment gate is the approved first cutover above.

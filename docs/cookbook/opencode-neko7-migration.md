@@ -19,7 +19,7 @@ sources:
 
 ## 移行前に確認する
 
-1. 既存接続を終了できる停止時間と、切り戻し担当者を決めます。現在のセッションは切断されます。
+1. 既存接続を終了できる停止時間と、切り戻し担当者を決めます。移行時に既存セッションが切断されます。
 2. 現行 unit ファイルと有効化状態を、秘密値を含めて公開しない安全な場所にバックアップします。環境ファイルは表示せず、別途安全にバックアップします。
 3. 稼働中の実行ファイルと候補のバージョンとストアパスを確認します。候補は実行中の 2.2.1 と同じ nixpkgs revision を `nixpkgs-opencode` input に固定します。feature の assertion は別バージョンを拒否します。将来バージョンを変更する場合は、データ互換性を検証し、承認を受けたうえで assertion を見直します。
 4. 現行と候補の `WorkingDirectory`、`EnvironmentFile`、待受アドレス、PATH、必要なコマンドを比較します。候補は `nix develop` を実行しません。PATH の先頭は引き続きユーザープロファイルなので、エージェントが呼ぶコマンドはそのプロファイルに依存します。`EnvironmentFile` に PATH があれば systemd はそちらを優先します。秘密値を出力せずに確認してください。
@@ -47,4 +47,4 @@ sources:
 
 ## Wiki context
 
-The candidate user service is **not enabled** in neko7's host declaration. The documented version is a package assertion, not a fresh runtime inventory. See [host state](../memory/host-state.md) and [roadmap](../../ROADMAP.md).
+The candidate user service is **not enabled** in neko7's host declaration. The documented version comes from the package assertion. The current running version requires a separate check. See [host state](../memory/host-state.md) and [roadmap](../../ROADMAP.md).

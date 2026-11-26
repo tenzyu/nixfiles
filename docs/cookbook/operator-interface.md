@@ -18,7 +18,7 @@ language is required. Direct native commands remain available.
 
 Select any evaluated system or Home Manager feature across configured hosts,
 users and standalone configurations. Rows show effective state, not live
-activation. The native projection is also machine-readable:
+activation. To read the evaluated feature data as JSON, run:
 
 ~~~sh
 nix eval --json .#operator.features
@@ -43,7 +43,7 @@ metadata; rg offers line candidates in those files, not a fabricated exact
 AST location. If no matching line exists, the editor opens the actual file
 at line 1. Cancel safely at any selector. The vi-compatible editor is
 NIXFILES_EDITOR, VISUAL, EDITOR, or nvim (single executable, no shell eval).
-The browser never edits store or external paths. Use nix-inspect for full
+The feature browser never edits store or external paths. Use nix-inspect for full
 native value exploration and nixd for language-server navigation.
 
 ## Nix store
@@ -75,12 +75,12 @@ introduced. Incus inventory retains the existing explicit privilege boundary.
 Feature inventory and source identity are the Nixfiles supporting subdomain
 (lib/operator/feature-inventory.nix); GC admission is the local operator
 policy (lib/operator/store-policy.sh). UI adapters under tools/operator
-compose native commands, not duplicate their algorithms. There is no
+compose native commands without duplicating their algorithms. There is no
 compatibility wrapper for the retired Framework CLI. Add a recipe instead
 of a new parser when a native command already covers a use case. Prefer a
 packaged upstream UI when it satisfies the same safety contract.
 NH's ordinary cleanup also manages generations/roots; this interface
-intentionally does not delegate generation deletion to it.
+does not delegate generation deletion to it.
 
 Validation:
 ~~~sh

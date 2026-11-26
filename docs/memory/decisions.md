@@ -23,17 +23,17 @@ sources:
 
 # Decisions and acceptance
 
-## D0 — HOME maintenance direction (2026-11-23)
+## D0. HOME maintenance direction (2026-11-23)
 
 [ADR-0003](../adr/0003-home-layout-reuse-first.md) accepts **"HOME should require no daily attention"** as the future maintenance goal. Do not pursue physical-HOME-wide immutability, mandatory removal of every legacy dotpath, a global path-authority mechanism or automatic migration merely for tidy directory names. Prefer NixOS, Home Manager, XDG and app-native options; inspect drift on demand and retain explicit, recoverable one-off changes only when needed.
 
-**This is not an implementation rollback of D2.** The existing #65/#70 `home-migration` pre-switch admission, retained incumbent, journaling and recovery contracts still govern any use of that code on `main`. Retirement must be tested and authorized separately. [#78](https://github.com/tenzyu/nixfiles/pull/78) and [#79](https://github.com/tenzyu/nixfiles/pull/79) are archived investigations, **not** production behavior or a pending enforcement plan.
+D2's implementation remains in place. The existing #65/#70 `home-migration` pre-switch admission, retained incumbent, journaling and recovery contracts still govern any use of that code on `main`. Retirement must be tested and authorized separately. [#78](https://github.com/tenzyu/nixfiles/pull/78) and [#79](https://github.com/tenzyu/nixfiles/pull/79) are archived investigations, **not** production behavior or a pending enforcement plan.
 
-## D1 — Code wins over stale documentation
+## D1. Source takes precedence over stale documentation
 
-Nix module implementation and exact host configuration supersede old README assertions. However, source inspection, Nix evaluation, build, activation, boot, and runtime behavior are different evidence tiers. A registered module does not mean the host enabled it; an enabled service is not proof of current runtime.
+Nix module implementation and exact host configuration supersede old README assertions. However, source inspection, Nix evaluation, build, activation, boot, and runtime behavior are different evidence tiers. A registered module does not mean the host enabled it. An enabled service does not prove that it currently runs.
 
-## D2 — Data and rollback safety
+## D2. Data and rollback safety
 
 Use the ordinary app entry point to verify the incumbent route before changing it. The accepted Home policy holds the verified legacy route by group until data and references are ready for cutover. In the landed #65 implementation, Home Manager checks protected writes before its write boundary and NixOS checks the realized generation before switching. The intended holding behavior is to permit unrelated safe changes while the group stays on the legacy route. The prior VM verified incumbent-route protection and whole-group retirement recovery. The replacement also preflights the whole group when resuming ordinary apply or rollback. Switch admission leaves route-free account creation to NixOS and checks affected incumbent accounts before removing a route or account. Refuse while affected data remains or an affected HOME is unavailable. The 2026-11-20 R4 inspection failed group-resume capacity at `2ecf45d`. The capacity repair checks aggregate bytes by destination mount for copies needing a stage before any action advances, with a second check before staging each copy. R4's 2026-11-20 scoped capacity recheck passed at Home `e5b62b4` on `25a70b3`, using source inspection and the maintained direct and native VM fixture results. Treat app route, activation writes and data transfer as separate checks. Actual neko5 app and data acceptance is **NOT RUN**. [Landed Home source and evidence](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md#home-migration) · [Home runbook](../../assets/home-layout/README.md).
 
@@ -45,31 +45,31 @@ When both roots contain user data, preserve both and hold the group while author
 
 Nix owns store liveness and GC. Inspect the native roots and system generation links; no custom cleanup command or routine generation pruning. Explicit approval remains necessary for destructive maintenance. [Store maintenance](../cookbook/nix-store-clean.md).
 
-## D3 — One persistent service writer
+## D3. One persistent service writer
 
 The OpenCode Home Manager service is a *candidate*, not active host configuration. Never start it concurrently with a manually managed server using the same database, even on separate ports. Migration requires compatible version, offline data backup and approved switch. See [migration playbook](../cookbook/opencode-neko7-migration.md).
 
-## D4 — Repository ownership boundaries
+## D4. Repository ownership boundaries
 
-SplitCast source, package tests and PoC acceptance belong to its independent repository; nixfiles only pins and integrates its flake. Pinning a cache or enabling a role does not prove a particular binary is now running. See [consumer](../cookbook/splitcast-consumer.md).
+The independent SplitCast repository owns its source, package tests and PoC acceptance. nixfiles pins and integrates its flake. Pinning a cache or enabling a role does not prove a particular binary is now running. See [consumer](../cookbook/splitcast-consumer.md).
 
-## D5 — Measurement scope
+## D5. Measurement scope
 
 Protect the current native Jay Direct Scanout and scoped audio policy. Prior Hyprland and osu-lab measurements are [historical](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/scripts/osu-performance/README-lab.md); compositor counters do not measure event-to-photon or audio-onset latency. Require matched physical observations to claim an improvement.
 
-## D6 — Native semantics over a private configuration language
+## D6. Native Nix semantics
 
-The host remains an explicit list of `local.features` and `local.users.*.features`. The adapter exists to preserve typed editor completion and project host selections into native NixOS/Home Manager modules. Prefer Nix builtins and nixpkgs `lib` where semantics match. Named composition functions distinguish **ordered values**, **disjoint fields**, and **deliberate shallow replacement**; do not generalize them into another `mkMerge` or hide priority/provenance. [ADR-0001](../adr/0001-canonical-feature-semantics.md) specifies the canonical `null | false | true` contract: an unspecified selection produces no target definition, while an explicit boolean is resolved by native NixOS/Home Manager precedence.
+The host remains an explicit list of `local.features` and `local.users.*.features`. The adapter exists to preserve typed editor completion and project host selections into native NixOS/Home Manager modules. Prefer Nix builtins and nixpkgs `lib` where semantics match. Named composition functions distinguish **ordered values**, **disjoint fields**, and **deliberate shallow replacement**; do not generalize them into another `mkMerge` or hide priority/provenance. [ADR-0001](../adr/0001-canonical-feature-semantics.md) specifies the canonical `null | false | true` contract. An unspecified selection produces no target definition. Native NixOS or Home Manager precedence resolves an explicit boolean.
 
-## D7 — Persistent service data needs independent migration acceptance
+## D7. Independent acceptance for persistent service data migration
 
 For neko7, the individual Minecraft feature declares Minecraft data under `/srv/minecraft`, with Tailscale node identity under the persistent service HOME. The [runbook](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/cookbook/game-server-srv-migration.md) contains a 2026-11-18 record of a completed cutover, including generation 68 and a player login. It is **historical**, not proof that today's runtime is healthy. Re-running the initial copy into an existing target is prohibited; backing up and rolling back NixOS does not reverse game-world writes.
 
-## D8 — A secrets provider is not a provisioned secret
+## D8. Secret provisioning evidence
 
 Both neko5 and neko7 select `sops-nix`. An age key, encrypted manifest, permission boundary, successful decryption and service reload are **separate** operational facts. Do not assert them from the host feature flag. Preserve `tailscaled` state across reconfiguration; avoid accidental node re-enrollment or token exposure. See [secrets](../cookbook/secrets-and-tailscale.md).
 
-## D9 — App-owned settings and uncertain service outcomes
+## D9. App-owned settings and uncertain service outcomes
 
 Parsec owns its saved settings and controller mappings. The #64 implementation seeds missing files independently and skips an incumbent without opening it. The review command inspects saved values and modes. A legacy entry suppresses JSON seeding when observed before publication. Where legacy import precedence matters, seed with Parsec stopped. A saved-value match does not establish effective client behavior. [Landed Parsec source](https://github.com/tenzyu/nixfiles/blob/050bd373eaa20e65134b33d79888d77c784a9371/docs/adr/0002-invariant-safety.md#parsec) · [Parsec runbook](../../assets/parsec-activation/README.md).
 

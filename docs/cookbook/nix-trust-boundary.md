@@ -10,15 +10,14 @@ substituter and key are projected only by enabled capture/production
 roles from `modules/50-features/media/_internal/cache.nix`.
 Do not re-enable global auto-accept to repair a cache miss.
 
-The `nix-access` feature intentionally grants the enabled human account
+The `nix-access` feature grants the enabled human account
 Nix daemon `trusted-users` privileges. This is *not* a sandbox or an
 unprivileged build role; granting the feature is a security decision.
 
 The `nix-remote-builder` feature keeps `nixbuilder` trusted because
 `ssh-ng` distributed builds use the remote Nix daemon. Its declared
 `neko5-nixbuilder.pub` SSH key has OpenSSH `restrict` and a forced
-`nix-daemon --stdio` command: no general SSH shell, PTY or forwarding via
-that key. **This does not make the Nix daemon RPC itself unprivileged.**
+`nix-daemon --stdio` command. That key allows no general SSH shell, PTY or forwarding. **This does not make the Nix daemon RPC itself unprivileged.**
 Other pre-existing authorized keys or alternate account access are not
 audited merely by this source declaration.
 
