@@ -1,0 +1,27 @@
+name: Semantic Unslop pinned source inventory
+on:
+  push:
+    branches: [verify/semantic-unslop-source-audit]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          persist-credentials: false
+      - name: Archive exact tracked source
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git archive --format=tar.gz --output="$RUNNER_TEMP/evidence/source.tar.gz" HEAD
+          git rev-parse HEAD > "$RUNNER_TEMP/evidence/revision"
+          git ls-tree -r HEAD > "$RUNNER_TEMP/evidence/tree.txt"
+          sha256sum "$RUNNER_TEMP/evidence/source.tar.gz" > "$RUNNER_TEMP/evidence/source.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semantic-unslop-pinned-source
+          path: ${{ runner.temp }}/evidence/
+          retention-days: 1
