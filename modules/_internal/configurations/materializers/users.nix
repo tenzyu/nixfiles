@@ -10,15 +10,9 @@
   }: let
     users = usersLib.enabledUsers config.local.users;
 
+    inherit (import ../../../../lib/features.nix {inherit lib;}) enabledFeatureNames;
     enabledUserFeatureNames = lib.unique (
-      lib.concatMap
-      (
-        user:
-          lib.attrNames (
-            lib.filterAttrs (_name: feature: feature.enable or false) user.features
-          )
-      )
-      (lib.attrValues users)
+      lib.concatMap (user: enabledFeatureNames user.features) (lib.attrValues users)
     );
 
     names = lib.filter (name: builtins.hasAttr name nixosModules) enabledUserFeatureNames;
