@@ -17,7 +17,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v5
         with:
-          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          ref: 3dba4bb31cca1e52e0bdc8aece16dfb82ceccf9e
           path: candidate
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
@@ -96,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          ref: 3dba4bb31cca1e52e0bdc8aece16dfb82ceccf9e
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
@@ -109,7 +109,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: a9c37ccc87f1488c50bd7cfaec2e20f0b518b561
+          ref: 3dba4bb31cca1e52e0bdc8aece16dfb82ceccf9e
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
