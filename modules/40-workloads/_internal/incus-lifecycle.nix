@@ -1,4 +1,4 @@
-{inputs, self, system, name, image, candidate, guestMemory, stateProbe}: let
+{inputs, self, system, name, image, candidate, guestMemory, stateProbe, injectActivationFailure}: let
   pkgs = inputs.nixpkgs.legacyPackages.${system};
 in pkgs.testers.runNixOSTest {
   name = "incus-workload-${name}";
@@ -29,10 +29,10 @@ in pkgs.testers.runNixOSTest {
       image = toString image;
       candidate = toString candidate;
       runtimeShell = pkgs.runtimeShell;
-      justfile = toString ../../../justfile;
-      ops = toString ../../../tools/instance-ops.sh;
+      justfile = "${../../../justfile}";
+      ops = "${../../../tools/instance-ops.sh}";
       inherit (stateProbe) seed verify;
-      injectActivationFailure = name == "syncthing";
+      inherit injectActivationFailure;
     })})
   '' + builtins.readFile ./incus-lifecycle.py;
 }

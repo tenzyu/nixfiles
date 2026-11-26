@@ -14,12 +14,20 @@ neko7.wait_for_unit("register-nix-paths.service")
 neko7.wait_for_unit("incus-preseed.service")
 neko7.succeed(f"test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp {justfile_source} /root/fixture/justfile; cp {ops_source} /root/fixture/tools/instance-ops.sh")
 recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
+
+
 def exec_prefix(name):
     return "incus exec local:" + name + " --project default --mode=non-interactive --cwd / --env PATH=/run/wrappers/bin:/run/current-system/sw/bin -- "
+
+
 def guest(name, command):
     return exec_prefix(name) + "/run/current-system/sw/bin/bash -ec " + shlex.quote(command) + " </dev/null"
+
+
 def run(name, command):
     return neko7.succeed(guest(name, command)).strip()
+
+
 def diagnose(name):
     # Test Driver uses errexit: independent probes preserve evidence
     # even if one CLI command or the agent is unresponsive.
@@ -44,14 +52,18 @@ def diagnose(name):
     ]:
         status, output = neko7.execute("timeout -k 5s 30s bash -c " + shlex.quote(command) + " 2>&1", timeout=40)
         print(f"diagnostic: {command} (exit {status})\n{output}")
+
+
 def ready(name):
     try:
         neko7.wait_until_succeeds("timeout -k 5s 30s " + exec_prefix(name) + "/etc/neko7/readiness </dev/null", timeout=900)
     except Exception:
         diagnose(name)
         raise
+
+
 def new_instance(name):
-    status, output = neko7.execute(recipe + f"_new-image {workload} " + name + f" 16GiB 2 {guest_memory} {image} 2>&1", timeout=1200)
+    status, output = neko7.execute(recipe + shlex.join(["_new-image", workload, name, "16GiB", "2", guest_memory, image]) + " 2>&1", timeout=1200)
     if status != 0:
         print(output)
         diagnose(name)
@@ -79,7 +91,7 @@ neko7.wait_until_succeeds("flock -n /run/lock/neko7-instances/original.lock true
 neko7.succeed("mkdir -m 0700 /root/collision")
 neko7.fail(recipe + "backup original /root/collision")
 ready("original")
-neko7.fail(recipe + f"_update-system original /root/wrong-id {workload} wrong-uuid {candidate}")
+neko7.fail(recipe + shlex.join(["_update-system", "original", "/root/wrong-id", workload, "wrong-uuid", candidate]))
 neko7.succeed("test ! -e /root/wrong-id")
 # Separate instance identity without copying state, one running VM at a time.
 neko7.succeed("incus stop local:original --project default")
@@ -95,19 +107,19 @@ if spec["injectActivationFailure"]:
     # activation boundary after the real profile mutation has completed.
     neko7.succeed("mkdir -p /root/fault-bin")
     neko7.succeed(f"cat >/root/fault-bin/sudo <<'EOF'\n#!{runtime_shell}\nfor arg in \"$@\"; do\n  case \"$arg\" in */bin/switch-to-configuration) touch /root/fault-activation-reached; exit 77;; esac\ndone\nexec /run/wrappers/bin/sudo \"$@\"\nEOF\nchmod 0700 /root/fault-bin/sudo")
-    neko7.fail(f"cd /root/fixture && PATH=/root/fault-bin:$PATH NEKO7_READINESS_TIMEOUT=900 just _update-system original /root/interrupted {workload} " + uuid + f" {candidate}")
+    neko7.fail("cd /root/fixture && PATH=/root/fault-bin:$PATH NEKO7_READINESS_TIMEOUT=900 just " + shlex.join(["_update-system", "original", "/root/interrupted", workload, uuid, candidate]))
     neko7.succeed("test -f /root/fault-activation-reached")
     neko7.succeed("cd /root/interrupted && sha256sum -c SHA256SUMS")
-    assert run("original", "readlink -e /nix/var/nix/profiles/system") == f"{candidate}"
+    assert run("original", "readlink -e /nix/var/nix/profiles/system") == candidate
     assert run("original", "readlink -e /run/current-system") == original_generation
     assert run("original", spec["verify"]) == original_state
     # No activation ran; the fixture may safely reset only the release
     # pointer. This is not a general schema rollback procedure.
     run("original", "nix-env -p /nix/var/nix/profiles/system --set " + original_generation)
     ready("original")
-neko7.succeed(recipe + f"_update-system original /root/before-update {workload} " + uuid + f" {candidate}")
+neko7.succeed(recipe + shlex.join(["_update-system", "original", "/root/before-update", workload, uuid, candidate]))
 assert run("original", "cat /etc/neko7/fixture-release") == "candidate"
-assert run("original", "readlink -e /run/current-system") == f"{candidate}"
+assert run("original", "readlink -e /run/current-system") == candidate
 assert run("original", spec["verify"]) == original_state
 neko7.succeed("cd /root/before-update && sha256sum -c SHA256SUMS && jq -e --arg uuid " + shlex.quote(uuid) + " '.name == \"original\" and .uuid == $uuid' identity.json")
 neko7.succeed(recipe + "backup original /root/after-update")

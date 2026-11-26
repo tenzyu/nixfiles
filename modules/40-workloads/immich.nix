@@ -26,19 +26,9 @@
   };
 in {
   perSystem = {system, lib, ...}: let
-    releases = import ./_internal/incus-image.nix {
-      inherit nixpkgs system module;
+    workload = import ./_internal/incus-workload.nix {
+      inherit inputs self nixpkgs system module;
       name = "immich";
-    };
-    candidate = (import ./_internal/incus-image.nix {
-      inherit nixpkgs system module;
-      name = "immich";
-      extraModules = [{environment.etc."neko7/fixture-release".text = "candidate";}];
-    }).neko7-immich-system;
-    lifecycle = import ./_internal/incus-lifecycle.nix {
-      inherit inputs self system candidate;
-      name = "immich";
-      image = releases.neko7-immich-image;
       guestMemory = "4GiB";
       stateProbe = {
         seed = "runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d immich -c 'CREATE TABLE fixture_acceptance (value integer); INSERT INTO fixture_acceptance VALUES (82);'; echo preserved > /var/lib/immich/fixture-data";
@@ -46,8 +36,8 @@ in {
       };
     };
   in lib.mkIf (system == "x86_64-linux") {
-    packages = releases;
-    checks.incus-workload-immich = lifecycle;
+    inherit (workload) packages;
+    checks.incus-workload-immich = workload.lifecycle;
     checks.personal-workload-immich = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {

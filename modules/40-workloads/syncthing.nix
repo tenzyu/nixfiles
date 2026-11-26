@@ -31,19 +31,10 @@
   };
 in {
   perSystem = {system, lib, ...}: let
-    releases = import ./_internal/incus-image.nix {
-      inherit nixpkgs system module;
+    workload = import ./_internal/incus-workload.nix {
+      inherit inputs self nixpkgs system module;
       name = "syncthing";
-    };
-    candidate = (import ./_internal/incus-image.nix {
-      inherit nixpkgs system module;
-      name = "syncthing";
-      extraModules = [{environment.etc."neko7/fixture-release".text = "candidate";}];
-    }).neko7-syncthing-system;
-    lifecycle = import ./_internal/incus-lifecycle.nix {
-      inherit inputs self system candidate;
-      name = "syncthing";
-      image = releases.neko7-syncthing-image;
+      injectActivationFailure = true;
       guestMemory = "2GiB";
       stateProbe = {
         seed = "mkdir -p /var/lib/syncthing/fixture; echo preserved > /var/lib/syncthing/fixture/data";
@@ -51,8 +42,8 @@ in {
       };
     };
   in lib.mkIf (system == "x86_64-linux") {
-    packages = releases;
-    checks.incus-workload-syncthing = lifecycle;
+    inherit (workload) packages;
+    checks.incus-workload-syncthing = workload.lifecycle;
     checks.personal-workload-syncthing = let
       pkgs = nixpkgs.legacyPackages.${system};
     in pkgs.testers.runNixOSTest {
