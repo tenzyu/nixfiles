@@ -13,7 +13,7 @@ in {
   };
 
   testTagNixosModuleAddsFileAndImports = {
-    expr = modulesLib.tagNixosModule "alpha" {config.foo = "bar";};
+    expr = modulesLib.tagModule "nixos" "alpha" {config.foo = "bar";};
     expected = {
       _file = "flake.modules.nixos.alpha";
       imports = [{config.foo = "bar";}];
@@ -21,7 +21,7 @@ in {
   };
 
   testTagHomeModuleAddsFileAndImports = {
-    expr = modulesLib.tagHomeModule "beta" {config.foo = "baz";};
+    expr = modulesLib.tagModule "homeManager" "beta" {config.foo = "baz";};
     expected = {
       _file = "flake.modules.homeManager.beta";
       imports = [{config.foo = "baz";}];
