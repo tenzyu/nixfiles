@@ -7,9 +7,6 @@
       mkdir -p tools
       cp ${../../tools/instance-ops.sh} tools/instance-ops.sh
       bash -n tools/instance-ops.sh
-      chmod u+w justfile
-      # In the Nix build sandbox /usr/bin/env need not exist.
-      substituteInPlace justfile --replace-fail '#!/usr/bin/env bash' '#!${pkgs.runtimeShell}'
       just --list > commands
       for cmd in images instances status new update backup lab lab-vm lab-stop; do
         grep -E "^[[:space:]]+$cmd([[:space:]]|$)" commands
