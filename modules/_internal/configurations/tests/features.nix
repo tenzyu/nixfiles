@@ -1,12 +1,15 @@
 {lib}: let
   featuresLib = import ../lib/features.nix {inherit lib;};
 in {
-  testEnabledFeaturesReturnsOnlyEnabled = {
-    expr = featuresLib.enabledFeatures {
-      alpha = {enable = true;};
-      beta = {enable = false;};
-      gamma = {};
-    };
+  testEmbeddedHomeProjectsNativeEnabledFeatures = {
+    expr = let
+      evaluated = lib.evalModules {
+        modules = [
+          {options.features = featuresLib.actualFeatureOptions ["alpha" "beta" "gamma"];}
+          {config.features = {alpha.enable = true; beta.enable = false;};}
+        ];
+      };
+    in featuresLib.embeddedHomeFeatures {} evaluated.config.features;
     expected = {
       alpha = {enable = true;};
     };
