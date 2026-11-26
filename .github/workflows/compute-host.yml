@@ -10,6 +10,7 @@ on:
       - 'modules/50-features/monitoring/**'
       - 'modules/50-features/networking/preview-gateway.nix'
       - 'modules/50-features/development/execution-discovery.nix'
+      - 'modules/50-features/development/_internal/execution-discovery.sh'
       - 'modules/50-features/development/_internal/execution.md'
       - 'modules/10-foundations/_internal/multi-machine-lab-test.nix'
       - 'modules/10-foundations/_internal/platform-services-test.nix'
