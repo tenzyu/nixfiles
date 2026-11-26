@@ -6,12 +6,7 @@
     ...
   }: let
     jay = pkgs.unstable.jay;
-    startJay = pkgs.writeShellScriptBin "start-jay" ''
-      set -eu
-      if [ "$(id -u)" = 0 ] || [ ! -t 0 ] || [ -n "''${SSH_CONNECTION:-}" ] || [ -n "''${WAYLAND_DISPLAY:-}" ] || [ -n "''${DISPLAY:-}" ]; then
-        echo "Start Jay as a normal user from a local text VT." >&2
-        exit 1
-      fi
+    startJay = pkgs.writeShellScriptBin "start-jay" ((import ../../../lib/local-vt-guard.nix) "Jay" + ''
       export XDG_CURRENT_DESKTOP=jay
       export XDG_SESSION_DESKTOP=jay
       export XDG_SESSION_TYPE=wayland
@@ -25,7 +20,7 @@
       export XCURSOR_PATH=${pkgs.adwaita-icon-theme}/share/icons:/run/current-system/sw/share/icons
       ${lib.optionalString (config.i18n.inputMethod.enable && config.i18n.inputMethod.type == "fcitx5") "export QT_IM_MODULE=fcitx"}
       exec ${lib.getExe jay} run
-    '';
+    '');
     portalActivation = pkgs.writeTextFile {
       name = "jay-portal-dbus-activation";
       destination = "/share/dbus-1/services/org.freedesktop.impl.portal.desktop.jay.service";
