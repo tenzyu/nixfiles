@@ -11,16 +11,16 @@ probe() {
 lab_authenticated=false
 drivers=""
 if command -v incus >/dev/null 2>&1; then
-  server=$(timeout 5s incus query 'lab:/1.0?project=lab' 2>/dev/null || true)
-  if jq -e '.auth == "trusted" and .environment.project == "lab" and .environment.server_clustered == false' >/dev/null 2>&1 <<<"$server" && [ -n "$server" ] && timeout 5s incus list lab: --format=json >/dev/null 2>&1; then
+  if server=$(timeout 5s incus query 'lab:/1.0?project=lab' 2>/dev/null) &&
+    jq -e '.auth == "trusted" and .environment.project == "lab" and .environment.server_clustered == false' >/dev/null 2>&1 <<<"$server" && [ -n "$server" ] && timeout 5s incus list lab: --format=json >/dev/null 2>&1; then
     lab_authenticated=true
     drivers=$(jq -r '.environment.driver // ""' <<<"$server")
   fi
 fi
 rootless=false
 if command -v docker >/dev/null 2>&1; then
-  opts=$(timeout 5s docker info --format '{{json .SecurityOptions}}' 2>/dev/null || true)
-  if [ -n "$opts" ] && jq -e 'any(.[]; contains("name=rootless"))' >/dev/null 2>&1 <<<"$opts"; then
+  if opts=$(timeout 5s docker info --format '{{json .SecurityOptions}}' 2>/dev/null) &&
+    jq -e 'type == "array" and any(.[]; type == "string" and (split(",") | index("name=rootless") != null))' >/dev/null 2>&1 <<<"$opts"; then
     rootless=true
   fi
 fi

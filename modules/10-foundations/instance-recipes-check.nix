@@ -9,6 +9,7 @@
       cp ${../../tools/vm-resources.sh} tools/vm-resources.sh
       bash -n tools/instance-ops.sh
       bash -n tools/vm-resources.sh
+      bash ${../50-features/development/_internal/execution-discovery-test.sh} ${../50-features/development/_internal/execution-discovery.sh}
       # Native resource response shapes, without contacting a runtime.
       bash -euo pipefail -c '
         source tools/vm-resources.sh
