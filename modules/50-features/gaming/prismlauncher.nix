@@ -3,13 +3,7 @@
     "prismlauncher"
   ];
 
-  flake.modules.nixos.prismlauncher = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.prismlauncher.enable {};
-  };
+  flake.modules.nixos.prismlauncher = {};
 
   flake.modules.homeManager.prismlauncher = {
     config,

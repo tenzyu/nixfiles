@@ -3,13 +3,7 @@
     "parsec-bin"
   ];
 
-  flake.modules.nixos.parsec = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.parsec.enable {};
-  };
+  flake.modules.nixos.parsec = {};
 
   flake.modules.homeManager.parsec = {
     config,

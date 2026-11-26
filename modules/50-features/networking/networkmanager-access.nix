@@ -12,11 +12,5 @@
       });
   };
 
-  flake.modules.homeManager.networkmanager-access = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.networkmanager-access.enable {};
-  };
+  flake.modules.homeManager.networkmanager-access = {};
 }

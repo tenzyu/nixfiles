@@ -12,11 +12,5 @@
       });
   };
 
-  flake.modules.homeManager.docker-user-access = {
-    config,
-    lib,
-    ...
-  }: {
-    config = lib.mkIf config.local.features.docker-user-access.enable {};
-  };
+  flake.modules.homeManager.docker-user-access = {};
 }
