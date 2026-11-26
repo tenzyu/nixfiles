@@ -7,10 +7,7 @@
       shared = import (shared + "/tests.nix") {inherit lib;};
       features = import (root + "/tests/features.nix") {inherit lib;};
       users = import (root + "/tests/users.nix") {inherit lib;};
-      policies = import (root + "/tests/policies.nix") {
-        inherit lib;
-        policyLib = import ./_policy/lib.nix;
-      };
+      policies = import (root + "/tests/policies.nix") {inherit lib;};
       seed = import (root + "/tests/seed.nix") {
         inherit lib;
         composition = import (shared + "/composition.nix") {inherit lib;};
