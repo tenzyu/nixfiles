@@ -9,26 +9,25 @@ sources:
   - {id: acceptance, resource: "https://github.com/tenzyu/splitcast/pull/12"}
 ---
 
-# T3 Code and Codex on neko7
+# Run and recover T3 Code and Codex on neko7
 
 ## Ownership and scope
 
-For the current independent runtime deployment and first cutover, follow [existing workload migration](compute-workload-migration.md). The earlier observations below are historical, not proof of profile activation.
+For the independent runtime deployment and first cutover, follow the [workload migration procedure](compute-workload-migration.md). The earlier observations below are historical, not proof of profile activation.
 
 The neko7 Home Manager feature `t3code-neko7` enables a dedicated
 `t3code-neko7.service` user unit (loopback 127.0.0.1:3773) and exposes the T3 CLI through its independent native Nix runtime profile. The existing `codex` feature installs the Codex CLI from the
 `llm-agents.nix` revision pinned by `flake.lock`. T3 comes from the
-`nixpkgs-unstable` input pinned by the same lockfile. No Flake inputs are
-updated.
+`nixpkgs-unstable` input pinned by the same lockfile. The configuration does not update flake inputs.
 
 This is a *new* server with its own T3 state, not a migration of existing
-OpenCode sessions. Do not run T3's own `t3 service install` for this server:
-the declarative unit already owns it. The old OpenCode service and
+OpenCode sessions. Do not run T3's own `t3 service install` for this server.
+The declarative unit already manages it. The old OpenCode service and
 `opencode-direnv` feature are not modified.
 
-## Preconditions — before activating
+## Preconditions for activation
 
-- On a first installation, check port 3773. On an existing installation, identify its owner:
+- If you install T3 for the first time, check that port 3773 is free. Otherwise, identify the process that owns the port:
   `ss -lntp | grep ':3773' || true`
 - Confirm Codex and T3 are available from the pinned lock:
   `nix eval --raw .#nixosConfigurations.neko7.pkgs.unstable.t3code.version`
@@ -50,7 +49,7 @@ codex --version
 
 A valid `codex --version` only verifies the binary. To authenticate, use
 `codex login` as the normal `tenzyu` user (never root); T3 can use the
-existing CLI login via **Settings → Providers → Codex → Configure manually**.
+existing CLI login via Settings, then Providers, Codex and Configure manually.
 For headless login, use the login method supported by the installed Codex CLI.
 Do not copy credentials into Nix sources or journal logs.
 
@@ -62,25 +61,13 @@ Tailscale persists node routes. The NixOS oneshot has no boot target. Restoring
 one missing route uses the native CLI and preserves the other Serve ports.
 T3 client pairing and provider approvals remain separate.
 
-**Why this route uses the node CLI.** The pinned NixOS option
-`services.tailscale.serve` exists. In a test evaluation,
-`services.tailscale.serve.services.t3code.endpoints."tcp:8445"` generated
-a `svc:t3code` entry and a unit running `tailscale serve set-config --all`.
-The `configFile` option feeds the same command. Tailscale 1.104.5 applies
-named Services with that command and ignores legacy node-level TCP/Web fields.
-On neko7, `tailscale serve get-config --all` returned zero named Services,
-while `tailscale serve status --json` showed the working node-level 8445
-proxy. Moving clients to a named Service would require a separately approved
-endpoint migration. [Pinned NixOS module](https://github.com/NixOS/nixpkgs/blob/f68407657ad294471eb4b2e65d193df26edf729f/nixos/modules/services/networking/tailscale-serve.nix)
-· [Tailscale CLI implementation](https://github.com/tailscale/tailscale/blob/v1.104.5/cmd/tailscale/cli/serve_v2.go#L825-L918).
+See [why the T3 route uses the Tailscale node CLI](t3code-serve-design.md).
 
-For a read-only check, run `tailscale serve status --json` locally and compare
-8445 with the feature. Keep the raw inventory private. From the intended
+To check the route without changing it, run `tailscale serve status --json` locally. Compare port 8445 with the feature declaration. Keep the raw inventory private. From the intended
 tailnet client, GET the node's HTTPS root on 8445 with TLS verification enabled.
 
 If a restore is needed after approved activation, confirm the intended client
-ACLs, certificate, target and other route owners. Save a private pre-change
-Serve snapshot. With a single writer during the restore window, use
+ACLs, certificate, target and other route owners. Save a private copy of the Serve configuration before you change it. With a single writer during the restore window, use
 `sudo systemctl start t3code-tailnet.service` **only with route-change approval**.
 Matching state exits successfully. A conflicting or Funnel-enabled endpoint
 fails for inspection. Review the before/after snapshots and repeat the client GET.
@@ -98,8 +85,7 @@ nixfiles root.
    shell use `direnv exec . <command>` from that worktree. Record the base SHA,
    focused command and failing observation under the repository's ignored
    `artifacts/` directory when available.
-3. Apply the smallest repair. Count attempts **per failure** in the worktree
-   receipt or PR description. Record the last observation and next command
+3. Apply the smallest repair. Count attempts for each failure in the worktree record or PR description. Record the last observation and next command
    before switching contexts. After three unsuccessful repairs, retain the
    failure and stop that path. Use an independent observable at the normal
    entry point, including a positive control.
@@ -116,34 +102,9 @@ nixfiles root.
 
 ### Executed cycle, 2026-11-18 JST
 
-[SplitCast PR #12](https://github.com/tenzyu/splitcast/pull/12) contains the
-offline CLI replay. From base `98605fb`, reversing WAV data and format chunks
-started the inert player once. The Python decoder rejected that file. One
-repair, `08449bc`, rejected it before spawning. A valid padded ancillary chunk
-still delivered all 160 PCM bytes to the player. The ordinary verifier passed
-11/11 stages. A fresh clone recovered PR head
-`764b47a0cabf202d5c176ca6c0a139ad65eb69f1` and replayed both cases from the
-published instructions. Reverting the repair in that disposable clone restored
-the base source and the unwanted start. The implementation and Wiki receipt
-are separate commits. Hosted evidence is available in the
-[SplitCast CI run](https://github.com/tenzyu/splitcast/actions/runs/44189922745).
+See the [2026-11-18 T3 Code verification record](t3code-2026-11-18.md).
 
-On neko7 around 07:17–07:28 JST, `t3code-neko7.service` (user) and
-`tailscaled.service` were active, `ss` showed the loopback listener, and a GET
-returned HTTP 200. The existing Serve endpoint also returned 200 locally and
-from neko5 with certificate verification (result 0). The initial batch SSH
-probe lacked the configured identity and was denied; the existing read-only
-connection with the configured identity succeeded. `/run/current-system`
-resolved to generation 58 (`ncxbc6vilxl9z7hpqaab27l1sggiw2qc` store hash);
-the system profile pointed to generation 59. The actual T3/Codex session ran
-the development cycle. An interactive paired-browser reconnect and physical
-playback remain untested.
-
-The new restore unit was evaluated and built. Its generated script reported
-the existing route matched with a read-only CLI substitute forwarding live
-status requests. Fixture cases exercised missing, matching, conflicting,
-foreground and Funnel routes. The unit itself has not been activated or
-started on the host.
+### Troubleshoot provider probes
 
 If a Codex sign-in or provider probe fails, inspect the local provider status
 before modifying authentication state. If `Codex app-server` probes time out
@@ -160,9 +121,8 @@ approved restore added a previously absent route, compare the saved snapshot
 and obtain approval before removing just its root with
 `tailscale serve --https=8445 off`. Leave every other route in place.
 
-For a separate rollback of the T3 application itself, disable `t3code-neko7` and `codex.enable` in
-`modules/00-hosts/neko7/configuration.nix`, then rebuild and activate the
-prior configuration with approval. Alternatively stop only this unit
+To roll back the T3 application, disable `t3code-neko7` and `codex.enable` in
+`modules/00-hosts/neko7/configuration.nix`. Obtain approval before you rebuild and activate the prior configuration. Alternatively stop only this unit
 temporarily:
 
 ```sh

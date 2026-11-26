@@ -1,32 +1,29 @@
 # Service layout and account helpers
 
-`lib/service-layout.nix` defines **pure data contracts**. It does not
+`lib/service-layout.nix` defines pure Nix data contracts. It does not
 invent a second option-merging framework and does not wrap `lib.mkIf`,
 `lib.mkMerge` or native service modules.
 
-`mkGameDirectories` derives a consistent game-specific directory layout
-from a service HOME, while supporting an independent `gameDir` for
-`/srv` migrations. It validates name components and absolute paths before
+`mkGameDirectories` derives the game directory layout from a service HOME.
+It accepts an independent `gameDir` for `/srv` migrations. It validates name components and absolute paths before
 rendering tmpfiles and bind mount sources. It does **not** inspect the
 runtime filesystem or claim that a directory has been provisioned.
 
-`mkStaticServiceAccount` is used for identical host/container UID/GID
-declarations. NixOS containers have to agree on ownership for writable
+Use `mkStaticServiceAccount` to declare identical host and container UID/GID values. NixOS containers have to agree on ownership for writable
 bind mounts. **Do not enable private-user remapping without a separate
 UID mapping test.**
 
-The API remains available to internal modules via a normal Nix import. Public
+Internal modules access the API through a normal Nix import. Public
 `flake.lib.helpers`, host `configuration.nix`, and native NixOS
 options stay unchanged.
 
 ## Edge cases
 
-- Refuse relative roots, traversal, `/nix/store` and non-component game keys.
-- Paths are still subject to symlinks and mount boundaries at runtime:
-  validate using `realpath`, `findmnt`, UID/GID, and permissions *before*
+- The helpers reject relative roots, traversal, `/nix/store`, and game keys that are not single path components.
+- Symlinks and mount boundaries affect paths at runtime.
+  Validate using `realpath`, `findmnt`, UID/GID, and permissions *before*
   copying data or switching services.
-- Two services must not be assigned the same data root without an explicit
-  sharing contract.
+- Two services must not share a data root unless an explicit agreement defines how they share it.
 - Never change a running service's UID or ownership recursively during
   activation.
 

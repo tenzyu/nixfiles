@@ -35,7 +35,7 @@ sources:
 
 ## Entry and registry
 
-`flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. The `_internal` directory is excluded by import-tree and contains no separate Flake. `modules/50-features/<domain>/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
+`flake.nix` explicitly imports `modules/_internal/configurations/default.nix` and `import-tree ./modules` into flake-parts. `import-tree` excludes the `_internal` directory. The directory contains no separate flake. `modules/50-features/<domain>/*.nix` registers `flake.modules.nixos.<name>`, `flake.modules.homeManager.<name>`, optional `flake.local.featurePolicies.<name>`, and checks. Hosts in `modules/00-hosts/` contribute `configurations.nixos.<host>.module`.
 
 ```text
 import-tree -> flake-parts -> flake.modules registrations
@@ -53,7 +53,7 @@ The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users`
 ## Projection rules
 
 - `local.features.<name>.enable` selects a system feature. `local.users.<user>.features.<name>.enable` selects a user feature.
-- The seed drops nullable `null` definitions and forwards explicit `false` / `true` into NixOS and standalone Home Manager at regular priority. The typed host seed's user selection is retained separately from the evaluated NixOS user feature value. Embedded Home Manager emits a definition when the host selection is non-null **or** the native NixOS user feature is effectively true. The emitted value is the native-effective bool. Native-effective false with no host selection emits nothing, leaving HM defaults in control.
+- The seed drops nullable `null` definitions and forwards explicit `false` / `true` into NixOS and standalone Home Manager at regular priority. The adapter retains the typed host seed's user selection separately from the evaluated NixOS user feature value. Embedded Home Manager emits a definition when the host selection is non-null **or** the native NixOS user feature is effectively true. The emitted value is the native-effective bool. When the effective NixOS user feature is `false` and the host does not select it, the adapter emits no definition. Home Manager defaults then determine the value.
 - `local.context.systemStateVersion` accepts the host's verified initial NixOS compatibility version. The adapter projects it as a regular `system.stateVersion` definition. It wins over native `mkDefault`, conflicts with a different regular definition, and yields to native `mkForce`. Leaving it unset uses the Nixpkgs definition.
 - For enabled users, `local.users.<user>.context` supplies the account home directory, wheel membership, and Home Manager's `local.user` fields. It also supplies the defaults for `home.homeDirectory` and `home.stateVersion`. Embedded Home Manager uses `useGlobalPkgs = true` and `useUserPackages = true` and loads the registered Home Manager modules through `sharedModules`.
 - The Home Manager `nh` feature installs `nh` and sets its `NH_OS_FLAKE` session variable when `local.context.flakePath` is set.
@@ -61,17 +61,17 @@ The typed `attrsOf` / `submodule` entries expose `local.features`, `local.users`
 
 Priorities on typed seed fields resolve against other seed definitions before projection. For example, a seed `mkForce` can win inside the seed, then a target `mkForce` can override the compacted value. Freeform target options and a literal `imports` list can pass through the seed. Target imports and registered feature modules evaluate against the native target `config`; a function evaluated as a seed sees the seed's `config`.
 
-The NixOS state compatibility version controls defaults for persistent state. Nixpkgs selection controls OS upgrades. Home Manager uses each user's independent `homeStateVersion`. [NixOS option reference](https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion)
+NixOS uses `system.stateVersion` to select defaults for persistent state. The Nixpkgs revision determines OS upgrades. Home Manager uses each user's independent `homeStateVersion`. [NixOS option reference](https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion)
 
 The host feature lists include `tmux.enable = false`, and neko5 also sets `zed-editor.enable = false`. The Firefox module supplies the default web associations. The neko6 Zsh module configures interactive Zsh in Home Manager while its WSL login shell is Bash.
 
 ## Selection vs. effective feature state
 
-There are three distinct levels: typed host `null | false | true` (authoring decision), NixOS `local.users.<name>.features` effective `bool`, and Home Manager `local.features` effective `bool`. The two module systems merge independently. A host explicit `false` defeats an HM `mkDefault true`, while host `null` allows that soft default. NixOS user-level `mkForce` can change the value emitted into HM, but does not transport its priority wrapper into HM. Existing external positive user-feature contributions continue to project into HM. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
+Feature selection has three distinct levels: the typed host `null | false | true` authoring decision, the NixOS `local.users.<name>.features` effective `bool`, and the Home Manager `local.features` effective `bool`. The two module systems merge independently. A host explicit `false` defeats an HM `mkDefault true`, while host `null` allows that soft default. NixOS user-level `mkForce` can change the value emitted into HM, but does not transport its priority wrapper into HM. Existing external positive user-feature contributions continue to project into HM. See [ADR-0001](../adr/0001-canonical-feature-semantics.md).
 
 ## Cross-scope feature invariant
 
-A feature selected through `local.users.<user>.features` implies the same-named NixOS feature via `mkDefault true` when a NixOS counterpart exists. The system asserts that the implied feature is enabled. For example, neko5 selects Steam in the user feature list and the adapter enables its NixOS module, which sets `programs.steam.enable`. For Zsh, the NixOS feature also assigns Zsh as the login shell to users who select it through that path.
+A feature selected through `local.users.<user>.features` implies the same-named NixOS feature via `mkDefault true` when a NixOS counterpart exists. The NixOS module asserts that the implied feature is enabled. For example, neko5 selects Steam in the user feature list and the adapter enables its NixOS module, which sets `programs.steam.enable`. For Zsh, the NixOS feature also assigns Zsh as the login shell to users who select it through that path.
 
 ## Package policy
 
@@ -85,13 +85,13 @@ Value transformations (`lib.pipe`), overlay fixed points (`lib.composeManyExtens
 
 ## Verification interfaces
 
-`nix build -L --no-link .#checks.x86_64-linux.framework` runs native Nix tests of typed options, projection, priority, direct imports, user policy and standalone Home Manager. Host-policy checks separately cover actual NixOS configurations. Live nixd completion and activation require separate evidence.
+`nix build -L --no-link .#checks.x86_64-linux.framework` runs native Nix tests of typed options, projection, priority, direct imports, user policy and standalone Home Manager. Host-policy checks separately cover actual NixOS configurations. Verify live nixd completion and activation separately.
 
 See [host inventory](host-state.md), [decisions](decisions.md), and [roadmap](../../ROADMAP.md).
 
 ## Feature source layout
 
-Feature modules remain under the numbered `50-features/` tree, grouped by domain. The directory name is an ownership and navigation aid; configuration semantics come from their explicit `flake.modules.*` declarations, not directory ordering. The `50-features/bundles/` category holds the shared defaults and package collections. Conditional multi-feature contributions belong under `60-integrations/`, using the existing feature aspect rather than a separate activation switch.
+Feature modules remain under the numbered `50-features/` tree, grouped by domain. Directory names identify ownership and help locate modules. The explicit `flake.modules.*` declarations determine configuration semantics, independent of directory ordering. The `50-features/bundles/` category holds the shared defaults and package collections. Conditional multi-feature contributions belong under `60-integrations/`, using the existing feature aspect rather than a separate activation switch.
 
 Use `nix eval`/`nix repl` for evaluated values and native `options.<path>.definitionsWithLocations` for surviving definitions; use `rg` for source navigation. See [inspection](../cookbook/inspect.md).
 
