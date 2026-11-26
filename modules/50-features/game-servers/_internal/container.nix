@@ -26,9 +26,7 @@
 
   serviceLayout = import ../../../../lib/service-layout.nix {inherit lib;};
 
-  mkHostUser = _name: spec: serviceLayout.mkStaticServiceAccount pkgs spec;
-
-  mkHostTmpfiles = _name: spec: let
+  mkHostTmpfiles = spec: let
     d = serviceLayout.mkGameDirectories spec;
   in [
     "d ${d.home} 0750 ${spec.user} ${spec.user} - -"
@@ -47,7 +45,7 @@
   mkContainerUserModule = spec: {pkgs, ...}:
     serviceLayout.mkStaticServiceAccount pkgs spec;
 
-  mkTailscaleNodeModule = import ./tailscale.nix {inherit lib pkgs;};
+  mkTailscaleNodeModule = import ./tailscale.nix;
 
   mkBaseContainerModule = spec: args:
     mkMerge [
@@ -56,7 +54,7 @@
 
         systemd.tmpfiles.rules =
           lib.optionals (spec.key != "minecraft")
-          (mkHostTmpfiles spec.key spec);
+          (mkHostTmpfiles spec);
       }
 
       (mkSteamUnfreePolicy spec args)
@@ -134,9 +132,9 @@ in {
 
     config = mkMerge [
       (mkIf enabled (mkMerge [
-        (mkHostUser spec.key spec)
+        (serviceLayout.mkStaticServiceAccount pkgs spec)
         {
-          systemd.tmpfiles.rules = mkHostTmpfiles spec.key spec;
+          systemd.tmpfiles.rules = mkHostTmpfiles spec;
           networking.nat.internalInterfaces = ["ve-${spec.containerName}"];
         }
         (mkContainer spec gameModule)
