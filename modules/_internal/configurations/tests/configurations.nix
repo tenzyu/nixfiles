@@ -140,6 +140,23 @@
   };
 in {
   failures = lib.runTests ({
+    testWorkloadAdmissionFollowsEffectiveHomeFeatures = {
+      expr = let
+        probe = seed: effective: let
+          host = (flake.nixosConfigurations.neko7.extendModules {
+            modules = [{
+              local.users.tenzyu.features.t3code-neko7.enable = lib.mkForce seed;
+              home-manager.users.tenzyu.local.features.t3code-neko7.enable = lib.mkForce effective;
+            }];
+          }).config;
+        in lib.hasInfix "/t3-runtime/bin/t3" host.system.preSwitchChecks.neko7-workload-profiles;
+      in {
+        nativeEnable = probe false true;
+        nativeDisable = probe true false;
+      };
+      expected = {nativeEnable = true; nativeDisable = false;};
+    };
+
     testSystemStateVersionProjection = {
       expr = {
         native = active.config.system.stateVersion;

@@ -7,7 +7,7 @@
     # Admission only, not a deployment script. An unseeded profile must
     # never silently replace the working user service during host activation.
     system.preSwitchChecks.neko7-workload-profiles = ''
-      ${lib.optionalString config.local.users.tenzyu.features.t3code-neko7.enable ''
+      ${lib.optionalString home.local.features.t3code-neko7.enable ''
         if ! test -L ${lib.escapeShellArg "${profiles}/t3-runtime"} ||
            ! test -x ${lib.escapeShellArg "${profiles}/t3-runtime/bin/t3"} ||
            ! test -x ${lib.escapeShellArg "${profiles}/t3-runtime/bin/codex"}; then
