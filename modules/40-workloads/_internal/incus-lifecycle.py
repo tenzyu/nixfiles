@@ -122,6 +122,20 @@ neko7.succeed("incus stop local:independent --project default")
 neko7.succeed("incus start local:original --project default")
 ready("original")
 assert run("original", spec["verify"]) == original_state
+print(neko7.succeed("free -m; cat /proc/pressure/{cpu,memory,io}"))
+new_instance("automatic-peer", automatic=True)
+ready("original")
+ready("automatic-peer")
+assert run("automatic-peer", "cat /etc/machine-id") != original_id
+assert int(run("automatic-peer", "nproc")) == resources["cpu"]["total"]
+assert int(run("automatic-peer", "awk '/^MemTotal:/ {print $2}' /proc/meminfo")) * 1024 >= resources["memory"]["total"] * 0.8
+assert int(run("automatic-peer", "df -B1 --output=size / | tail -1")) >= pool["space"]["total"] * 0.8
+assert run("original", spec["verify"]) == original_state
+print(neko7.succeed("free -m; cat /proc/pressure/{cpu,memory,io}; incus query /1.0/storage-pools/default/resources"))
+neko7.succeed("incus stop local:automatic-peer --project default")
+neko7.succeed("incus config set local:automatic-peer security.protection.delete=false --project default")
+neko7.succeed("incus delete local:automatic-peer --project default")
+ready("original")
 # Update to a distinct test release with identical application version.
 if spec["injectActivationFailure"]:
     # Fixture-only fault injection: preserve native calls except for the
