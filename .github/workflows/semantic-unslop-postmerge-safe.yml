@@ -1,0 +1,183 @@
+name: Semantic Unslop post-merge acceptance (safe evidence)
+on:
+  push:
+    branches: [verify/semantic-unslop-postmerge-safe]
+permissions:
+  contents: read
+jobs:
+  retire-unsafe-run:
+    name: Retire superseded diagnostic run before artifact upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OLD_RUN: "45896945161"
+      EXPECTED_SHA: "12afd3c8a116c46aa4a56154ffcbe478d5f9d848"
+    steps:
+      - name: Cancel only the superseded run
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "tenzyu/nixfiles"
+          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$OLD_RUN"
+          record=$(gh api "$endpoint")
+          test "$(jq -r .head_sha <<< "$record")" = "$EXPECTED_SHA"
+          test "$(jq -r .head_branch <<< "$record")" = "verify/semantic-unslop-postmerge"
+          test "$(jq -r .path <<< "$record" | cut -d@ -f1)" = ".github/workflows/semantic-unslop-postmerge.yml"
+          if [ "$(jq -r .status <<< "$record")" != completed ]; then
+            gh api --method POST "$endpoint/cancel" --silent || true
+            for i in 1 2 3 4 5 6; do
+              sleep 5
+              status=$(gh api "$endpoint" --jq .status)
+              [ "$status" = completed ] && break
+            done
+            if [ "$status" != completed ]; then
+              gh api --method POST "$endpoint/force-cancel" --silent
+            fi
+          fi
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            status=$(gh api "$endpoint" --jq .status)
+            [ "$status" = completed ] && break
+            sleep 5
+          done
+          test "$status" = completed
+          # Only inspect artifact metadata, never retrieve a potentially sensitive artifact.
+          gh api "$endpoint/artifacts" --jq '[.artifacts[] | {id,name}]'
+          test "$(gh api "$endpoint/artifacts" --jq '[.artifacts[] | select(.name == "semantic-unslop-postmerge-neko7")] | length')" = 0
+  compare:
+    needs: retire-unsafe-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: verification
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: 4c0a0b09518b70a7c5959517b1088cdd3dc1e5b7
+          path: candidate
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compare actual and counterfactual configurations
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          cmp baseline/flake.lock candidate/flake.lock
+          export BASE_PATH="$PWD/baseline" CAND_PATH="$PWD/candidate"
+          export BASE_REV="$(git -C baseline rev-parse HEAD)" CAND_REV="$(git -C candidate rev-parse HEAD)"
+          printf '%s\n' "$BASE_REV" > evidence/baseline.sha
+          printf '%s\n' "$CAND_REV" > evidence/candidate.sha
+          nix eval --impure --json --no-write-lock-file --file verification/.github/semantic-unslop/snapshot.nix > evidence/snapshots.json
+          python3 verification/.github/semantic-unslop/compare.py
+      - name: Build and compare actual game command packages
+        run: |
+          set -euo pipefail
+          old="$(jq -r .baseline evidence/gameDrvs.json)"
+          new="$(jq -r .candidate evidence/gameDrvs.json)"
+          oldout="$(nix build -L --no-link --print-out-paths "$old^out")"
+          newout="$(nix build -L --no-link --print-out-paths "$new^out")"
+          cp "$oldout/bin/game" evidence/baseline-game.sh
+          cp "$newout/bin/game" evidence/candidate-game.sh
+          python3 verification/.github/semantic-unslop/dispatch.py evidence/baseline-game.sh evidence/candidate-game.sh
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: semantic-unslop-postmerge-ab
+          path: evidence/
+          if-no-files-found: error
+  regressions:
+    needs: retire-unsafe-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 4c0a0b09518b70a7c5959517b1088cdd3dc1e5b7
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+  stateful:
+    needs: retire-unsafe-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 4c0a0b09518b70a7c5959517b1088cdd3dc1e5b7
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
+  realize:
+    needs: retire-unsafe-run
+    name: Realize baseline and integrated neko7 closures
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: 4c0a0b09518b70a7c5959517b1088cdd3dc1e5b7
+          path: candidate
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Existing host-approved signed caches, not new trust roots.
+          extra_nix_config: |
+            extra-substituters = https://catppuccin.cachix.org https://nix-community.cachix.org https://cache.nixos-cuda.org https://cache.numtide.com https://github.com/tenzyu/splitcast/releases/download/nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1
+            extra-trusted-public-keys = catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= cache.nixos-cuda.org:74DUi4Ye579gUqzH4ziL9IyiJBlDpMRn9MBN8oNan9M= niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g= splitcast-1:vTbhAaBTWjRfVHQekUUYwSb9GBftwHNgBUhXGk0jGwM=
+      - name: Pin inputs and realize both system outputs in one store
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          cmp baseline/flake.lock candidate/flake.lock
+          df -h > evidence/disk-before.txt
+          for side in baseline candidate; do
+            git -C "$side" rev-parse HEAD > "evidence/$side.sha"
+            target="./$side#nixosConfigurations.neko7.config.system.build.toplevel"
+            nix eval --raw --no-update-lock-file "$target.drvPath" > "evidence/$side.drv"
+            drv=$(cat "evidence/$side.drv")
+            nix-store --query --requisites "$drv" | sort > "evidence/$side.derivations"
+            if ! out=$(nix build -L --no-update-lock-file --no-link --print-out-paths "$target" 2> "evidence/$side.build.log"); then
+              tail -n 150 "evidence/$side.build.log" >&2
+              exit 1
+            fi
+            tail -n 20 "evidence/$side.build.log" >&2
+            test -x "$out/init"
+            test -x "$out/bin/switch-to-configuration"
+            printf '%s\n' "$out" > "evidence/$side.output"
+            nix path-info --recursive --json "$out" > "evidence/$side.closure.json"
+            nix path-info --size --closure-size "$out" > "evidence/$side.size"
+          done
+          df -h > evidence/disk-after.txt
+          diff -u evidence/baseline.derivations evidence/candidate.derivations > evidence/derivations.diff || test "$?" = 1
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: semantic-unslop-postmerge-neko7
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7
