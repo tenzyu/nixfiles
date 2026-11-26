@@ -1,0 +1,69 @@
+name: Semantic Unslop closure realization
+on:
+  push:
+    branches: [verify/semantic-unslop-closures]
+permissions:
+  contents: read
+jobs:
+  realize:
+    name: Realize ${{ matrix.host }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [neko5, neko6, neko7]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1bf89c15549c2073425054de6143e35b7bc6ecde
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: 6af6146aaf9f41dd12df730a28fdf6af30adbc2b
+          path: policy
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: f971e590c397861806ba7a3376b016644d4e3e7d
+          path: projection
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Realize shared system closure and compare output identity
+        env:
+          HOST: ${{ matrix.host }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          cmp baseline/flake.lock policy/flake.lock
+          cmp baseline/flake.lock projection/flake.lock
+          target=".#nixosConfigurations.$HOST.config.system.build.toplevel"
+          for side in baseline policy projection; do
+            git -C "$side" rev-parse HEAD > "evidence/$side.sha"
+            (cd "$side"; nix eval --no-update-lock-file --raw "$target.drvPath") > "evidence/$side.drv"
+          done
+          cmp evidence/baseline.drv evidence/policy.drv
+          cmp evidence/baseline.drv evidence/projection.drv
+          # All three refs name the same derivation. Realize it once in the
+          # shared store; the remaining invocations must select the same output.
+          for side in baseline policy projection; do
+            (cd "$side"; nix build -L --no-update-lock-file --no-link --print-out-paths "$target") > "evidence/$side.out"
+          done
+          cmp evidence/baseline.out evidence/policy.out
+          cmp evidence/baseline.out evidence/projection.out
+          output=$(cat evidence/baseline.out)
+          test -d "$output"
+          nix path-info --recursive --json "$output" > evidence/closure.json
+          nix path-info --size --closure-size "$output" > evidence/size.txt
+          sha256sum evidence/closure.json > evidence/closure.sha256
+      - name: Upload closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-unslop-closure-${{ matrix.host }}
+          path: evidence/
+          if-no-files-found: error
