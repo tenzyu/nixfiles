@@ -20,8 +20,8 @@
 
   helpers = fpConfig.flake.lib.helpers;
 
-  nixosModuleList = lib.mapAttrsToList modulesLib.tagNixosModule nixosModules;
-  homeModuleList = lib.mapAttrsToList modulesLib.tagHomeModule homeModules;
+  nixosModuleList = lib.mapAttrsToList (modulesLib.tagModule "nixos") nixosModules;
+  homeModuleList = lib.mapAttrsToList (modulesLib.tagModule "homeManager") homeModules;
 
   optionsMaterializers = import ./materializers/options.nix {
     inherit lib nixosFeatureNames homeFeatureNames featuresLib composition;
