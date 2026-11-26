@@ -21,6 +21,8 @@ on:
       - 'modules/50-features/development/t3code-neko7.nix'
       - 'modules/50-features/media/splitcast-production.nix'
       - 'modules/10-foundations/_internal/workload-lifecycle-test.nix'
+      - 'modules/10-foundations/_internal/workload-lifecycle-test.py'
+      - 'tools/nspawn-profile-switch.sh'
       - 'modules/50-features/networking/tailnet-ingress.nix'
       - 'modules/10-foundations/_internal/tailnet-ingress-test.nix'
       - 'modules/10-foundations/compute-host-checks.nix'
