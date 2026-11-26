@@ -1,29 +1,12 @@
 {
   flake.modules.homeManager.fileman = {config, lib, pkgs, ...}: {
-    config = lib.mkIf (config.local.features.fileman.enable && config.local.features.osu-lazer.enable) {
-      # Fileman does not open .osk archives directly yet. Keep the existing
-      # Ark association rather than silently regressing skin management.
-      home.packages = [pkgs.kdePackages.ark];
-      xdg.dataFile."mime/packages/osu-skin.xml".text = ''
-        <?xml version="1.0" encoding="UTF-8"?>
-        <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-          <mime-type type="application/x-osu-skin">
-            <comment>osu! skin archive</comment>
-            <sub-class-of type="application/zip"/>
-            <glob pattern="*.osk"/>
-          </mime-type>
-        </mime-info>
-      '';
-      xdg.mimeApps = {
-        enable = true;
-        defaultApplications = {
-          "application/x-osu-skin" = ["org.kde.ark.desktop"];
-        };
-        associations.added."application/x-osu-skin" = ["org.kde.ark.desktop"];
-      };
-      home.activation.updateLocalMimeDatabase = lib.hm.dag.entryAfter ["writeBoundary"] ''
-        ${pkgs.shared-mime-info}/bin/update-mime-database "$HOME/.local/share/mime"
-      '';
-    };
+    config = lib.mkIf (config.local.features.fileman.enable && config.local.features.osu-lazer.enable) (lib.mkMerge [
+      {
+        # Fileman does not open .osk archives directly yet. Keep the existing
+        # Ark association rather than silently regressing skin management.
+        home.packages = [pkgs.kdePackages.ark];
+      }
+      (import ../../50-features/desktop/_internal/osu-skin-mime.nix {inherit lib pkgs;})
+    ]);
   };
 }
