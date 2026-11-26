@@ -8,6 +8,11 @@
       {handler = "reverse_proxy"; upstreams = [{dial = "10.77.41.2:8080";}];}
     ];
   });
+  originRoute = pkgs.writeText "fixture-origin-preview.json" (builtins.toJSON {
+    "@id" = "fixture-origin";
+    match = [{host = ["fixture.localhost"];}];
+    handle = [{handler = "reverse_proxy"; upstreams = [{dial = "10.77.40.2:8080";}];}];
+  });
 in pkgs.testers.runNixOSTest {
   name = "platform-services";
   nodes.machine = {lib, ...}: {
@@ -48,6 +53,16 @@ in pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds("curl -fsS http://127.0.0.1:18080/p/fixture/ | grep -Fx fixture-preview")
     machine.succeed(api + "/id/fixture -X DELETE")
     machine.fail("curl -fsS http://127.0.0.1:18080/p/fixture/")
+    machine.succeed("ip addr add 10.77.40.2/32 dev lo")
+    machine.succeed("mkdir -p /tmp/origin; echo origin-preview > /tmp/origin/asset.txt")
+    machine.succeed("systemd-run --unit=preview-origin-fixture ${pkgs.python3}/bin/python3 -m http.server 8080 --bind 10.77.40.2 --directory /tmp/origin")
+    machine.wait_until_succeeds("curl -fsS http://10.77.40.2:8080/asset.txt | grep -Fx origin-preview")
+    machine.succeed(api + "/config/apps/http/servers/preview/routes/0 -X PUT -H 'Content-Type: application/json' --data-binary @${originRoute}")
+    machine.wait_until_succeeds("curl -fsS -H 'Host: fixture.localhost:18080' http://127.0.0.1:18080/asset.txt | grep -Fx origin-preview")
+    machine.fail("curl -fsS -H 'Host: unknown.localhost:18080' http://127.0.0.1:18080/asset.txt")
+    machine.succeed(api + "/id/fixture-origin -X DELETE")
+    machine.fail("curl -fsS -H 'Host: fixture.localhost:18080' http://127.0.0.1:18080/asset.txt")
+    machine.succeed("su - observer -c 'neko7-capabilities' | jq -e '.incus.lab_authenticated == false'")
     machine.wait_until_succeeds("curl -fsS http://127.0.0.1:9090/api/v1/query?query=up | jq -e '.data.result | any(.metric.job == \"host\" and .value[1] == \"1\")'")
     machine.wait_until_succeeds("curl -fsS http://127.0.0.1:13000/api/dashboards/uid/neko7-platform | jq -e '.dashboard.uid == \"neko7-platform\"'")
     machine.succeed("ss -ltn | grep -F '127.0.0.1:13000'")

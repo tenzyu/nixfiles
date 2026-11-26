@@ -1,19 +1,20 @@
 {pkgs}: let
   datasource = {type = "prometheus"; uid = "platform-prometheus";};
-  panel = id: title: expr: unit: {
+  panelWithLegend = id: title: expr: unit: legendFormat: {
     inherit id title datasource;
     type = "timeseries";
     gridPos = {h = 8; w = 12; x = if id - 2 * (builtins.div id 2) == 1 then 0 else 12; y = 8 * (builtins.div (id - 1) 2);};
-    targets = [{inherit expr datasource; refId = "A"; legendFormat = "{{name}} {{instance}} {{device}} {{mode}}";}];
+    targets = [{inherit expr datasource; refId = "A"; inherit legendFormat;}];
     fieldConfig.defaults = {inherit unit;};
   };
+  panel = id: title: expr: unit: panelWithLegend id title expr unit "{{name}} {{instance}} {{device}} {{mode}}";
   # The inventory comes from Incus's exporter labels and the native
   # systemd collector. Do not maintain a second workload database.
   dashboard = {
     uid = "neko7-platform";
     title = "neko7 / Compute platform";
     schemaVersion = 39;
-    version = 1;
+    version = 2;
     refresh = "30s";
     time = {from = "now-1h"; to = "now";};
     links = [
@@ -35,6 +36,11 @@
       (panel 10 "Service endpoint probes" "probe_success" "short")
       (panel 11 "Failed systemd units" "node_systemd_unit_state{state=\"failed\"} == 1" "short")
       (panel 12 "GPU utilization (when available)" "nvidia_smi_utilization_gpu_ratio" "percentunit")
+      (panelWithLegend 13 "Incus allocated instances and resources" "incus_project_resources_total" "short" "{{project}} / {{resource}}")
+      (panelWithLegend 14 "Incus storage pool used" "incus_storage_pool_used_bytes" "bytes" "{{pool}} / {{driver}}")
+      (panelWithLegend 15 "Incus storage pool remaining" "incus_storage_pool_size_bytes - incus_storage_pool_used_bytes" "bytes" "{{pool}} / {{driver}}")
+      (panelWithLegend 16 "Incus instance resident memory" "incus_memory_RSS_bytes" "bytes" "{{project}} / {{name}}")
+      (panelWithLegend 17 "Incus OOM kills (5m)" "increase(incus_memory_OOM_kills_total[5m])" "short" "{{project}} / {{name}}")
     ];
   };
 in pkgs.runCommand "platform-dashboard" {} ''

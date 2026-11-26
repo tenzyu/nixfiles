@@ -1,6 +1,6 @@
 # Execution capability contract
 
-Discover this contract with `cat /etc/neko7/execution.md` (also NEKO7_EXECUTION_GUIDE in login shells). It applies independently of the agent frontend and repository.
+Discover this contract with `cat /etc/neko7/execution.md` (also NEKO7_EXECUTION_GUIDE in login shells). It applies independently of the agent frontend and repository. Run `neko7-capabilities` from any working directory for bounded, read-only current-identity probes of user systemd, Nix store, rootless Docker, authenticated Incus lab and advertised instance drivers. The presence of /dev/kvm or an advertised VM driver is not native KVM acceptance; an actual launch and workload test are still required.
 
 | Need | Native execution interface | Live discovery |
 | --- | --- | --- |
