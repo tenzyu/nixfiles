@@ -103,7 +103,7 @@
         };
       };
 
-      systemd.services.ark-survival-evolved-update = {
+      systemd.services."${spec.guestService}-update" = {
         description = "Install or update ARK: Survival Evolved Dedicated Server";
         wants = ["network-online.target"];
         after = ["network-online.target"];

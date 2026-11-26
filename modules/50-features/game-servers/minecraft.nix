@@ -1,10 +1,14 @@
-{inputs, self, ...}: {
+{inputs, self, ...}: let
+  spec = (import ./_internal/specs.nix).minecraft // {
+    extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
+  };
+in {
   perSystem = {system, lib, ...}: {
     packages = lib.optionalAttrs (system == "x86_64-linux") {
       # Build independently; never make the host generation a GC root for
       # the current application release.
       neko7-minecraft-system =
-        self.nixosConfigurations.neko7.config.containers.neko7-mc.config.system.build.toplevel;
+        self.nixosConfigurations.neko7.config.containers.${spec.containerName}.config.system.build.toplevel;
     };
   };
 
@@ -15,24 +19,6 @@
     ...
   }: let
     layout = import ../../../lib/service-layout.nix {inherit lib;};
-    spec = {
-      key = "minecraft";
-      user = "game-minecraft";
-      uid = 27009;
-      gid = 27009;
-      home = "/var/lib/game-containers/minecraft";
-      gameDir = "/srv/minecraft";
-      containerName = "neko7-mc";
-      guestService = "minecraft-server-survival";
-      backupSource = "survival";
-      hostAddress = "10.77.30.1";
-      localAddress = "10.77.30.2";
-      tailscaleHostname = "neko7-minecraft";
-      autoStart = true;
-      udpPorts = [];
-      tcpPorts = [25565];
-      extraModules = [inputs.nix-minecraft.nixosModules.minecraft-servers];
-    };
     inherit (import ./_internal/container.nix {inherit config lib pkgs;}) mkGame;
     mkMinecraftModule = spec: {
       pkgs,

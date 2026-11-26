@@ -306,7 +306,7 @@
         };
       };
 
-      systemd.services.rust-dedicated-update = {
+      systemd.services."${spec.guestService}-update" = {
         description = "Install or update Rust Dedicated Server";
         wants = ["network-online.target"];
         after = ["network-online.target"];
