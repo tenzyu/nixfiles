@@ -4,7 +4,7 @@
 
 NixOS owns the host substrate, Incus owns dynamic instances, and T3 Code owns agent sessions and projects. The Incus `lab` project is a shared execution permission boundary, not a T3 project or knowledge partition. No repository name is embedded in it. No custom scheduler, registry, governor or execution API. Use native systemd/Nix for finite jobs and NixOS tests for reproducible multi-machine evidence; use Incus for interactive or persistent environments.
 
-Incus uses a directory pool on the existing filesystem (no repartition, migration, or new filesystem). Its default project is operator-only; the restricted lab project has a separate NAT bridge, managed volumes and no arbitrary host disk, GPU, proxy, privileged container or raw VM attachment. This does not provide network egress isolation from the rest of the host/LAN, per-agent identity, or a security sandbox for an agent already running as an administrator. Both projects share physical CPU, memory and I/O. The lab has aggregate allocation limits (eight instances, three VMs, eight CPUs and 8 GiB RAM); no storage quota or automatic VM memory overcommit is configured; inspect PSI, available memory, disk and OOM logs before unusually large experiments.
+Incus uses a directory pool on the existing filesystem (no repartition, migration, or new filesystem). Its default project is operator-only; the restricted lab project has a separate NAT bridge, managed volumes and no arbitrary host disk, GPU, proxy, privileged container or raw VM attachment. This does not provide network egress isolation from the rest of the host/LAN, per-agent identity, or a security sandbox for an agent already running as an administrator. Both projects share physical CPU, memory and I/O. No aggregate admission budget or default container CPU/RAM/disk quota is configured. Containers consume shared host resources on demand. VM creation derives guest-visible CPU count, memory and sparse root block size from the host and actual Incus pool; it is not a reservation or automatic ballooning policy. Concurrent VMs can overcommit physical memory/storage; observe PSI, available memory, disk and OOM logs. A guest-visible maximum is necessary for a distinct kernel and block device; this is not a guarantee of physical capacity or dynamic resizing.
 
 Native preseed is declarative for the pool, bridges, project and default profile; it merges on daemon initialization/restart, not a continuous reconciliation loop. Do not edit these definitions independently or use the default profile as a per-application configuration. Runtime-created instances and custom profiles remain Incus-owned. A soft Incus daemon restart is intended to preserve running guests; a host reboot still stops everything.
 
@@ -23,6 +23,7 @@ The separate ingress CI test uses real network namespaces with a deliberately al
 ## Before approved activation
 
 - Check `ip -4 route`, `ss -ltn`, and existing Incus state. The proposed bridge ranges are 10.77.40.0/24 and 10.77.41.0/24; API port 8443 is loopback-only. Abort on overlap, existing incompatible storage pool, or port conflict. Do not reinitialize an existing Incus installation blindly.
+- If an earlier experimental preseed was activated, inspect the lab project and default profile. Removing keys from preseed does not prove persisted keys were unset. With separate operator approval, unset old lab project keys `limits.instances`, `limits.virtual-machines`, `limits.cpu`, `limits.memory` via `incus project unset lab KEY`, then unset `limits.cpu` and `limits.memory` from the lab default profile via `incus profile unset default KEY --project lab`. Do not modify instance-specific overrides or resize existing disks automatically. Verify expanded configuration and retain a prior configuration export.
 - Confirm `/dev/kvm`, available memory and filesystem space. The operator has reported past MicroVM success; that is not an Incus acceptance result.
 - Review the nftables transition: native Incus requires nftables with the NixOS firewall. Verify existing Minecraft NAT, Tailscale, SSH, T3 HTTPS and rootless Docker connectivity after activation. From a non-Tailnet uplink peer, confirm application TCP/UDP and forwarded guest connections fail; from a Tailnet peer, confirm SSH/Serve still work. Inspect `sudo nft list table inet tailnet_ingress` and the deny counters. Check Tailnet Funnel policy as above. Use an out-of-band Proxmox console and retain the previous generation.
 - Build the host closure and pass the CI tests. Only then request explicit approval for activation. Neither merging nor CI results authorize activation.
@@ -67,8 +68,8 @@ incus file push ./artifact lab:experiment/tmp/artifact
 incus stop lab:experiment
 incus list lab:
 
-incus launch images:debian/13 lab:machine-a --vm --ephemeral
-incus launch images:debian/13 lab:machine-b --vm --ephemeral
+neko7-lab-vm machine-a images:debian/13
+neko7-lab-vm machine-b images:debian/13
 incus exec lab:machine-a -- sh
 incus exec lab:machine-b -- sh
 incus stop lab:machine-a

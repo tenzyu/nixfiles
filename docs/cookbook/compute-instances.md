@@ -6,8 +6,8 @@ Nix owns releases; Incus owns instances and mutable state. Run the menu from the
 just
 just images
 just status
-just new syncthing sync 40GiB
-just new immich photos 100GiB 4 6GiB
+just new syncthing sync
+just new immich photos
 sudo incus info local:photos --project default
 sudo incus stop local:photos --project default
 sudo incus start local:photos --project default
@@ -33,6 +33,6 @@ Permanent deletion is intentionally not a menu recipe. Stop the instance; record
 
 One file in `modules/40-workloads/`: native service module, guest readiness command, image/system outputs, service-module test and exact-image lifecycle check. CI derives the matrix from image outputs, builds artifacts, runs the standalone service test and evaluates the exact-image lifecycle. Native KVM execution is mandatory on an approved compatible test host before merge or activation. No central catalog, host declaration or CI list edit. A specialized workload can need additional storage, driver or security capabilities. Tests use disposable data; the application owner still validates real migration and recovery. Use the existing stable or reviewed isolated unstable pin without insecure allowlists.
 
-Agents use restricted `lab:` credentials and `just lab NAME` / `just lab-vm NAME` / `just lab-stop NAME`. Stop deletes ephemeral instances. Lab project admission limits are initial 8 allocated instances, at most 3 VMs, aggregate 8 CPUs / 8 GiB configured memory, default 2 CPUs / 2 GiB. These are configured resource limits, not a guarantee of physical headroom; QEMU overhead, images, snapshots, storage and host-native tasks are outside the memory/CPU budget. On dir/ext4, filesystem quotas depend on project quota support; VM virtual disk size bounds guest block capacity, not aggregate host space. Do not assert disk exhaustion containment until verified. No new storage migration.
+Agents use restricted `lab:` credentials and `just lab NAME` / `just lab-vm NAME` / `just lab-stop NAME`. Stop deletes ephemeral instances. The lab is an authorization boundary, not a resource partition. Containers have no default CPU/RAM/disk quota; native kernel scheduling and the existing filesystem govern contention. VM convenience commands derive vCPU count from host CPUs, guest RAM from MemTotal (rounded down to MiB), and virtual root disk size from the actual Incus pool total bytes. No allocation is deducted from a central budget and no hard-coded capacity or mandatory sizing argument is used. The dir driver uses sparse block files; guest filesystems, backup/export and QEMU can still consume physical resources, and concurrent VMs can overcommit. No automatic balloon controller, automatic existing-guest resize, physical reservation or exhaustion containment is claimed. Native Incus overrides are available for intentional special cases. Use containers for genuinely work-conserving shared-memory execution when a separate kernel is unnecessary. No new storage migration.
 
 For previews, use SSH forwarding by default, Caddy only for supervised operator-approved sharing. [Platform operations](compute-platform-operations.md). Existing Minecraft and user-service releases follow [existing workload migration](compute-workload-migration.md).

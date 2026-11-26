@@ -31,6 +31,7 @@ in pkgs.testers.runNixOSTest {
       runtimeShell = pkgs.runtimeShell;
       justfile = "${../../../justfile}";
       ops = "${../../../tools/instance-ops.sh}";
+      vmResources = "${../../../tools/vm-resources.sh}";
       inherit (stateProbe) seed verify;
       inherit injectActivationFailure;
     })})

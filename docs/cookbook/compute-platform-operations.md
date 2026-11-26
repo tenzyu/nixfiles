@@ -53,15 +53,11 @@ A gateway restart discards all ephemeral routes; default is 404. Stop sharing im
 
 Use [instance operations](compute-instances.md) for the short operator command menu and one-file workload addition. The native commands below explain the lower-level mechanism; do not run both creation paths for the same instance. Immich uses the existing pinned unstable NixOS guest (3.4.1) because stable 2.x is marked insecure/EOL. No vulnerability allowlist.
 
-Both images are built from the pinned NixOS native service and VM image modules. They are not started on host activation. Each has an independent kernel, disk and service identity, disabled SSH and locked root login; access through the operator Incus agent. No host mounts, auth keys, public exposure, default credentials or live data migration. Syncthing starts with no declared devices/folders, global/local discovery, relay and NAT traversal disabled. Immich starts CPU-only with local PostgreSQL + vectorchord and Redis UNIX sockets, ML disabled initially. The web UI binds guest loopback. Suggested initial sizing, not enforced globally: Syncthing 2 vCPU/2 GiB, Immich 4 vCPU/6 GiB, adjust disk to verified data requirements. Build, import, initialize; choose a disk size that fits the actual dataset and available space (examples deliberately small for empty instances).
+Both images are built from the pinned NixOS native service and VM image modules. They are not started on host activation. Each has an independent kernel, disk and service identity, disabled SSH and locked root login; access through the operator Incus agent. No host mounts, auth keys, public exposure, default credentials or live data migration. Syncthing starts with no declared devices/folders, global/local discovery, relay and NAT traversal disabled. Immich starts CPU-only with local PostgreSQL + vectorchord and Redis UNIX sockets, ML disabled initially. The web UI binds guest loopback. Normal creation derives guest-visible capacity from the host and pool; no workload-specific sizing is required. Physical resources remain shared; see the instance operations resource semantics.
 
 ```sh
-out=$(nix build --no-link --print-out-paths .#neko7-syncthing-image)
-sudo incus image import "$out/metadata.tar.xz" "$out/nixos.qcow2" --alias syncthing-reviewed
-sudo incus launch syncthing-reviewed syncthing --vm -c security.secureboot=false -c limits.cpu=2 -c limits.memory=2GiB
-out=$(nix build --no-link --print-out-paths .#neko7-immich-image)
-sudo incus image import "$out/metadata.tar.xz" "$out/nixos.qcow2" --alias immich-reviewed
-sudo incus launch immich-reviewed immich --vm -c security.secureboot=false -c limits.cpu=4 -c limits.memory=6GiB
+just new syncthing syncthing
+just new immich immich
 sudo incus exec syncthing -- systemctl is-active syncthing
 sudo incus exec immich -- systemctl is-active immich-server
 sudo incus exec immich -- curl -fsS http://127.0.0.1:2283/api/server/ping

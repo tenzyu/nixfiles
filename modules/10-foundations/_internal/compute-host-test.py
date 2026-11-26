@@ -5,7 +5,6 @@ vm = spec["vm"]
 metadata = spec["metadata"]
 image = spec["image"]
 vm_flag = spec["vmFlag"]
-over_budget_flag = " --vm -c security.secureboot=false" if vm else ""
 
 def agent(command):
     if command.startswith("incus exec lab:"):
@@ -35,7 +34,11 @@ if vm:
     machine.succeed("test -c /dev/kvm; test -r /dev/kvm; test -w /dev/kvm")
 machine.wait_for_unit("incumbent.service")
 incumbent = machine.succeed("systemctl show -p MainPID --value incumbent.service").strip()
-machine.succeed("incus version; incus project get lab limits.instances | grep -x 8; incus project get lab limits.virtual-machines | grep -x 3")
+machine.succeed("incus version")
+for key in ["limits.instances", "limits.virtual-machines", "limits.cpu", "limits.memory", "limits.disk"]:
+    assert not machine.succeed("incus project get lab " + key).strip(), key
+for key in ["limits.cpu", "limits.memory"]:
+    assert not machine.succeed("incus profile get default " + key + " --project lab").strip(), key
 machine.succeed("incus project get lab restricted | grep -x true")
 machine.succeed("incus project get lab restricted.devices.disk | grep -x managed")
 machine.succeed("incus network show incuslab0")
@@ -77,9 +80,14 @@ def denied(command, reason):
 before_config = json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]
 denied("incus config device add lab:experiment host-etc disk source=/etc path=/host-etc", "not backed by a pool")
 denied("incus config device add lab:experiment gpu gpu", "GPU devices are forbidden")
-denied("incus config set lab:experiment limits.memory=9GiB", "maximum aggregate value")
-denied("incus config set lab:experiment limits.cpu=9", "maximum aggregate value")
-denied(f"incus create lab:fixture lab:over-budget{over_budget_flag} -c limits.cpu=9", "maximum aggregate value")
+# Authorization restrictions remain; removed capacity budgets are not security controls.
+if not vm:
+    assert not before_config["expanded_config"].get("limits.cpu")
+    assert not before_config["expanded_config"].get("limits.memory")
+    assert not before_config["expanded_devices"]["root"].get("size")
+# Discovery must work with the actual restricted credential, without sudo.
+pool = json.loads(machine.succeed(agent("incus query 'lab:/1.0/storage-pools/default/resources?project=lab'")))
+assert pool["space"]["total"] > 0, pool
 after_config = json.loads(machine.succeed(agent("incus list lab: name=experiment --format=json")))[0]
 # Volatile config keys may change asynchronously (e.g. NIC state).
 assert {k: v for k, v in after_config["config"].items() if not k.startswith("volatile.")} == {k: v for k, v in before_config["config"].items() if not k.startswith("volatile.")}

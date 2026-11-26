@@ -6,6 +6,7 @@ on:
       - 'modules/40-workloads/**'
       - 'justfile'
       - 'tools/instance-ops.sh'
+      - 'tools/vm-resources.sh'
       - 'modules/50-features/monitoring/**'
       - 'modules/50-features/networking/preview-gateway.nix'
       - 'modules/50-features/development/execution-discovery.nix'
@@ -245,7 +246,8 @@ jobs:
 
           nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
             .config["core.https_address"] == "127.0.0.1:8443"
-            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true" and (.config | keys | all(startswith("limits.") | not)))
+            and (.profiles[] | select(.project == "lab") | .config | keys | all(startswith("limits.") | not))
           '
           nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
           nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'

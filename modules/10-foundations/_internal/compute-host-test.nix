@@ -30,7 +30,7 @@
     then "${releases.incusVirtualMachineImage.${system}}/nixos.qcow2"
     else "${releases.incusContainerImage.${system}}/nixos-lxc-image-${system}.squashfs";
   # Test-only single-vCPU guests remove one nested-SMP variable while
-  # preserving real KVM, two simultaneous guests, and production limits.
+  # preserving real KVM and two simultaneous guests. These are fixture sizes only.
   # Controlled mitigation, not a proven root-cause fix.
   vmFlag = lib.optionalString vm " --vm -c security.secureboot=false -c limits.memory=2048MiB -c limits.cpu=1";
 in pkgs.testers.runNixOSTest {

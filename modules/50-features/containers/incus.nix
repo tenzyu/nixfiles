@@ -19,10 +19,8 @@
     profile = project: network: {
       inherit project;
       name = "default";
-      config = lib.optionalAttrs (project == "lab") {
-        "limits.cpu" = "2";
-        "limits.memory" = "2GiB";
-      };
+      # Containers share the host scheduler, memory and filesystem by default.
+      config = {};
       devices = {
         root = {
           type = "disk";
@@ -40,7 +38,17 @@
     config = lib.mkIf config.local.features.incus.enable {
       # The NixOS Incus module requires nftables with the host firewall.
       networking.nftables.enable = true;
-      environment.systemPackages = [pkgs.just pkgs.jq pkgs.util-linux];
+      environment.systemPackages = [
+        pkgs.just
+        pkgs.jq
+        pkgs.util-linux
+        (pkgs.writeShellScriptBin "neko7-lab-vm" ''
+          export PATH=${lib.makeBinPath [pkgs.coreutils pkgs.gawk pkgs.jq pkgs.incus]}:$PATH
+          set -euo pipefail
+          ${builtins.readFile ../../../tools/vm-resources.sh}
+          launch_lab_vm "$@"
+        '')
+      ];
       systemd.tmpfiles.rules = ["d /run/lock/neko7-instances 0770 root wheel -"];
       networking.firewall.interfaces = lib.genAttrs ["incusbr0" "incuslab0"] (_: {
         allowedTCPPorts = [53];
@@ -76,12 +84,7 @@
               # Bridge networks live in the operator project. The restricted
               # client can only attach to the designated lab bridge.
               "features.networks" = "false";
-              # Initial admission budget, not an adaptive resource governor.
-              # Counts allocated resources, including stopped instances.
-              "limits.instances" = "8";
-              "limits.virtual-machines" = "3";
-              "limits.cpu" = "8";
-              "limits.memory" = "8GiB";
+              # This project is an authorization boundary, not a capacity partition.
               "restricted" = "true";
               "restricted.networks.access" = "incuslab0";
               "restricted.devices.disk" = "managed";

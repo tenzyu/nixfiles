@@ -8,11 +8,12 @@ candidate = spec["candidate"]
 runtime_shell = spec["runtimeShell"]
 justfile_source = spec["justfile"]
 ops_source = spec["ops"]
+vm_resources_source = spec["vmResources"]
 
 neko7.start()
 neko7.wait_for_unit("register-nix-paths.service")
 neko7.wait_for_unit("incus-preseed.service")
-neko7.succeed(f"test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp {justfile_source} /root/fixture/justfile; cp {ops_source} /root/fixture/tools/instance-ops.sh")
+neko7.succeed(f"test -c /dev/kvm; incus version; mkdir -p /root/fixture/tools; cp {justfile_source} /root/fixture/justfile; cp {ops_source} /root/fixture/tools/instance-ops.sh; cp {vm_resources_source} /root/fixture/tools/vm-resources.sh")
 recipe = "cd /root/fixture && NEKO7_READINESS_TIMEOUT=900 just "
 
 
@@ -63,7 +64,7 @@ def ready(name):
 
 
 def new_instance(name):
-    status, output = neko7.execute(recipe + shlex.join(["_new-image", workload, name, "16GiB", "2", guest_memory, image]) + " 2>&1", timeout=1200)
+    status, output = neko7.execute(recipe + shlex.join(["_new-image", workload, name, image, "16GiB", "2", guest_memory]) + " 2>&1", timeout=1200)
     if status != 0:
         print(output)
         diagnose(name)

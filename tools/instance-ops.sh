@@ -2,6 +2,7 @@
 # Native Incus/Nix own state. Only compound-operation admission and sequencing
 # belong here. Internal artifact commands are shared by production and CI.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/vm-resources.sh"
 
 die() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
 valid_name() { [[ $1 =~ ^[a-z][a-z0-9-]{0,62}$ ]]; }
@@ -78,10 +79,19 @@ bundle() {
 }
 
 create_artifact() {
-  local workload=$1 name=$2 disk=$3 cpu=$4 memory=$5 out=$6 base alias
-  valid_workload "$workload" &&
-    [[ $disk =~ ^[1-9][0-9]*GiB$ && $cpu =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*GiB$ && $out == /nix/store/* ]] ||
-    die "Invalid workload image or resource request" 2
+  local workload=$1 name=$2 out=$3 base alias
+  shift 3
+  valid_workload "$workload" && [[ $out == /nix/store/* ]] ||
+    die "Invalid workload image" 2
+  local -a vm_args
+  if [[ $# == 0 ]]; then
+    vm_resources local default sudo incus || die "Cannot discover actual host/pool resources"
+  elif [[ $# == 3 && $1 =~ ^[1-9][0-9]*GiB$ && $2 =~ ^[1-9][0-9]*$ && $3 =~ ^[1-9][0-9]*GiB$ ]]; then
+    # Explicit fixture override; the public create-release never supplies it.
+    vm_args=(-d "root,size=$1" -c "limits.cpu=$2" -c "limits.memory=$3")
+  else
+    die "Invalid explicit fixture resources" 2
+  fi
   test -s "$out/metadata.tar.xz" && test -s "$out/nixos.qcow2" || die "Incomplete image: $out"
   base=${out##*/}
   alias="nix-${base%%-*}"
@@ -90,7 +100,7 @@ create_artifact() {
   fi
   inc launch "local:$alias" "local:$name" --project default --vm \
     -c security.secureboot=false -c boot.autostart=true -c security.protection.delete=true \
-    -c "limits.cpu=$cpu" -c "limits.memory=$memory" -c "user.nixfiles.workload=$workload" -d "root,size=$disk"
+    -c "user.nixfiles.workload=$workload" "${vm_args[@]}"
   ready "$name"
 }
 
@@ -173,9 +183,9 @@ confirm_update() {
 [[ $(hostname -s) == neko7 ]] || die "Run on neko7" 2
 action=${1:?}; shift
 case "$action" in
-  create-release) [[ $# == 5 ]] || exit 2; create_release "$@" ;;
+  create-release) [[ $# == 2 ]] || exit 2; create_release "$@" ;;
   update-release) [[ $# == 2 ]] || exit 2; update_release "$@" ;;
-  new) [[ $# == 6 ]] || exit 2; locked_create "$@" ;;
+  new) [[ $# == 3 || $# == 6 ]] || exit 2; locked_create "$@" ;;
   backup) [[ $# == 2 ]] || exit 2; with_lock "$1" backup_artifact "$@" ;;
   update) [[ $# == 5 ]] || exit 2; with_lock "$1" update_artifact "$@" ;;
   *) die "Unknown instance operation: $action" 2 ;;
