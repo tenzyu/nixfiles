@@ -44,9 +44,15 @@ jobs:
             sleep 5
           done
           test "$status" = completed
-          # Only inspect artifact metadata, never retrieve a potentially sensitive artifact.
-          gh api "$endpoint/artifacts" --jq '[.artifacts[] | {id,name}]'
+          # Remove only the diagnostic artifact produced by our superseded run.
+          # Do not download or print its contents; the old config dump may contain a token.
+          metadata=$(gh api "$endpoint/artifacts")
+          if jq -e '.artifacts[] | select(.id == 15154541176)' <<< "$metadata" >/dev/null; then
+            jq -e '.artifacts[] | select(.id == 15154541176 and .name == "semantic-unslop-postmerge-neko7" and .digest == "sha256:dd54fed9f6634829083c091b520916ddbee4606fd8520a64c8f119b1d04f5815")' <<< "$metadata" >/dev/null
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/15154541176" --silent
+          fi
           test "$(gh api "$endpoint/artifacts" --jq '[.artifacts[] | select(.name == "semantic-unslop-postmerge-neko7")] | length')" = 0
+          echo "Superseded run is terminal; suspect diagnostic artifact absent."
   compare:
     needs: retire-unsafe-run
     runs-on: ubuntu-latest
