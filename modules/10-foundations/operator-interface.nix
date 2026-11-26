@@ -57,7 +57,7 @@ in {
     checks.operator-interface =
       assert lib.assertMsg (matches "system" && matches "home" && nativeOriginsPresent)
         "Feature inventory lost the real Jay selection, registration or native origins";
-      pkgs.runCommand "operator-interface" {nativeBuildInputs = [pkgs.just pkgs.bash pkgs.coreutils];} ''
+      pkgs.runCommand "operator-interface" {nativeBuildInputs = [pkgs.just pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.jq pkgs.diffutils];} ''
         just --justfile ${../../tools/operator/justfile} --list
         just --justfile ${../../tools/operator/justfile} --dry-run store-clean
         test -x ${operator}/bin/nixfiles-operator
@@ -65,6 +65,8 @@ in {
         status=0
         ${gc}/bin/nixfiles-store-gc </dev/null || status=$?
         test "$status" = 2
+
+        bash ${../../tools/operator/test-feature-browser.sh} ${../../tools/operator/feature-browser.sh}
 
         # Test only our admission rule; never run actual GC in CI.
         source ${../../lib/operator/store-policy.sh}
