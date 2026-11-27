@@ -11,7 +11,7 @@
     start = pkgs.writeShellApplication {
       name = "cclip-start";
       runtimeInputs = [cclip pkgs.coreutils pkgs.util-linux];
-      text = builtins.readFile ../../../scripts/desktop/cclip-start.sh;
+      text = builtins.readFile ../../../scripts/desktop/interaction/cclip-start.sh;
     };
   in {
     config = lib.mkIf config.local.features.cclip.enable {
