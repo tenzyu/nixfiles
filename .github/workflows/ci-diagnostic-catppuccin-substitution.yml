@@ -1,0 +1,65 @@
+name: CI Catppuccin substitution benchmark (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-catppuccin-substitution-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: ci-diagnostic-catppuccin-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  benchmark:
+    name: "Validation / pair ${{ matrix.pair }} / ${{ matrix.mode }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        pair: [1, 2, 3, 4, 5]
+        mode: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com ${{ matrix.mode == 'candidate' && 'https://catppuccin.cachix.org' || '' }}
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g= ${{ matrix.mode == 'candidate' && 'catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=' || '' }}
+      - name: Measure full validation with existing signed upstream cache
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          nix --version
+          nproc
+          free -m
+          nix config show | grep -Fx 'require-sigs = true'
+          nix config show | grep -E '^(substituters|trusted-public-keys) = '
+          # Cache credentials are public and already authorized by the checked-out
+          # host policy. Verify the literal pair has not drifted.
+          grep -F 'https://catppuccin.cachix.org' modules/50-features/nix/nix.nix
+          grep -F 'catppuccin.cachix.org-1:noG/4HkbhJb+lUAdKrph6LaozJvAeEEZj4N732IysmU=' modules/50-features/nix/nix.nix
+          lock=$(sha256sum flake.lock)
+          net_rx() { awk 'NR>2 && $1!="lo:" {s+=$2} END {printf "%.0f\n",s}' /proc/net/dev; }
+          before_rx=$(net_rx)
+          before_disk=$(df -B1 --output=used /nix/store | tail -1)
+          start=$(date +%s%N)
+          /usr/bin/time -f 'BUILD_ELAPSED=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+            nix build -L --keep-going --no-link --json .#checks.x86_64-linux.validation > "$RUNNER_TEMP/result.json" 2> >(tee "$RUNNER_TEMP/build.log" >&2)
+          end=$(date +%s%N)
+          echo "BENCHMARK_TOTAL_MS=$(( (end-start)/1000000 ))"
+          echo "BENCHMARK_RX_BYTES=$(( $(net_rx)-before_rx ))"
+          echo "BENCHMARK_DISK_DELTA_BYTES=$(( $(df -B1 --output=used /nix/store | tail -1)-before_disk ))"
+          test "$lock" = "$(sha256sum flake.lock)"
+          git diff --exit-code
+          jq -ec 'map({drvPath,outputs})' "$RUNNER_TEMP/result.json"
+          out=$(jq -er '.[0].outputs.out' "$RUNNER_TEMP/result.json")
+          nix hash path "$out"
+          echo BENCHMARK_VALIDATION_EXECUTED=1
+          echo "CATPPUCCIN_COPY_EVENTS=$(grep -c "copying path .* from 'https://catppuccin.cachix.org'" "$RUNNER_TEMP/build.log" || true)"
+          echo "WHISKERS_BUILD_EVENTS=$(grep -c "building .*whiskers-2.9.0.drv" "$RUNNER_TEMP/build.log" || true)"
