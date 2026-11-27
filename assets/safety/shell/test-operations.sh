@@ -191,6 +191,41 @@ expect_no_final
 expect_stages 1
 echo 'PASS BOUNDARY-01 (pathname checks and observed parent move)'
 
+# Delay the actual canonicalization helper after its output, at the cleanup
+# boundary. The operation must release the lock before returning to its caller.
+new_case LOCK-02
+(
+  realpath_bin=${3:-$(command -v realpath)}
+  printf '#!%s\n' "$BASH" > "$case_dir/slow-realpath"
+  cat >> "$case_dir/slow-realpath" <<'SLOW_REALPATH'
+set -eu
+"$SAFETY_TEST_REALPATH" "$@" || exit "$?"
+if [[ -f $SAFETY_TEST_TRACE ]] && grep -qx link "$SAFETY_TEST_TRACE"; then
+  sleep 2
+fi
+SLOW_REALPATH
+  chmod +x "$case_dir/slow-realpath"
+  export SAFETY_TEST_REALPATH="$realpath_bin" SAFETY_TEST_TRACE="$case_dir/trace"
+  sed "s|$realpath_bin|$case_dir/slow-realpath|g" "$library" > "$case_dir/instrumented.sh"
+  [[ $(<"$case_dir/instrumented.sh") == *"$case_dir/slow-realpath"* ]] || fail 'realpath fault injection not installed'
+  # shellcheck disable=SC1090,SC1091
+  source "$case_dir/instrumented.sh"
+  printf 'original\n' > "$root/archive"
+  expect_status 73 'Conflict: link:' attempt link-EEXIST
+  expect_status 0 '' flock --exclusive --nonblock --conflict-exit-code 73 "$root/.safety.lock" true
+  [[ $(<"$root/archive") == original ]] || fail 'existing final changed'
+  expect_stages 0
+)
+echo 'PASS LOCK-02 (operation completion releases helper-inherited lock)'
+
+new_case BOUNDARY-02
+root="$case_dir/"$'root\n'
+mkdir -m 700 -- "$root"
+touch "$root/.safety.lock"
+expect_status 0 '' lock_only "$root"
+expect_status 69 Unsupported lock_only "$root"$'\n'
+echo 'PASS BOUNDARY-02 (canonical pathname with trailing newline)'
+
 new_case PUBLISH-01-success
 : > "$case_dir/stderr"
 umask 777
