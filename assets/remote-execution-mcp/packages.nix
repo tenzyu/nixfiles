@@ -22,6 +22,8 @@
     postPatch = ''
       cp --no-preserve=mode ${./desktop-commander/package.json} package.json
       cp --no-preserve=mode ${./desktop-commander/package-lock.json} package-lock.json
+    '';
+    preBuild = ''
       substituteInPlace src/tools/pdf/markdown.ts \
         --replace-fail 'async function getChromePath(): Promise<string | undefined> {' \
           "async function getChromePath(): Promise<string | undefined> { if (process.platform === 'linux') return '${pkgs.chromium}/bin/chromium';"

@@ -32,3 +32,10 @@ supergateway/package.json c0b5707b7e51bbc63c2993dcb7477f86d3249687
 supergateway/package-lock.json b61742c2b678cb81013907963b7a872c1b423e32 (SHA256 d36fbbad36d8259705d687ef16937d0f5e82c1201910d763f1a9c14fed3e16)
 zod-migrate.patch e16d0fa9f0261e6999330b0cfda5a8d1404f17be (SHA256 00f8be454583ecb11fbd5e219d6da9c31763c284145991533184728d2d56534c)
 Second sandbox sbx_tUeUBSuiHNhInkd3oAUCs2McEC1g confirmed source archive hash; stopped explicitly after 10.250 s.
+
+Nix packaging evidence:
+Nixpkgs 26.05 pinned by repository lock, Nix 2.34.3 in ephemeral sandbox sbx_DAnRhH75U1aRGeCLPxRH22uVaOyG. Native prefetch-npm-deps produced both fixed-output hashes committed in packages.nix.
+Supergateway intermediate package built: /nix/store/h2nbfkpg6l3rrn3ifh3hgi95qqv3yml8-supergateway-4.3.0.
+Both package derivation paths evaluated on intermediate commit 19e846d25c7b01cdae0e0b52869f3a6c665b9033. Desktop Commander build was not confirmed before sandbox timeout (HTTP 410); final candidate must build and run the native CI integration check. Sandbox Nix configuration is not production evidence.
+Guest includes a compiler/linker for Rust fixture. Move Chromium substitution to preBuild to avoid a Chromium dependency in the npm cache derivation.
+Remaining admission gates: moderate advisory reachability, exact final Nix builds, native Incus sandbox and nftables integration, capacity admission, real Cloudflare OAuth/JWT and ChatGPT client. No production activation or merge authorized.
