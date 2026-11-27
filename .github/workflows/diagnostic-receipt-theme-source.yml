@@ -1,0 +1,67 @@
+# Diagnostic only. Never integrate.
+name: Diagnostic receipt and theme source audit
+on:
+  push:
+    branches: [diagnostics/verification-receipt-source-audit]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replay-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Audit all 260 executed gate identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --no-tags origin 9baf5677f699ca0773b9a1cca4b0d079b67871a6 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          python3 scripts/ci/verification-convergence/replay_audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replay-receipt-audit
+          path: ${{ runner.temp }}/replay-audit
+          retention-days: 3
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          path: diagnostic-tools
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Independently realize pinned source data and inspect cache availability
+        run: |
+          set -euo pipefail
+          nix config show | grep -Fx 'require-sigs = true'
+          mv diagnostic-tools "$RUNNER_TEMP/diagnostic-tools"
+          test -z "$(git status --porcelain)"
+          python3 "$RUNNER_TEMP/diagnostic-tools/scripts/ci/verification-convergence/theme_source.py"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-provenance
+          path: ${{ runner.temp }}/theme-source
+          retention-days: 3
