@@ -1,0 +1,133 @@
+# Diagnostic only. No deployment or signature bypass.
+name: CI theme derivation delta (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-theme-derivation-delta-20261127]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Isolate exact source substitution and compare host graphs
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          nix config show | grep -Fx 'require-sigs = true'
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe "$RUNNER_TEMP/delta"
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          git add -f assets/ci-theme-probe
+          module=modules/50-features/desktop/catppuccin.nix
+          for arm in control snapshot; do
+            if [[ "$arm" == snapshot ]]; then
+              python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+              git add "$module"
+            fi
+            echo "ARM=$arm TREE=$(git write-tree)"
+            nix eval --json --impure --expr '
+              let f=builtins.getFlake (toString ./.);
+              in builtins.mapAttrs (_: h: h.config.system.build.toplevel.drvPath) f.nixosConfigurations
+            ' > "$RUNNER_TEMP/delta/$arm-roots.json"
+            mapfile -t roots < <(jq -r '.[]' "$RUNNER_TEMP/delta/$arm-roots.json")
+            nix derivation show --recursive "${roots[@]}" > "$RUNNER_TEMP/$arm-graph.json"
+            nix eval --json --impure --expr '
+              let f=builtins.getFlake (toString ./.);
+              in builtins.mapAttrs (_: h: let u=h.config.home-manager.users.tenzyu; in {
+                starship=u.programs.starship.settings;
+                firefox=builtins.mapAttrs (_: p: p.extensions.settings."FirefoxColor@mozilla.com".settings or null) u.programs.firefox.profiles;
+              }) f.nixosConfigurations
+            ' | jq -S . > "$RUNNER_TEMP/delta/$arm-theme.json"
+          done
+          diff -u "$RUNNER_TEMP/delta/control-theme.json" "$RUNNER_TEMP/delta/snapshot-theme.json" || true
+          python3 - <<'PY'
+          import json, os, re
+          from collections import defaultdict, deque
+          from pathlib import Path
+          temp=Path(os.environ["RUNNER_TEMP"])
+          a=json.loads((temp/"control-graph.json").read_text())
+          b=json.loads((temp/"snapshot-graph.json").read_text())
+          ar=json.loads((temp/"delta/control-roots.json").read_text())
+          br=json.loads((temp/"delta/snapshot-roots.json").read_text())
+          # Nix may emit a versioned derivations map or the legacy map.
+          a=a.get("derivations",a); b=b.get("derivations",b)
+          def key(p): return p.rsplit("/",1)[-1].split("-",1)[-1]
+          def lookup(g,p): return g.get(p) or g.get(p.rsplit("/",1)[-1])
+          def deps(d): return list(d.get("inputDrvs",{}))
+          def group(ps):
+              r=defaultdict(list)
+              for p in ps:r[key(p)].append(p)
+              return r
+          q=deque((ar[k],br[k],k) for k in ar)
+          seen=set(); leaves=[]; unmatched=[]; changes=[]
+          while q:
+              x,y,chain=q.popleft()
+              if x==y or (x,y) in seen:continue
+              seen.add((x,y))
+              dx,dy=lookup(a,x),lookup(b,y)
+              if dx is None or dy is None:
+                  unmatched.append([chain,x,y,"missing graph key"])
+                  continue
+              ax,by=group(deps(dx)),group(deps(dy))
+              children=0
+              for k in sorted(set(ax)|set(by)):
+                  xs,ys=set(ax[k]),set(by[k])
+                  xs,ys=xs-ys,ys-xs
+                  if len(xs)==len(ys)==1:
+                      q.append((next(iter(xs)),next(iter(ys)),chain+" -> "+k));children+=1
+                  elif xs or ys:
+                      unmatched.append([chain,k,sorted(xs),sorted(ys)])
+              fields=[]
+              for field in ("builder","args","system","inputSrcs"):
+                  if dx.get(field)!=dy.get(field):fields.append(field)
+              envx,envy=dx.get("env",{}),dy.get("env",{})
+              ev=[k for k in sorted(set(envx)|set(envy)) if k not in ("out","dev","doc","man","info","bin","lib","debug","drvPath") and envx.get(k)!=envy.get(k)]
+              changes.append([chain,x,y,fields,ev])
+              if not children:
+                  leaves.append([chain,x,y,fields,ev])
+          out={"roots":[ar,br],"paired_changed":len(seen),"unmatched":unmatched,"leaves":leaves,"changes":changes}
+          (temp/"delta/dag-delta.json").write_text(json.dumps(out,indent=2))
+          print("CHANGED_DERIVATION_PAIRS",len(seen),"LEAVES",len(leaves),"UNMATCHED",len(unmatched))
+          for row in leaves[:30]:print("LEAF",json.dumps(row))
+          for row in unmatched[:30]:print("UNMATCHED",json.dumps(row))
+          print("THEME_VALUES_EQUAL", (temp/"delta/control-theme.json").read_bytes()==(temp/"delta/snapshot-theme.json").read_bytes())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: theme-derivation-delta
+          path: ${{ runner.temp }}/delta
+          retention-days: 3
+          if-no-files-found: error
