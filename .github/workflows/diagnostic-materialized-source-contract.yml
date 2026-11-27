@@ -1,0 +1,40 @@
+# Diagnostic only. Never integrate.
+name: Diagnostic materialized source contract
+on:
+  push:
+    branches: [diagnostics/materialized-source-contract]
+permissions:
+  contents: read
+jobs:
+  identities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Verify real candidate host and check identities and fail-closed controls
+        run: |
+          git fetch --no-tags origin 1672c3831724f0f347245f197dd58aa97d563206
+          nix config show | grep -Fx 'require-sigs = true'
+          python3 scripts/ci/verification-convergence/materialized_contract.py 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: materialized-source-contract
+          path: ${{ runner.temp }}/materialized-contract/*.json
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: materialized-source-negative-logs
+          path: ${{ runner.temp }}/materialized-contract/*.log
+          if-no-files-found: ignore
+          retention-days: 3
