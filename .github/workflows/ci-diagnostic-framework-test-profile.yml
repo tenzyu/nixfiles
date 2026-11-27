@@ -1,0 +1,60 @@
+name: CI framework test profile (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-framework-test-profile-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: ci-diagnostic-framework-profile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Attribute warm evaluation time to existing framework test cases
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          # Preserve existing fixture graph, comparison and attr-name order.
+          # Warm the source/store, then measure uninstrumented and instrumented
+          # framework evaluations in distinct processes. No test is omitted.
+          attr=.#checks.x86_64-linux.framework.drvPath
+          /usr/bin/time -f 'FRAMEWORK_COLD=%e USER=%U SYS=%S' nix eval --raw --option eval-cache false "$attr" > "$RUNNER_TEMP/cold"
+          /usr/bin/time -f 'FRAMEWORK_WARM=%e USER=%U SYS=%S' nix eval --raw --option eval-cache false "$attr" > "$RUNNER_TEMP/warm"
+          cmp "$RUNNER_TEMP/cold" "$RUNNER_TEMP/warm"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("modules/_internal/configurations/tests/configurations.nix")
+          s = p.read_text()
+          old = "  failures = lib.runTests ({"
+          new = """  failures = (tests:
+              assert !(tests ? tests);
+              lib.concatLists (lib.mapAttrsToList (name: test:
+                builtins.trace ("FRAMEWORK_BEGIN " + name) (
+                  let result = lib.runTests { ${name} = test; };
+                  in builtins.deepSeq result (builtins.trace ("FRAMEWORK_END " + name) result)
+                )
+              ) tests)
+            ) ({"""
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PY
+          /usr/bin/time -f 'FRAMEWORK_TRACED=%e USER=%U SYS=%S' nix eval --raw --option eval-cache false "$attr" > "$RUNNER_TEMP/traced"
+          cmp "$RUNNER_TEMP/warm" "$RUNNER_TEMP/traced"
+          git diff --stat
+          echo "FRAMEWORK_EXPECTED_CASES=40"
+          cat "$RUNNER_TEMP/traced"; printf '\n'
+          echo FRAMEWORK_DERIVATION_IDENTITY_EQUAL=1
