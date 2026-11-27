@@ -92,28 +92,28 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Evaluate production deployment boundaries
+        id: graph
         run: |
           set -euo pipefail
-          attr=.#nixosConfigurations.neko7.config
-          nix eval --raw "$attr.containers.neko7-mc.path" | grep -Fx /nix/var/nix/profiles/system
-          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and contains("/nix/profiles/t3-runtime/bin/t3"))'
-          nix eval --json "$attr.home-manager.users.tenzyu.local.features.splitcast-production-profile.enable" | jq -e '. == true'
-          nix eval --json "$attr.home-manager.users.tenzyu.services.splitcast.enable" | jq -e '. == false'
-          nix eval --json "$attr.system.preSwitchChecks" --apply builtins.attrNames | jq -e 'index("minecraft-workload-profile") != null and index("neko7-workload-profiles") != null'
-          host_drv=$(nix eval --raw "$attr.system.build.toplevel.drvPath")
-          nix-store --query --requisites "$host_drv" > /tmp/neko7-host-derivations
-          for name in neko7-minecraft-system neko7-t3-runtime neko7-splitcast-runtime; do
-            drv=$(nix eval --raw ".#packages.x86_64-linux.$name.drvPath")
-            if grep -Fxq "$drv" /tmp/neko7-host-derivations; then
+          graph=$(nix eval --json .#checks.x86_64-linux.workload-lifecycle --apply 'check: { inherit (check) drvPath deploymentGraph; }')
+          host_drv=$(jq -er '.deploymentGraph.host' <<< "$graph")
+          nix-store --query --requisites "$host_drv" > "$RUNNER_TEMP/neko7-host-derivations"
+          test -s "$RUNNER_TEMP/neko7-host-derivations"
+          artifacts=$(jq -er '.deploymentGraph.artifacts | to_entries[] | [.key, .value] | @tsv' <<< "$graph")
+          while IFS=$'\t' read -r name drv; do
+            if grep -Fxq "$drv" "$RUNNER_TEMP/neko7-host-derivations"; then
               echo "::error::$name is coupled to the host generation"
               exit 1
             fi
-          done
+          done <<< "$artifacts"
+          echo "test-derivation=$(jq -er '.drvPath' <<< "$graph")" >> "$GITHUB_OUTPUT"
       - name: Exercise real native guest profile update and rollback
+        env:
+          TEST_DERIVATION: ${{ steps.graph.outputs.test-derivation }}
         run: |
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle
+          nix build -L --no-link "$TEST_DERIVATION^*"
   workload-artifacts:
     name: Build ${{ matrix.workload }} deployment artifact
     runs-on: ubuntu-latest
@@ -196,10 +196,6 @@ jobs:
         run: |
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          attr=.#nixosConfigurations.neko7.config
-          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
-          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
-          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
           nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
   integration:
     name: Incus ${{ matrix.kind }} lifecycle
@@ -222,20 +218,5 @@ jobs:
           sudo chmod a+rw /dev/kvm
           grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
           df -h
-      - name: Evaluate host integration and preserve privilege boundary
-        run: |
-          set -euo pipefail
-          attr=.#nixosConfigurations.neko7.config
-          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
-          nix eval --raw "$attr.virtualisation.incus.package.version"
-          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
-
-          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
-            .config["core.https_address"] == "127.0.0.1:8443"
-            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
-          '
-          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
-          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
-          nix eval --raw "$attr.system.build.toplevel.drvPath"
-      - name: Build and execute NixOS machine test
+      - name: Evaluate host policy and execute NixOS machine test
         run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
