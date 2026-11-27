@@ -7,9 +7,11 @@ _safety_report() {
 
 _safety_canonical_dir() {
   local resolved
+  # Wait for realpath to exit before returning; an asynchronous child can
+  # retain the inherited flock descriptor. The sentinel preserves newlines.
   [[ $1 == /* && $1 != / && -d $1 ]] &&
-    IFS= read -r -d '' resolved < <(@coreutils@/bin/realpath -ez -- "$1") &&
-    [[ $resolved == "$1" ]]
+    resolved=$(@coreutils@/bin/realpath -e -- "$1" && printf '.') &&
+    [[ $resolved == "$1"$'\n.' ]]
 }
 
 _safety_root_current() {

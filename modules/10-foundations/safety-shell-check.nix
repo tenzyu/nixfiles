@@ -10,7 +10,7 @@
       } ''
         ln -s ${library} operations.sh
         shellcheck --external-sources --source-path . --shell=bash ${library} ${fixtures}
-        timeout 45s ${pkgs.bash}/bin/bash ${fixtures} ${library} ${native}
+        timeout 45s ${pkgs.bash}/bin/bash ${fixtures} ${library} ${native} ${pkgs.coreutils}/bin/realpath
         touch "$out"
       '';
   };
