@@ -61,7 +61,7 @@
     screenshot = pkgs.writeShellApplication {
       name = "jay-screenshot";
       runtimeInputs = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.coreutils];
-      text = builtins.readFile ../../../scripts/desktop/jay-screenshot.sh;
+      text = builtins.readFile ../../../scripts/desktop/interaction/jay-screenshot.sh;
     };
     # Native named actions; no resident helper or additional IPC.
     workspaceActions = lib.concatMapStringsSep "\n" (n: let

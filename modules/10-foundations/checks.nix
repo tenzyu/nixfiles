@@ -116,7 +116,7 @@
       clipboard = pkgs.runCommand "clipboard-integration" {
         nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.util-linux];
       } ''
-        cp -r ${../../scripts/desktop} desktop
+        cp -r ${../../scripts/desktop/interaction} desktop
         chmod -R u+w desktop
         # Fixture subprocesses use /bin/bash; the sandbox does not provide it.
         substituteInPlace desktop/test-clipboard-integration.py --replace-fail /bin/bash ${pkgs.bash}/bin/bash
@@ -127,7 +127,9 @@
       memory-snapshot = pkgs.runCommand "memory-snapshot-tests" {
         nativeBuildInputs = [pkgs.python3];
       } ''
-        python3 ${../../scripts/desktop}/test-memory-snapshot.py
+        cp ${../../scripts/desktop/memory-snapshot.py} memory-snapshot.py
+        cp ${../../scripts/desktop/test-memory-snapshot.py} test-memory-snapshot.py
+        python3 test-memory-snapshot.py
         touch "$out"
       '';
 
