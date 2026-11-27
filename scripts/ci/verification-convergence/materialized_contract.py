@@ -69,7 +69,9 @@ try:
     run("git","add",str(manifest),cwd=right)
     r=subprocess.run(["nix","eval","--impure","--raw","--option","eval-cache","false","--option","allow-import-from-derivation","false","--expr",prefix+"toString sources."+target],cwd=right,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     (root/"invalid-hash.log").write_text(r.stdout)
-    require(r.returncode!=0 and re.search(r"^\s*error: .*hash.*(?:mismatch|does not match)",r.stdout,re.M|re.I),"bad NAR hash not rejected with expected error")
+    terminal = [line.strip() for line in r.stdout.splitlines() if line.strip().startswith("error: ")]
+    expected = "error: store path mismatch in (possibly filtered) path added from '" + str(asset / "data" / target) + "'"
+    require(r.returncode != 0 and terminal and terminal[-1] == expected, "bad NAR hash not rejected by expected terminal error: " + repr(terminal[-1:]))
 finally:
     run("git","reset","--hard","HEAD",cwd=right)
 try:

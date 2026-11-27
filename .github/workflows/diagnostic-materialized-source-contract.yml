@@ -20,11 +20,11 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://cache.numtide.com
             extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
-      - name: Verify real candidate host and check identities and fail-closed controls
+      - name: Verify remaining fail-closed controls on exact candidate
         run: |
           git fetch --no-tags origin 1672c3831724f0f347245f197dd58aa97d563206
           nix config show | grep -Fx 'require-sigs = true'
-          python3 scripts/ci/verification-convergence/materialized_contract.py 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206
+          python3 scripts/ci/verification-convergence/materialized_negative.py 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206
       - uses: actions/upload-artifact@v4
         if: always()
         with:

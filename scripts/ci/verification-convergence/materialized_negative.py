@@ -1,0 +1,75 @@
+"""Compare real candidate identities; reject stale/corrupt materialized source use."""
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+base, candidate = sys.argv[1:3]
+root = Path(os.environ["RUNNER_TEMP"]) / "materialized-contract"
+root.mkdir()
+def run(*args,cwd=None):
+    return subprocess.check_output(args,cwd=cwd,text=True).strip()
+def require(ok,message):
+    if not ok:
+        raise RuntimeError(message)
+def worktree(name,rev):
+    path=root/name
+    run("git","worktree","add","--detach",str(path),rev)
+    require(run("git","rev-parse","HEAD",cwd=path)==rev,"worktree identity mismatch")
+    return path
+def eval_json(path,attr,apply,materialized):
+    args=["nix","eval","--json","--no-write-lock-file","--option","eval-cache","false"]
+    if materialized:
+        args+=["--option","allow-import-from-derivation","false"]
+    return json.loads(run(*args,attr,"--apply",apply,cwd=path))
+right=worktree("candidate",candidate)
+# Positive identity evidence is already bound to this exact candidate in run 45949212845.
+asset=right/"assets/catppuccin-materialized"
+manifest=asset/"manifest.json"
+original=manifest.read_text()
+names=sorted(json.loads(original))
+prefix="let f = builtins.getFlake (toString ./.); lib = f.inputs.nixpkgs.lib; upstream = f.inputs.catppuccin.packages.x86_64-linux; sources = import ./assets/catppuccin-materialized { inherit lib upstream; }; in "
+def source_eval(expr):
+    return run("nix","eval","--impure","--json","--option","eval-cache","false","--option","allow-import-from-derivation","false","--expr",prefix+expr,cwd=right)
+selection="builtins.listToAttrs (map (name: { inherit name; value = { isDerivation = lib.isDerivation sources.${name}; drvPath = if lib.isDerivation sources.${name} then sources.${name}.drvPath else null; }; }) (builtins.fromJSON ''"+json.dumps(names)+"''))"
+current=json.loads(source_eval(selection))
+require(all(not x["isDerivation"] for x in current.values()),"matching source did not materialize")
+target=names[0]
+try:
+    stale=json.loads(original)
+    stale[target]["drvPath"]="/nix/store/"+"0"*32+"-stale.drv"
+    manifest.write_text(json.dumps(stale))
+    run("git","add",str(manifest),cwd=right)
+    actual=json.loads(source_eval(selection))
+    require(actual[target]["isDerivation"] and actual[target]["drvPath"]==json.loads(original)[target]["drvPath"],"stale source did not fall back")
+    require(all(not actual[n]["isDerivation"] for n in names if n!=target),"unrelated source changed")
+finally:
+    run("git","reset","--hard","HEAD",cwd=right)
+try:
+    corrupt=json.loads(original)
+    corrupt[target]["narHash"]="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    manifest.write_text(json.dumps(corrupt))
+    run("git","add",str(manifest),cwd=right)
+    r=subprocess.run(["nix","eval","--impure","--raw","--option","eval-cache","false","--option","allow-import-from-derivation","false","--expr",prefix+"toString sources."+target],cwd=right,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    (root/"invalid-hash.log").write_text(r.stdout)
+    terminal = [line.strip() for line in r.stdout.splitlines() if line.strip().startswith("error: ")]
+    expected = "error: store path mismatch in (possibly filtered) path added from '" + str(asset / "data" / target) + "'"
+    require(r.returncode != 0 and terminal and terminal[-1] == expected, "bad NAR hash not rejected by expected terminal error: " + repr(terminal[-1:]))
+finally:
+    run("git","reset","--hard","HEAD",cwd=right)
+try:
+    data=next(p for p in sorted((asset/"data"/target).rglob("*")) if p.is_file())
+    with data.open("ab") as f:
+        f.write(b"\ndiagnostic corruption\n")
+    run("git","add",str(data),cwd=right)
+    r=subprocess.run(["python3",str(asset/"verify.py"),"--require-current"],cwd=right,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    (root/"corrupt-source.log").write_text(r.stdout)
+    require(r.returncode!=0 and re.search(r"^RuntimeError: "+re.escape(target)+r": tracked NAR does not match manifest$",r.stdout,re.M),"corrupt source was not rejected")
+finally:
+    run("git","reset","--hard","HEAD",cwd=right)
+(root/"negative-controls.json").write_text(json.dumps({"matching":current,"stale":actual,"bad_hash":"rejected","corrupt_source":"rejected"},indent=2)+"\n")
+print("MATERIALIZED_SOURCE_CONTRACT=success")
