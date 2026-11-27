@@ -460,11 +460,11 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1794962563,
-        "narHash": "sha256-HCmT9duOnUw3mLYZ5+Kkt2J2iaNXfp5fOQVeglAyTNo=",
+        "lastModified": 1795172058,
+        "narHash": "sha256-Jq3Gee2RBkJG7IxcuWACiPP/q91mK3NICLfXpMM0XdQ=",
         "owner": "tenzyu",
         "repo": "splitcast",
-        "rev": "3b2a051efc1c5f8c483d8f7f453d49f6216c7f2d",
+        "rev": "b6fcf1588fec4c42b0e22df58f3bca53c2f51b6f",
         "type": "github"
       },
       "original": {
