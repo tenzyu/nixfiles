@@ -25,13 +25,25 @@ jobs:
           git rev-parse HEAD
           nix --version
           nix config show | grep -Fx 'require-sigs = true'
-          path=/nix/store/jrjyng3nxqhsqdf7awbr512ffwqdvv2d-whiskers-2.9.0
-          hash=jrjyng3nxqhsqdf7awbr512ffwqdvv2d
+          expected=/nix/store/jrjyng3nxqhsqdf7awbr512ffwqdvv2d-whiskers-2.9.0
+          # Evaluate the actual locked upstream package identity without building it.
+          /usr/bin/time -f 'IDENTITY_EVAL_SECONDS=%e' nix eval --impure --json --expr '
+            let f = builtins.getFlake (toString ./.);
+                p = f.inputs.catppuccin.packages.x86_64-linux;
+            in builtins.listToAttrs (map (n: { name = n; value = { drv = p.${n}.drvPath; output = p.${n}.outPath; }; }) ["whiskers" "firefox" "starship" "palette"])
+          ' > "$RUNNER_TEMP/identity.json"
+          cat "$RUNNER_TEMP/identity.json"
+          jq -e --arg p "$expected" '.whiskers.output == $p and .whiskers.drv == "/nix/store/xy17bjpzbl4ykxbzxp6x2db1zfllvk8c-whiskers-2.9.0.drv"' "$RUNNER_TEMP/identity.json"
+          git diff --exit-code
+          echo PINNED_OUTPUT_IDENTITY_EQUAL=1
           # Public NarInfo responses; do not accept unsigned output, build,
           # change the lock or install any new trust authority.
-          for cache in https://catppuccin.cachix.org https://cache.nixos.org https://cache.numtide.com; do
+          for name in whiskers firefox starship palette; do
+            path=$(jq -er --arg n "$name" '.[$n].output' "$RUNNER_TEMP/identity.json")
+            hash=$(basename "$path"); hash=${hash%%-*}
+            for cache in https://catppuccin.cachix.org https://cache.nixos.org https://cache.numtide.com; do
             status=$(curl --silent --show-error --location --max-time 30 --output "$RUNNER_TEMP/narinfo" --write-out '%{http_code}' "$cache/$hash.narinfo") || status=transport-error
-            echo "NARINFO_CACHE=$cache HTTP=$status"
+            echo "NARINFO_PACKAGE=$name CACHE=$cache HTTP=$status"
             if [[ "$status" == 200 ]]; then
               grep -E '^(StorePath|NarHash|NarSize|References|Sig|Deriver|FileSize):' "$RUNNER_TEMP/narinfo" || true
               grep -Fx "StorePath: $path" "$RUNNER_TEMP/narinfo"
@@ -41,22 +53,13 @@ jobs:
               if nix copy --from "$cache" --to "$dest" "$path"; then
                 nix --store "$dest" path-info --recursive "$path"
                 if nix --store "$dest" store verify --recursive "$path"; then
-                  echo "SIGNED_CLOSURE_VERIFIED=$cache"
+                  echo "SIGNED_CLOSURE_VERIFIED=$name:$cache"
                 else
-                  echo "SIGNED_CLOSURE_VERIFY_FAILED=$cache"
+                  echo "SIGNED_CLOSURE_VERIFY_FAILED=$name:$cache"
                 fi
               else
-                echo "SIGNED_CLOSURE_COPY_FAILED=$cache"
+                echo "SIGNED_CLOSURE_COPY_FAILED=$name:$cache"
               fi
             fi
           done
-          # Evaluate the actual locked upstream package identity without building it.
-          /usr/bin/time -f 'IDENTITY_EVAL_SECONDS=%e' nix eval --impure --json --expr '
-            let f = builtins.getFlake (toString ./.);
-                p = f.inputs.catppuccin.packages.x86_64-linux;
-            in builtins.listToAttrs (map (n: { name = n; value = { inherit (p.${n}) drvPath outPath; }; }) ["whiskers" "firefox" "starship" "palette"])
-          ' > "$RUNNER_TEMP/identity.json"
-          cat "$RUNNER_TEMP/identity.json"
-          jq -e --arg p "$path" '.whiskers.outPath == $p' "$RUNNER_TEMP/identity.json"
-          git diff --exit-code
-          echo PINNED_OUTPUT_IDENTITY_EQUAL=1
+          done
