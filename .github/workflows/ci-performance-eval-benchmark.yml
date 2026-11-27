@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   measure:
-    name: "Incus policy A/B / pair ${{ matrix.pair }}"
+    name: "Incus policy / ${{ matrix.mode }} / pair ${{ matrix.pair }}"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -17,17 +17,18 @@ jobs:
       max-parallel: 2
       matrix:
         pair: [1, 2, 3, 4, 5]
+        mode: [baseline, candidate]
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 695c9a50f20dca28147bd0dbe2831068ae43da77
+          ref: ec49c46637c50cf25752bc650eeb9638d2950524
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compare actual policy step scripts on identical candidate
+      - name: Measure policy on independent fresh runner
         env:
-          PAIR: ${{ matrix.pair }}
+          MODE: ${{ matrix.mode }}
         run: |
           set -euo pipefail
           git rev-parse HEAD
@@ -72,17 +73,17 @@ jobs:
           jq -e '.containers | index("neko7-mc") != null' <<< "$evidence"
           jq -ej '.hostDrv | select(type == "string")' <<< "$evidence"
           CANDIDATE
-          bash -n "$RUNNER_TEMP/baseline.sh" "$RUNNER_TEMP/candidate.sh"
-          if (( PAIR % 2 )); then order=(baseline candidate); else order=(candidate baseline); fi
-          for mode in "${order[@]}"; do
-            export XDG_CACHE_HOME="$RUNNER_TEMP/cache-$mode"
-            mkdir -p "$XDG_CACHE_HOME"
-            # Cold evaluator cache per arm, common store; alternate order to
-            # reduce source-store warming bias. Include evaluation in timing.
+          bash -n "$RUNNER_TEMP/baseline.sh"
+          bash -n "$RUNNER_TEMP/candidate.sh"
+          # Each job runs only one arm. Separate ephemeral runners prevent the
+          # first arm warming the Nix store/daemon of the other arm.
+          for phase in cold warm; do
             start=$(date +%s%N)
-            bash "$RUNNER_TEMP/$mode.sh" | tee "$RUNNER_TEMP/$mode.out"
+            bash "$RUNNER_TEMP/$MODE.sh" > "$RUNNER_TEMP/$phase.out"
             end=$(date +%s%N)
-            printf 'BENCHMARK_%s_MILLISECONDS=%s\n' "$mode" "$(( (end-start)/1000000 ))"
+            printf 'BENCHMARK_MODE=%s PHASE=%s MILLISECONDS=%s\n' "$MODE" "$phase" "$(( (end-start)/1000000 ))"
+            printf 'BENCHMARK_STDOUT_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/$phase.out" | cut -d ' ' -f 1)"
+            cat "$RUNNER_TEMP/$phase.out"
+            printf '\n'
           done
-          diff -u "$RUNNER_TEMP/baseline.out" "$RUNNER_TEMP/candidate.out"
-          echo 'BENCHMARK_POLICY_OUTPUT_EQUIVALENT=1'
+          cmp "$RUNNER_TEMP/cold.out" "$RUNNER_TEMP/warm.out"
