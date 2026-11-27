@@ -1,0 +1,86 @@
+name: CI evaluation profile (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-evaluation-profile-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: ci-diagnostic-evaluation-profile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  profile:
+    name: "Profile ${{ matrix.target }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [validation, neko7, immich]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 0a93fe7cbca349d0a8577ca4a310afe860f18ffc
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: ${{ matrix.target == 'validation' && 'extra-substituters = https://cache.numtide.com' || '' }}
+      - name: Isolate source acquisition and evaluator cost
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == validation ]]; then
+            echo 'extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=' | sudo tee -a /etc/nix/nix.conf
+            sudo systemctl restart nix-daemon.service
+          fi
+          nix config show | grep -Fx 'require-sigs = true'
+          case "$TARGET" in
+            validation) attr=.#checks.x86_64-linux.validation.drvPath ;;
+            neko7) attr=.#nixosConfigurations.neko7.config.system.build.toplevel.drvPath ;;
+            immich) attr=.#packages.x86_64-linux.neko7-immich-image.drvPath ;;
+            *) exit 2 ;;
+          esac
+          git rev-parse HEAD
+          nix --version
+          nproc
+          free -m
+          # Both phases force evaluation; no cached attribute result. The
+          # second phase retains local source paths and fetcher state. The
+          # difference is not assumed to be pure network time.
+          for phase in cold source-warm; do
+            /usr/bin/time -f "PROFILE_PHASE=$phase ELAPSED=%e USER=%U SYS=%S MAXRSS_KIB=%M" \
+              nix eval --raw --option eval-cache false "$attr" > "$RUNNER_TEMP/$phase.drv"
+            cat "$RUNNER_TEMP/$phase.drv"; printf '\n'
+          done
+          cmp "$RUNNER_TEMP/cold.drv" "$RUNNER_TEMP/source-warm.drv"
+          # Profiling instrumentation is a separate run, not a benchmark arm.
+          /usr/bin/time -f 'PROFILE_PHASE=instrumented ELAPSED=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+            nix eval --raw --option eval-cache false --option eval-profiler flamegraph \
+              --option eval-profile-file "$RUNNER_TEMP/eval.profile" "$attr" > "$RUNNER_TEMP/profile.drv"
+          cmp "$RUNNER_TEMP/cold.drv" "$RUNNER_TEMP/profile.drv"
+          test -s "$RUNNER_TEMP/eval.profile"
+          python3 - "$RUNNER_TEMP/eval.profile" <<'PY'
+          from collections import Counter
+          import sys
+          leaf, frames = Counter(), Counter()
+          total = 0
+          with open(sys.argv[1]) as f:
+              for line in f:
+                  stack, sep, count = line.rstrip().rpartition(" ")
+                  if not sep or not count.isdigit():
+                      continue
+                  n = int(count)
+                  total += n
+                  trace = stack.split(";")
+                  leaf[trace[-1]] += n
+                  for frame in set(trace):
+                      frames[frame] += n
+          assert total > 0, "unrecognized profiler output"
+          print("PROFILE_SAMPLE_COUNT", total)
+          for label, histogram in (("LEAF", leaf), ("INCLUSIVE", frames)):
+              for frame, n in histogram.most_common(20):
+                  print(f"PROFILE_{label} {n / total:.4%} {frame}")
+          PY
+          echo PROFILE_DERIVATION_IDENTITY_EQUAL=1
