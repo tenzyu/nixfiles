@@ -2,6 +2,7 @@
   flake.modules.nixos.catppuccin = {
     config,
     lib,
+    pkgs,
     ...
   }: {
     imports = [
@@ -12,6 +13,10 @@
       catppuccin = {
         enable = true;
         cache.enable = true;
+        sources = import ../../../assets/catppuccin-materialized {
+          inherit lib;
+          upstream = inputs.catppuccin.packages.${pkgs.stdenv.hostPlatform.system};
+        };
       };
     };
   };
@@ -19,6 +24,7 @@
   flake.modules.homeManager.catppuccin = {
     config,
     lib,
+    pkgs,
     ...
   }: {
     imports = [
@@ -29,6 +35,10 @@
       catppuccin = {
         enable = true;
         cache.enable = true;
+        sources = import ../../../assets/catppuccin-materialized {
+          inherit lib;
+          upstream = inputs.catppuccin.packages.${pkgs.stdenv.hostPlatform.system};
+        };
       };
     };
   };

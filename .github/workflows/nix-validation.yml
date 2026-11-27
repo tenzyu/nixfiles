@@ -26,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
@@ -35,6 +36,28 @@ jobs:
             extra-substituters = https://cache.numtide.com
             extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
       - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+      - name: Verify materialized theme source provenance
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          root=assets/catppuccin-materialized
+          current=$(git rev-parse "HEAD:$root")
+          previous=""
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            previous=$(git rev-parse "$BASE_SHA:$root" 2>/dev/null || true)
+          fi
+          # This is source-provenance reuse, never a regression-test selector.
+          # All ordinary checks above still run. Integration pushes always reverify.
+          if [[ "$EVENT" == pull_request && ( "$BASE_REF" == develop || "$BASE_REF" == main ) && "$current" == "$previous" ]]; then
+            echo "Materialized source tree matches the integration base: $current"
+          else
+            args=()
+            if [[ "$current" != "$previous" ]]; then args+=(--require-current); fi
+            python3 "$root/verify.py" "${args[@]}"
+          fi
 
   stateful:
     name: Home Manager migration and recovery

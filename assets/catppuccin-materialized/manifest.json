@@ -1,0 +1,14 @@
+{
+  "firefox": {
+    "drvPath": "/nix/store/1rv3wnjgsnsg3nri8g271hxyknqin3as-catppuccin-firefox-0-unstable-2023-07-18.drv",
+    "narHash": "sha256-FSwaRQ6N08uci1smXhCqGECAio1LhA6I2Y5E88vrFbo="
+  },
+  "palette": {
+    "drvPath": "/nix/store/dhsjc5paryv4ginm9vb5zb89xfh09zpb-catppuccin-palette-0-unstable-2026-03-21.drv",
+    "narHash": "sha256-T7lbl75wwh50+wTiATQQYwg5/+naiJORgSf4wuraA2s="
+  },
+  "starship": {
+    "drvPath": "/nix/store/1zf0dxdzwqmzb4ak75zdhxfbi7v6r0cy-catppuccin-starship-0-unstable-2025-08-01.drv",
+    "narHash": "sha256-D37O3yZVMAmmz7A0J4fDdgOOJg5H8G0S1UfODrbdZxY="
+  }
+}
