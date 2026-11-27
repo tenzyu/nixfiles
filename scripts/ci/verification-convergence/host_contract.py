@@ -1,6 +1,7 @@
 """Diagnostic checks on isolated historical worktrees. Never admit a PR."""
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -60,8 +61,8 @@ needle = "host = self.nixosConfigurations.neko7.config;"
 check(original.count(needle) == 1, "host boundary changed")
 cases = [
     ("compute-host-container", 'virtualisation.incus.preseed.config."core.https_address" = lib.mkForce "0.0.0.0:8443";', "private-listener"),
-    ("tailnet-ingress", "local.features.tailnet-ingress.enable = lib.mkForce false;", "enabled"),
-    ("workload-lifecycle", 'containers.neko7-mc.path = lib.mkForce "/tmp/diagnostic-wrong-profile";', "minecraft-profile"),
+    ("tailnet-ingress", 'networking.nftables.tables.tailnet_ingress.family = lib.mkOverride 0 "ip";', "nftables-family"),
+    ("workload-lifecycle", 'containers.neko7-mc.path = lib.mkOverride 0 "/tmp/diagnostic-wrong-profile";', "minecraft-profile"),
 ]
 for attr, override, failure in cases:
     try:
@@ -70,7 +71,8 @@ for attr, override, failure in cases:
         r = subprocess.run(["nix", "eval", "--raw", ".#checks.x86_64-linux." + attr + ".drvPath"], cwd=candidate, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (root / (attr + ".negative.log")).write_text(r.stdout)
         print(attr, r.returncode, r.stdout[-2000:])
-        check(r.returncode != 0 and "host contract violations:" in r.stdout and failure in r.stdout, "negative control failed: " + attr)
+        errors = re.findall(r'^\s*error: [^\r\n]+ host contract violations: (\[[^\r\n]*\])\s*$', r.stdout, re.M)
+        check(r.returncode != 0 and len(errors) == 1 and failure in json.loads(errors[0]), "expected terminal contract error, got: " + r.stdout[-1200:])
     finally:
         command("git", "reset", "--hard", "HEAD", cwd=candidate)
 try:
@@ -79,7 +81,7 @@ try:
     p.write_text(original.replace(needle, '(name: host.system.build.toplevel.drvPath);'))
     command("git", "add", str(p), cwd=candidate)
     r = run_step(candidate, old_step, "closure-negative")
-    check(r.returncode != 0 and "is coupled to the host generation" in r.stdout, "closure coupling accepted")
+    check(r.returncode != 0 and re.search(r"^::error::neko7-[^\n]+ is coupled to the host generation$", r.stdout, re.M), "closure coupling accepted")
 finally:
     command("git", "reset", "--hard", "HEAD", cwd=candidate)
 (root / "receipt.json").write_text(json.dumps({"base": BASE, "candidate": CANDIDATE, "native_derivations": before, "negative_controls": [c[2] for c in cases]+["closure-coupling"]}, indent=2))
