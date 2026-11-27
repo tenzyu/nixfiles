@@ -1,0 +1,40 @@
+# Diagnostic only. Never integrate.
+name: Diagnostic historical gate identity audit
+on:
+  push:
+    branches: [diagnostics/historical-all-gate-audit]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        arm: [baseline, candidate]
+        stage: [head, merge]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: historical-fixture-receipts
+          run-id: 45949394898
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/historical-fixtures
+      - name: Audit all exact attempt-one identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARM: ${{ matrix.arm }}
+          STAGE: ${{ matrix.stage }}
+        run: python3 scripts/ci/verification-convergence/historical_audit.py "$ARM" "$STAGE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical-audit-${{ matrix.arm }}-${{ matrix.stage }}
+          path: ${{ runner.temp }}/historical-audit/audit.json
+          retention-days: 3
