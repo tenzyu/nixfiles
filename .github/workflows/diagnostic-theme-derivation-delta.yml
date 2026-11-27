@@ -44,7 +44,7 @@ jobs:
           from pathlib import Path
           p=Path("modules/50-features/desktop/catppuccin.nix")
           old="        cache.enable = true;\n"
-          new=old+"""        sources = {
+          new=old+"""        sources = inputs.catppuccin.packages.${pkgs.stdenv.hostPlatform.system} // {
                     starship = ../../../assets/ci-theme-probe/starship;
                     firefox = ../../../assets/ci-theme-probe/firefox;
                     palette = ../../../assets/ci-theme-probe/palette;
@@ -52,7 +52,8 @@ jobs:
           """
           s=p.read_text()
           assert s.count(old)==2
-          p.write_text(s.replace(old,new))
+          assert s.count("    lib,\n    ...")==2
+          p.write_text(s.replace("    lib,\n    ...","    lib,\n    pkgs,\n    ...").replace(old,new))
           PY
               git add "$module"
             fi
@@ -61,6 +62,17 @@ jobs:
               let f=builtins.getFlake (toString ./.);
               in builtins.mapAttrs (_: h: h.config.system.build.toplevel.drvPath) f.nixosConfigurations
             ' > "$RUNNER_TEMP/delta/$arm-roots.json"
+            nix eval --json --impure --expr '
+              let f=builtins.getFlake (toString ./.);
+              in builtins.mapAttrs (_: h: let u=h.config.home-manager.users.tenzyu; in
+                builtins.mapAttrs (_: v: v.drvPath)
+                  (f.inputs.nixpkgs.lib.filterAttrs (n: v: !(builtins.elem n ["starship" "firefox" "palette"]) && f.inputs.nixpkgs.lib.isDerivation v) u.catppuccin.sources)
+              ) f.nixosConfigurations
+            ' | jq -S . > "$RUNNER_TEMP/delta/$arm-source-identities.json"
+            nix eval --json --impure --expr '
+              let f=builtins.getFlake (toString ./.);
+              in builtins.mapAttrs (_: d: d.drvPath) (builtins.removeAttrs f.checks.x86_64-linux ["docs" "validation"])
+            ' | jq -S . > "$RUNNER_TEMP/delta/$arm-checks.json"
             mapfile -t roots < <(jq -r '.[]' "$RUNNER_TEMP/delta/$arm-roots.json")
             nix derivation show --recursive "${roots[@]}" > "$RUNNER_TEMP/$arm-graph.json"
             nix eval --json --impure --expr '
@@ -131,6 +143,13 @@ jobs:
           for row in unmatched[:30]:print("UNMATCHED",json.dumps(row))
           print("THEME_VALUES_EQUAL", (temp/"delta/control-theme.json").read_bytes()==(temp/"delta/snapshot-theme.json").read_bytes())
           PY
+          for field in roots source-identities checks theme; do
+            diff -u "$RUNNER_TEMP/delta/control-$field.json" "$RUNNER_TEMP/delta/snapshot-$field.json"
+            echo "EXACT_EQUAL=$field"
+          done
+          nix eval --option eval-cache false --option allow-import-from-derivation false --raw .#checks.x86_64-linux.validation.drvPath
+          echo
+          echo NO_IFD_VALIDATION=success
       - uses: actions/upload-artifact@v4
         if: always()
         with:
