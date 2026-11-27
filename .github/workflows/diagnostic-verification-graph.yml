@@ -7,8 +7,11 @@ on:
       - 'scripts/ci/verification-graph-probe/**'
 permissions:
   contents: read
+env:
+  BASELINE_SHA: 3a1245286e3d43b49aea83a8efb64b27066ac015
+  CATALOG_SHA: 15311cb540494a7703ea97bfc8c1ab7de3b93356
 jobs:
-  observe:
+  catalog-equivalence:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -22,39 +25,111 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://cache.numtide.com
             extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
-      - name: Test observation adapter
-        run: python3 -m unittest discover -s scripts/ci/verification-graph-probe -v
-      - name: Observe historical safety-shell change
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      - name: Verify actual catalog membership and automatic registration
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/verification-graph"
-          mkdir -p "$root/base" "$root/candidate"
-          git worktree add --detach "$RUNNER_TEMP/baseline" "$BASE_SHA^1"
-          git worktree add --detach "$RUNNER_TEMP/candidate" "$BASE_SHA"
+          root="$RUNNER_TEMP/catalog"
+          mkdir -p "$root"
+          git fetch --no-tags origin "$CATALOG_SHA"
+          git worktree add --detach "$RUNNER_TEMP/baseline" "$BASELINE_SHA"
+          git worktree add --detach "$RUNNER_TEMP/candidate" "$CATALOG_SHA"
           system=$(nix eval --impure --raw --expr builtins.currentSystem)
-          tool=$(nix build --no-link --print-out-paths --inputs-from "$RUNNER_TEMP/candidate" nixpkgs#nix-eval-jobs)
-          nix --version | tee "$root/nix-version.txt"
-          printf '%s\n' "$tool" > "$root/evaluator.txt"
-          status=0
-          for pair in base:baseline candidate:candidate; do
-            label=${pair%%:*}
-            worktree=${pair#*:}
+          for label in baseline candidate; do
             (
-              cd "$RUNNER_TEMP/$worktree"
-              git rev-parse HEAD HEAD^{tree} > "$root/$label/git-identity.txt"
-              sha256sum flake.lock > "$root/$label/lock.txt"
-              nix eval --json ".#checks.$system" --apply builtins.attrNames > "$root/$label/checks.json"
-              "$tool/bin/nix-eval-jobs" --workers 1 --flake ".#checks.$system" > "$root/$label/evaluation.jsonl"
-            ) || status=1
+              cd "$RUNNER_TEMP/$label"
+              git rev-parse HEAD HEAD^{tree} > "$root/$label.identity"
+              sha256sum flake.lock > "$root/$label.lock"
+              nix eval --json ".#checks.$system" --apply builtins.attrNames > "$root/$label.checks.json"
+              nix build -L --out-link "$root/$label.validation" ".#checks.$system.validation"
+            )
           done
-          python3 scripts/ci/verification-graph-probe/compare.py "$root/base" "$root/candidate" | tee "$root/comparison.json"
-          exit "$status"
-      - name: Preserve observations
+          python3 scripts/ci/verification-graph-probe/catalog.py "$root" | tee "$root/equivalence.json"
+          cd "$RUNNER_TEMP/candidate"
+          cat > modules/10-foundations/diagnostic-catalog-registration.nix <<'EOF'
+          {
+            perSystem = {pkgs, ...}: {
+              validationChecks.diagnostic-registration = pkgs.runCommand "diagnostic-registration" {} "touch $out";
+            };
+          }
+          EOF
+          git add modules/10-foundations/diagnostic-catalog-registration.nix
+          nix eval --json ".#checks.$system" --apply builtins.attrNames > "$root/added.checks.json"
+          nix build -L --out-link "$root/added.validation" ".#checks.$system.validation"
+          test -L "$root/added.validation/diagnostic-registration"
+          test -e "$root/added.validation/diagnostic-registration"
+          python3 - "$root" <<'PY'
+          import json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          before = set(json.loads((root / "candidate.checks.json").read_text()))
+          after = set(json.loads((root / "added.checks.json").read_text()))
+          assert after == before | {"diagnostic-registration"}
+          assert {p.name for p in (root / "added.validation").iterdir()} == {p.name for p in (root / "candidate.validation").iterdir()} | {"diagnostic-registration"}
+          print("A single declaration is exported and included in the actual aggregate")
+          PY
+      - name: Preserve equivalence receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: verification-graph-observations
-          path: ${{ runner.temp }}/verification-graph
+          name: catalog-equivalence
+          path: |
+            ${{ runner.temp }}/catalog/*.json
+            ${{ runner.temp }}/catalog/*.identity
+            ${{ runner.temp }}/catalog/*.lock
+          retention-days: 3
+  evaluator-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        evaluator: [native, nix-forge]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.BASELINE_SHA }}
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        if: matrix.evaluator == 'nix-forge'
+        with:
+          repository: nix-forge/ci
+          ref: f596a2048ecae462a7cea8f882461ea884445ea0
+          path: upstream-ci
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Compare exact validation-root evaluation on independent runners
+        env:
+          EVALUATOR: ${{ matrix.evaluator }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/evaluator"
+          mkdir -p "$root"
+          git rev-parse HEAD HEAD^{tree} > "$root/identity"
+          sha256sum flake.lock > "$root/lock"
+          nix --version > "$root/nix-version"
+          system=$(nix eval --impure --raw --expr builtins.currentSystem)
+          status=0
+          if [[ "$EVALUATOR" == native ]]; then
+            /usr/bin/time -f '%e' -o "$root/seconds" timeout 900 nix eval --raw --no-write-lock-file ".#checks.$system.validation.drvPath" > "$root/derivation" 2> "$root/stderr" || status=$?
+          else
+            git -C upstream-ci rev-parse HEAD > "$root/upstream-identity"
+            /usr/bin/time -f '%e' -o "$root/seconds" timeout 900 python3 -c 'import runpy,sys; sys.path.insert(0,"upstream-ci/scripts"); print(runpy.run_path("upstream-ci/scripts/run-flake-checks.py")["check_derivation"](sys.argv[1],"validation"))' "$system" > "$root/derivation" 2> "$root/stderr" || status=$?
+          fi
+          printf '%s\n' "$status" > "$root/exit-status"
+          cat "$root/derivation"
+          tail -n 80 "$root/stderr"
+          echo "Evaluator=$EVALUATOR status=$status seconds=$(cat "$root/seconds")"
+          if [[ "$EVALUATOR" == native ]]; then exit "$status"; fi
+          # A failed compatibility probe is a recorded result, not a passing production gate.
+      - name: Preserve evaluator result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluator-${{ matrix.evaluator }}
+          path: ${{ runner.temp }}/evaluator
           retention-days: 3
