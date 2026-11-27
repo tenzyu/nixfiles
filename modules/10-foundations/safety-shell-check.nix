@@ -4,7 +4,7 @@
     fixtures = ../../assets/safety/shell/test-operations.sh;
     native = ../../assets/safety/shell/native.py;
   in {
-    checks.safety-shell =
+    validationChecks.safety-shell =
       pkgs.runCommand "safety-shell-tests" {
         nativeBuildInputs = [pkgs.coreutils pkgs.python3 pkgs.shellcheck pkgs.util-linux];
       } ''

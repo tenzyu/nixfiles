@@ -44,7 +44,7 @@
       (types != ["attrsOf" "attrsOf" "nullOr" "nullOr" "nullOr"])
       "typed host and user feature options";
   in {
-    checks = lib.optionalAttrs (system == "x86_64-linux") {
+    validationChecks = lib.optionalAttrs (system == "x86_64-linux") {
       framework =
       assert lib.assertMsg (failures == []) ("Nix configuration regressions: " + builtins.toJSON failures);
       pkgs.runCommand "framework-check" {} "touch $out";

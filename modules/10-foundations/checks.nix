@@ -1,5 +1,13 @@
-{inputs, self, ...}: {
-  perSystem = {pkgs, config, system, ...}: let
+{inputs, self, flake-parts-lib, ...}: {
+  options.perSystem = flake-parts-lib.mkPerSystemOption ({lib, ...}: {
+    options.validationChecks = lib.mkOption {
+      type = lib.types.lazyAttrsOf lib.types.package;
+      default = {};
+      description = "Focused regression derivations exposed as flake checks and included in the validation gate.";
+    };
+  });
+
+  config.perSystem = {pkgs, config, system, ...}: let
     inherit (inputs.nixpkgs) lib;
     hosts = self.nixosConfigurations;
     desktop = (import ../../scripts/desktop/evaluate-desktop.nix {flake = self;}).result;
@@ -81,14 +89,8 @@
         && desktop.fileAssociation == ["dev.fileman.Files.desktop"];
     };
     failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
-    fastChecks = [
-      "framework" "host-policy" "desktop-packages" "docs" "clipboard" "memory-snapshot"
-      "t3-serve" "opencode-direnv" "parsec-activation"
-      "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
-      "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
-    ];
   in {
-    checks = lib.optionalAttrs (system == "x86_64-linux") {
+    validationChecks = lib.optionalAttrs (system == "x86_64-linux") {
       host-policy =
         assert lib.assertMsg (failures == []) ("Host contract violations: " + builtins.toJSON failures);
         pkgs.runCommand "host-policy" {} "touch $out";
@@ -164,13 +166,14 @@
         lychee --offline --root-dir "$PWD" README.md AGENTS.md MEMORY.md ROADMAP.md 'docs/**/*.md'
         touch "$out"
       '';
+    };
 
-      # Nix tracks actual derivation inputs and substitution; no source-path
-      # selector, test-of-selector or branch-name-dependent policy.
-      validation = pkgs.linkFarm "nixfiles-validation" (map (name: {
-        inherit name;
-        path = config.checks.${name};
-      }) fastChecks);
+    # Publish the same derivations under the native flake interface and derive
+    # the aggregate from their declarations. Separate native gates remain checks.
+    checks = config.validationChecks // lib.optionalAttrs (system == "x86_64-linux") {
+      validation = pkgs.linkFarm "nixfiles-validation" (lib.mapAttrsToList (name: path: {
+        inherit name path;
+      }) config.validationChecks);
     };
   };
 }
