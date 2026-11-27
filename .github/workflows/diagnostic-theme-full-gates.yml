@@ -1,0 +1,880 @@
+# Diagnostic only: exact normal gate steps, no release/deployment.
+# Only the dispatch-only signed cache audit is excluded, as in ordinary PR CI.
+name: CI theme full-gate diagnostic (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-theme-full-gates-20261127]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  baseline-validate:
+    name: baseline / Nix evaluation and focused regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache used by the compute artifact workflow.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+
+  baseline-stateful:
+    name: baseline / Home Manager migration and recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
+
+  baseline-platform:
+    name: baseline / Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+
+  baseline-discover-workloads:
+    name: baseline / Discover independent image outputs and validate operator menu
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.outputs.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: outputs
+        run: |
+          set -euo pipefail
+          workloads=$(nix eval --json .#packages.x86_64-linux --apply builtins.attrNames | jq -c '[.[] | select(startswith("neko7-") and endswith("-image")) | sub("^neko7-"; "") | sub("-image$"; "")]')
+          echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
+          nix build -L --no-link .#checks.x86_64-linux.instance-recipes
+
+  baseline-personal-workloads:
+    needs: baseline-discover-workloads
+    if: needs.baseline-discover-workloads.outputs.workloads != '[]'
+    name: baseline / Build ${{ matrix.workload }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(needs.baseline-discover-workloads.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build independent VM image and system
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          out=$(nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          nix build -L --no-link ".#neko7-$WORKLOAD-system"
+      - name: Boot actual service module and test private reachability
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
+
+  baseline-workload-lifecycle:
+    name: baseline / Independent workload deployment and rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate production deployment boundaries
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --raw "$attr.containers.neko7-mc.path" | grep -Fx /nix/var/nix/profiles/system
+          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and contains("/nix/profiles/t3-runtime/bin/t3"))'
+          nix eval --json "$attr.home-manager.users.tenzyu.local.features.splitcast-production-profile.enable" | jq -e '. == true'
+          nix eval --json "$attr.home-manager.users.tenzyu.services.splitcast.enable" | jq -e '. == false'
+          nix eval --json "$attr.system.preSwitchChecks" --apply builtins.attrNames | jq -e 'index("minecraft-workload-profile") != null and index("neko7-workload-profiles") != null'
+          host_drv=$(nix eval --raw "$attr.system.build.toplevel.drvPath")
+          nix-store --query --requisites "$host_drv" > /tmp/neko7-host-derivations
+          for name in neko7-minecraft-system neko7-t3-runtime neko7-splitcast-runtime; do
+            drv=$(nix eval --raw ".#packages.x86_64-linux.$name.drvPath")
+            if grep -Fxq "$drv" /tmp/neko7-host-derivations; then
+              echo "::error::$name is coupled to the host generation"
+              exit 1
+            fi
+          done
+      - name: Exercise real native guest profile update and rollback
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle
+
+  baseline-workload-artifacts:
+    name: baseline / Build ${{ matrix.workload }} deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
+      - name: Build and inspect independent artifact
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
+          case "$WORKLOAD" in
+            neko7-minecraft-system)
+              test -x "$out/init"
+              test -x "$out/bin/switch-to-configuration"
+              ;;
+            neko7-t3-runtime)
+              test -x "$out/bin/t3"
+              test -x "$out/bin/codex"
+              ;;
+            neko7-splitcast-runtime)
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+          esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-build-log-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  baseline-ingress:
+    name: baseline / Tailnet-only ingress negative controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify host policy and execute firewall machine test
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
+          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
+          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
+          nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
+
+  baseline-integration:
+    name: baseline / Incus ${{ matrix.kind }} lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [container]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - name: Record exact baseline tree
+        run: git rev-parse HEAD^{tree}
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check KVM availability (required for real machine evidence)
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
+          df -h
+      - name: Evaluate host integration and preserve privilege boundary
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --raw "$attr.virtualisation.incus.package.version"
+          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
+
+          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          '
+          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
+          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
+          nix eval --raw "$attr.system.build.toplevel.drvPath"
+      - name: Build and execute NixOS machine test
+        run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
+
+  baseline-barrier:
+    name: Baseline gate barrier
+    needs: [baseline-validate, baseline-stateful, baseline-platform, baseline-discover-workloads, baseline-personal-workloads, baseline-workload-lifecycle, baseline-workload-artifacts, baseline-ingress, baseline-integration]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all baseline gates
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -e 'all(.[]; .result == "success")' <<< "$RESULTS"
+
+  snapshot-validate:
+    needs: baseline-barrier
+    name: snapshot / Nix evaluation and focused regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache used by the compute artifact workflow.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+
+  snapshot-stateful:
+    needs: baseline-barrier
+    name: snapshot / Home Manager migration and recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.home-migration
+
+  snapshot-platform:
+    needs: baseline-barrier
+    name: snapshot / Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+
+  snapshot-discover-workloads:
+    needs: baseline-barrier
+    name: snapshot / Discover independent image outputs and validate operator menu
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.outputs.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: outputs
+        run: |
+          set -euo pipefail
+          workloads=$(nix eval --json .#packages.x86_64-linux --apply builtins.attrNames | jq -c '[.[] | select(startswith("neko7-") and endswith("-image")) | sub("^neko7-"; "") | sub("-image$"; "")]')
+          echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
+          nix build -L --no-link .#checks.x86_64-linux.instance-recipes
+
+  snapshot-personal-workloads:
+    needs: snapshot-discover-workloads
+    if: needs.snapshot-discover-workloads.outputs.workloads != '[]'
+    name: snapshot / Build ${{ matrix.workload }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(needs.snapshot-discover-workloads.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build independent VM image and system
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          out=$(nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          nix build -L --no-link ".#neko7-$WORKLOAD-system"
+      - name: Boot actual service module and test private reachability
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
+
+  snapshot-workload-lifecycle:
+    needs: baseline-barrier
+    name: snapshot / Independent workload deployment and rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate production deployment boundaries
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --raw "$attr.containers.neko7-mc.path" | grep -Fx /nix/var/nix/profiles/system
+          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and contains("/nix/profiles/t3-runtime/bin/t3"))'
+          nix eval --json "$attr.home-manager.users.tenzyu.local.features.splitcast-production-profile.enable" | jq -e '. == true'
+          nix eval --json "$attr.home-manager.users.tenzyu.services.splitcast.enable" | jq -e '. == false'
+          nix eval --json "$attr.system.preSwitchChecks" --apply builtins.attrNames | jq -e 'index("minecraft-workload-profile") != null and index("neko7-workload-profiles") != null'
+          host_drv=$(nix eval --raw "$attr.system.build.toplevel.drvPath")
+          nix-store --query --requisites "$host_drv" > /tmp/neko7-host-derivations
+          for name in neko7-minecraft-system neko7-t3-runtime neko7-splitcast-runtime; do
+            drv=$(nix eval --raw ".#packages.x86_64-linux.$name.drvPath")
+            if grep -Fxq "$drv" /tmp/neko7-host-derivations; then
+              echo "::error::$name is coupled to the host generation"
+              exit 1
+            fi
+          done
+      - name: Exercise real native guest profile update and rollback
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle
+
+  snapshot-workload-artifacts:
+    needs: baseline-barrier
+    name: snapshot / Build ${{ matrix.workload }} deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
+      - name: Build and inspect independent artifact
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
+          case "$WORKLOAD" in
+            neko7-minecraft-system)
+              test -x "$out/init"
+              test -x "$out/bin/switch-to-configuration"
+              ;;
+            neko7-t3-runtime)
+              test -x "$out/bin/t3"
+              test -x "$out/bin/codex"
+              ;;
+            neko7-splitcast-runtime)
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+          esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-build-log-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  snapshot-ingress:
+    needs: baseline-barrier
+    name: snapshot / Tailnet-only ingress negative controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify host policy and execute firewall machine test
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
+          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
+          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
+          nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
+
+  snapshot-integration:
+    needs: baseline-barrier
+    name: snapshot / Incus ${{ matrix.kind }} lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [container]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Apply exact lock-bound diagnostic input data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          mkdir -p assets/ci-theme-probe
+          cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2
+          p.write_text(s.replace(old,new))
+          PY
+          git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          echo "EFFECTIVE_TREE=$(git write-tree)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check KVM availability (required for real machine evidence)
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
+          df -h
+      - name: Evaluate host integration and preserve privilege boundary
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --raw "$attr.virtualisation.incus.package.version"
+          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
+
+          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          '
+          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
+          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
+          nix eval --raw "$attr.system.build.toplevel.drvPath"
+      - name: Build and execute NixOS machine test
+        run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}
