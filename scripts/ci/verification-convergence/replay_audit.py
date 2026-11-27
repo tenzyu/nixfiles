@@ -65,7 +65,7 @@ def receipt(job):
         require(gate == "On-demand signed SplitCast cache verification", "required gate skipped")
         return {"arm":arm,"fixture":fid,"gate":gate,"id":job["id"],"skipped":True}
     require(job["conclusion"] == "success", "non-success gate")
-    matches = pattern.findall(api(f"repos/{REPO}/actions/jobs/{job['id']}/logs"))
+    matches = pattern.findall(api(f"repos/{REPO}/actions/jobs/{job['id']}/logs", "--allow-escape-sequences"))
     require(len(matches) == 1, f"missing/duplicate receipt job {job['id']}: {len(matches)}")
     a,f,commit,tree,original,changed,lock = (x.decode() for x in matches[0])
     got = dict(tree=tree,original_blob=original,changed_blob=changed,lock=lock)
