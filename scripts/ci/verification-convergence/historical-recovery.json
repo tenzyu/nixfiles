@@ -1,0 +1,59 @@
+{
+  "originalRun": 45950924956,
+  "attempt": 1,
+  "sourceWorkflowCommit": "c89f856a0608a10f3eec6bc9a70812b2ac1e44d3",
+  "reason": "Isolated reproduction of two TLS installation failures and historical Splitcast test failure; no alteration of original measurement or candidate lock",
+  "cases": [
+    {
+      "id": "baseline-head-platform",
+      "arm": "baseline",
+      "job": "platform",
+      "fixture": {
+        "pr": 109,
+        "stage": "head",
+        "originalCommit": "9d418a96224ad0a1677af1006a30556a6b34767f",
+        "originalTree": "37ce6c4330392e3c43264bd38fb74bcaee79a3cf",
+        "baselineTree": "9968c2009b242e2e390033a92f654877bf7e9c81",
+        "candidateTree": "294a418eec6d25b22c0b09137cb6a65afed2e170",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a"
+      },
+      "matrix": "check: [multi-machine-lab, platform-services]",
+      "selection": "check: [multi-machine-lab]",
+      "originalJob": 140346387942
+    },
+    {
+      "id": "candidate-head-splitcast",
+      "arm": "candidate",
+      "job": "workload-artifacts",
+      "fixture": {
+        "pr": 109,
+        "stage": "head",
+        "originalCommit": "9d418a96224ad0a1677af1006a30556a6b34767f",
+        "originalTree": "37ce6c4330392e3c43264bd38fb74bcaee79a3cf",
+        "baselineTree": "9968c2009b242e2e390033a92f654877bf7e9c81",
+        "candidateTree": "294a418eec6d25b22c0b09137cb6a65afed2e170",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a"
+      },
+      "matrix": "workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]",
+      "selection": "workload: [neko7-splitcast-runtime]",
+      "originalJob": 140361186784
+    },
+    {
+      "id": "candidate-merge-minecraft",
+      "arm": "candidate",
+      "job": "workload-artifacts",
+      "fixture": {
+        "pr": 104,
+        "stage": "merge",
+        "originalCommit": "ba12d292e64a790626daed36836a90e28df32ffb",
+        "originalTree": "7850a262aac3b382b7ee285c2af0ffb558efc1ba",
+        "baselineTree": "7cb1ba0adc3ff59d8d24d126611508b331f50841",
+        "candidateTree": "775a2595e2a4f7798ccd03ed3bbef2e6fc943cc8",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a"
+      },
+      "matrix": "workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]",
+      "selection": "workload: [neko7-minecraft-system]",
+      "originalJob": 140367889602
+    }
+  ]
+}

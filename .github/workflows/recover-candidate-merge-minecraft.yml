@@ -1,0 +1,125 @@
+# Diagnostic copy of compute-host.yml at 1672c3831724f0f347245f197dd58aa97d563206. Never integrate.
+# Actual gate steps unchanged; fixture setup is identical in both arms.
+name: Historical candidate compute-host
+on:
+  workflow_call:
+    inputs:
+      fixture:
+        required: true
+        type: string
+      arm:
+        required: true
+        type: string
+      cache_strict:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: historical-${{ github.run_id }}-candidate-compute-host-${{ fromJSON(inputs.fixture).stage }}-${{ fromJSON(inputs.fixture).pr }}
+  cancel-in-progress: false
+jobs:
+  workload-artifacts:
+    name: Build ${{ matrix.workload }} deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [neko7-minecraft-system]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
+      - name: Build and inspect independent artifact
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
+          case "$WORKLOAD" in
+            neko7-minecraft-system)
+              test -x "$out/init"
+              test -x "$out/bin/switch-to-configuration"
+              ;;
+            neko7-t3-runtime)
+              test -x "$out/bin/t3"
+              test -x "$out/bin/codex"
+              ;;
+            neko7-splitcast-runtime)
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+          esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ inputs.arm }}-${{ fromJSON(inputs.fixture).stage }}-${{ fromJSON(inputs.fixture).pr }}-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
