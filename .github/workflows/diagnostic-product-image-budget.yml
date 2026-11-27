@@ -1,0 +1,92 @@
+# Diagnostic only. No new substituter, signing key, image upload, or deployment.
+name: Diagnostic intrinsic image realization budget
+on:
+  push:
+    branches: [diagnostics/product-image-realization-budget]
+permissions:
+  contents: read
+jobs:
+  budget:
+    name: Intrinsic product image (${{ matrix.workload }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [immich, syncthing]
+    env:
+      WORKLOAD: ${{ matrix.workload }}
+      SUBJECT: 3a1245286e3d43b49aea83a8efb64b27066ac015
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve native computation identity and observe existing cache
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          test -z "$(git status --porcelain)"
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          image_drv=$(nix eval --raw ".#neko7-$WORKLOAD-image.drvPath")
+          system_drv=$(nix eval --raw ".#neko7-$WORKLOAD-system.drvPath")
+          disk_drv=$(nix-store -q --references "$image_drv" | grep -E '/[^/]+-nixos-disk-image\.drv$')
+          test "$(wc -l <<< "$disk_drv")" -eq 1
+          image_out=$(nix-store -q --outputs "$image_drv")
+          disk_out=$(nix-store -q --outputs "$disk_drv")
+          system_out=$(nix-store -q --outputs "$system_drv")
+          for p in "$image_out" "$disk_out" "$system_out"; do
+            [[ "$p" =~ ^/nix/store/[0-9a-z]{32}-[^/]+$ ]]
+            hash=${p#/nix/store/}
+            hash=${hash%%-*}
+            status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://cache.nixos.org/$hash.narinfo") || status=UNKNOWN
+            printf 'EXISTING_CACHE path=%s http=%s\n' "$p" "$status"
+          done
+          echo "IMAGE_DRV=$image_drv"
+          echo "DISK_DRV=$disk_drv"
+          echo "SYSTEM_DRV=$system_drv"
+          {
+            echo "EXPECTED_IMAGE=$image_out"
+            echo "EXPECTED_DISK=$disk_out"
+            echo "EXPECTED_SYSTEM=$system_out"
+          } >> "$GITHUB_ENV"
+      - name: Realize and inspect the required product outputs
+        run: |
+          set -euo pipefail
+          out=$(/usr/bin/time -f 'IMAGE_REALIZATION_SECONDS=%e' nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
+          test "$out" = "$EXPECTED_IMAGE"
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          disk=$(dirname "$(realpath "$out/nixos.qcow2")")
+          test "$disk" = "$EXPECTED_DISK"
+          system=$(/usr/bin/time -f 'SYSTEM_REALIZATION_SECONDS=%e' nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-system")
+          test "$system" = "$EXPECTED_SYSTEM"
+          nix path-info --size --closure-size --sigs "$out" "$disk" "$system"
+          printf 'QCOW_BYTES=%s\n' "$(stat -Lc %s "$out/nixos.qcow2")"
+          printf 'METADATA_BYTES=%s\n' "$(stat -Lc %s "$out/metadata.tar.xz")"
+          printf 'DISK_NAR_HASH=%s\n' "$(nix-store -q --hash "$disk")"
+          printf 'DISK_DIRECT_REFERENCES=%s\n' "$(nix-store -q --references "$disk" | wc -l)"
+      - name: Execute the unchanged real service and privacy test
+        run: |
+          set -euo pipefail
+          /usr/bin/time -f 'FRESH_VM_TEST_SECONDS=%e' nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
+      - name: Measure local NAR stream size and encode cost without storing or publishing it
+        run: |
+          set -euo pipefail
+          command -v zstd
+          nix config show | grep -Fx 'require-sigs = true'
+          # Count only the intrinsic disk output NAR, not a rootfs snapshot.
+          # This is a local stream measurement, not transfer or admission evidence.
+          start=$(date +%s%N)
+          bytes=$(nix-store --dump "$EXPECTED_DISK" | zstd -q -1 -T1 -c | wc -c)
+          end=$(date +%s%N)
+          printf 'DISK_NAR_ZSTD1_BYTES=%s\n' "$bytes"
+          printf 'LOCAL_ENCODE_MILLISECONDS=%s\n' "$(( (end-start)/1000000 ))"
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          test -z "$(git status --porcelain)"
