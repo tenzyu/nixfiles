@@ -1,0 +1,83 @@
+Remote Execution MCP — 2026-11-27
+Status: diagnostic only. No deployable candidate admitted.
+Repository baseline: develop 3a1245286e3d43b49aea83a8efb64b27066ac015
+Root tree: 237c07f8def414eaf3a54c35d5bc1456ff694627
+Protected reference main: 1bf89c15549c2073425054de6143e35b7bc6ecde
+
+TRANSPORT / RUNTIME
+Two nonpersistent Vercel Sandbox microVMs, no exposed ports, both stopped.
+Image vercel/sandbox/universal@sha256:ab5c366dfa74a8f0b32686114c4abaf24b5870ff6a1edb4ccb174eae85a556cd
+Runtime executable reported Node.js v24.22.3 in second session.
+Desktop Commander 0.3.4, Supergateway 4.3.0, SDK 1.32.2.
+Command IDs (for correlation within original session records):
+cmd_96f91dda20a04687aa54ffe83490 (package discovery/audit)
+- Standard MCP HTTP client discovered 25 tools.
+- Independent MCP session IDs and separate list_sessions state.
+- Immediate start_process completion text uses success glyph for exit 0 and 7.
+  Explicit stdout exit marker distinguished them; this is not trusted attestation
+  for adversarial code. Delayed read_process_output returned exit code 0 and 7.
+- Two Git worktrees: concurrent writes returned alpha/a and beta/b respectively.
+  Worktrees are workspace separation, not adversarial isolation.
+- Asynchronous completion retrieved, same-session raw POST after client close
+  returned HTTP 200 and SESSION_DONE; unknown session returned 404.
+- get_config confirmed telemetryEnabled false; not a network capture or a
+  guarantee that mutable config cannot be changed by a shell-capable client.
+- No Cloudflare OAuth or real ChatGPT client tested.
+- First sandbox: 88.452 s, 40.122 active CPU s.
+- Second sandbox: 222.997 s, 112.306 active CPU s.
+  These are provider session totals, not a comparative performance benchmark.
+
+DEPENDENCY ADMISSION
+- Initial npm audit: 4 high, 4 moderate, 0 critical.
+- node-forge 1.4.4 and global zod 4.6.7 override: 0 high/critical,
+  5 moderate; rejected because all tool inputSchema type validations failed.
+- Supergateway-scoped Zod override: 2 high, 4 moderate; not admitted.
+- Final diagnostic manifest: node-forge 1.4.4 only, SDK direct pin 1.32.2,
+  retains Zod 3.25.76 where upstream requires it; HTTP behavior passed,
+  npm audit: 3 high, 4 moderate, 0 critical. Not admitted.
+- Final experimental lock SHA256:
+  2b2053c1d735b333a1483c8e65039f09c4540ff51665d8e32c32f97103fafb36
+  Exact lock was not retained; a fresh npm install is not exact reproduction.
+- Probe SHA256 from sandbox:
+  52d07668ce4967d19dcdd39cd63b08956404b74b6ebad3369a4110922c8e2c98
+- Upstream compatibility must be repaired without hiding npm audit findings.
+  https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
+  https://github.com/advisories/GHSA-86w9-cpqp-85rv
+- Browser download appeared in stderr during startup. Disable unnecessary
+  network behavior or provide pinned browser assets before production.
+- Local tool invocation history is distinct from telemetry; do not log secrets.
+
+NIX
+- Cloned actual baseline develop. Nix 2.34.3 installed in disposable VM.
+- nix eval --no-write-lock-file --raw
+  .#nixosConfigurations.neko7.config.system.build.toplevel.drvPath
+  attempted. IFD dependency retrieval and builds occurred; process exited 137.
+  Cause not established. No successful full host evaluation.
+- Sandbox single-user Nix used sandbox=false because this is an isolated
+  disposable experiment; never copy that setting into the host.
+- Existing Incus lab is restricted but not network-egress isolated; current
+  VM admission disabled. See compute-host-design.md and incus.nix.
+- Host, Cloudflare account, real endpoint and production workloads untouched.
+- Billing API returned costs_not_found. Hobby test project was supplied by
+  operator; no paid upgrade, no new infrastructure, no exposed ports or
+  persistent snapshots. Exact invoice not verified.
+
+UPSTREAM CONTRACTS
+https://github.com/wonderwhy-er/DesktopCommanderMCP/security
+https://github.com/wonderwhy-er/DesktopCommanderMCP/releases/tag/v0.3.4
+https://github.com/supercorp-ai/supergateway/releases
+https://github.com/supercorp-ai/supergateway/issues/141
+https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/managed-oauth/
+https://developers.cloudflare.com/tunnel/reference/origin-parameters/
+https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/
+https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/
+https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
+
+DECISIONS
+- Reuse Incus, not a new execution product; do not use shared lab as-is.
+- Keep the tunnel credential and management interfaces outside the execution
+  guest. Require a separately tested private network path and origin JWT check.
+- Stateful gateway, not stateless process-per-request.
+- Do not confuse session identity with security or authorization.
+- Preserve all existing CI, host and production boundaries.
+- No activation or integration until the original acceptance contract passes.
