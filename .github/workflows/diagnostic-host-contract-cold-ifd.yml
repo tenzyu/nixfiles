@@ -1,0 +1,113 @@
+name: Diagnostic host contract and cold IFD
+on:
+  push:
+    branches: [diagnostics/host-contract-and-cold-ifd]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Verify host contracts with actual mutated Nix configurations
+        run: |
+          git fetch --no-tags origin 3c8a02c314f04beff378edeaf6eafecf30890bc0
+          python3 scripts/ci/verification-convergence/host_contract.py 3a1245286e3d43b49aea83a8efb64b27066ac015 3c8a02c314f04beff378edeaf6eafecf30890bc0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: host-contract
+          path: |
+            ${{ runner.temp }}/contract/*.json
+            ${{ runner.temp }}/contract/*.log
+            ${{ runner.temp }}/contract/*.output
+          retention-days: 3
+  cold-ifd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [control, snapshot]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - uses: actions/download-artifact@v4
+        if: matrix.arm == 'snapshot'
+        with:
+          name: materialized-theme-inputs
+          run-id: 45932059342
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/theme-data
+      - name: Compare independently cold validation paths
+        env:
+          ARM: ${{ matrix.arm }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/cold-ifd"
+          mkdir "$root"
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          nix config show | grep -Fx 'require-sigs = true'
+          nix --version > "$root/version"
+          nproc > "$root/cores"
+          free -m > "$root/memory"
+          # Check initial store before any evaluation of the pinned sources.
+          for store in /nix/store/*-catppuccin-starship-* /nix/store/*-catppuccin-firefox-* /nix/store/*-catppuccin-palette-* /nix/store/*-whiskers-*; do
+            if [[ -e "$store" ]]; then echo "unexpected preexisting theme input: $store"; exit 1; fi
+          done
+          args=(--option eval-cache false --no-write-lock-file)
+          if [[ "$ARM" == snapshot ]]; then
+            test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+            (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+            mkdir -p assets/ci-theme-probe
+            cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+            git add -f assets/ci-theme-probe
+            python3 - <<'PY'
+          from pathlib import Path
+          p=Path("modules/50-features/desktop/catppuccin.nix")
+          old="        cache.enable = true;\n"
+          new=old+"""        sources = inputs.catppuccin.packages.${pkgs.stdenv.hostPlatform.system} // {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          s=p.read_text()
+          assert s.count(old)==2 and s.count("    lib,\n    ...")==2
+          p.write_text(s.replace("    lib,\n    ...","    lib,\n    pkgs,\n    ...").replace(old,new))
+          PY
+            git add modules/50-features/desktop/catppuccin.nix
+            args+=(--option allow-import-from-derivation false)
+          fi
+          git write-tree > "$root/tree"
+          sha256sum flake.lock > "$root/lock"
+          /usr/bin/time -f '%e' -o "$root/eval-seconds" nix eval "${args[@]}" --raw .#checks.x86_64-linux.validation.drvPath > "$root/validation.drv"
+          /usr/bin/time -f '%e' -o "$root/build-seconds" nix build "${args[@]}" -L --keep-going --no-link --json .#checks.x86_64-linux.validation > "$root/build.json"
+          nix eval "${args[@]}" --json .#checks.x86_64-linux --apply 'checks: builtins.mapAttrs (_: v: v.drvPath) (builtins.removeAttrs checks ["docs" "validation"])' > "$root/checks.json"
+          nix eval "${args[@]}" --json .#nixosConfigurations --apply 'hosts: builtins.mapAttrs (_: h: h.config.system.build.toplevel.drvPath) hosts' > "$root/hosts.json"
+          cat "$root/eval-seconds" "$root/build-seconds"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cold-ifd-${{ matrix.arm }}
+          path: ${{ runner.temp }}/cold-ifd
+          retention-days: 3
