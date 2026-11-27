@@ -3,8 +3,15 @@
     cfg = config.local.remoteExecutionMcp;
     bridge = "incusmcp0";
     uplink = config.networking.nat.externalInterface;
-    cidr = lib.types.strMatching "[0-9.]+/[0-9]+";
-    gateway = builtins.head (lib.splitString "/" cfg.bridgeAddress);
+    ip = import ../../../lib/ipv4.nix {inherit lib;};
+    subnet = ip.parse cfg.bridgeAddress;
+    gateway = subnet.address;
+    otherNetworks = lib.filter (network: network.name != bridge)
+      config.virtualisation.incus.preseed.networks;
+    otherCidrs = lib.filter (value: value != "none" && value != "auto" && value != null)
+      (map (network: network.config."ipv4.address" or null) otherNetworks);
+    conflicts = lib.filter (value: let other = ip.parse value; in
+      other == null || ip.overlaps subnet other) (otherCidrs ++ cfg.protectedIPv4);
     blocked = [
       "0.0.0.0/8" "10.0.0.0/8" "100.64.0.0/10" "127.0.0.0/8"
       "169.254.0.0/16" "172.16.0.0/12" "192.168.0.0/16"
@@ -13,12 +20,12 @@
   in {
     options.local.remoteExecutionMcp = {
       bridgeAddress = lib.mkOption {
-        type = cidr;
+        type = ip.privateHostCidr;
         example = "10.77.42.1/24";
         description = "Operator-selected nonoverlapping Incus bridge address.";
       };
       protectedIPv4 = lib.mkOption {
-        type = lib.types.listOf cidr;
+        type = lib.types.listOf ip.cidr;
         default = [];
         description = "Additional protected routed prefixes, including any globally numbered LAN.";
       };
@@ -34,8 +41,18 @@
           message = "Remote Execution MCP requires nftables and the host firewall.";
         }
         {
-          assertion = uplink != null && uplink != "" && uplink != bridge && uplink != "lo";
-          message = "Remote Execution MCP requires an explicit physical NAT uplink.";
+          assertion = uplink != null && uplink != "" && uplink != bridge && uplink != "lo"
+            && uplink != config.services.tailscale.interfaceName;
+
+          message = "Remote Execution MCP requires an explicit non-Tailnet NAT uplink.";
+        }
+        {
+          assertion = conflicts == [];
+          message = "Remote Execution MCP bridge overlaps or cannot validate configured IPv4 networks: " + builtins.toJSON conflicts;
+        }
+        {
+          assertion = config.networking.nat.forwardPorts == [] && config.networking.nat.dmzHost == null;
+          message = "Remote Execution MCP prohibits host DNAT and DMZ forwarding.";
         }
       ];
       users.groups.remote-mcp-tunnel = {};

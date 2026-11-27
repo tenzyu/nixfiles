@@ -21,7 +21,7 @@
     };
     image = pkgs.runCommand "remote-execution-mcp-incus-container" {} ''
       mkdir -p "$out"
-      set -- ${release.incusContainerMeta.${system}}/tarball/nixos-lxc-image-*-${system}.tar.xz
+      set -- ${release.incusContainerMeta.${system}}/tarball/nixos-image-lxc-*-${system}.tar.xz
       test "$#" = 1
       test -f "$1"
       ln -s "$1" "$out/metadata.tar.xz"

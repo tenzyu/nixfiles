@@ -30,8 +30,25 @@ in pkgs.testers.runNixOSTest {
     };
   };
   testScript = ''
+    import ipaddress
     import json
     import shlex
+
+    def ip(*args, namespace=None):
+        # Only the fixture namespace may be mutated. Addresses are validated
+        # and canonicalized before reaching the iproute2 argv boundary.
+        if namespace not in (None, "outside"):
+            raise ValueError("unexpected fixture namespace")
+        return machine.succeed(shlex.join(["ip"] + (["-n", namespace] if namespace else []) + list(args)))
+
+    def add_address(interface, address, namespace=None):
+        ip("addr", "add", str(ipaddress.ip_interface(address)), "dev", interface, namespace=namespace)
+
+    def add_route(prefix, gateway, namespace):
+        network = ipaddress.ip_network(prefix, strict=True)
+        via = ipaddress.ip_address(gateway)
+        assert network.version == via.version
+        ip("route", "add", str(network), "via", str(via), namespace=namespace)
 
     machine.start()
     machine.wait_for_unit("incus-preseed.service")
@@ -40,20 +57,21 @@ in pkgs.testers.runNixOSTest {
     machine.succeed("incus project get lab restricted.networks.access | grep -Fx incuslab0")
     machine.succeed("incus profile show remote-execution-mcp")
     machine.succeed("touch /root/host-mcp-canary")
+    ip("netns", "add", "outside")
+    ip("link", "add", "test-uplink", "type", "veth", "peer", "name", "outside0")
+    ip("link", "set", "outside0", "netns", "outside")
+    for host, peer in [
+        ("198.51.100.1/24", "198.51.100.2/24"),
+        ("192.168.50.1/24", "192.168.50.2/24"),
+        ("203.0.113.1/24", "203.0.113.2/24"),
+    ]:
+        add_address("test-uplink", host)
+        add_address("outside0", peer, namespace="outside")
+    ip("link", "set", "test-uplink", "up")
+    ip("link", "set", "lo", "up", namespace="outside")
+    ip("link", "set", "outside0", "up", namespace="outside")
+    add_route("10.77.42.0/24", "198.51.100.1", namespace="outside")
     machine.succeed(
-        "ip netns add outside",
-        "ip link add test-uplink type veth peer name outside0",
-        "ip link set outside0 netns outside",
-        "ip addr add 198.51.100.1/24 dev test-uplink",
-        "ip addr add 192.168.50.1/24 dev test-uplink",
-        "ip addr add 203.0.113.1/24 dev test-uplink",
-        "ip link set test-uplink up",
-        "ip -n outside link set lo up",
-        "ip -n outside addr add 198.51.100.2/24 dev outside0",
-        "ip -n outside addr add 192.168.50.2/24 dev outside0",
-        "ip -n outside addr add 203.0.113.2/24 dev outside0",
-        "ip -n outside link set outside0 up",
-        "ip -n outside route add 10.77.42.0/24 via 198.51.100.1",
         "systemd-run --unit=host-canary ${pkgs.python3}/bin/python3 -m http.server 18080 --bind 0.0.0.0 --directory /tmp",
         "systemd-run --unit=outside-canary ${pkgs.iproute2}/bin/ip netns exec outside ${pkgs.python3}/bin/python3 -m http.server 18080 --bind 0.0.0.0 --directory /tmp",
     )
@@ -76,12 +94,14 @@ in pkgs.testers.runNixOSTest {
         assert state["expanded_config"]["security.nesting"] == "false"
         ips = [a["address"] for nic in state["state"]["network"].values() for a in nic["addresses"] if a["family"] == "inet" and a["scope"] == "global"]
         assert len(ips) == 1, ips
-        ip = ips[0]
-        endpoint = "http://" + ip + ":18991/mcp"
+        address = ipaddress.IPv4Address(ips[0])
+        assert address in ipaddress.IPv4Network("10.77.42.0/24")
+        endpoint = "http://" + str(address) + ":18991/mcp"
         reach = "curl --noproxy '*' -sS --connect-timeout 2 --max-time 4 -o /dev/null "
         machine.wait_until_succeeds("runuser -u remote-mcp-tunnel -- " + reach + endpoint)
         machine.fail("runuser -u agent -- " + reach + endpoint)
         machine.fail("ip netns exec outside " + reach + endpoint)
+        assert not machine.succeed("ss -H -ltn 'sport = :18991'").strip()
 
         machine.succeed(guest("test ! -e /root/host-mcp-canary && test ! -e /var/lib/incus/unix.socket && test ! -e /var/lib/incus/unix.socket.user"))
         machine.succeed(guest(curl + "http://198.51.100.2:18080/"))
