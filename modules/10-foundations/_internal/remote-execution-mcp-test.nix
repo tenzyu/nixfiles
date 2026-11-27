@@ -42,6 +42,8 @@ in pkgs.testers.runNixOSTest {
         return machine.succeed(shlex.join(["ip"] + (["-n", namespace] if namespace else []) + list(args)))
 
     def add_address(interface, address, namespace=None):
+        if (namespace, interface) not in ((None, "test-uplink"), ("outside", "outside0")):
+            raise ValueError("unexpected fixture interface")
         ip("addr", "add", str(ipaddress.ip_interface(address)), "dev", interface, namespace=namespace)
 
     def add_route(prefix, gateway, namespace):
@@ -71,6 +73,14 @@ in pkgs.testers.runNixOSTest {
     ip("link", "set", "lo", "up", namespace="outside")
     ip("link", "set", "outside0", "up", namespace="outside")
     add_route("10.77.42.0/24", "198.51.100.1", namespace="outside")
+    machine.succeed("check-remote-mcp-network")
+    # More-specific route conflicts are not visible in the Nix option graph.
+    ip("route", "add", "10.77.42.250/32", "dev", "test-uplink")
+    try:
+        machine.fail("check-remote-mcp-network")
+    finally:
+        ip("route", "del", "10.77.42.250/32", "dev", "test-uplink")
+    machine.succeed("check-remote-mcp-network")
     machine.succeed(
         "systemd-run --unit=host-canary ${pkgs.python3}/bin/python3 -m http.server 18080 --bind 0.0.0.0 --directory /tmp",
         "systemd-run --unit=outside-canary ${pkgs.iproute2}/bin/ip netns exec outside ${pkgs.python3}/bin/python3 -m http.server 18080 --bind 0.0.0.0 --directory /tmp",

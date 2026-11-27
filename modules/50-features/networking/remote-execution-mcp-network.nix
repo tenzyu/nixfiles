@@ -1,5 +1,5 @@
 {...}: {
-  flake.modules.nixos.remote-execution-mcp-network = {config, lib, ...}: let
+  flake.modules.nixos.remote-execution-mcp-network = {config, lib, pkgs, ...}: let
     cfg = config.local.remoteExecutionMcp;
     bridge = "incusmcp0";
     uplink = config.networking.nat.externalInterface;
@@ -8,7 +8,7 @@
     gateway = subnet.address;
     otherNetworks = lib.filter (network: network.name != bridge)
       config.virtualisation.incus.preseed.networks;
-    otherCidrs = lib.filter (value: value != "none" && value != "auto" && value != null)
+    otherCidrs = lib.filter (value: value != "none" && value != null)
       (map (network: network.config."ipv4.address" or null) otherNetworks);
     conflicts = lib.filter (value: let other = ip.parse value; in
       other == null || ip.overlaps subnet other) (otherCidrs ++ cfg.protectedIPv4);
@@ -43,7 +43,6 @@
         {
           assertion = uplink != null && uplink != "" && uplink != bridge && uplink != "lo"
             && uplink != config.services.tailscale.interfaceName;
-
           message = "Remote Execution MCP requires an explicit non-Tailnet NAT uplink.";
         }
         {
@@ -54,6 +53,15 @@
           assertion = config.networking.nat.forwardPorts == [] && config.networking.nat.dmzHost == null;
           message = "Remote Execution MCP prohibits host DNAT and DMZ forwarding.";
         }
+      ];
+      # Read-only admission check; do not restart or gate the shared Incus daemon.
+      environment.systemPackages = [
+        (pkgs.writeShellScriptBin "check-remote-mcp-network" ''
+          exec ${pkgs.python3}/bin/python3 ${../../../assets/remote-execution-mcp/check-network.py} \
+            --ip ${pkgs.iproute2}/bin/ip \
+            --bridge ${lib.escapeShellArg bridge} \
+            --address ${lib.escapeShellArg cfg.bridgeAddress}
+        '')
       ];
       users.groups.remote-mcp-tunnel = {};
       users.users.remote-mcp-tunnel = {
