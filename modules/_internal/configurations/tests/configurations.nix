@@ -473,7 +473,7 @@ in {
         neko5 = {urls = []; keys = [];};
         neko6 = {urls = []; keys = [];};
         neko7 = {
-          urls = ["https://github.com/tenzyu/splitcast/releases/download/nix-cache-d2205d06b0dc695c3d9b7372fafa7facee769fa9-43561723796-1"];
+          urls = ["https://github.com/tenzyu/splitcast/releases/download/nix-cache-b6fcf1588fec4c42b0e22df58f3bca53c2f51b6f-45916419238-1"];
           keys = ["splitcast-1:vTbhAaBTWjRfVHQekUUYwSb9GBftwHNgBUhXGk0jGwM="];
         };
       };
