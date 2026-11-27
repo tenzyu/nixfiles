@@ -1,0 +1,589 @@
+diff --git a/src/server.ts b/src/server.ts
+index 800ab9f..cfad17c 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -13,7 +13,6 @@ import {
+     type CallToolRequest,
+     type InitializeRequest,
+ } from "@modelcontextprotocol/sdk/types.js";
+-import { zodToJsonSchema } from "zod-to-json-schema";
+ import { getSystemInfo, getOSSpecificGuidance, getPathGuidance, getDevelopmentToolGuidance } from './utils/system-info.js';
+ 
+ // Get system information once at startup
+@@ -48,7 +47,9 @@ import {
+     GetConfigArgsSchema,
+     SetConfigValueArgsSchema,
+     ListProcessesArgsSchema,
++    KillProcessInputArgsSchema,
+     EditBlockArgsSchema,
++    EditBlockInputArgsSchema,
+     GetUsageStatsArgsSchema,
+     GiveFeedbackArgsSchema,
+     StartSearchArgsSchema,
+@@ -57,6 +58,8 @@ import {
+     ListSearchesArgsSchema,
+     GetRecentToolCallsArgsSchema,
+     WritePdfArgsSchema,
++    WritePdfInputArgsSchema,
++    toMcpInputSchema,
+     toolArgSchemas,
+ } from './tools/schemas.js';
+ import {
+@@ -326,7 +329,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         - version (version of the DesktopCommander)
+                         - systemInfo (operating system and environment details)
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GetConfigArgsSchema),
++                inputSchema: toMcpInputSchema(GetConfigArgsSchema),
+                 _meta: buildUiToolMeta(CONFIG_EDITOR_RESOURCE_URI, true, showMcpUiPreviews),
+                 annotations: {
+                     title: "Get Configuration",
+@@ -355,7 +358,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         to the entire file system, regardless of the operating system.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(SetConfigValueArgsSchema),
++                inputSchema: toMcpInputSchema(SetConfigValueArgsSchema),
+                 annotations: {
+                     title: "Set Configuration Value",
+                     readOnlyHint: false,
+@@ -421,7 +424,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+ 
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ReadFileArgsSchema),
++                inputSchema: toMcpInputSchema(ReadFileArgsSchema),
+                 _meta: buildUiToolMeta(FILE_PREVIEW_RESOURCE_URI, true, showMcpUiPreviews),
+                 annotations: {
+                     title: "Read File or URL",
+@@ -444,7 +447,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ReadMultipleFilesArgsSchema),
++                inputSchema: toMcpInputSchema(ReadMultipleFilesArgsSchema),
+                 annotations: {
+                     title: "Read Multiple Files",
+                     readOnlyHint: true,
+@@ -475,7 +478,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+ 
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(WriteFileArgsSchema),
++                inputSchema: toMcpInputSchema(WriteFileArgsSchema),
+                 _meta: buildUiToolMeta(FILE_PREVIEW_RESOURCE_URI, true, showMcpUiPreviews),
+                 annotations: {
+                     title: "Write File",
+@@ -537,7 +540,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+ 
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(WritePdfArgsSchema),
++                inputSchema: toMcpInputSchema(WritePdfInputArgsSchema),
+                 annotations: {
+                     title: "Write/Modify PDF",
+                     readOnlyHint: false,
+@@ -555,7 +558,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(CreateDirectoryArgsSchema),
++                inputSchema: toMcpInputSchema(CreateDirectoryArgsSchema),
+                 annotations: {
+                     title: "Create Directory",
+                     readOnlyHint: false,
+@@ -596,7 +599,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ListDirectoryArgsSchema),
++                inputSchema: toMcpInputSchema(ListDirectoryArgsSchema),
+                 _meta: buildUiToolMeta(FILE_PREVIEW_RESOURCE_URI, true, showMcpUiPreviews),
+                 annotations: {
+                     title: "List Directory Contents",
+@@ -615,7 +618,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(MoveFileArgsSchema),
++                inputSchema: toMcpInputSchema(MoveFileArgsSchema),
+                 annotations: {
+                     title: "Move/Rename File",
+                     readOnlyHint: false,
+@@ -699,7 +702,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(StartSearchArgsSchema),
++                inputSchema: toMcpInputSchema(StartSearchArgsSchema),
+                 annotations: {
+                     title: "Start Search",
+                     readOnlyHint: true,
+@@ -731,7 +734,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         results from a search started with start_search.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GetMoreSearchResultsArgsSchema),
++                inputSchema: toMcpInputSchema(GetMoreSearchResultsArgsSchema),
+                 annotations: {
+                     title: "Get Search Results",
+                     readOnlyHint: true,
+@@ -752,7 +755,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         automatically cleaned up after 5 minutes.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(StopSearchArgsSchema),
++                inputSchema: toMcpInputSchema(StopSearchArgsSchema),
+                 annotations: {
+                     title: "Stop Search",
+                     readOnlyHint: false,
+@@ -770,7 +773,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         multiple concurrent searches.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ListSearchesArgsSchema),
++                inputSchema: toMcpInputSchema(ListSearchesArgsSchema),
+                 annotations: {
+                     title: "List Active Searches",
+                     readOnlyHint: true,
+@@ -796,7 +799,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GetFileInfoArgsSchema),
++                inputSchema: toMcpInputSchema(GetFileInfoArgsSchema),
+                 annotations: {
+                     title: "Get File Information",
+                     readOnlyHint: true,
+@@ -861,7 +864,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+ 
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(EditBlockArgsSchema),
++                inputSchema: toMcpInputSchema(EditBlockInputArgsSchema),
+                 _meta: buildUiToolMeta(FILE_PREVIEW_RESOURCE_URI, true, showMcpUiPreviews),
+                 annotations: {
+                     title: "Edit Block",
+@@ -913,7 +916,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+ 
+                         ${PATH_GUIDANCE}
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(StartProcessArgsSchema),
++                inputSchema: toMcpInputSchema(StartProcessArgsSchema),
+                 annotations: {
+                     title: "Start Terminal Process",
+                     readOnlyHint: false,
+@@ -956,7 +959,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         Timeout reached (may still be running)
+ 
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ReadProcessOutputArgsSchema),
++                inputSchema: toMcpInputSchema(ReadProcessOutputArgsSchema),
+                 annotations: {
+                     title: "Read Process Output",
+                     readOnlyHint: true,
+@@ -999,7 +1002,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         - Timeline of output events
+ 
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(InteractWithProcessArgsSchema),
++                inputSchema: toMcpInputSchema(InteractWithProcessArgsSchema),
+                 annotations: {
+                     title: "Send Input to Process",
+                     readOnlyHint: false,
+@@ -1013,7 +1016,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         Force terminate a running terminal session.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ForceTerminateArgsSchema),
++                inputSchema: toMcpInputSchema(ForceTerminateArgsSchema),
+                 annotations: {
+                     title: "Force Terminate Process",
+                     readOnlyHint: false,
+@@ -1037,7 +1040,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         - Long runtime with blocked status may indicate stuck process
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ListSessionsArgsSchema),
++                inputSchema: toMcpInputSchema(ListSessionsArgsSchema),
+                 annotations: {
+                     title: "List Terminal Sessions",
+                     readOnlyHint: true,
+@@ -1053,7 +1056,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         Returns process information including PID, command name, CPU usage, and memory usage.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(ListProcessesArgsSchema),
++                inputSchema: toMcpInputSchema(ListProcessesArgsSchema),
+                 annotations: {
+                     title: "List Running Processes",
+                     readOnlyHint: true,
+@@ -1069,7 +1072,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         Use with caution as this will forcefully terminate the specified process.
+ 
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(KillProcessArgsSchema),
++                inputSchema: toMcpInputSchema(KillProcessInputArgsSchema),
+                 annotations: {
+                     title: "Kill Process",
+                     readOnlyHint: false,
+@@ -1085,7 +1088,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         Returns summary of tool usage, success/failure rates, and performance metrics.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GetUsageStatsArgsSchema),
++                inputSchema: toMcpInputSchema(GetUsageStatsArgsSchema),
+                 annotations: {
+                     title: "Get Usage Statistics",
+                     readOnlyHint: true,
+@@ -1110,7 +1113,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         are replaced with an omission marker.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GetRecentToolCallsArgsSchema),
++                inputSchema: toMcpInputSchema(GetRecentToolCallsArgsSchema),
+                 annotations: {
+                     title: "Get Recent Tool Calls",
+                     readOnlyHint: true,
+@@ -1133,7 +1136,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
+                         No input parameters are required.
+                         
+                         ${CMD_PREFIX_DESCRIPTION}`,
+-                inputSchema: zodToJsonSchema(GiveFeedbackArgsSchema),
++                inputSchema: toMcpInputSchema(GiveFeedbackArgsSchema),
+                 annotations: {
+                     title: "Give Feedback",
+                     readOnlyHint: false,
+@@ -1549,4 +1552,4 @@ async function handleCallToolRequest(request: CallToolRequest): Promise<ServerRe
+ }
+ 
+ // Add no-op handlers so Visual Studio initialization succeeds
+-server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
+\ No newline at end of file
++server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
+diff --git a/src/tools/schemas.ts b/src/tools/schemas.ts
+index bbdb466..11ff8df 100644
+--- a/src/tools/schemas.ts
++++ b/src/tools/schemas.ts
+@@ -48,12 +48,18 @@ export const ForceTerminateArgsSchema = z.object({
+ 
+ export const ListSessionsArgsSchema = z.object({});
+ 
+-export const KillProcessArgsSchema = z.object({
++const killProcessArgsShape = {
+   // process.kill reads 0 and negative PIDs as process groups: 0 is the server's
+   // own (on Windows the server itself), -1 every process the user may signal.
+   // A refinement rather than .positive(), so the published schema is unchanged.
+-  pid: z.number().refine((pid) => pid > 0, { message: 'Number must be greater than 0' }),
+-});
++  pid: z.number(),
++};
++
++export const KillProcessInputArgsSchema = z.object(killProcessArgsShape);
++export const KillProcessArgsSchema = z.object(killProcessArgsShape).refine(
++  ({ pid }) => pid > 0,
++  { message: 'Number must be greater than 0', path: ['pid'] },
++);
+ 
+ // Filesystem tools schemas
+ export const ReadFileArgsSchema = z.object({
+@@ -63,7 +69,7 @@ export const ReadFileArgsSchema = z.object({
+   length: z.number().optional().default(1000),
+   sheet: z.string().optional(),  // String only for MCP client compatibility (Cursor doesn't support union types in JSON Schema)
+   range: z.string().optional(),
+-  options: z.record(z.any()).optional(),
++  options: z.record(z.string(), z.any()).optional(),
+   // Whether the call came from the file-preview UI (refresh/navigation) or the
+   // LLM. 'ui' calls are excluded from tool-call telemetry; see isUiOriginCall
+   // in server.ts.
+@@ -99,8 +105,25 @@ export const PdfDeleteOperationSchema = z.object({
+ 
+ export const PdfOperationSchema = z.union([PdfInsertOperationSchema, PdfDeleteOperationSchema]);
+ 
+-export const WritePdfArgsSchema = z.object({
++const PdfContentInputSchema = z.union([z.string(), z.array(PdfOperationSchema)]).describe(
++  'Markdown text or an array of PDF operations. A string beginning with "[" that parses as JSON is treated as an operation array; each operation must use the documented insert or delete shape.',
++);
++const writePdfArgsShape = {
+   path: z.string(),
++  outputPath: z.string().optional(),
++  options: z.object({}).passthrough().optional(), // Allow passing options to md-to-pdf
++};
++
++// Keep the public MCP schema representable. The runtime schema below still
++// preprocesses JSON-array strings before validating them, while the MCP input
++// contract describes the values callers may send.
++export const WritePdfInputArgsSchema = z.object({
++  ...writePdfArgsShape,
++  content: PdfContentInputSchema,
++});
++
++export const WritePdfArgsSchema = z.object({
++  ...writePdfArgsShape,
+   // Preprocess content to handle JSON strings that should be parsed as arrays
+   content: z.preprocess(
+     (val) => {
+@@ -116,10 +139,8 @@ export const WritePdfArgsSchema = z.object({
+       // Otherwise return as-is
+       return val;
+     },
+-    z.union([z.string(), z.array(PdfOperationSchema)])
++    PdfContentInputSchema
+   ),
+-  outputPath: z.string().optional(),
+-  options: z.object({}).passthrough().optional(), // Allow passing options to md-to-pdf
+ });
+ 
+ export const CreateDirectoryArgsSchema = z.object({
+@@ -148,7 +169,7 @@ export const GetFileInfoArgsSchema = z.object({
+ // Now supports only: text replacement and range rewrites
+ // Removed 'edits' array parameter - location-based surgical edits were complex and unnecessary
+ // Range rewrites are more powerful and cover all structured file editing needs
+-export const EditBlockArgsSchema = z.object({
++const editBlockArgsShape = {
+   file_path: z.string(),
+   // Text file string replacement
+   old_string: z.string().optional(),
+@@ -157,11 +178,19 @@ export const EditBlockArgsSchema = z.object({
+   // Structured file range rewrite (Excel, etc.)
+   range: z.string().optional(),
+   content: z.any().optional(),
+-  options: z.record(z.any()).optional(),
++  options: z.record(z.string(), z.any()).optional(),
+   // 'ui' when fired by the file-preview UI, else 'llm'. 'ui' calls are
+   // excluded from tool-call telemetry; see isUiOriginCall in server.ts.
+   origin: z.enum(['ui', 'llm']).optional(),
+-}).refine(
++};
++
++// The JSON Schema describes the public fields. The runtime schema below keeps
++// the cross-field validation, which JSON Schema cannot infer from a callback.
++export const EditBlockInputArgsSchema = z.object(editBlockArgsShape).describe(
++  'Provide either old_string and new_string together, or range and content together. file_path is required for both forms.',
++);
++
++export const EditBlockArgsSchema = z.object(editBlockArgsShape).refine(
+   data => {
+     // Helper to check if value is actually provided (not undefined, not empty string)
+     const hasValue = (v: unknown) => v !== undefined && v !== '';
+@@ -240,7 +269,7 @@ export const GetRecentToolCallsArgsSchema = z.object({
+ export const TrackUiEventArgsSchema = z.object({
+   event: z.string().min(1).max(80),
+   component: z.string().optional().default('file_preview'),
+-  params: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default({}),
++  params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default({}),
+ });
+ 
+ /**
+@@ -248,7 +277,7 @@ export const TrackUiEventArgsSchema = z.object({
+  * about parameters a caller sent that the tool does not support. Keep in sync
+  * with the tool definitions in server.ts.
+  */
+-export const toolArgSchemas: Record<string, z.ZodTypeAny> = {
++export const toolArgSchemas: Record<string, z.ZodType> = {
+   get_config: GetConfigArgsSchema,
+   set_config_value: SetConfigValueArgsSchema,
+   read_file: ReadFileArgsSchema,
+@@ -276,3 +305,16 @@ export const toolArgSchemas: Record<string, z.ZodTypeAny> = {
+   give_feedback_to_desktop_commander: GiveFeedbackArgsSchema,
+   track_ui_event: TrackUiEventArgsSchema,
+ };
++
++/** Caller-facing schemas; runtime-only preprocessing/refinements stay in toolArgSchemas. */
++export const toolMcpInputSchemas: Record<string, z.ZodType> = {
++  ...toolArgSchemas,
++  write_pdf: WritePdfInputArgsSchema,
++  edit_block: EditBlockInputArgsSchema,
++  kill_process: KillProcessInputArgsSchema,
++};
++
++/** Convert a tool's caller-facing Zod 4 schema to its MCP JSON Schema form. */
++export function toMcpInputSchema(schema: z.ZodType) {
++  return z.toJSONSchema(schema, { target: 'draft-07', io: 'input' });
++}
+diff --git a/src/utils/unsupportedParams.ts b/src/utils/unsupportedParams.ts
+index 31ff27e..2cc3da3 100644
+--- a/src/utils/unsupportedParams.ts
++++ b/src/utils/unsupportedParams.ts
+@@ -1,3 +1,5 @@
++import { z } from 'zod';
++
+ /**
+  * Utility for detecting parameters a caller sent that a tool's Zod schema does
+  * not accept.
+@@ -15,23 +17,31 @@
+ 
+ /**
+  * Resolve a Zod schema down to the field map of its underlying object schema,
+- * unwrapping wrappers (effects/optional/default/nullable/branded) defensively.
++ * unwrapping public Zod 4 wrappers defensively.
+  * Returns null when the schema is not (and does not wrap) a plain object schema,
+  * in which case we cannot determine the supported parameters and must not warn.
+  */
+-function getObjectShape(schema: any): Record<string, unknown> | null {
++function getObjectShape(schema: unknown): Record<string, unknown> | null {
+   let current = schema;
+-  for (let i = 0; current && current._def && i < 10; i++) {
+-    const typeName = current._def.typeName;
+-    if (typeName === 'ZodObject') {
+-      const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
+-      return shape ?? null;
++  for (let i = 0; current && i < 10; i++) {
++    if (current instanceof z.ZodObject) return current.shape;
++    if (current instanceof z.ZodPipe) {
++      // A Zod 4 preprocess is a pipe; its output schema is what validates the
++      // parsed object, matching the Zod 3 ZodEffects.schema behavior.
++      current = current.out;
++    } else if (
++      current instanceof z.ZodOptional
++      || current instanceof z.ZodNullable
++      || current instanceof z.ZodDefault
++      || current instanceof z.ZodCatch
++      || current instanceof z.ZodPrefault
++      || current instanceof z.ZodNonOptional
++      || current instanceof z.ZodReadonly
++    ) {
++      current = current.unwrap();
++    } else {
++      return null;
+     }
+-    if (typeName === 'ZodEffects') current = current._def.schema;
+-    else if (typeName === 'ZodOptional' || typeName === 'ZodNullable' || typeName === 'ZodDefault') {
+-      current = typeof current._def.innerType === 'function' ? current._def.innerType() : current._def.innerType;
+-    } else if (typeName === 'ZodBranded') current = current._def.type;
+-    else return null;
+   }
+   return null;
+ }
+diff --git a/test/test-mcp-tool-input-schemas.js b/test/test-mcp-tool-input-schemas.js
+new file mode 100644
+index 0000000..9ce54a9
+--- /dev/null
++++ b/test/test-mcp-tool-input-schemas.js
+@@ -0,0 +1,126 @@
++#!/usr/bin/env node
++import assert from 'node:assert/strict';
++import { z } from 'zod';
++import {
++  toolMcpInputSchemas,
++  toMcpInputSchema,
++  WritePdfArgsSchema,
++  WritePdfInputArgsSchema,
++  EditBlockInputArgsSchema,
++  EditBlockArgsSchema,
++  KillProcessArgsSchema,
++} from '../dist/tools/schemas.js';
++import { getSupportedParams, detectUnsupportedParams } from '../dist/utils/unsupportedParams.js';
++import { connectToServer } from './helpers/mcp-client.js';
++
++const EXPECTED_REQUIRED = {
++  read_file: ['path'],
++  write_file: ['path', 'content'],
++  write_pdf: ['path', 'content'],
++  list_directory: ['path'],
++  get_file_info: ['path'],
++  start_process: ['command', 'timeout_ms'],
++  set_config_value: ['key', 'value'],
++  edit_block: ['file_path'],
++  kill_process: ['pid'],
++};
++
++const EMPTY_INPUT_TOOLS = new Set([
++  'list_processes',
++  'list_searches',
++  'list_sessions',
++  'get_usage_stats',
++  'give_feedback_to_desktop_commander',
++]);
++
++for (const [name, schema] of Object.entries(toolMcpInputSchemas)) {
++  const jsonSchema = z.toJSONSchema(schema, { target: 'draft-07', io: 'input' });
++  assert.deepEqual(toMcpInputSchema(schema), jsonSchema, `${name} uses native input conversion`);
++  assert.equal(jsonSchema.type, 'object', `${name} must convert to an object schema`);
++}
++
++assert.equal(
++  WritePdfArgsSchema.safeParse({ path: 'output.pdf', content: '[{"type":"delete","pageIndexes":[0]}]' }).success,
++  true,
++  'write_pdf keeps parsing JSON-array strings at runtime',
++);
++assert.equal(
++  EditBlockArgsSchema.safeParse({ file_path: 'notes.txt' }).success,
++  false,
++  'edit_block keeps enforcing its cross-field argument requirement',
++);
++assert.match(
++  toMcpInputSchema(EditBlockInputArgsSchema).description,
++  /either old_string and new_string together, or range and content together/i,
++  'edit_block publishes its either-or argument requirement',
++);
++assert.match(
++  toMcpInputSchema(WritePdfInputArgsSchema).properties.content.description,
++  /beginning with.*parses as JSON.*operation array/i,
++  'write_pdf publishes how JSON-array strings are interpreted',
++);
++assert.equal(
++  KillProcessArgsSchema.safeParse({ pid: -1 }).success,
++  false,
++  'kill_process keeps rejecting non-positive PIDs at runtime',
++);
++
++const client = await connectToServer('schema-contract-test');
++try {
++  const { tools } = await client.listTools();
++  assert.ok(tools.length >= 20, `expected the normal tool set; got ${tools.length}`);
++
++  const byName = new Map(tools.map((tool) => [tool.name, tool]));
++  const schemaToolNames = Object.keys(toolMcpInputSchemas).filter((name) => name !== 'track_ui_event').sort();
++  assert.deepEqual(
++    [...byName.keys()].sort(),
++    schemaToolNames,
++    'tools/list names must match caller-facing schema names (except internal track_ui_event)',
++  );
++  for (const tool of tools) {
++    assert.deepEqual(
++      tool.inputSchema,
++      toMcpInputSchema(toolMcpInputSchemas[tool.name]),
++      `${tool.name} tools/list schema must match its caller-facing schema`,
++    );
++    assert.equal(tool.inputSchema?.type, 'object', `${tool.name} must publish an object input schema`);
++    if (EMPTY_INPUT_TOOLS.has(tool.name)) {
++      assert.deepEqual(tool.inputSchema.properties ?? {}, {}, `${tool.name} should have no input properties`);
++    } else {
++      assert.ok(
++        Object.keys(tool.inputSchema.properties ?? {}).length > 0,
++        `${tool.name} must publish its argument properties`,
++      );
++    }
++  }
++
++  for (const [name, required] of Object.entries(EXPECTED_REQUIRED)) {
++    const tool = byName.get(name);
++    assert.ok(tool, `tools/list must include ${name}`);
++    for (const property of required) {
++      assert.ok(
++        Object.hasOwn(tool.inputSchema.properties ?? {}, property),
++        `${name} inputSchema must declare ${property}`,
++      );
++      assert.ok(
++        tool.inputSchema.required?.includes(property),
++        `${name} inputSchema must require ${property}`,
++      );
++    }
++  }
++} finally {
++  await client.close();
++}
++
++assert.deepEqual(
++  getSupportedParams(toolMcpInputSchemas.read_file),
++  Object.keys(toolMcpInputSchemas.read_file.shape),
++  'Zod 4 object schemas expose supported parameters',
++);
++assert.deepEqual(
++  detectUnsupportedParams({ path: 'notes.txt', view_range: [1, 2] }, toolMcpInputSchemas.read_file),
++  ['view_range'],
++  'Zod 4 object schemas detect unsupported parameters',
++);
++
++console.log('✓ all Zod tool schemas convert and tools/list publishes their inputs');

@@ -1,0 +1,41 @@
+Remote Execution MCP — dependency admission, 2026-11-27
+Diagnostic antecedent: PR #126 (not integrated), head 401eb2a6908b85a79a7f7377b2729a70c53c189f.
+CI 45949797386 attempt 1: ordinary validation and Home Manager recovery passed; on-demand SplitCast check skipped as expected.
+Implementation base: develop 3a1245286e3d43b49aea83a8efb64b27066ac015, tree 237c07f8def414eaf3a54c35d5bc1456ff694627.
+
+Root cause: Zod 3 schema objects are required by zod-to-json-schema. A dependency-only Zod 4 override breaks tools/list. GHSA-mrhx-c7xc-m3w5 affects versions below 4.6.6.
+https://github.com/advisories/GHSA-mrhx-c7xc-m3w5
+
+Upstream repair: https://github.com/wonderwhy-er/DesktopCommanderMCP/pull/988
+PR head ba9b29e2dfa47bb42b730add03db0b2477e7c500; base c2b87956217b58d170de58a0c951a3569b068ee3.
+Unmerged as observed; not a maintainer-approved release.
+Imported diff for src/server.ts, src/tools/schemas.ts, src/utils/unsupportedParams.ts and test/test-mcp-tool-input-schemas.js.
+Applied cleanly with git apply to release v0.3.4, 9a101b17e44577f0baefa4c7120f087881c5cc56.
+Manifest replaces zod-to-json-schema with exact Zod 4.6.7 and pins node-forge 1.4.4; overrides transitive Zod/Forge accordingly.
+Release archive SHA256 2b050aac67e330fd39929dda2372dc4ac0455c24d8da0069afadd7641d85ff04.
+
+Sandbox session sbx_AQdKmTRCCsFZnEGZZKhoUKqLpvRI, nonpersistent and no exposed ports, reached automatic timeout.
+Initial PR #988 checkout was version 0.3.1, built but not adopted.
+Applied release candidate: npm install --ignore-scripts; npm run build passed.
+node test/test-mcp-tool-input-schemas.js: passed, actual tools/list and runtime input checks.
+node test/integration/read-file-unknown-params.js: passed unknown parameter warning, type rejection, required parameter rejection.
+Desktop Commander npm audit --omit=dev: high 0, critical 0, moderate 2 (glob/minimatch).
+Gateway separate manifest Supergateway 4.3.0, SDK 1.32.2, Zod override 4.6.7.
+Gateway npm audit --omit=dev: 0 vulnerabilities at measurement time.
+Real Streamable HTTP probe from #126: 25 tools, telemetry disabled in config, asynchronous exit 0/7, independent session state, reconnect HTTP 200, unknown session HTTP 404. Exit 0.
+Chrome startup download was attempted; Nix package must make it unnecessary.
+No claim of complete security admission; moderate findings and real host isolation remain.
+Exact manifests, lockfiles and patch copied from sandbox with Git object SHA equality:
+desktop-commander/package.json 62015c5afe09e69071694853825579112ad18397
+desktop-commander/package-lock.json e496a0ab977a9202aa47a025b364986df87993dc (SHA256 6f9539c0d8077ab3c08d2871f9f79a2767dcc54ba5937a488a4c5b3ddefce8c5)
+supergateway/package.json c0b5707b7e51bbc63c2993dcb7477f86d3249687
+supergateway/package-lock.json b61742c2b678cb81013907963b7a872c1b423e32 (SHA256 d36fbbad36d8259705d687ef16937d0f5e82c1201910d763f1a9c14fed3e16)
+zod-migrate.patch e16d0fa9f0261e6999330b0cfda5a8d1404f17be (SHA256 00f8be454583ecb11fbd5e219d6da9c31763c284145991533184728d2d56534c)
+Second sandbox sbx_tUeUBSuiHNhInkd3oAUCs2McEC1g confirmed source archive hash; stopped explicitly after 10.250 s.
+
+Nix packaging evidence:
+Nixpkgs 26.05 pinned by repository lock, Nix 2.34.3 in ephemeral sandbox sbx_DAnRhH75U1aRGeCLPxRH22uVaOyG. Native prefetch-npm-deps produced both fixed-output hashes committed in packages.nix.
+Supergateway intermediate package built: /nix/store/h2nbfkpg6l3rrn3ifh3hgi95qqv3yml8-supergateway-4.3.0.
+Both package derivation paths evaluated on intermediate commit 19e846d25c7b01cdae0e0b52869f3a6c665b9033. Desktop Commander build was not confirmed before sandbox timeout (HTTP 410); final candidate must build and run the native CI integration check. Sandbox Nix configuration is not production evidence.
+Guest includes a compiler/linker for Rust fixture. Move Chromium substitution to preBuild to avoid a Chromium dependency in the npm cache derivation.
+Remaining admission gates: moderate advisory reachability, exact final Nix builds, native Incus sandbox and nftables integration, capacity admission, real Cloudflare OAuth/JWT and ChatGPT client. No production activation or merge authorized.
