@@ -134,6 +134,15 @@ jobs:
           extra_nix_config: |
             extra-substituters = https://cache.numtide.com
             extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
       - name: Build and inspect independent artifact
         env:
           WORKLOAD: ${{ matrix.workload }}
