@@ -26,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
         with:
@@ -35,6 +36,40 @@ jobs:
             extra-substituters = https://cache.numtide.com
             extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
       - run: nix build -L --keep-going --no-link .#checks.x86_64-linux.validation
+      - name: Verify materialized theme source provenance
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          root=assets/catppuccin-materialized
+          current=$(git rev-parse "HEAD:$root")
+          previous=""
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$BASE_SHA" HEAD; then
+            previous=$(git rev-parse "$BASE_SHA:$root" 2>/dev/null || true)
+          fi
+          # A source tree match alone does not prove the base was verified.
+          # Require the same lock and verifier/workflow, plus successful push CI
+          # for the exact integration-base commit. Unavailable evidence rebuilds.
+          reuse=false
+          if [[ "$EVENT" == pull_request && ( "$BASE_REF" == develop || "$BASE_REF" == main ) && "$current" == "$previous" ]]; then
+            workflow="${GITHUB_WORKFLOW_REF#"$GITHUB_REPOSITORY/"}"
+            workflow="${workflow%@*}"
+            if [[ "$(git rev-parse "$BASE_SHA:flake.lock")" == "$(git rev-parse HEAD:flake.lock)" ]] &&
+               [[ "$(git rev-parse "$BASE_SHA:$workflow")" == "$(git rev-parse "HEAD:$workflow")" ]] &&
+               receipt=$(curl --fail --silent --show-error --max-time 15 "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$BASE_SHA&event=push&per_page=100") &&
+               jq -e --arg sha "$BASE_SHA" --arg branch "$BASE_REF" --arg path "$workflow" --arg repo "$GITHUB_REPOSITORY" 'any(.workflow_runs[]; .head_sha == $sha and .head_branch == $branch and .head_repository.full_name == $repo and .path == $path and .event == "push" and .status == "completed" and .conclusion == "success")' <<< "$receipt" >/dev/null; then
+              reuse=true
+            fi
+          fi
+          if [[ "$reuse" == true ]]; then
+            echo "Materialized source and successful integration-base receipt match: $BASE_SHA $current"
+          else
+            args=()
+            if [[ "$current" != "$previous" ]]; then args+=(--require-current); fi
+            python3 "$root/verify.py" "${args[@]}"
+          fi
 
   stateful:
     name: Home Manager migration and recovery
