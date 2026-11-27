@@ -39,7 +39,18 @@ fi
 scratch_dir=""
 if (( strict )); then
   scratch_dir="$(mktemp -d)"
-  trap 'rm -rf -- "$scratch_dir"' EXIT
+  # Nix stores directories as read-only. Restore write access only inside
+  # this private temporary store, without following symlinks or touching /nix.
+  cleanup() {
+    local rc=$?
+    trap - EXIT
+    if ! find "$scratch_dir" -type d -exec chmod u+w {} + || ! rm -rf -- "$scratch_dir"; then
+      echo "::error::Failed to remove isolated SplitCast cache store" >&2
+      if (( rc == 0 )); then rc=1; fi
+    fi
+    exit "$rc"
+  }
+  trap cleanup EXIT
   isolated_store="local?root=$scratch_dir"
   # Applies to an isolated non-daemon store, never to the CI host Nix daemon.
   # Do not use --no-check-sigs or a trusted=true store URI.
