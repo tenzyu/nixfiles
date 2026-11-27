@@ -85,7 +85,12 @@ jobs:
           a=a.get("derivations",a); b=b.get("derivations",b)
           def key(p): return p.rsplit("/",1)[-1].split("-",1)[-1]
           def lookup(g,p): return g.get(p) or g.get(p.rsplit("/",1)[-1])
-          def deps(d): return list(d.get("inputDrvs",{}))
+          def deps(d):
+              if "inputs" in d: return list(d["inputs"]["drvs"])
+              return list(d["inputDrvs"])
+          def sources(d):
+              if "inputs" in d: return d["inputs"]["srcs"]
+              return d["inputSrcs"]
           def group(ps):
               r=defaultdict(list)
               for p in ps:r[key(p)].append(p)
@@ -110,13 +115,15 @@ jobs:
                   elif xs or ys:
                       unmatched.append([chain,k,sorted(xs),sorted(ys)])
               fields=[]
-              for field in ("builder","args","system","inputSrcs"):
+              if sources(dx)!=sources(dy):fields.append("inputSrcs")
+              for field in ("builder","args","system"):
                   if dx.get(field)!=dy.get(field):fields.append(field)
               envx,envy=dx.get("env",{}),dy.get("env",{})
               ev=[k for k in sorted(set(envx)|set(envy)) if k not in ("out","dev","doc","man","info","bin","lib","debug","drvPath") and envx.get(k)!=envy.get(k)]
               changes.append([chain,x,y,fields,ev])
               if not children:
                   leaves.append([chain,x,y,fields,ev])
+          assert not (any(ar[k]!=br[k] for k in ar) and len(seen)<=len(ar) and not unmatched), "changed root without traversed dependencies"
           out={"roots":[ar,br],"paired_changed":len(seen),"unmatched":unmatched,"leaves":leaves,"changes":changes}
           (temp/"delta/dag-delta.json").write_text(json.dumps(out,indent=2))
           print("CHANGED_DERIVATION_PAIRS",len(seen),"LEAVES",len(leaves),"UNMATCHED",len(unmatched))
