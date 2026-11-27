@@ -1,0 +1,60 @@
+name: Diagnostic native verification graph
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - '.github/workflows/diagnostic-verification-graph.yml'
+      - 'scripts/ci/verification-graph-probe/**'
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Test observation adapter
+        run: python3 -m unittest discover -s scripts/ci/verification-graph-probe -v
+      - name: Observe historical safety-shell change
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/verification-graph"
+          mkdir -p "$root/base" "$root/candidate"
+          git worktree add --detach "$RUNNER_TEMP/baseline" "$BASE_SHA^1"
+          git worktree add --detach "$RUNNER_TEMP/candidate" "$BASE_SHA"
+          system=$(nix eval --impure --raw --expr builtins.currentSystem)
+          tool=$(nix build --no-link --print-out-paths --inputs-from "$RUNNER_TEMP/candidate" nixpkgs#nix-eval-jobs)
+          nix --version | tee "$root/nix-version.txt"
+          printf '%s\n' "$tool" > "$root/evaluator.txt"
+          status=0
+          for pair in base:baseline candidate:candidate; do
+            label=${pair%%:*}
+            worktree=${pair#*:}
+            (
+              cd "$RUNNER_TEMP/$worktree"
+              git rev-parse HEAD HEAD^{tree} > "$root/$label/git-identity.txt"
+              sha256sum flake.lock > "$root/$label/lock.txt"
+              nix eval --json ".#checks.$system" --apply builtins.attrNames > "$root/$label/checks.json"
+              "$tool/bin/nix-eval-jobs" --workers 1 --flake ".#checks.$system" > "$root/$label/evaluation.jsonl"
+            ) || status=1
+          done
+          python3 scripts/ci/verification-graph-probe/compare.py "$root/base" "$root/candidate" | tee "$root/comparison.json"
+          exit "$status"
+      - name: Preserve observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-graph-observations
+          path: ${{ runner.temp }}/verification-graph
+          retention-days: 3
