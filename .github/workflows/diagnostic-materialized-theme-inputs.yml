@@ -1,0 +1,184 @@
+# Diagnostic only. Do not integrate. No production deployment or cache signing.
+name: CI materialized theme input identity probe (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-materialized-theme-inputs-20261127]
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Materialize exact pinned upstream theme data
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 113408498954d9df3c55d72c202bfd7a801e5a3a
+          nix config show | grep -Fx 'require-sigs = true'
+          mkdir -p "$RUNNER_TEMP/theme-data/snapshot"
+          printf '%s\n' "$(sha256sum flake.lock | cut -d' ' -f1)" > "$RUNNER_TEMP/theme-data/lock.sha"
+          printf '%s\n' '{}' > "$RUNNER_TEMP/theme-data/origin.json"
+          start=$(date +%s)
+          for name in starship firefox palette; do
+            out=$(nix build --no-link --print-out-paths --impure --expr "let f = builtins.getFlake (toString ./.); in f.inputs.catppuccin.packages.x86_64-linux.$name")
+            test -d "$out"
+            case "$name" in
+              starship) test "$out" = /nix/store/1ax1sb6dcq368wldsgk5g1bq3vx6z5yc-catppuccin-starship-0-unstable-2025-08-01 ;;
+              firefox) test "$out" = /nix/store/br0qkjamrx6qizgifrqxd28q61gsm6xy-catppuccin-firefox-0-unstable-2023-07-18 ;;
+              palette) test "$out" = /nix/store/h01dwd9iapgjd9w22z31r2gfw3nifhsq-catppuccin-palette-0-unstable-2026-03-21 ;;
+            esac
+            test -z "$(find "$out" ! -type d ! -type f -print -quit)"
+            cp -r "$out" "$RUNNER_TEMP/theme-data/snapshot/$name"
+            info=$(nix path-info --json "$out" | jq -cS .)
+            jq --arg name "$name" --argjson info "$info" '. + {($name): $info}' "$RUNNER_TEMP/theme-data/origin.json" > "$RUNNER_TEMP/origin.next"
+            mv "$RUNNER_TEMP/origin.next" "$RUNNER_TEMP/theme-data/origin.json"
+          done
+          cd "$RUNNER_TEMP/theme-data"
+          find snapshot -type f -print0 | sort -z | xargs -0 sha256sum > manifest.sha256
+          test -s manifest.sha256
+          sha256sum --strict -c manifest.sha256
+          echo "PRODUCER_SECONDS=$(($(date +%s)-start))"
+          du -sb snapshot
+          cat origin.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          path: ${{ runner.temp }}/theme-data
+          if-no-files-found: error
+          retention-days: 2
+  compare:
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        arm: [baseline, snapshot]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - uses: actions/download-artifact@v4
+        with:
+          name: materialized-theme-inputs
+          path: ${{ runner.temp }}/theme-data
+      - name: Compare evaluation with immutable theme input data
+        env:
+          ARM: ${{ matrix.arm }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 113408498954d9df3c55d72c202bfd7a801e5a3a
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/theme-data/lock.sha")"
+          (cd "$RUNNER_TEMP/theme-data"; sha256sum --strict -c manifest.sha256)
+          if [[ "$ARM" == snapshot ]]; then
+            mkdir -p assets/ci-theme-probe
+            cp -r "$RUNNER_TEMP/theme-data/snapshot/." assets/ci-theme-probe/
+            python3 - <<'PY'
+          from pathlib import Path
+          path = Path("modules/50-features/desktop/catppuccin.nix")
+          old = "        cache.enable = true;\n"
+          new = old + """        sources = {
+                    starship = ../../../assets/ci-theme-probe/starship;
+                    firefox = ../../../assets/ci-theme-probe/firefox;
+                    palette = ../../../assets/ci-theme-probe/palette;
+                  };
+          """
+          text = path.read_text()
+          assert text.count(old) == 2
+          path.write_text(text.replace(old, new))
+          PY
+            git add -f assets/ci-theme-probe modules/50-features/desktop/catppuccin.nix
+          fi
+          git diff --cached --stat
+          git write-tree
+          mkdir -p "$RUNNER_TEMP/theme-evidence"
+          /usr/bin/time -f 'COLD_VALIDATION_EVAL_SECONDS=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+            nix eval --raw .#checks.x86_64-linux.validation.drvPath > "$RUNNER_TEMP/theme-evidence/validation-drv"
+          cat "$RUNNER_TEMP/theme-evidence/validation-drv"
+          echo
+          # Collect actual check and host derivation identities separately.
+          # docs legitimately depends on the full flake source; all other
+          # differences require explanation before changing product config.
+          nix eval --json --impure --expr '
+            let f = builtins.getFlake (toString ./.);
+                names = ["framework" "host-policy" "desktop-packages" "docs" "clipboard" "memory-snapshot" "t3-serve" "opencode-direnv" "parsec-activation" "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell" "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"];
+            in builtins.listToAttrs (map (name: { inherit name; value = f.checks.x86_64-linux.${name}.drvPath; }) names)
+          ' | jq -S . > "$RUNNER_TEMP/theme-evidence/checks.json"
+          nix eval --json --impure --expr '
+            let f = builtins.getFlake (toString ./.);
+            in builtins.mapAttrs (_: host: host.config.system.build.toplevel.drvPath) f.nixosConfigurations
+          ' | jq -S . > "$RUNNER_TEMP/theme-evidence/hosts.json"
+          nix eval --json --impure --expr '
+            let f = builtins.getFlake (toString ./.);
+            in builtins.mapAttrs (_: h: h.activationPackage.drvPath) (f.homeConfigurations or {})
+          ' | jq -S . > "$RUNNER_TEMP/theme-evidence/homes.json"
+          cat "$RUNNER_TEMP/theme-evidence/"*.json
+          # No change to normal acceptance; test the phase boundary in a
+          # diagnostic run with evaluation caching disabled.
+          if nix eval --option eval-cache false --option allow-import-from-derivation false --raw .#checks.x86_64-linux.validation.drvPath > "$RUNNER_TEMP/theme-evidence/no-ifd-drv" 2> "$RUNNER_TEMP/theme-evidence/no-ifd.log"; then
+            echo "NO_IFD_EVAL=success"
+          else
+            echo "NO_IFD_EVAL=failure"
+            tail -n 40 "$RUNNER_TEMP/theme-evidence/no-ifd.log"
+          fi
+          /usr/bin/time -f 'VALIDATION_REALIZATION_SECONDS=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+            nix build -L --keep-going --no-link --print-out-paths .#checks.x86_64-linux.validation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: theme-evidence-${{ matrix.arm }}
+          path: ${{ runner.temp }}/theme-evidence
+          if-no-files-found: error
+          retention-days: 2
+  identity:
+    needs: compare
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: theme-evidence-*
+          path: evidence
+      - name: Report non-documentation identity differences
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          left = Path("evidence/theme-evidence-baseline")
+          right = Path("evidence/theme-evidence-snapshot")
+          mismatches = []
+          for file in ("checks.json", "hosts.json", "homes.json"):
+              a = json.loads((left / file).read_text())
+              b = json.loads((right / file).read_text())
+              for key in sorted(set(a) | set(b)):
+                  if a.get(key) != b.get(key):
+                      print("IDENTITY_DIFFERENCE", file, key, a.get(key), b.get(key))
+                      if (file, key) != ("checks.json", "docs"):
+                          mismatches.append((file, key))
+          if mismatches:
+              raise SystemExit("Unresolved non-docs identity differences")
+          print("NON_DOCS_DERIVATION_IDENTITIES_EQUAL=1")
+          PY
+          test '${{ needs.compare.result }}' = success
