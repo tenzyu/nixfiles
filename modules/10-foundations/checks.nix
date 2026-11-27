@@ -82,7 +82,7 @@
     };
     failures = lib.attrNames (lib.filterAttrs (_: passed: !passed) checks);
     fastChecks = [
-      "framework" "host-policy" "desktop-packages" "docs" "clipboard"
+      "framework" "host-policy" "desktop-packages" "docs" "clipboard" "memory-snapshot"
       "t3-serve" "opencode-direnv" "parsec-activation"
       "rtk-rewrites" "steam-gaming" "safety-python" "safety-shell"
       "game-backup-minecraft" "splitcast-cache-cli" "operator-interface"
@@ -122,6 +122,13 @@
         touch "$out"
       '';
 
+      memory-snapshot = pkgs.runCommand "memory-snapshot-tests" {
+        nativeBuildInputs = [pkgs.python3];
+      } ''
+        python3 ${../../scripts/desktop}/test-memory-snapshot.py
+        touch "$out"
+      '';
+
       t3-serve = pkgs.runCommand "t3-serve-contract" {
         nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.jq];
       } ''
@@ -133,7 +140,7 @@
       '';
 
       # Only the offline argument boundary; signed remote verification is on demand.
-      splitcast-cache-cli = pkgs.runCommand "splitcast-cache-cli" {nativeBuildInputs = [pkgs.bash];} ''
+      splitcast-cache-cli = pkgs.runCommand "splitcast-cache-cli" {nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.jq pkgs.gnused pkgs.gnugrep];} ''
         script=${../../scripts/ci/audit-splitcast-cache.sh}
         bash -n "$script"
         bash "$script" --help
@@ -143,6 +150,7 @@
         status=0
         bash "$script" --strict extra || status=$?
         test "$status" = 2
+        bash ${../../scripts/ci/test-splitcast-cache.sh} "$script"
         touch "$out"
       '';
 

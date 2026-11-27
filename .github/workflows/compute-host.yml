@@ -66,16 +66,20 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build independent VM image and system
+        env:
+          WORKLOAD: ${{ matrix.workload }}
         run: |
           set -euo pipefail
           test -c /dev/kvm
           sudo chmod a+rw /dev/kvm
-          out=$(nix build -L --no-link --print-out-paths .#neko7-${{ matrix.workload }}-image)
+          out=$(nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
           test -s "$out/nixos.qcow2"
           test -s "$out/metadata.tar.xz"
-          nix build -L --no-link .#neko7-${{ matrix.workload }}-system
+          nix build -L --no-link ".#neko7-$WORKLOAD-system"
       - name: Boot actual service module and test private reachability
-        run: nix build -L --no-link .#checks.x86_64-linux.personal-workload-${{ matrix.workload }}
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
   workload-lifecycle:
     name: Independent workload deployment and rollback
     runs-on: ubuntu-latest
@@ -92,7 +96,7 @@ jobs:
           set -euo pipefail
           attr=.#nixosConfigurations.neko7.config
           nix eval --raw "$attr.containers.neko7-mc.path" | grep -Fx /nix/var/nix/profiles/system
-          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'all(.[]; contains("/nix/profiles/t3-runtime/bin/t3"))'
+          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and contains("/nix/profiles/t3-runtime/bin/t3"))'
           nix eval --json "$attr.home-manager.users.tenzyu.local.features.splitcast-production-profile.enable" | jq -e '. == true'
           nix eval --json "$attr.home-manager.users.tenzyu.services.splitcast.enable" | jq -e '. == false'
           nix eval --json "$attr.system.preSwitchChecks" --apply builtins.attrNames | jq -e 'index("minecraft-workload-profile") != null and index("neko7-workload-profiles") != null'

@@ -58,11 +58,11 @@
     pkgs,
     ...
   }: let
-    screenshotArea = ''
-      geometry="$(${lib.getExe pkgs.slurp})" || exit 0
-      [ -n "$geometry" ] || exit 0
-      ${lib.getExe pkgs.grim} -g "$geometry" - | ${lib.getExe' pkgs.wl-clipboard "wl-copy"} --type image/png
-    '';
+    screenshot = pkgs.writeShellApplication {
+      name = "jay-screenshot";
+      runtimeInputs = [pkgs.grim pkgs.slurp pkgs.wl-clipboard pkgs.coreutils];
+      text = builtins.readFile ../../../scripts/desktop/jay-screenshot.sh;
+    };
     # Native named actions; no resident helper or additional IPC.
     workspaceActions = lib.concatMapStringsSep "\n" (n: let
       name = toString n;
@@ -177,8 +177,8 @@
           logo-shift-l = "move-right"
           logo-d = "split-horizontal"
           logo-shift-v = "split-vertical"
-          logo-shift-s = { type = "exec", exec = { shell = ${builtins.toJSON screenshotArea}, privileged = true } }
-          Print = { type = "exec", exec = { shell = "${lib.getExe pkgs.grim} - | ${lib.getExe' pkgs.wl-clipboard "wl-copy"} --type image/png", privileged = true } }
+          logo-shift-s = { type = "exec", exec = { prog = "${lib.getExe screenshot}", args = ["area"], privileged = true } }
+          Print = { type = "exec", exec = { prog = "${lib.getExe screenshot}", args = ["full"], privileged = true } }
           logo-Tab = "$next-workspace"
           logo-shift-Tab = "$previous-workspace"
           logo-f = "toggle-fullscreen"
