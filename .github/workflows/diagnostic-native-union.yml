@@ -1,0 +1,104 @@
+# Diagnostic only: never integrate. All candidates are historical trusted fixtures.
+name: Diagnostic native union replay
+on:
+  push:
+    branches: [diagnostics/validation-native-union]
+permissions:
+  contents: read
+jobs:
+  sequential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        pair: [0, 1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Realize identical historical roots via sequential
+        env:
+          PAIR: ${{ matrix.pair }}
+        run: |
+          set -euo pipefail
+          nix --version
+          nproc
+          free -m
+          df -h /nix
+          python3 scripts/ci/native-union-probe/replay.py sequential "$PAIR"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sequential-${{ matrix.pair }}
+          path: ${{ runner.temp }}/native-union/receipt.json
+          retention-days: 3
+  union:
+    needs: sequential
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        pair: [0, 1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Realize identical historical roots via union
+        env:
+          PAIR: ${{ matrix.pair }}
+        run: |
+          set -euo pipefail
+          nix --version
+          nproc
+          free -m
+          df -h /nix
+          python3 scripts/ci/native-union-probe/replay.py union "$PAIR"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: union-${{ matrix.pair }}
+          path: ${{ runner.temp }}/native-union/receipt.json
+          retention-days: 3
+  input-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Verify desktop input scope and unchanged host identity
+        run: |
+          git fetch --no-tags origin 83a6064c13dad595e5063325e57d71c4804836d5
+          python3 scripts/ci/native-union-probe/input_scope.py 3a1245286e3d43b49aea83a8efb64b27066ac015 83a6064c13dad595e5063325e57d71c4804836d5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: input-scope
+          path: ${{ runner.temp }}/input-scope/scope.json
+          retention-days: 3

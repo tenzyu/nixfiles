@@ -1,0 +1,142 @@
+{
+  "sourceRun": 45932618806,
+  "repairBase": "113408498954d9df3c55d72c202bfd7a801e5a3a",
+  "repairHead": "652a693d570f46434cb57ed6508965e3429ea1b8",
+  "repairPaths": [
+    "assets/safety/shell/operations.sh",
+    "assets/safety/shell/test-operations.sh",
+    "modules/10-foundations/safety-shell-check.nix"
+  ],
+  "pairs": [
+    [
+      {
+        "pr": 102,
+        "rev": "c0f66922657fd1db7a04685fec2a4277a00f646c",
+        "originalTree": "60976eab03a52bc9a0ff82b328c8070c66a9db4b",
+        "effectiveCommit": "14a67abed0eb830d4999911069ae2360938eb4de",
+        "tree": "5a74a9671548c5a879937808d81a40bae362050f",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/ja8drw77qr5wkbzdyarg2w4wilvflvwp-nixfiles-validation",
+        "drv": "/nix/store/n5310k8vvf082n2a5p1vyk9zlsdpxh28-nixfiles-validation.drv",
+        "narHash": "sha256-+C0aI1/umngCcZJG/KVzyQ13PnaS7ypbWzW6AHIeHb0=",
+        "baselineJob": 140294124239
+      },
+      {
+        "pr": 103,
+        "rev": "08adeb096cc4c22618ef54d4cc177dde3a43b298",
+        "originalTree": "f7610fa945f0147807fa6a2bdc0e433d8a7014bc",
+        "effectiveCommit": "e065e9bf71e6814e7f1d24e03bee91474b8a1f7d",
+        "tree": "b548ecee6a0aafad41ff5d043fc175abef50b1f8",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/50j2fklvrk94s61lxh1fwrl0ml193bjm-nixfiles-validation",
+        "drv": "/nix/store/ijyz3kp3g0r9zp7x9szqpj9g4sxzm12c-nixfiles-validation.drv",
+        "narHash": "sha256-YgJjnHSHL6CC0djBjCUrZP410JtgVavy0njbfmtCbKw=",
+        "baselineJob": 140294124281
+      }
+    ],
+    [
+      {
+        "pr": 104,
+        "rev": "27c76f53e050544e8cb31c88eac2cdac8896d7d9",
+        "originalTree": "34ce570b46da8736a3d0411cb32f0e872a06d0fa",
+        "effectiveCommit": "a2fa78e7cefc44b43db5bee73eec1253ab69013b",
+        "tree": "4c0486049f125dd429a0597d640274c42ea37d06",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/5x8zbs2894sj9q1zqgv51p3ifhpssmnk-nixfiles-validation",
+        "drv": "/nix/store/rk18h0cizy85nk7hdj7lj59jz56n2aay-nixfiles-validation.drv",
+        "narHash": "sha256-Ufz2ajYYrNnZAJcUzWTQ5dabbcUyBJQWcuHtyfc/xbM=",
+        "baselineJob": 140294124262
+      },
+      {
+        "pr": 105,
+        "rev": "3ec87559000e7851840518b9527dc352c0eed86d",
+        "originalTree": "b08ec7a3d42af7277bb3870f2003b96ea95d03c2",
+        "effectiveCommit": "49b5377c1d9eb1da7b26448337174977a95e2328",
+        "tree": "098ee8d2040629d4f48eccd5b617ab392513afb9",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/4vv7rxgfvysrbpvhgm4qp2h88k8k2wrp-nixfiles-validation",
+        "drv": "/nix/store/yvrhs4j793h5h0aig6s0yr9vl54pi5b1-nixfiles-validation.drv",
+        "narHash": "sha256-iE61zYmSSqk1Vz4q1k/eNJ109kEyaKs6okARjoY3PPs=",
+        "baselineJob": 140294124335
+      }
+    ],
+    [
+      {
+        "pr": 106,
+        "rev": "8a5ef4d4199583fab8b9f8b051fa9f638601b565",
+        "originalTree": "21ce5d6fa7c31ee7bfe6a6607560c905f4470389",
+        "effectiveCommit": "1c7aacaeab466052cdafab33eebfef265c49e04c",
+        "tree": "8430f61465f1ba65a686ad524230113402082a5c",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/zqqqin7viil17vqg3y471fmh63jw79cy-nixfiles-validation",
+        "drv": "/nix/store/n573m73y74ani8cmpq2ry6v3b8x7v2j5-nixfiles-validation.drv",
+        "narHash": "sha256-WMYbVZ++CGVShhpofD0C5bbuHiYxTJT1Z9+JCMnZ4PQ=",
+        "baselineJob": 140294124302
+      },
+      {
+        "pr": 107,
+        "rev": "dc23b92062e94ced51ffa3b33b9d035ac8c23524",
+        "originalTree": "1ca48e9c081daef230f064e16a1b2e3bf6eb9c08",
+        "effectiveCommit": "3eaca6aa9584f306ea19c8acdac7ff2ab3524475",
+        "tree": "0896b45659ddfb45d48a579ecec3fcad1e0eafe5",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/9gv3ad1kyv3d24s81rcniiss3wzynbcx-nixfiles-validation",
+        "drv": "/nix/store/njqf39z47wdd2ccssi83r203imry3kns-nixfiles-validation.drv",
+        "narHash": "sha256-A7JSn/ySV34w9uT7orDginn+FioxBWWXQBCK/svrfTg=",
+        "baselineJob": 140294124277
+      }
+    ],
+    [
+      {
+        "pr": 108,
+        "rev": "244335b805b9d60d40bff3bcdd28c016e953660a",
+        "originalTree": "1ff590ce0f4f6ca56bbe2a76c1a4ba59a78038e1",
+        "effectiveCommit": "c696424495d32fb47985164363a2f6854d84fb5a",
+        "tree": "4b193bf55ac6c23d1607a85e49daf5b1499da29f",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/zpfcz8n567qi4yp3cxsaf6l7b4ddyicw-nixfiles-validation",
+        "drv": "/nix/store/pcn0m7m7y4jacxh9n494d45sjc8ywxfp-nixfiles-validation.drv",
+        "narHash": "sha256-fbdt1UrNrvG3QQ4F0ocgwR+sSVuS/2TfWgCprVBLfFE=",
+        "baselineJob": 140294124266
+      },
+      {
+        "pr": 109,
+        "rev": "9d418a96224ad0a1677af1006a30556a6b34767f",
+        "originalTree": "37ce6c4330392e3c43264bd38fb74bcaee79a3cf",
+        "effectiveCommit": "365eca01e832d68b5a16855de8b560ecc6957adc",
+        "tree": "9968c2009b242e2e390033a92f654877bf7e9c81",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/l4azfg3wqg32ilasl5gq5ykvgywpqchw-nixfiles-validation",
+        "drv": "/nix/store/h5pd65q2kykik47awyvgafpr4n58wcfc-nixfiles-validation.drv",
+        "narHash": "sha256-BMpktEZs0Xk4l7qtNFGZ62onvNx4c1UcsrTokGUGqTk=",
+        "baselineJob": 140294124295
+      }
+    ],
+    [
+      {
+        "pr": 110,
+        "rev": "11d7f1fe1cc262755192fed7e880e98c54938928",
+        "originalTree": "1a421b9914b77466463db28b1bb706b49d4b33d9",
+        "effectiveCommit": "cc1edac146042d48e91ba7444f694378c7829dc3",
+        "tree": "61096f7c76f8f14be2c6981f54f3afc32626c23c",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/hr674yp1f66gwgx0w0mm58x6ph3b6022-nixfiles-validation",
+        "drv": "/nix/store/g54xnj7c1294s92wygxd6khbna9dr9yn-nixfiles-validation.drv",
+        "narHash": "sha256-iAAqeu2gWU2vLWZqJ0vDHC083u4WKYk9j4kQKRRn3dI=",
+        "baselineJob": 140294124286
+      },
+      {
+        "pr": 111,
+        "rev": "8aef28c0a3da3fc84679a7091c5fe5e7eb3a282f",
+        "originalTree": "36c3687c72e6212926049e8fd8c2323635cd32a9",
+        "effectiveCommit": "39ba89e5b19be2011ee6bc952eb703d6abd2722e",
+        "tree": "d73a83fec82ab53306f3765d51093cdf4991f708",
+        "lock": "bdfb48cdf1067606547dde121294afbb662e61c8ff3f56c8c74fa5244b11a20a",
+        "output": "/nix/store/aaf3l7lbrb6p5459qg74kr500hkm3qhc-nixfiles-validation",
+        "drv": "/nix/store/gs9i61mm3vv2fsbvcqdkir0p7rsndk56-nixfiles-validation.drv",
+        "narHash": "sha256-V/9ye+/wOhVbgUo7dHFAgbHbV8dQQ80/GIYZhrHUGzY=",
+        "baselineJob": 140294124327
+      }
+    ]
+  ]
+}
