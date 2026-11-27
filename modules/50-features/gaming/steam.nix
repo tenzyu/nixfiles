@@ -101,7 +101,7 @@ in {
     };
   };
   perSystem = {pkgs, ...}: {
-    checks.steam-gaming =
+    validationChecks.steam-gaming =
       pkgs.runCommand "steam-gaming-lifecycle-tests" {
         nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.gnugrep];
       } ''

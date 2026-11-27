@@ -4,7 +4,7 @@
     pkgs,
     ...
   }: {
-    checks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+    validationChecks = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
       safety-python = pkgs.runCommand "check-safety-python" {
         nativeBuildInputs = [pkgs.python3];
         SAFETY_TEST_BASH = "${pkgs.bash}/bin/bash";

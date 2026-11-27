@@ -54,7 +54,7 @@ in {
       operator-inspect = {type = "app"; program = "${pkgs.nix-inspect}/bin/nix-inspect";};
       operator-diff = {type = "app"; program = "${pkgs.nvd}/bin/nvd";};
     };
-    checks.operator-interface =
+    validationChecks.operator-interface =
       assert lib.assertMsg (matches "system" && matches "home" && nativeOriginsPresent)
         "Feature inventory lost the real Jay selection, registration or native origins";
       pkgs.runCommand "operator-interface" {nativeBuildInputs = [pkgs.just pkgs.bash pkgs.coreutils pkgs.gitMinimal pkgs.jq pkgs.diffutils];} ''

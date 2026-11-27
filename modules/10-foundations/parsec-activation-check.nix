@@ -37,7 +37,7 @@
           ${parsecTouchpadGpmap.data}
         '';
   in {
-    checks.parsec-activation = pkgs.runCommand "parsec-activation-tests" {} ''
+    validationChecks.parsec-activation = pkgs.runCommand "parsec-activation-tests" {} ''
       ${pkgs.python3}/bin/python3 -I ${fixtures} ${activation} ${review}/bin/parsec-activation-review
       touch "$out"
     '';

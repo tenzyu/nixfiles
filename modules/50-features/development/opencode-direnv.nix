@@ -19,7 +19,7 @@ in {
   };
 
   perSystem = {pkgs, ...}: {
-    checks.opencode-direnv =
+    validationChecks.opencode-direnv =
       pkgs.runCommand "check-opencode-direnv" {
         nativeBuildInputs = [pkgs.bun pkgs.direnv];
       } ''

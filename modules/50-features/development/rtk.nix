@@ -24,7 +24,7 @@ in {
   };
 
   perSystem = {pkgs, ...}: {
-    checks.rtk-rewrites =
+    validationChecks.rtk-rewrites =
       pkgs.runCommand "check-rtk-rewrites" {
         nativeBuildInputs = [pkgs.python3 inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.rtk];
       } ''
