@@ -1,0 +1,94 @@
+# Diagnostic only. No shared store across untrusted PRs; no gate omitted.
+name: CI native gate coalescing (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-native-gate-coalescing-20261127]
+permissions:
+  contents: read
+jobs:
+  baseline-platform:
+    name: baseline / Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+
+  baseline-ingress:
+    name: baseline / Tailnet-only ingress negative controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify host policy and execute firewall machine test
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
+          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
+          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
+          nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
+
+  coalesced:
+    name: coalesced / three native gates
+    needs: [baseline-platform, baseline-ingress]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3a1245286e3d43b49aea83a8efb64b27066ac015
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Preserve exact host ingress policy assertions
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a1245286e3d43b49aea83a8efb64b27066ac015
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix config show | grep -Fx 'require-sigs = true'
+          nproc
+          free -m
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
+          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
+          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
+      - name: Execute all three distinct native tests in one isolated candidate store
+        run: |
+          set -euo pipefail
+          # Same targets and native test semantics as the three baseline jobs.
+          # Keep going on independent failures; fresh hosted runner, no store restore.
+          /usr/bin/time -f 'COALESCED_NATIVE_SECONDS=%e' nix build -L --keep-going --no-link --print-out-paths \
+            .#checks.x86_64-linux.multi-machine-lab \
+            .#checks.x86_64-linux.platform-services \
+            .#checks.x86_64-linux.tailnet-ingress \
+            | tee "$RUNNER_TEMP/native-outputs"
+          test "$(sort -u "$RUNNER_TEMP/native-outputs" | wc -l)" -eq 3
+          for target in multi-machine-lab platform-services tailnet-ingress; do
+            out=$(nix eval --raw ".#checks.x86_64-linux.$target.outPath")
+            grep -Fx "$out" "$RUNNER_TEMP/native-outputs"
+            echo "NATIVE_RECEIPT gate=$target out=$out info=$(nix path-info --json "$out" | jq -cS .)"
+          done
