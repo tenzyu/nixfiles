@@ -1,0 +1,51 @@
+name: Diagnostic SplitCast lock and signed cache
+on:
+  push:
+    branches: ['diagnostic/splitcast-cache-b6fcf158-20261127']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate exact lock using Nix
+        run: |
+          set -euo pipefail
+          cp flake.lock "$RUNNER_TEMP/old-lock.json"
+          nix flake update splitcast
+          jq -e '.nodes.splitcast.locked.rev == "b6fcf1588fec4c42b0e22df58f3bca53c2f51b6f"' flake.lock
+          python3 - <<'PY'
+          import json, os
+          old = json.load(open(os.environ["RUNNER_TEMP"] + "/old-lock.json"))
+          new = json.load(open("flake.lock"))
+          assert old["nodes"].keys() == new["nodes"].keys()
+          assert {k:v for k,v in old["nodes"].items() if k != "splitcast"} == {k:v for k,v in new["nodes"].items() if k != "splitcast"}
+          print("SPLITCAST_LOCK_NODE=" + json.dumps(new["nodes"]["splitcast"], sort_keys=True))
+          PY
+          git diff -- flake.lock
+      - name: Verify release manifest and exact consumer roots
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 'https://github.com/tenzyu/splitcast/releases/download/nix-cache-b6fcf1588fec4c42b0e22df58f3bca53c2f51b6f-45916419238-1/manifest.json' -o "$RUNNER_TEMP/manifest.json"
+          echo '81810201f03163678fb90c871972fb316942ff592601d3f297bcd690426f7281  '"$RUNNER_TEMP/manifest.json" | sha256sum --check
+          jq -e '.revision.sha == "b6fcf1588fec4c42b0e22df58f3bca53c2f51b6f" and .revision.system == "x86_64-linux"' "$RUNNER_TEMP/manifest.json"
+          jq '{revision,roots,custom}' "$RUNNER_TEMP/manifest.json"
+          for name in splitcast splitcast-web splitcast-obs; do
+            path=$(nix eval --impure --raw --expr "let f = builtins.getFlake (toString ./.); in f.inputs.splitcast.packages.x86_64-linux.\"$name\".outPath")
+            jq -e --arg p "$path" '.closure | has($p)' "$RUNNER_TEMP/manifest.json"
+            if [[ "$name" != splitcast-obs ]]; then
+              jq -e --arg p "$path" '.roots.native == $p' "$RUNNER_TEMP/manifest.json"
+            fi
+            printf 'ROOT %s %s\n' "$name" "$path"
+          done
+      - name: Regression and real isolated signed-copy audit
+        run: |
+          bash scripts/ci/test-splitcast-cache.sh "$PWD/scripts/ci/audit-splitcast-cache.sh"
+          bash scripts/ci/audit-splitcast-cache.sh --strict

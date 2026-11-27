@@ -43,7 +43,9 @@ if (( strict )); then
   isolated_store="local?root=$scratch_dir"
   # Applies to an isolated non-daemon store, never to the CI host Nix daemon.
   # Do not use --no-check-sigs or a trusted=true store URI.
-  strict_config="$(printf 'experimental-features = nix-command flakes\nrequire-sigs = true\ntrusted-public-keys = %s\n' "$cache_key")"
+  # The release indexes official dependency NARs without re-signing them.
+  nixos_cache_key='cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY='
+  strict_config="$(printf 'experimental-features = nix-command flakes\nrequire-sigs = true\ntrusted-public-keys = %s\n' "$cache_key $nixos_cache_key")"
 fi
 
 summary="${GITHUB_STEP_SUMMARY:-/dev/null}"

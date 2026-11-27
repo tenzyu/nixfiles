@@ -17,7 +17,10 @@ case "$1" in
       *) echo /nix/store/fixture ;;
     esac ;;
   path-info) exit 0 ;;
-  copy) exit "${COPY_STATUS:-0}" ;;
+  copy)
+    grep -Fxq 'require-sigs = true' <<< "${NIX_CONFIG:-}" || exit 98
+    grep -Fxq 'trusted-public-keys = splitcast-1:fixture cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=' <<< "${NIX_CONFIG:-}" || exit 98
+    exit "${COPY_STATUS:-0}" ;;
   *) exit 99 ;;
 esac
 MOCK
