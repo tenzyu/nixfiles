@@ -71,6 +71,11 @@
         allowedTCPPorts = [53];
         allowedUDPPorts = [53 67];
       };
+      # Syntax check runs outside the activated user database. Runtime test
+      # uses the real service UID and denies a different ordinary user.
+      networking.nftables.preCheckRuleset = ''
+        sed -i 's/"remote-mcp-tunnel"/65534/g' ruleset.conf
+      '';
       networking.nftables.tables.remote_execution_mcp = {
         family = "inet";
         content = ''
@@ -98,7 +103,7 @@
             oifname "${bridge}" meta nfproto ipv6 drop
             oifname "${bridge}" ct state { established, related } accept
             oifname "${bridge}" udp sport 67 udp dport 68 accept
-            oifname "${bridge}" tcp dport 18991 meta skuid { "root", "remote-mcp-tunnel" } accept
+            oifname "${bridge}" tcp dport 18991 meta skuid { 0, "remote-mcp-tunnel" } accept
             oifname "${bridge}" drop
           }
         '';

@@ -46,8 +46,29 @@ try {
   assert.match(results[0], /alpha\nalpha/);
   assert.match(results[1], /beta\nbeta/);
   if (process.env.MCP_CHECK_GUEST === "1") {
-    const guest = await run(b.client, "set -eu; test $(id -u) -ne 0; nix --version; rustc --version; cargo --version; bun --version; git --version; test \"$(nix eval --offline --raw --expr '\"guest-eval\"')\" = guest-eval; echo GUEST_TOOLS_OK");
+    const builder = process.env.MCP_NIX_BUILDER;
+    assert.match(builder ?? "", /^\/nix\/store\/[a-z0-9-]+$/);
+    const expr = 'derivation { name = "remote-mcp-fixture"; system = builtins.currentSystem; builder = (builtins.storePath "' + builder + '") + "/bin/bash"; args = ["-c" "printf guest-build > $out"]; }';
+    const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+    const command = [
+      "set -eu",
+      "sleep 1",
+      'test "$(id -un)" = remote-execution-mcp',
+      "test ! -e /var/lib/incus/unix.socket",
+      "nix --version; rustc --version; cargo --version; bun --version; git --version",
+      'test "$(nix eval --offline --raw --expr ' + quote('"guest-eval"') + ')" = guest-eval',
+      'cd "' + fixture + '/a"',
+      "printf '%s\\n' '#[test] fn verified() { assert_eq!(2 + 2, 4); }' > fixture.rs",
+      "rustc --test fixture.rs -o fixture-test; ./fixture-test",
+      "bun -e 'if (2 + 2 !== 4) process.exit(7)'",
+      'out=$(nix build --offline --impure --no-link --print-out-paths --expr ' + quote(expr) + ')',
+      'test "$(cat "$out")" = guest-build',
+      "echo GUEST_TOOLS_OK"
+    ].join("; ");
+    const started = await run(b.client, command, 100);
+    const guest = await call(b.client, "read_process_output", {pid:pidFrom(started), timeout_ms:50000});
     assert.match(guest, /GUEST_TOOLS_OK/);
+    assert.match(guest, /exit code 0\b/);
   }
   const running = await run(a.client, "sleep 3; echo SESSION_DONE", 100);
   assert.match(await call(b.client, "list_sessions", {}), /No active sessions/);

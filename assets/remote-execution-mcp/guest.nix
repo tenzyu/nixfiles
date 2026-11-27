@@ -3,7 +3,7 @@
   packages = import ./packages.nix {inherit pkgs;};
   user = "remote-execution-mcp";
   home = "/var/lib/${user}";
-  tools = with pkgs; [bash coreutils findutils git ripgrep jq nix rustc cargo bun tmux];
+  tools = with pkgs; [bash coreutils findutils git ripgrep jq curl nix rustc cargo bun tmux];
 in {
   options.services.remote-execution-mcp = {
     enable = lib.mkEnableOption "private Remote Execution MCP guest service";
