@@ -56,7 +56,7 @@ for fixture in spec["fixtures"]:
     for field in ("original_blob","changed_blob","lock"):
         require(expected[("baseline",f)][field] == expected[("candidate",f)][field], "cross-arm fixture mismatch")
 pattern = re.compile(rb"^(?:\d{4}-\d\d-\d\dT\S+ )?REPLAY_IDENTITY arm=(baseline|candidate) fixture=([a-z-]+) commit=([0-9a-f]{40}) tree=([0-9a-f]{40}) original_blob=([0-9a-f]{40}) changed_blob=([0-9a-f]{40}) lock=([0-9a-f]{64})\r?$", re.M)
-jobname = re.compile(r"^(baseline|candidate)-(?:compute-host|nix-validation) \(([^,]+), [^)]+\) / (.+)$")
+jobname = re.compile(r"^(baseline|candidate)-(?:compute-host|nix-validation) \(([^,]+),.* / (.+)$")
 def receipt(job):
     m = jobname.fullmatch(job["name"])
     require(m is not None, "unexpected job name")
