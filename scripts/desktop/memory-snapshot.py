@@ -25,6 +25,35 @@ def optional_text(path):
         return None
 
 
+def process_pss(proc=Path("/proc")):
+    rows = []
+    unavailable = 0
+    for p in proc.iterdir():
+        if not p.name.isdigit():
+            continue
+        try:
+            fd = os.open(p, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                with os.fdopen(os.open("smaps_rollup", os.O_RDONLY, dir_fd=fd)) as stream:
+                    s = stream.read()
+                match = re.search(r"^Pss:\s+(\d+)", s, re.M)
+                if not match:
+                    unavailable += 1
+                    continue
+                with os.fdopen(os.open("comm", os.O_RDONLY, dir_fd=fd), errors="replace") as stream:
+                    comm = stream.read().strip()
+                rows.append({"pid": int(p.name), "comm": comm,
+                             "pss_kib": int(match[1]),
+                             **{key.lower() + "_kib": int(found[1])
+                                for key in ("Pss_Anon", "Pss_File", "Pss_Shmem")
+                                if (found := re.search(rf"^{key}:\s+(\d+)", s, re.M))}})
+            finally:
+                os.close(fd)
+        except OSError:
+            unavailable += 1
+    return rows, unavailable
+
+
 def snapshot():
     # KPI first; process enumeration is not an atomic snapshot.
     started = time.monotonic_ns()
@@ -66,22 +95,7 @@ def snapshot():
     residual = m["MemTotal"] - m["MemFree"] - file_lru - reclaimable
     actual = m["MemTotal"] - m["MemAvailable"]
     reconstructed = max(0, residual + reserve + min(file_lru // 2, low) + min(reclaimable // 2, low))
-    rows = []
-    unavailable = 0
-    for p in Path("/proc").iterdir():
-        if not p.name.isdigit():
-            continue
-        try:
-            s = (p / "smaps_rollup").read_text()
-            match = re.search(r"^Pss:\s+(\d+)", s, re.M)
-            if match:
-                rows.append({"pid": int(p.name), "comm": (p / "comm").read_text().strip(),
-                             "pss_kib": int(match[1]),
-                             **{key.lower() + "_kib": int(found[1])
-                                for key in ("Pss_Anon", "Pss_File", "Pss_Shmem")
-                                if (found := re.search(rf"^{key}:\s+(\d+)", s, re.M))}})
-        except OSError:
-            unavailable += 1
+    rows, unavailable = process_pss()
     return {
         "hostname": os.uname().nodename,
         "effective_uid": os.geteuid(),

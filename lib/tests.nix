@@ -176,6 +176,31 @@ in {
     expected = {badKey = false; badRoot = false; storeRoot = false;};
   };
 
+  testServiceLayoutRejectsTheStoreRootInEveryPathRole = {
+    expr = let
+      spec = {
+        key = "minecraft";
+        home = "/var/lib/game-containers/minecraft";
+        gameDir = "/srv/minecraft";
+      };
+      accepts = overrides:
+        (builtins.tryEval (layout.mkGameDirectories (spec // overrides)).gameDir).success;
+    in {
+      home = accepts {home = "/nix/store";};
+      gameDir = accepts {gameDir = "/nix/store";};
+      secretsDir = accepts {secretsDir = "/nix/store";};
+      stateDir = accepts {stateDir = "/nix/store";};
+      sibling = accepts {gameDir = "/nix/store-data";};
+    };
+    expected = {
+      home = false;
+      gameDir = false;
+      secretsDir = false;
+      stateDir = false;
+      sibling = true;
+    };
+  };
+
   testGameOperationRejectsServiceOwnedLockAncestry = {
     expr = let
       spec = {

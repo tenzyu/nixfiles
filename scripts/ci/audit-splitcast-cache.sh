@@ -3,6 +3,11 @@
 # isolated local store. Neither path switches a host or builds from source.
 set -euo pipefail
 
+if (( $# > 1 )); then
+  echo "Expected at most one argument" >&2
+  exit 2
+fi
+
 strict=0
 case "${1:-}" in
   "") ;;
@@ -14,10 +19,6 @@ case "${1:-}" in
     ;;
   *) echo "Unknown argument: $1" >&2; exit 2 ;;
 esac
-if (( $# > 1 )); then
-  echo "Expected at most one argument" >&2
-  exit 2
-fi
 
 locked_rev="$(jq -er '.nodes.splitcast.locked.rev' flake.lock)"
 cache_url="$(
@@ -84,11 +85,12 @@ for name in splitcast splitcast-web splitcast-obs; do
 done
 
 if (( strict )); then
-  printf '\nSIGNED-COPY-OK: Nix accepted the closure into a temporary local store with require-sigs=true and the configured public key. This does NOT prove neko7 runtime substitution.\n' | tee -a "$summary"
   if (( failures )); then
     echo "::error::$failures SplitCast outputs failed strict signed-copy verification" >&2
+    printf '\nStrict signed-copy verification failed for %s output(s).\n' "$failures" | tee -a "$summary"
     exit 1
   fi
+  printf '\nSIGNED-COPY-OK: Nix accepted the closure into a temporary local store with require-sigs=true and the configured public key. This does NOT prove neko7 runtime substitution.\n' | tee -a "$summary"
 else
   printf '\nNARINFO-QUERY-OK means metadata reachability only. NOT-CONFIRMED can mean missing path, network failure, or timeout. workflow_dispatch cache_strict=true verifies signed copies; it may fail if cache publication is incomplete.\n' | tee -a "$summary"
 fi

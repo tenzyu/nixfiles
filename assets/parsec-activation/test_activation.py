@@ -221,6 +221,22 @@ class Activation(unittest.TestCase):
         self.assertEqual(before, metadata(self.config))
         self.assertEqual(malformed, contents(self.config))
 
+    def test_review_rejects_non_json_numeric_constants(self):
+        self.parent.mkdir()
+        write(self.mapping, ROW)
+        for constant in (b"NaN", b"Infinity", b"-Infinity"):
+            with self.subTest(constant=constant):
+                malformed = APP_CONFIG.replace(b'"private JSON sentinel"', constant)
+                if self.config.exists():
+                    self.config.write_bytes(malformed)
+                else:
+                    write(self.config, malformed)
+                before = metadata(self.config)
+                review = self.invoke(1, review=True)
+                self.assertIn("config.json: Conflict: expected a valid Parsec JSON object with unique keys", review.stderr)
+                self.assertEqual(before, metadata(self.config))
+                self.assertEqual(malformed, contents(self.config))
+
     def test_existing_legacy_file_blocks_json_seed_and_keeps_user_input(self):
         self.parent.mkdir()
         write(self.legacy_config, LEGACY_INPUT, 0o640)

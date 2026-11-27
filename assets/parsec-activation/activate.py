@@ -209,9 +209,13 @@ def unique_object(pairs):
     return result
 
 
+def reject_json_constant(_constant):
+    raise ValueError("non-JSON numeric constant")
+
+
 def json_settings(stream, keys):
     try:
-        document = json.load(stream, object_pairs_hook=unique_object)
+        document = json.load(stream, object_pairs_hook=unique_object, parse_constant=reject_json_constant)
         if not isinstance(document, dict):
             raise ValueError("expected JSON object")
     except (ValueError, RecursionError) as error:
