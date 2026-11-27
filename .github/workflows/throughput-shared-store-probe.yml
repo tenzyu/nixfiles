@@ -1,0 +1,203 @@
+# Diagnostic only. Never integrate this workflow.
+# Historical merged PR heads #102–111, same pinned revisions in both arms.
+# The shared store is restricted to already merged historical source, not live PRs.
+# No cache publication, no signature waiver, no native gate replacement.
+name: CI throughput shared-store replay (diagnostic only)
+on:
+  push:
+    branches:
+      - ci/throughput-shared-store-probe-20261127
+permissions:
+  contents: read
+jobs:
+  isolated:
+    name: isolated / ${{ matrix.cohort }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - cohort: "102-102"
+            revisions: "c0f66922657fd1db7a04685fec2a4277a00f646c"
+          - cohort: "103-103"
+            revisions: "08adeb096cc4c22618ef54d4cc177dde3a43b298"
+          - cohort: "104-104"
+            revisions: "27c76f53e050544e8cb31c88eac2cdac8896d7d9"
+          - cohort: "105-105"
+            revisions: "3ec87559000e7851840518b9527dc352c0eed86d"
+          - cohort: "106-106"
+            revisions: "8a5ef4d4199583fab8b9f8b051fa9f638601b565"
+          - cohort: "107-107"
+            revisions: "dc23b92062e94ced51ffa3b33b9d035ac8c23524"
+          - cohort: "108-108"
+            revisions: "244335b805b9d60d40bff3bcdd28c016e953660a"
+          - cohort: "109-109"
+            revisions: "9d418a96224ad0a1677af1006a30556a6b34767f"
+          - cohort: "110-110"
+            revisions: "11d7f1fe1cc262755192fed7e880e98c54938928"
+          - cohort: "111-111"
+            revisions: "8aef28c0a3da3fc84679a7091c5fe5e7eb3a282f"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Replay pinned historical validation candidates
+        env:
+          REVISIONS: ${{ matrix.revisions }}
+          ARM: isolated
+        run: |
+          set -euo pipefail
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          failed=0
+          for rev in $REVISIONS; do
+            git checkout --detach "$rev"
+            test "$(git rev-parse HEAD)" = "$rev"
+            tree=$(git rev-parse HEAD^{tree})
+            lock=$(sha256sum flake.lock | cut -d' ' -f1)
+            git diff --exit-code
+            start=$(date +%s)
+            if out=$(nix build -L --keep-going --no-link --print-out-paths .#checks.x86_64-linux.validation); then
+              elapsed=$(($(date +%s)-start))
+              test -n "$out"
+              info=$(nix path-info --json "$out" | jq -cS .)
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=success elapsed_s=%s output=%s info=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed" "$out" "$info"
+              printf '%s\t%s\t%s\t%s\t%s\n' "$ARM" "$rev" "$elapsed" "$out" "$info" >> "$GITHUB_STEP_SUMMARY"
+            else
+              elapsed=$(($(date +%s)-start))
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=failure elapsed_s=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed"
+              failed=1
+            fi
+            git diff --exit-code
+          done
+          exit "$failed"
+  paired:
+    name: paired / ${{ matrix.cohort }}
+    needs: isolated
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - cohort: "102-103"
+            revisions: "c0f66922657fd1db7a04685fec2a4277a00f646c 08adeb096cc4c22618ef54d4cc177dde3a43b298"
+          - cohort: "104-105"
+            revisions: "27c76f53e050544e8cb31c88eac2cdac8896d7d9 3ec87559000e7851840518b9527dc352c0eed86d"
+          - cohort: "106-107"
+            revisions: "8a5ef4d4199583fab8b9f8b051fa9f638601b565 dc23b92062e94ced51ffa3b33b9d035ac8c23524"
+          - cohort: "108-109"
+            revisions: "244335b805b9d60d40bff3bcdd28c016e953660a 9d418a96224ad0a1677af1006a30556a6b34767f"
+          - cohort: "110-111"
+            revisions: "11d7f1fe1cc262755192fed7e880e98c54938928 8aef28c0a3da3fc84679a7091c5fe5e7eb3a282f"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Replay pinned historical validation candidates
+        env:
+          REVISIONS: ${{ matrix.revisions }}
+          ARM: paired
+        run: |
+          set -euo pipefail
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          failed=0
+          for rev in $REVISIONS; do
+            git checkout --detach "$rev"
+            test "$(git rev-parse HEAD)" = "$rev"
+            tree=$(git rev-parse HEAD^{tree})
+            lock=$(sha256sum flake.lock | cut -d' ' -f1)
+            git diff --exit-code
+            start=$(date +%s)
+            if out=$(nix build -L --keep-going --no-link --print-out-paths .#checks.x86_64-linux.validation); then
+              elapsed=$(($(date +%s)-start))
+              test -n "$out"
+              info=$(nix path-info --json "$out" | jq -cS .)
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=success elapsed_s=%s output=%s info=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed" "$out" "$info"
+              printf '%s\t%s\t%s\t%s\t%s\n' "$ARM" "$rev" "$elapsed" "$out" "$info" >> "$GITHUB_STEP_SUMMARY"
+            else
+              elapsed=$(($(date +%s)-start))
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=failure elapsed_s=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed"
+              failed=1
+            fi
+            git diff --exit-code
+          done
+          exit "$failed"
+  grouped:
+    name: grouped / ${{ matrix.cohort }}
+    needs: paired
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - cohort: "102-106"
+            revisions: "c0f66922657fd1db7a04685fec2a4277a00f646c 08adeb096cc4c22618ef54d4cc177dde3a43b298 27c76f53e050544e8cb31c88eac2cdac8896d7d9 3ec87559000e7851840518b9527dc352c0eed86d 8a5ef4d4199583fab8b9f8b051fa9f638601b565"
+          - cohort: "107-111"
+            revisions: "dc23b92062e94ced51ffa3b33b9d035ac8c23524 244335b805b9d60d40bff3bcdd28c016e953660a 9d418a96224ad0a1677af1006a30556a6b34767f 11d7f1fe1cc262755192fed7e880e98c54938928 8aef28c0a3da3fc84679a7091c5fe5e7eb3a282f"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Replay pinned historical validation candidates
+        env:
+          REVISIONS: ${{ matrix.revisions }}
+          ARM: grouped
+        run: |
+          set -euo pipefail
+          nix --version
+          nix config show | grep -Fx 'require-sigs = true'
+          failed=0
+          for rev in $REVISIONS; do
+            git checkout --detach "$rev"
+            test "$(git rev-parse HEAD)" = "$rev"
+            tree=$(git rev-parse HEAD^{tree})
+            lock=$(sha256sum flake.lock | cut -d' ' -f1)
+            git diff --exit-code
+            start=$(date +%s)
+            if out=$(nix build -L --keep-going --no-link --print-out-paths .#checks.x86_64-linux.validation); then
+              elapsed=$(($(date +%s)-start))
+              test -n "$out"
+              info=$(nix path-info --json "$out" | jq -cS .)
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=success elapsed_s=%s output=%s info=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed" "$out" "$info"
+              printf '%s\t%s\t%s\t%s\t%s\n' "$ARM" "$rev" "$elapsed" "$out" "$info" >> "$GITHUB_STEP_SUMMARY"
+            else
+              elapsed=$(($(date +%s)-start))
+              printf 'REPLAY arm=%s rev=%s tree=%s lock=%s status=failure elapsed_s=%s\n' "$ARM" "$rev" "$tree" "$lock" "$elapsed"
+              failed=1
+            fi
+            git diff --exit-code
+          done
+          exit "$failed"
