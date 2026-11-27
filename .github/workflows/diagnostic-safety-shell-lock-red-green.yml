@@ -39,7 +39,9 @@ jobs:
           git diff --exit-code
           for i in 1 2 3 4 5; do
             echo "GREEN_ATTEMPT=$i"
-            nix build -L --rebuild --no-link .#checks.x86_64-linux.safety-shell 2>&1 | tee "$RUNNER_TEMP/green-$i.log"
+            args=()
+            if (( i > 1 )); then args+=(--rebuild); fi
+            nix build -L "${args[@]}" --no-link .#checks.x86_64-linux.safety-shell 2>&1 | tee "$RUNNER_TEMP/green-$i.log"
             grep -F 'PASS LOCK-02 (operation completion releases helper-inherited lock)' "$RUNNER_TEMP/green-$i.log"
             grep -F 'PASS BOUNDARY-02 (canonical pathname with trailing newline)' "$RUNNER_TEMP/green-$i.log"
           done
