@@ -1,0 +1,55 @@
+# Diagnostic only: do not integrate.
+name: CI safety-shell lock regression red-green (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-safety-shell-lock-red-green-20261127]
+permissions:
+  contents: read
+jobs:
+  lock-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 661e42f23b4f09cfde48fcdcda99c41d52806d55
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: RED - original implementation with new regression
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 661e42f23b4f09cfde48fcdcda99c41d52806d55
+          nix config show | grep -Fx 'require-sigs = true'
+          git show 113408498954d9df3c55d72c202bfd7a801e5a3a:assets/safety/shell/operations.sh > assets/safety/shell/operations.sh
+          git diff --name-only | grep -Fx assets/safety/shell/operations.sh
+          status=0
+          nix build -L --no-link .#checks.x86_64-linux.safety-shell > "$RUNNER_TEMP/red.log" 2>&1 || status=$?
+          tail -n 80 "$RUNNER_TEMP/red.log"
+          test "$status" -ne 0
+          grep -F "FAIL LOCK-02: expected status 0 and diagnostic '', got status 73" "$RUNNER_TEMP/red.log"
+          echo RED_LOCK_REGRESSION=expected-failure
+      - name: GREEN - fixed implementation, repeated fresh realization
+        if: always()
+        run: |
+          set -euo pipefail
+          git restore --source=661e42f23b4f09cfde48fcdcda99c41d52806d55 -- assets/safety/shell/operations.sh
+          git diff --exit-code
+          for i in 1 2 3 4 5; do
+            echo "GREEN_ATTEMPT=$i"
+            nix build -L --rebuild --no-link .#checks.x86_64-linux.safety-shell 2>&1 | tee "$RUNNER_TEMP/green-$i.log"
+            grep -F 'PASS LOCK-02 (operation completion releases helper-inherited lock)' "$RUNNER_TEMP/green-$i.log"
+            grep -F 'PASS BOUNDARY-02 (canonical pathname with trailing newline)' "$RUNNER_TEMP/green-$i.log"
+          done
+          echo GREEN_LOCK_REGRESSION=5/5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safety-shell-lock-red-green-logs
+          path: |
+            ${{ runner.temp }}/red.log
+            ${{ runner.temp }}/green-*.log
+          if-no-files-found: error
+          retention-days: 2
