@@ -1,0 +1,62 @@
+name: CI parallel input prefetch benchmark (diagnostic only)
+on:
+  push:
+    branches: [ci/diagnostic-parallel-input-prefetch-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: ci-diagnostic-input-prefetch-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  benchmark:
+    name: "Validation / pair ${{ matrix.pair }} / ${{ matrix.mode }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        pair: [1, 2, 3, 4, 5]
+        mode: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 0a93fe7cbca349d0a8577ca4a310afe860f18ffc
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Measure full validation including input prefetch
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          nix --version
+          nproc
+          free -m
+          nix config show | grep -Fx 'require-sigs = true'
+          lock=$(sha256sum flake.lock)
+          net_rx() { awk 'NR>2 && $1!="lo:" {s+=$2} END {printf "%.0f\n",s}' /proc/net/dev; }
+          before_rx=$(net_rx)
+          before_disk=$(df -B1 --output=used /nix/store | tail -1)
+          start=$(date +%s%N)
+          if [[ "$MODE" == candidate ]]; then
+            /usr/bin/time -f 'PREFETCH_ELAPSED=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+              nix flake prefetch-inputs --no-update-lock-file --no-write-lock-file .
+          fi
+          /usr/bin/time -f 'BUILD_ELAPSED=%e USER=%U SYS=%S MAXRSS_KIB=%M' \
+            nix build -L --keep-going --no-link --json .#checks.x86_64-linux.validation > "$RUNNER_TEMP/result.json"
+          end=$(date +%s%N)
+          echo "BENCHMARK_TOTAL_MS=$(( (end-start)/1000000 ))"
+          echo "BENCHMARK_RX_BYTES=$(( $(net_rx)-before_rx ))"
+          echo "BENCHMARK_DISK_DELTA_BYTES=$(( $(df -B1 --output=used /nix/store | tail -1)-before_disk ))"
+          test "$lock" = "$(sha256sum flake.lock)"
+          git diff --exit-code
+          jq -ec 'map({drvPath,outputs})' "$RUNNER_TEMP/result.json"
+          out=$(jq -er '.[0].outputs.out' "$RUNNER_TEMP/result.json")
+          nix hash path "$out"
+          echo BENCHMARK_VALIDATION_EXECUTED=1
