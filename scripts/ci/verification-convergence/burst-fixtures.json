@@ -1,0 +1,100 @@
+{
+  "kind": "controlled source invalidation, not actual merged PRs",
+  "baseline": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+  "candidate": "920c6bc37810d0a8cd29281ef59ce7385e11ba74",
+  "fixtures": [
+    {
+      "id": "cache-audit",
+      "baseline": "scripts/ci/audit-splitcast-cache.sh",
+      "candidate": "scripts/ci/audit-splitcast-cache.sh"
+    },
+    {
+      "id": "service-layout",
+      "baseline": "lib/service-layout.nix",
+      "candidate": "lib/service-layout.nix"
+    },
+    {
+      "id": "memory-accounting",
+      "baseline": "scripts/desktop/memory-snapshot.py",
+      "candidate": "scripts/desktop/memory-snapshot.py"
+    },
+    {
+      "id": "workload-admission",
+      "baseline": "modules/00-hosts/neko7/workloads.nix",
+      "candidate": "modules/00-hosts/neko7/workloads.nix"
+    },
+    {
+      "id": "screenshot",
+      "baseline": "scripts/desktop/jay-screenshot.sh",
+      "candidate": "scripts/desktop/interaction/jay-screenshot.sh"
+    },
+    {
+      "id": "backup",
+      "baseline": "modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py",
+      "candidate": "modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py"
+    },
+    {
+      "id": "parsec",
+      "baseline": "assets/parsec-activation/activate.py",
+      "candidate": "assets/parsec-activation/activate.py"
+    },
+    {
+      "id": "shell-safety",
+      "baseline": "assets/safety/shell/operations.sh",
+      "candidate": "assets/safety/shell/operations.sh"
+    },
+    {
+      "id": "operator",
+      "baseline": "tools/operator/feature-browser.sh",
+      "candidate": "tools/operator/feature-browser.sh"
+    },
+    {
+      "id": "documentation",
+      "baseline": "docs/cookbook/splitcast-consumer.md",
+      "candidate": "docs/cookbook/splitcast-consumer.md"
+    }
+  ],
+  "provenance": [
+    {
+      "path": ".github/workflows/replay-baseline-nix-validation.yml",
+      "sourceRef": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+      "sourceBlob": "e10975dbb1e47a2f74d4fcd540f7ab4e5da40894",
+      "sourcePath": ".github/workflows/nix-validation.yml",
+      "checkoutCount": 3
+    },
+    {
+      "path": ".github/workflows/replay-baseline-compute-host.yml",
+      "sourceRef": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+      "sourceBlob": "713041ef1b0b724d29f2f147cf618a2f816b21b3",
+      "sourcePath": ".github/workflows/compute-host.yml",
+      "checkoutCount": 7
+    },
+    {
+      "path": ".github/workflows/replay-candidate-nix-validation.yml",
+      "sourceRef": "920c6bc37810d0a8cd29281ef59ce7385e11ba74",
+      "sourceBlob": "e10975dbb1e47a2f74d4fcd540f7ab4e5da40894",
+      "sourcePath": ".github/workflows/nix-validation.yml",
+      "checkoutCount": 3
+    },
+    {
+      "path": ".github/workflows/replay-candidate-compute-host.yml",
+      "sourceRef": "920c6bc37810d0a8cd29281ef59ce7385e11ba74",
+      "sourceBlob": "b313c2b6321c4ab0aaaa68ac7d537e039d468a9c",
+      "sourcePath": ".github/workflows/compute-host.yml",
+      "checkoutCount": 7
+    }
+  ],
+  "acceptance": {
+    "ordinaryGatesPerCandidate": 13,
+    "expectedCandidatesPerArm": 10,
+    "runnerSecondsReduction": 0.3,
+    "makespanReduction": 0.3,
+    "noWorstCandidateRegression": true
+  },
+  "limitations": [
+    "No verified merge denominator",
+    "One burst per arm, fixed arm order",
+    "Provider allocation not directly controlled",
+    "Comments preserve behavior; cannot establish correctness for arbitrary real changes"
+  ]
+}

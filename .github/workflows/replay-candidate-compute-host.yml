@@ -1,0 +1,393 @@
+# Diagnostic-only copy of .github/workflows/compute-host.yml at 920c6bc37810d0a8cd29281ef59ce7385e11ba74.
+# Existing gate commands and native tests are unchanged.
+name: Replay candidate compute-host
+on:
+  workflow_call:
+    inputs:
+      fixture:
+        required: true
+        type: string
+      fixture_id:
+        required: true
+        type: string
+      cache_strict:
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: replay-${{ github.run_id }}-candidate-compute-host-${{ inputs.fixture_id }}
+  cancel-in-progress: false
+jobs:
+  platform:
+    name: Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+  discover-workloads:
+    name: Discover independent image outputs and validate operator menu
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.outputs.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: outputs
+        run: |
+          set -euo pipefail
+          workloads=$(nix eval --json .#packages.x86_64-linux --apply builtins.attrNames | jq -c '[.[] | select(startswith("neko7-") and endswith("-image")) | sub("^neko7-"; "") | sub("-image$"; "")]')
+          echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
+          nix build -L --no-link .#checks.x86_64-linux.instance-recipes
+  personal-workloads:
+    needs: discover-workloads
+    if: needs.discover-workloads.outputs.workloads != '[]'
+    name: Build ${{ matrix.workload }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(needs.discover-workloads.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build independent VM image and system
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          out=$(nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          nix build -L --no-link ".#neko7-$WORKLOAD-system"
+      - name: Boot actual service module and test private reachability
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
+  workload-lifecycle:
+    name: Independent workload deployment and rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate production deployment boundaries
+        id: graph
+        run: |
+          set -euo pipefail
+          graph=$(nix eval --json .#checks.x86_64-linux.workload-lifecycle --apply 'check: { inherit (check) drvPath deploymentGraph; }')
+          host_drv=$(jq -er '.deploymentGraph.host' <<< "$graph")
+          nix-store --query --requisites "$host_drv" > "$RUNNER_TEMP/neko7-host-derivations"
+          test -s "$RUNNER_TEMP/neko7-host-derivations"
+          artifacts=$(jq -er '.deploymentGraph.artifacts | to_entries[] | [.key, .value] | @tsv' <<< "$graph")
+          while IFS=$'\t' read -r name drv; do
+            if grep -Fxq "$drv" "$RUNNER_TEMP/neko7-host-derivations"; then
+              echo "::error::$name is coupled to the host generation"
+              exit 1
+            fi
+          done <<< "$artifacts"
+          echo "test-derivation=$(jq -er '.drvPath' <<< "$graph")" >> "$GITHUB_OUTPUT"
+      - name: Exercise real native guest profile update and rollback
+        env:
+          TEST_DERIVATION: ${{ steps.graph.outputs.test-derivation }}
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link "$TEST_DERIVATION^*"
+  workload-artifacts:
+    name: Build ${{ matrix.workload }} deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
+      - name: Build and inspect independent artifact
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
+          case "$WORKLOAD" in
+            neko7-minecraft-system)
+              test -x "$out/init"
+              test -x "$out/bin/switch-to-configuration"
+              ;;
+            neko7-t3-runtime)
+              test -x "$out/bin/t3"
+              test -x "$out/bin/codex"
+              ;;
+            neko7-splitcast-runtime)
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+          esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-candidate-${{ inputs.fixture_id }}-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ingress:
+    name: Tailnet-only ingress negative controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify host policy and execute firewall machine test
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
+  integration:
+    name: Incus ${{ matrix.kind }} lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [container]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          persist-credentials: false
+      - name: Materialize identical controlled candidate change
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          FIXTURE_ID: ${{ inputs.fixture_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 920c6bc37810d0a8cd29281ef59ce7385e11ba74
+          test -f "$FIXTURE"
+          test -z "$(git status --porcelain)"
+          before=$(git hash-object "$FIXTURE")
+          if [[ "$FIXTURE" == *.md ]]; then
+            printf '\n<!-- controlled CI replay %s -->\n' "$FIXTURE_ID" >> "$FIXTURE"
+          else
+            printf '\n# controlled CI replay %s\n' "$FIXTURE_ID" >> "$FIXTURE"
+          fi
+          git add -- "$FIXTURE"
+          test "$(git diff --cached --name-only)" = "$FIXTURE"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          git -c commit.gpgsign=false commit -m "test(ci): controlled replay $FIXTURE_ID"
+          test -z "$(git status --porcelain)"
+          echo "REPLAY_IDENTITY arm=candidate fixture=$FIXTURE_ID commit=$(git rev-parse HEAD) tree=$(git rev-parse HEAD^{tree}) original_blob=$before changed_blob=$(git hash-object "$FIXTURE") lock=$(sha256sum flake.lock | cut -d' ' -f1)"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check KVM availability (required for real machine evidence)
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
+          df -h
+      - name: Evaluate host policy and execute NixOS machine test
+        run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}

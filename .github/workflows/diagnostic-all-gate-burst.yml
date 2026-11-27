@@ -1,0 +1,132 @@
+# Diagnostic only: no production status or integration authorization.
+name: Diagnostic 10 candidate all-gate burst
+on:
+  push:
+    branches: [diagnostics/all-gate-burst-replay]
+permissions:
+  contents: read
+jobs:
+  baseline-nix-validation:
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - id: cache-audit
+            path: scripts/ci/audit-splitcast-cache.sh
+          - id: service-layout
+            path: lib/service-layout.nix
+          - id: memory-accounting
+            path: scripts/desktop/memory-snapshot.py
+          - id: workload-admission
+            path: modules/00-hosts/neko7/workloads.nix
+          - id: screenshot
+            path: scripts/desktop/jay-screenshot.sh
+          - id: backup
+            path: modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py
+          - id: parsec
+            path: assets/parsec-activation/activate.py
+          - id: shell-safety
+            path: assets/safety/shell/operations.sh
+          - id: operator
+            path: tools/operator/feature-browser.sh
+          - id: documentation
+            path: docs/cookbook/splitcast-consumer.md
+    uses: ./.github/workflows/replay-baseline-nix-validation.yml
+    with:
+      fixture: ${{ matrix.path }}
+      fixture_id: ${{ matrix.id }}
+  baseline-compute-host:
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - id: cache-audit
+            path: scripts/ci/audit-splitcast-cache.sh
+          - id: service-layout
+            path: lib/service-layout.nix
+          - id: memory-accounting
+            path: scripts/desktop/memory-snapshot.py
+          - id: workload-admission
+            path: modules/00-hosts/neko7/workloads.nix
+          - id: screenshot
+            path: scripts/desktop/jay-screenshot.sh
+          - id: backup
+            path: modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py
+          - id: parsec
+            path: assets/parsec-activation/activate.py
+          - id: shell-safety
+            path: assets/safety/shell/operations.sh
+          - id: operator
+            path: tools/operator/feature-browser.sh
+          - id: documentation
+            path: docs/cookbook/splitcast-consumer.md
+    uses: ./.github/workflows/replay-baseline-compute-host.yml
+    with:
+      fixture: ${{ matrix.path }}
+      fixture_id: ${{ matrix.id }}
+  candidate-nix-validation:
+    needs: [baseline-nix-validation, baseline-compute-host]
+    if: always()
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - id: cache-audit
+            path: scripts/ci/audit-splitcast-cache.sh
+          - id: service-layout
+            path: lib/service-layout.nix
+          - id: memory-accounting
+            path: scripts/desktop/memory-snapshot.py
+          - id: workload-admission
+            path: modules/00-hosts/neko7/workloads.nix
+          - id: screenshot
+            path: scripts/desktop/interaction/jay-screenshot.sh
+          - id: backup
+            path: modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py
+          - id: parsec
+            path: assets/parsec-activation/activate.py
+          - id: shell-safety
+            path: assets/safety/shell/operations.sh
+          - id: operator
+            path: tools/operator/feature-browser.sh
+          - id: documentation
+            path: docs/cookbook/splitcast-consumer.md
+    uses: ./.github/workflows/replay-candidate-nix-validation.yml
+    with:
+      fixture: ${{ matrix.path }}
+      fixture_id: ${{ matrix.id }}
+  candidate-compute-host:
+    needs: [baseline-nix-validation, baseline-compute-host]
+    if: always()
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - id: cache-audit
+            path: scripts/ci/audit-splitcast-cache.sh
+          - id: service-layout
+            path: lib/service-layout.nix
+          - id: memory-accounting
+            path: scripts/desktop/memory-snapshot.py
+          - id: workload-admission
+            path: modules/00-hosts/neko7/workloads.nix
+          - id: screenshot
+            path: scripts/desktop/interaction/jay-screenshot.sh
+          - id: backup
+            path: modules/50-features/game-servers/_internal/minecraft-backup/archive-checks.py
+          - id: parsec
+            path: assets/parsec-activation/activate.py
+          - id: shell-safety
+            path: assets/safety/shell/operations.sh
+          - id: operator
+            path: tools/operator/feature-browser.sh
+          - id: documentation
+            path: docs/cookbook/splitcast-consumer.md
+    uses: ./.github/workflows/replay-candidate-compute-host.yml
+    with:
+      fixture: ${{ matrix.path }}
+      fixture_id: ${{ matrix.id }}
