@@ -1,5 +1,5 @@
 # Diagnostic only. Never integrate this workflow.
-# Historical merged PR heads #102–111, same pinned revisions in both arms.
+# Historical merged PR heads #102–111 with identical verified lock repair in each arm.
 # The shared store is restricted to already merged historical source, not live PRs.
 # No cache publication, no signature waiver, no native gate replacement.
 name: CI throughput shared-store replay (diagnostic only)
@@ -12,6 +12,8 @@ permissions:
 jobs:
   isolated:
     name: isolated / ${{ matrix.cohort }}
+    needs: grouped
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -42,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          ref: 652a693d570f46434cb57ed6508965e3429ea1b8
           fetch-depth: 0
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
@@ -59,11 +61,23 @@ jobs:
           set -euo pipefail
           nix --version
           nix config show | grep -Fx 'require-sigs = true'
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/lock-fix.patch"
+          test -s "$RUNNER_TEMP/lock-fix.patch"
+          nproc
+          free -m
           failed=0
           for rev in $REVISIONS; do
-            git checkout --detach "$rev"
+            git checkout --force --detach "$rev"
             test "$(git rev-parse HEAD)" = "$rev"
-            tree=$(git rev-parse HEAD^{tree})
+            original_tree=$(git rev-parse HEAD^{tree})
+            git apply --index --check "$RUNNER_TEMP/lock-fix.patch"
+            git apply --index "$RUNNER_TEMP/lock-fix.patch"
+            tree=$(git write-tree)
+            effective=$(GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z' GIT_COMMITTER_NAME='CI replay' GIT_COMMITTER_EMAIL='ci-replay@example.invalid' GIT_COMMITTER_DATE='2026-11-27T00:00:00Z' git commit-tree "$tree" -p "$rev" -m 'fix(safety-shell): apply verified lock lifetime repair to replay fixture')
+            git checkout --force --detach "$effective"
+            test "$(git rev-parse HEAD^{tree})" = "$tree"
+            test -z "$(git status --porcelain)"
+            printf 'REPLAY_EFFECTIVE arm=%s rev=%s original_tree=%s effective_commit=%s effective_tree=%s\n' "$ARM" "$rev" "$original_tree" "$effective" "$tree"
             lock=$(sha256sum flake.lock | cut -d' ' -f1)
             git diff --exit-code
             start=$(date +%s)
@@ -83,8 +97,6 @@ jobs:
           exit "$failed"
   paired:
     name: paired / ${{ matrix.cohort }}
-    needs: isolated
-    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -105,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          ref: 652a693d570f46434cb57ed6508965e3429ea1b8
           fetch-depth: 0
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
@@ -122,11 +134,23 @@ jobs:
           set -euo pipefail
           nix --version
           nix config show | grep -Fx 'require-sigs = true'
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/lock-fix.patch"
+          test -s "$RUNNER_TEMP/lock-fix.patch"
+          nproc
+          free -m
           failed=0
           for rev in $REVISIONS; do
-            git checkout --detach "$rev"
+            git checkout --force --detach "$rev"
             test "$(git rev-parse HEAD)" = "$rev"
-            tree=$(git rev-parse HEAD^{tree})
+            original_tree=$(git rev-parse HEAD^{tree})
+            git apply --index --check "$RUNNER_TEMP/lock-fix.patch"
+            git apply --index "$RUNNER_TEMP/lock-fix.patch"
+            tree=$(git write-tree)
+            effective=$(GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z' GIT_COMMITTER_NAME='CI replay' GIT_COMMITTER_EMAIL='ci-replay@example.invalid' GIT_COMMITTER_DATE='2026-11-27T00:00:00Z' git commit-tree "$tree" -p "$rev" -m 'fix(safety-shell): apply verified lock lifetime repair to replay fixture')
+            git checkout --force --detach "$effective"
+            test "$(git rev-parse HEAD^{tree})" = "$tree"
+            test -z "$(git status --porcelain)"
+            printf 'REPLAY_EFFECTIVE arm=%s rev=%s original_tree=%s effective_commit=%s effective_tree=%s\n' "$ARM" "$rev" "$original_tree" "$effective" "$tree"
             lock=$(sha256sum flake.lock | cut -d' ' -f1)
             git diff --exit-code
             start=$(date +%s)
@@ -162,7 +186,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 113408498954d9df3c55d72c202bfd7a801e5a3a
+          ref: 652a693d570f46434cb57ed6508965e3429ea1b8
           fetch-depth: 0
           persist-credentials: false
       - uses: cachix/install-nix-action@v31
@@ -179,11 +203,23 @@ jobs:
           set -euo pipefail
           nix --version
           nix config show | grep -Fx 'require-sigs = true'
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/lock-fix.patch"
+          test -s "$RUNNER_TEMP/lock-fix.patch"
+          nproc
+          free -m
           failed=0
           for rev in $REVISIONS; do
-            git checkout --detach "$rev"
+            git checkout --force --detach "$rev"
             test "$(git rev-parse HEAD)" = "$rev"
-            tree=$(git rev-parse HEAD^{tree})
+            original_tree=$(git rev-parse HEAD^{tree})
+            git apply --index --check "$RUNNER_TEMP/lock-fix.patch"
+            git apply --index "$RUNNER_TEMP/lock-fix.patch"
+            tree=$(git write-tree)
+            effective=$(GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z' GIT_COMMITTER_NAME='CI replay' GIT_COMMITTER_EMAIL='ci-replay@example.invalid' GIT_COMMITTER_DATE='2026-11-27T00:00:00Z' git commit-tree "$tree" -p "$rev" -m 'fix(safety-shell): apply verified lock lifetime repair to replay fixture')
+            git checkout --force --detach "$effective"
+            test "$(git rev-parse HEAD^{tree})" = "$tree"
+            test -z "$(git status --porcelain)"
+            printf 'REPLAY_EFFECTIVE arm=%s rev=%s original_tree=%s effective_commit=%s effective_tree=%s\n' "$ARM" "$rev" "$original_tree" "$effective" "$tree"
             lock=$(sha256sum flake.lock | cut -d' ' -f1)
             git diff --exit-code
             start=$(date +%s)
