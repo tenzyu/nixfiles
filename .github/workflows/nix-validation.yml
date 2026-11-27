@@ -49,10 +49,22 @@ jobs:
           if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$BASE_SHA" HEAD; then
             previous=$(git rev-parse "$BASE_SHA:$root" 2>/dev/null || true)
           fi
-          # This is source-provenance reuse, never a regression-test selector.
-          # All ordinary checks above still run. Integration pushes always reverify.
+          # A source tree match alone does not prove the base was verified.
+          # Require the same lock and verifier/workflow, plus successful push CI
+          # for the exact integration-base commit. Unavailable evidence rebuilds.
+          reuse=false
           if [[ "$EVENT" == pull_request && ( "$BASE_REF" == develop || "$BASE_REF" == main ) && "$current" == "$previous" ]]; then
-            echo "Materialized source tree matches the integration base: $current"
+            workflow="${GITHUB_WORKFLOW_REF#"$GITHUB_REPOSITORY/"}"
+            workflow="${workflow%@*}"
+            if [[ "$(git rev-parse "$BASE_SHA:flake.lock")" == "$(git rev-parse HEAD:flake.lock)" ]] &&
+               [[ "$(git rev-parse "$BASE_SHA:$workflow")" == "$(git rev-parse "HEAD:$workflow")" ]] &&
+               receipt=$(curl --fail --silent --show-error --max-time 15 "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$BASE_SHA&event=push&per_page=100") &&
+               jq -e --arg sha "$BASE_SHA" --arg branch "$BASE_REF" --arg path "$workflow" --arg repo "$GITHUB_REPOSITORY" 'any(.workflow_runs[]; .head_sha == $sha and .head_branch == $branch and .head_repository.full_name == $repo and .path == $path and .event == "push" and .status == "completed" and .conclusion == "success")' <<< "$receipt" >/dev/null; then
+              reuse=true
+            fi
+          fi
+          if [[ "$reuse" == true ]]; then
+            echo "Materialized source and successful integration-base receipt match: $BASE_SHA $current"
           else
             args=()
             if [[ "$current" != "$previous" ]]; then args+=(--require-current); fi

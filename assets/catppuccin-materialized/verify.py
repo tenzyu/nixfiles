@@ -58,6 +58,10 @@ def main():
             digest = nar(out)
             if args.refresh:
                 shutil.copytree(out, staged / name)
+                # Git stores executable bits, not the read-only store permissions.
+                # Keep regenerated working-tree directories writable for later refreshes.
+                for entry in [staged / name, *(staged / name).rglob("*")]:
+                    entry.chmod(0o755 if entry.is_dir() or entry.stat().st_mode & 0o111 else 0o644)
                 require(nar(staged / name) == digest, f"{name}: materialization changed output")
                 result[name] = {"drvPath": drvs[name], "narHash": digest}
             else:
