@@ -4,7 +4,7 @@
     picker = pkgs.writeShellApplication {
       name = "cclip-picker";
       runtimeInputs = [cclip pkgs.unstable.jay config.programs.rofi.package pkgs.coreutils pkgs.util-linux pkgs.libnotify];
-      text = builtins.readFile ../../../scripts/desktop/cclip-picker.sh;
+      text = builtins.readFile ../../../scripts/desktop/interaction/cclip-picker.sh;
     };
   in {
     config = lib.mkIf (config.local.features.jay.enable && config.local.features.cclip.enable) {

@@ -5,7 +5,7 @@
     rofiActions = pkgs.writeShellApplication {
       name = "jay-rofi-actions";
       runtimeInputs = [rofi pkgs.unstable.jay] ++ lib.optional hasTerminal config.programs.alacritty.package;
-      text = builtins.readFile ../../../scripts/desktop/rofi-actions.sh;
+      text = builtins.readFile ../../../scripts/desktop/interaction/rofi-actions.sh;
     };
     # Stock native Rofi modes; no shell wrapper for application or PATH launches.
     launch = mode: builtins.toJSON ([ (lib.getExe rofi) "-show" mode "-replace" ] ++ lib.optionals hasTerminal ["-terminal" "alacritty"]);

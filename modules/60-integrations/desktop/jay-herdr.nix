@@ -8,7 +8,7 @@
     clipboardFallback = pkgs.writeShellScriptBin "wl-copy" (lib.replaceStrings
       ["@HERDR@" "@WL_COPY@" "@READLINK@"]
       ["${stock}/bin/herdr" "${pkgs.wl-clipboard}/bin/wl-copy" "${pkgs.coreutils}/bin/readlink"]
-      (builtins.readFile ../../../scripts/desktop/herdr-wl-copy.sh));
+      (builtins.readFile ../../../scripts/desktop/interaction/herdr-wl-copy.sh));
     jayHerdr = pkgs.symlinkJoin {
       name = "${stock.name}-jay";
       inherit (stock) pname version meta;
