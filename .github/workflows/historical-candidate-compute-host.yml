@@ -1,0 +1,509 @@
+# Diagnostic copy of compute-host.yml at 1672c3831724f0f347245f197dd58aa97d563206. Never integrate.
+# Actual gate steps unchanged; fixture setup is identical in both arms.
+name: Historical candidate compute-host
+on:
+  workflow_call:
+    inputs:
+      fixture:
+        required: true
+        type: string
+      arm:
+        required: true
+        type: string
+      cache_strict:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: historical-${{ github.run_id }}-candidate-compute-host-${{ fromJSON(inputs.fixture).stage }}-${{ fromJSON(inputs.fixture).pr }}
+  cancel-in-progress: false
+jobs:
+  platform:
+    name: Platform ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [multi-machine-lab, platform-services]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Execute NixOS machine evidence
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.${{ matrix.check }}
+  discover-workloads:
+    name: Discover independent image outputs and validate operator menu
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.outputs.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: outputs
+        run: |
+          set -euo pipefail
+          workloads=$(nix eval --json .#packages.x86_64-linux --apply builtins.attrNames | jq -c '[.[] | select(startswith("neko7-") and endswith("-image")) | sub("^neko7-"; "") | sub("-image$"; "")]')
+          echo "workloads=$workloads" >> "$GITHUB_OUTPUT"
+          nix build -L --no-link .#checks.x86_64-linux.instance-recipes
+  personal-workloads:
+    needs: discover-workloads
+    if: needs.discover-workloads.outputs.workloads != '[]'
+    name: Build ${{ matrix.workload }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(needs.discover-workloads.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build independent VM image and system
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          out=$(nix build -L --no-link --print-out-paths ".#neko7-$WORKLOAD-image")
+          test -s "$out/nixos.qcow2"
+          test -s "$out/metadata.tar.xz"
+          nix build -L --no-link ".#neko7-$WORKLOAD-system"
+      - name: Boot actual service module and test private reachability
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: nix build -L --no-link ".#checks.x86_64-linux.personal-workload-$WORKLOAD"
+  workload-lifecycle:
+    name: Independent workload deployment and rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Evaluate production deployment boundaries
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --raw "$attr.containers.neko7-mc.path" | grep -Fx /nix/var/nix/profiles/system
+          nix eval --json "$attr.home-manager.users.tenzyu.systemd.user.services.t3code-neko7.Service.ExecStart" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and contains("/nix/profiles/t3-runtime/bin/t3"))'
+          nix eval --json "$attr.home-manager.users.tenzyu.local.features.splitcast-production-profile.enable" | jq -e '. == true'
+          nix eval --json "$attr.home-manager.users.tenzyu.services.splitcast.enable" | jq -e '. == false'
+          nix eval --json "$attr.system.preSwitchChecks" --apply builtins.attrNames | jq -e 'index("minecraft-workload-profile") != null and index("neko7-workload-profiles") != null'
+          host_drv=$(nix eval --raw "$attr.system.build.toplevel.drvPath")
+          nix-store --query --requisites "$host_drv" > /tmp/neko7-host-derivations
+          for name in neko7-minecraft-system neko7-t3-runtime neko7-splitcast-runtime; do
+            drv=$(nix eval --raw ".#packages.x86_64-linux.$name.drvPath")
+            if grep -Fxq "$drv" /tmp/neko7-host-derivations; then
+              echo "::error::$name is coupled to the host generation"
+              exit 1
+            fi
+          done
+      - name: Exercise real native guest profile update and rollback
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nix build -L --no-link .#checks.x86_64-linux.workload-lifecycle
+  workload-artifacts:
+    name: Build ${{ matrix.workload }} deployment artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: [neko7-minecraft-system, neko7-t3-runtime, neko7-splitcast-runtime]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Same signed upstream cache already trusted by nixfiles and pinned
+          # llm-agents.nix; no unsigned substitution or package changes.
+          extra_nix_config: |
+            extra-substituters = https://cache.numtide.com
+            extra-trusted-public-keys = niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g=
+      - name: Configure existing signed SplitCast cache
+        if: matrix.workload == 'neko7-splitcast-runtime'
+        run: |
+          set -euo pipefail
+          policy=$(nix eval --json --file modules/50-features/media/_internal/cache.nix)
+          jq -er '."extra-substituters" | join(" ") | "extra-substituters = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          jq -er '."extra-trusted-public-keys" | join(" ") | "extra-trusted-public-keys = " + .' <<< "$policy" | sudo tee -a /etc/nix/nix.conf
+          sudo systemctl restart nix-daemon.service
+          nix config show | grep -Fx 'require-sigs = true'
+      - name: Build and inspect independent artifact
+        env:
+          WORKLOAD: ${{ matrix.workload }}
+        run: |
+          set -euo pipefail
+          # Keep terminal errors visible even if a massive compile overwhelms
+          # the workflow log service.
+          if ! out=$(nix build -L --no-link --print-out-paths ".#packages.x86_64-linux.$WORKLOAD" 2> "$RUNNER_TEMP/workload-build.log"); then
+            tail -n 150 "$RUNNER_TEMP/workload-build.log" >&2
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/workload-build.log" >&2
+          case "$WORKLOAD" in
+            neko7-minecraft-system)
+              test -x "$out/init"
+              test -x "$out/bin/switch-to-configuration"
+              ;;
+            neko7-t3-runtime)
+              test -x "$out/bin/t3"
+              test -x "$out/bin/codex"
+              ;;
+            neko7-splitcast-runtime)
+              unit="$out/share/systemd/user/splitcast-production.service"
+              test -r "$unit"
+              test -r "$out/share/splitcast/production.toml"
+              grep -F 'ExecStart=' "$unit" | grep -F 'splitcast-migration-gated'
+              if grep -q '^WantedBy=' "$unit"; then exit 1; fi
+              ;;
+          esac
+      - name: Preserve failed build diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ inputs.arm }}-${{ fromJSON(inputs.fixture).stage }}-${{ fromJSON(inputs.fixture).pr }}-${{ matrix.workload }}
+          path: ${{ runner.temp }}/workload-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ingress:
+    name: Tailnet-only ingress negative controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify host policy and execute firewall machine test
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.local.features.tailnet-ingress.enable" | jq -e '. == true'
+          nix eval --json "$attr.networking.nat.forwardPorts" | jq -e 'length == 0'
+          nix eval --json "$attr.networking.nftables.tables.tailnet_ingress.family" | jq -e '. == "inet"'
+          nix build -L --no-link .#checks.x86_64-linux.tailnet-ingress
+  integration:
+    name: Incus ${{ matrix.kind }} lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [container]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(inputs.fixture).originalCommit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconstruct verified historical fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
+          ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          original=$(jq -er .originalCommit <<< "$FIXTURE")
+          original_tree=$(jq -er .originalTree <<< "$FIXTURE")
+          stage=$(jq -er .stage <<< "$FIXTURE")
+          pr=$(jq -er .pr <<< "$FIXTURE")
+          expected=$(jq -er ".${ARM}Tree" <<< "$FIXTURE")
+          lock=$(jq -er .lock <<< "$FIXTURE")
+          test "$(git rev-parse HEAD)" = "$original"
+          test "$(git rev-parse HEAD^{tree})" = "$original_tree"
+          test -z "$(git status --porcelain)"
+          git diff --binary 113408498954d9df3c55d72c202bfd7a801e5a3a 652a693d570f46434cb57ed6508965e3429ea1b8 -- assets/safety/shell/operations.sh assets/safety/shell/test-operations.sh modules/10-foundations/safety-shell-check.nix > "$RUNNER_TEMP/repair.patch"
+          echo "3baecc85c32c3f089cb50ad18984a2c050e51fc77f2dc35d8222a74f41043549  $RUNNER_TEMP/repair.patch" | sha256sum --check --strict
+          git apply --index --check "$RUNNER_TEMP/repair.patch"
+          git apply --index "$RUNNER_TEMP/repair.patch"
+          test "$(git write-tree)" = "$(jq -er .baselineTree <<< "$FIXTURE")"
+          if [[ "$ARM" == candidate ]]; then
+            git diff --binary 3a1245286e3d43b49aea83a8efb64b27066ac015 1672c3831724f0f347245f197dd58aa97d563206 -- assets/catppuccin-materialized modules/50-features/desktop/catppuccin.nix > "$RUNNER_TEMP/materialization.patch"
+            echo "d578073f6556c704dec6625d38161d5c2fc170b0db05c2cab9c77cede6932e2e  $RUNNER_TEMP/materialization.patch" | sha256sum --check --strict
+            git apply --index --check "$RUNNER_TEMP/materialization.patch"
+            git apply --index "$RUNNER_TEMP/materialization.patch"
+          fi
+          test "$(git write-tree)" = "$expected"
+          test "$(sha256sum flake.lock | cut -d' ' -f1)" = "$lock"
+          export GIT_AUTHOR_NAME='CI replay' GIT_AUTHOR_EMAIL='ci-replay@example.invalid' GIT_AUTHOR_DATE='2026-11-27T00:00:00Z'
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL" GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+          effective=$(git -c commit.gpgsign=false commit-tree "$expected" -p "$original" -m "test(ci): replay historical PR $pr $stage $ARM")
+          git checkout --detach "$effective"
+          test "$(git rev-parse HEAD^{tree})" = "$expected"
+          test -z "$(git status --porcelain)"
+          echo "HISTORICAL_RECEIPT arm=$ARM stage=$stage pr=$pr original=$original original_tree=$original_tree commit=$effective tree=$expected lock=$lock"
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check KVM availability (required for real machine evidence)
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          grep -E 'vmx|svm' /proc/cpuinfo | head -c 1000 || true
+          df -h
+      - name: Evaluate host integration and preserve privilege boundary
+        run: |
+          set -euo pipefail
+          attr=.#nixosConfigurations.neko7.config
+          nix eval --json "$attr.virtualisation.incus.enable" | jq -e '. == true'
+          nix eval --raw "$attr.virtualisation.incus.package.version"
+          nix eval --raw "$attr.virtualisation.incus.package.drvPath"
+
+          nix eval --json "$attr.virtualisation.incus.preseed" | jq -e '
+            .config["core.https_address"] == "127.0.0.1:8443"
+            and (.projects[] | select(.name == "lab") | .config.restricted == "true")
+          '
+          nix eval --json "$attr.users.users.tenzyu.extraGroups" | jq -e 'index("incus-admin") == null and index("incus") == null'
+          nix eval --json "$attr.containers" --apply builtins.attrNames | jq -e 'index("neko7-mc") != null'
+          nix eval --raw "$attr.system.build.toplevel.drvPath"
+      - name: Build and execute NixOS machine test
+        run: nix build -L --no-link .#checks.x86_64-linux.compute-host-${{ matrix.kind }}

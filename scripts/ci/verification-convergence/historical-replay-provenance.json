@@ -1,0 +1,46 @@
+{
+  "fixtureRun": 45949394898,
+  "fixtureArtifact": 15175582967,
+  "negativeRun": 45950746641,
+  "baseline": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+  "candidate": "1672c3831724f0f347245f197dd58aa97d563206",
+  "workflows": [
+    {
+      "path": ".github/workflows/historical-baseline-nix-validation.yml",
+      "sourceRef": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+      "sourcePath": ".github/workflows/nix-validation.yml",
+      "sourceBlob": "e10975dbb1e47a2f74d4fcd540f7ab4e5da40894",
+      "checkoutCount": 3
+    },
+    {
+      "path": ".github/workflows/historical-baseline-compute-host.yml",
+      "sourceRef": "3a1245286e3d43b49aea83a8efb64b27066ac015",
+      "sourcePath": ".github/workflows/compute-host.yml",
+      "sourceBlob": "713041ef1b0b724d29f2f147cf618a2f816b21b3",
+      "checkoutCount": 7
+    },
+    {
+      "path": ".github/workflows/historical-candidate-nix-validation.yml",
+      "sourceRef": "1672c3831724f0f347245f197dd58aa97d563206",
+      "sourcePath": ".github/workflows/nix-validation.yml",
+      "sourceBlob": "1ba977717c8276e1570466e76c85f3b20573b6ff",
+      "checkoutCount": 3
+    },
+    {
+      "path": ".github/workflows/historical-candidate-compute-host.yml",
+      "sourceRef": "1672c3831724f0f347245f197dd58aa97d563206",
+      "sourcePath": ".github/workflows/compute-host.yml",
+      "sourceBlob": "713041ef1b0b724d29f2f147cf618a2f816b21b3",
+      "checkoutCount": 7
+    }
+  ],
+  "expectedOrdinaryGates": 520,
+  "expectedOnDemandSkipped": 40,
+  "stages": [
+    "baseline-head",
+    "baseline-merge",
+    "candidate-head",
+    "candidate-merge"
+  ],
+  "scope": "actual historical source changes, repaired with previously verified lock-lifetime patch; head then historical merge-tree replay, not live merge execution; independent cold runner for each gate; all candidate provenance steps reproduce from native packages (push diagnostic context); stage-level barriers; merge trees replay concurrently, not a live serial integration queue"
+}

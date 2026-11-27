@@ -1,0 +1,136 @@
+# Diagnostic only. Replays actual historical content; never publishes or merges.
+name: Diagnostic historical all-gate replay
+on:
+  push:
+    branches: [diagnostics/historical-all-gate-replay]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heads: ${{ steps.matrix.outputs.heads }}
+      merges: ${{ steps.matrix.outputs.merges }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: historical-fixture-receipts
+          run-id: 45949394898
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/historical-fixtures
+      - name: Verify negative-control predecessor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/45950746641" | jq -e '.head_sha == "c68ba703a66eeec6783d3ffa838f3a5ea7478408" and .status == "completed" and .conclusion == "success"'
+      - id: matrix
+        run: python3 scripts/ci/verification-convergence/historical_matrix.py
+  baseline-head-nix-validation:
+    name: baseline-head-nix-validation (${{ matrix.fixture.pr }})
+    needs: [prepare]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.heads) }}
+    uses: ./.github/workflows/historical-baseline-nix-validation.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: baseline
+  baseline-head-compute-host:
+    name: baseline-head-compute-host (${{ matrix.fixture.pr }})
+    needs: [prepare]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.heads) }}
+    uses: ./.github/workflows/historical-baseline-compute-host.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: baseline
+  baseline-merge-nix-validation:
+    name: baseline-merge-nix-validation (${{ matrix.fixture.pr }})
+    needs: [prepare, baseline-head-nix-validation, baseline-head-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.merges) }}
+    uses: ./.github/workflows/historical-baseline-nix-validation.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: baseline
+  baseline-merge-compute-host:
+    name: baseline-merge-compute-host (${{ matrix.fixture.pr }})
+    needs: [prepare, baseline-head-nix-validation, baseline-head-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.merges) }}
+    uses: ./.github/workflows/historical-baseline-compute-host.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: baseline
+  candidate-head-nix-validation:
+    name: candidate-head-nix-validation (${{ matrix.fixture.pr }})
+    needs: [prepare, baseline-merge-nix-validation, baseline-merge-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.heads) }}
+    uses: ./.github/workflows/historical-candidate-nix-validation.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: candidate
+  candidate-head-compute-host:
+    name: candidate-head-compute-host (${{ matrix.fixture.pr }})
+    needs: [prepare, baseline-merge-nix-validation, baseline-merge-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.heads) }}
+    uses: ./.github/workflows/historical-candidate-compute-host.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: candidate
+  candidate-merge-nix-validation:
+    name: candidate-merge-nix-validation (${{ matrix.fixture.pr }})
+    needs: [prepare, candidate-head-nix-validation, candidate-head-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.merges) }}
+    uses: ./.github/workflows/historical-candidate-nix-validation.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: candidate
+  candidate-merge-compute-host:
+    name: candidate-merge-compute-host (${{ matrix.fixture.pr }})
+    needs: [prepare, candidate-head-nix-validation, candidate-head-compute-host]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        fixture: ${{ fromJSON(needs.prepare.outputs.merges) }}
+    uses: ./.github/workflows/historical-candidate-compute-host.yml
+    with:
+      fixture: ${{ toJSON(matrix.fixture) }}
+      arm: candidate
