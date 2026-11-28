@@ -8,7 +8,7 @@ Nix resolves test dependencies. Local operators and GitHub Actions build the sam
 | Host evaluation, trust, desktop policy | `nix build -L --no-link .#checks.x86_64-linux.host-policy` |
 | Built desktop packages, clipboard, T3 Serve | `nix build -L --no-link .#checks.x86_64-linux.desktop-packages .#checks.x86_64-linux.clipboard .#checks.x86_64-linux.t3-serve` |
 | Local Markdown links | `nix build -L --no-link .#checks.x86_64-linux.docs` |
-| Ordinary PR gate (all focused checks, including custom runtime safety tests) | `nix build -L --keep-going --no-link .#checks.x86_64-linux.validation` |
+| Ordinary PR gate (all focused checks, including custom runtime safety tests) | `nix build -L --keep-going --no-link --option allow-import-from-derivation false .#checks.x86_64-linux.validation` |
 | Home migration recovery (disposable machine) | `nix build -L --no-link .#checks.x86_64-linux.home-migration` |
 | Compute integration | See [compute host](compute-host.md) and `checks.x86_64-linux` |
 
@@ -17,3 +17,17 @@ Nix derivation dependencies and substitution replace source-diff-based test sele
 When you set `cache_strict=true` in GitHub Actions, the workflow runs the signed SplitCast cache copy audit. The audit verifies the pinned outputs and closure in an isolated store. It does not test the live neko7 daemon. The source-owned substituter and signing key are scoped to the enabled consumer role. No external cache availability probe is an ordinary PR gate; `checks.x86_64-linux.splitcast-cache-cli` checks syntax, help and rejection of invalid arguments offline.
 
 Historical selector, migration comparison and retrieval tests are in the [archive](../archive/README.md). Do not add tests of a deleted compatibility interface. Add tests for local behavioral or privilege contracts that native upstream tests do not establish.
+
+
+## Catppuccin source updates
+
+The Firefox, Starship and palette assets are snapshots of the locked upstream
+package outputs. Evaluation reads these source files instead of realizing theme
+derivations. Other Catppuccin sources retain their upstream identities.
+
+After updating the Catppuccin input or its internal nixpkgs input, run
+`bash scripts/desktop/refresh-catppuccin-assets.sh` on x86_64-linux and review
+and stage `assets/catppuccin/` together with `flake.lock`. The module rejects
+a snapshot whose source hashes do not match the lock. The refresh may compile
+Whiskers once; normal evaluation does not run the refresh. The ordinary
+validation gate forbids import from derivation, not normal build dependencies.
